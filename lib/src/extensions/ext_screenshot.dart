@@ -7,10 +7,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:image/image.dart' as img_lib;
 
-import '../ref_registry.dart';
-
-import '../dusk_plugin.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
+
+import '../ref_registry.dart';
 
 /// Registers the `ext.dusk.screenshot` VM Service extension.
 ///
@@ -267,34 +266,17 @@ RenderObject _findRepaintBoundaryAncestor(RenderObject start) {
 
 /// Resolves the root render object for a ref-less capture.
 ///
-/// Preference order:
+/// Walks to the render object of [WidgetsBinding.instance.rootElement] —
+/// typically the framework's [RenderView]. `RenderView.isRepaintBoundary`
+/// is `true`, so the ancestor walk in [_findRepaintBoundaryAncestor] stops
+/// immediately and we capture the full viewport. Hosts that wrap their root
+/// in an explicit [RepaintBoundary] under `kDebugMode` (the pattern
+/// uptizm-app uses) get pixel-tight captures of that subtree; hosts that
+/// don't still get the full viewport via the RenderView fallback.
 ///
-/// 1. [DuskPlugin.rootRepaintBoundaryKey] when its `currentContext`
-///    resolves — the host explicitly wrapped its root with the plugin's
-///    GlobalKey (legacy V3.0 layout).
-/// 2. The render object of [WidgetsBinding.instance.rootElement] — typically
-///    the framework's [RenderView]. `RenderView.isRepaintBoundary` is
-///    `true`, so the ancestor walk in [_findRepaintBoundaryAncestor] stops
-///    immediately and we capture the full viewport.
-///
-/// Throws [StateError] when neither path resolves (plugin not installed
-/// AND no root element — install() was called before runApp() or the
-/// binding is not initialised).
+/// Throws [StateError] when the binding has no root element (install() was
+/// called before runApp() or the binding is not initialised).
 RenderObject _resolveRootRenderObject() {
-  // 1. Prefer the explicit GlobalKey wrap when present. Skipped silently
-  //    when the key has no currentContext — the V3.1 default no longer
-  //    wraps with this key (avoids GlobalKey-vs-MagicApplication lifecycle
-  //    assertions). The fallback path is the standard route post-V3.1.
-  final BuildContext? keyedCtx =
-      DuskPlugin.rootRepaintBoundaryKey.currentContext;
-  if (keyedCtx != null) {
-    final RenderObject? keyedRO = keyedCtx.findRenderObject();
-    if (keyedRO != null) return keyedRO;
-  }
-
-  // 2. Fall back to the root element's render object (RenderView). Always
-  //    isRepaintBoundary, so the ancestor walk resolves to RenderView
-  //    itself. This is the path the regression-guard test exercises.
   final Element? rootEl = WidgetsBinding.instance.rootElement;
   if (rootEl == null) {
     throw StateError(
