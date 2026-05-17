@@ -96,6 +96,14 @@ class RefEntry {
 class RefRegistry {
   RefRegistry._();
 
+  /// Sentinel instance for enricher contracts.
+  ///
+  /// [DuskSnapshotEnricher] takes a `RefRegistry` parameter for forward
+  /// compatibility, but all current registry operations are static. Snap
+  /// passes this singleton so enrichers conform to the typedef without
+  /// constructing throw-away instances per call.
+  static final RefRegistry instance = RefRegistry._();
+
   // ---------------------------------------------------------------------------
   // Internal state
   // ---------------------------------------------------------------------------

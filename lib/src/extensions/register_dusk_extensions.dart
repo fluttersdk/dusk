@@ -2,6 +2,7 @@ import 'ext_modal_router.dart';
 import 'ext_pointer.dart';
 import 'ext_screenshot.dart';
 import 'ext_scroll.dart';
+import 'ext_snapshot.dart';
 import 'ext_text_input.dart';
 import 'ext_wait_find.dart';
 
@@ -12,6 +13,7 @@ import 'ext_wait_find.dart';
 /// extension table persists across hot-restart; the second registration
 /// silently no-ops via the ArgumentError catch).
 void registerAllDuskExtensions() {
+  registerSnapExtension();
   registerPointerExtensions();
   registerTextInputExtensions();
   registerScrollExtensions();
