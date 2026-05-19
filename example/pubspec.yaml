@@ -37,6 +37,8 @@ dependencies:
 
   fluttersdk_dusk:
     path: ../
+  fluttersdk_artisan:
+    path: ../../fluttersdk_artisan
 
 dev_dependencies:
   flutter_test:
@@ -90,3 +92,4 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+

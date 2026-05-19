@@ -116,7 +116,7 @@ packages:
     source: sdk
     version: "0.0.0"
   fluttersdk_artisan:
-    dependency: transitive
+    dependency: "direct main"
     description:
       path: "../../fluttersdk_artisan"
       relative: true

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "name": "fluttersdk_dusk",
+      "providerImport": "package:fluttersdk_dusk/cli.dart",
+      "providerClass": "FluttersdkDuskArtisanProvider",
+      "registeredAt": "2026-05-19T11:53:30.726838Z"
+    }
+  ]
+}
