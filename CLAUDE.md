@@ -68,11 +68,15 @@ hot-restart safety.
 ### Actionability gate
 
 The four direct-action handlers (`tap`, `hover`, `drag`, `type`) resolve through `utils/actionability_gate.dart`
-BEFORE synthesising the pointer / key event. The gate verifies three preconditions in order: (1) visibility
-(target's `RenderObject` is attached + paint bounds are non-zero), (2) hit-testability (no opaque sibling occludes
-the target's hit-test region), (3) enabled (the widget's own enabled / interactive flag is true). Any failure
-returns a structured `actionability` MCP error result naming the failing precondition; the agent re-snaps or
-re-finds, never silently retries.
+BEFORE synthesising the pointer / key event. The gate verifies three preconditions in order: (1) **enabled**
+(`SemanticsNode.flagsCollection.isEnabled == Tristate.isFalse` is the only failing state; `Tristate.none` and
+`Tristate.isTrue` pass), (2) **zero-area rect** (`rect.width == 0 || rect.height == 0`), (3) **off-viewport**
+(rect does not overlap the active `FlutterView` logical viewport; skipped gracefully when no view is attached).
+Any failure throws `DuskActionabilityException` (`lib/src/utils/dusk_exceptions.dart`); the handler catches it
+and emits `ServiceExtensionResponse.error(extensionError, exception.message)` where the message is a free-form
+string of the form `"Widget ref=$ref is not actionable: $reason"` with `$reason` ∈
+{`"not enabled"`, `"zero rect"`, `"off-viewport (rect=..., viewport=...)"`}. The agent re-snaps or re-finds,
+never silently retries.
 
 `scroll`, `select_option`, and `press_key` intentionally skip the gate (alpha-2): scroll operates on the parent
 scrollable not the ref target, select_option dispatches through Material/Cupertino popup machinery that owns its
@@ -117,7 +121,7 @@ is a deferred-idea candidate; see CHANGELOG `### Known gaps`.
   the V1 manifest carries the post-install bootstrap message + the `executables:` mapping anchor.
 - No new production dependencies beyond `fluttersdk_artisan`, `meta`, and `image`. Example apps may add their own
   demo deps (`magic` + `wind` for `example_magic`).
-- The actionability gate's three preconditions (visibility → hit-test → enabled) are evaluated in that order. New
-  preconditions added in V1.x append to the chain; do NOT reorder the existing three (the order is documented in
-  the structured error payload that agents branch on).
+- The actionability gate's three preconditions (enabled → zero-rect → off-viewport) are evaluated in that order
+  inside `actionability_gate.dart`. New preconditions added in V1.x append to the chain; do NOT reorder the
+  existing three (agents parse the `DuskActionabilityException` message reason substring for branching).
 - `q<N>` and `e<N>` token spaces are disjoint. Never mint `e<N>` from `dusk_find` or `q<N>` from `dusk_snap`.
