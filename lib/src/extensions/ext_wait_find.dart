@@ -66,6 +66,11 @@ void registerWaitFindExtensions() {
 /// (pre-existing xml/image conflict in this repo blocks adding it as a
 /// path-dep) while letting the wait_for_network_idle handler still observe
 /// real network traffic when telescope is present.
+///
+/// **Contract**: set-once-per-isolate from `MagicTelescopeIntegration.install()`.
+/// Reset to `() => 0` by `MagicTelescopeIntegration.resetForTesting()` so
+/// downstream tests asserting the missing-telescope default do not see leaked
+/// bindings.
 int Function() pendingHttpCountReader = () => 0;
 
 // ---------------------------------------------------------------------------

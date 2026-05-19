@@ -6,6 +6,7 @@ import 'ext_exceptions.dart';
 import 'ext_find.dart';
 import 'ext_modal_router.dart';
 import 'ext_navigation.dart';
+import 'ext_observe.dart';
 import 'ext_pointer.dart';
 import 'ext_screenshot.dart';
 import 'ext_scroll.dart';
@@ -59,4 +60,5 @@ void registerAllDuskExtensions() {
   registerConsoleExtensions();
   registerExceptionsExtensions();
   registerCheckboxExtensions();
+  registerObserveExtensions();
 }

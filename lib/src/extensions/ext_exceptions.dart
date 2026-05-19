@@ -32,6 +32,11 @@ const String kDuskExceptionsMcpExtension = 'ext.dusk.exceptions';
 /// ```
 ///
 /// The indirection keeps dusk's pubspec free of a telescope dependency.
+///
+/// **Contract**: set-once-per-isolate from `MagicTelescopeIntegration.install()`.
+/// Reset to the empty-list default by `MagicTelescopeIntegration.resetForTesting()`
+/// so downstream tests asserting the missing-telescope default do not see leaked
+/// bindings.
 List<Map<String, dynamic>> Function({int limit}) recentExceptionsReader =
     ({int limit = 20}) => const [];
 

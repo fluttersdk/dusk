@@ -33,6 +33,11 @@ const String kDuskConsoleMcpExtension = 'ext.dusk.console';
 ///
 /// The indirection keeps dusk's pubspec free of a telescope dependency while
 /// letting the console handler still read real logs when telescope is wired.
+///
+/// **Contract**: set-once-per-isolate from `MagicTelescopeIntegration.install()`.
+/// Reset to the empty-list default by `MagicTelescopeIntegration.resetForTesting()`
+/// so downstream tests asserting the missing-telescope default do not see leaked
+/// bindings.
 List<Map<String, dynamic>> Function({int limit, String? minLevel})
     recentLogsReader = ({int limit = 50, String? minLevel}) => const [];
 

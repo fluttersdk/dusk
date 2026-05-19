@@ -13,14 +13,15 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 23 commands', () {
-      expect(cmds, hasLength(23));
+    test('returns exactly 25 commands', () {
+      expect(cmds, hasLength(25));
     });
 
     test(
         'contains every alpha-2 ship command (3 alpha-1 + install + 6 verbs + '
         'doctor + 7 CLI/MCP-symmetry pass + Step 3.4 network-idle waiter + '
-        'Step 3.5 console + exceptions + dblclick + set_checkbox)', () {
+        'Step 3.5 console + exceptions + dblclick + set_checkbox + Step 4.1 '
+        'observe + Step 4.2 hot_reload_and_snap)', () {
       final names = cmds.map((c) => c.runtimeType.toString()).toSet();
       expect(
         names,
@@ -55,6 +56,10 @@ void main() {
           'DuskExceptionsCommand',
           'DuskDblclickCommand',
           'DuskSetCheckboxCommand',
+          // Step 4.1.
+          'DuskObserveCommand',
+          // Step 4.2.
+          'DuskHotReloadAndSnapCommand',
         ]),
       );
     });
@@ -71,15 +76,15 @@ void main() {
     // Length
     // -------------------------------------------------------------------------
 
-    test('returns exactly 22 descriptors', () {
-      expect(tools, hasLength(22));
+    test('returns exactly 24 descriptors', () {
+      expect(tools, hasLength(24));
     });
 
     // -------------------------------------------------------------------------
     // Names
     // -------------------------------------------------------------------------
 
-    test('contains all 22 expected tool names', () {
+    test('contains all 24 expected tool names', () {
       final names = tools.map((t) => t.name).toList();
       expect(
         names,
@@ -111,6 +116,10 @@ void main() {
           'dusk_exceptions',
           'dusk_dblclick',
           'dusk_set_checkbox',
+          // Step 4.1.
+          'dusk_observe',
+          // Step 4.2.
+          'dusk_hot_reload_and_snap',
         ]),
       );
     });
@@ -163,6 +172,16 @@ void main() {
       expect(byName['dusk_exceptions'], equals('ext.dusk.exceptions'));
       expect(byName['dusk_dblclick'], equals('ext.dusk.dblclick'));
       expect(byName['dusk_set_checkbox'], equals('ext.dusk.set_checkbox'));
+      // Step 4.1.
+      expect(byName['dusk_observe'], equals('ext.dusk.observe'));
+      // Step 4.2. NO VM extension surface: hot reload cannot fire from
+      // inside the running isolate. The descriptor routes through the
+      // `artisan:` dispatch prefix so the MCP server runs the CLI command
+      // in-process instead of calling a VM Service extension.
+      expect(
+        byName['dusk_hot_reload_and_snap'],
+        equals('artisan:dusk:hot_reload_and_snap'),
+      );
     });
 
     test('no two descriptors share an extensionMethod (no overlap, no gap)',

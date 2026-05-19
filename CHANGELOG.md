@@ -4,6 +4,86 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Wave 3 (Playwright-pattern action layer)
+
+- **5-gate actionability**: Stable + Receives-Events gates added to
+  `ensureActionable` (now async). Total preconditions in evaluation order:
+  enabled, zero-rect, off-viewport, stable (rect unchanged across 2
+  consecutive frames — Playwright auto-waiting), receives-events (hit-test
+  confirms ref is the front-most pointer target). Opt-out via
+  `checkStable=false` / `checkReceivesEvents=false` (both default `true`).
+  Failure-reason substrings extended: `"not stable"`, `"obscured by"` join
+  the existing 3-reason agent branch surface.
+- **Snapshot-in-action-response** (Playwright `setIncludeSnapshot` pattern):
+  8 action handlers (`tap`, `hover`, `drag`, `type`, `press_key`, `scroll`,
+  `navigate`, `navigate_back`) accept `includeSnapshot=true` and append the
+  post-action snapshot YAML to the success response. The agent no longer
+  needs a mandatory follow-up `dusk_snap` call. `duskSnapBuild` widened
+  from `@visibleForTesting` to public (legitimate production reuse).
+  `press_key` handler endOfFrame omission fixed in passing.
+- **Structured error envelope + fuzzy-match suggestions**: new
+  `lib/src/utils/error_envelope.dart` with `DuskErrorEnvelope` carrying
+  `type` + `widget_path` + `suggestions[]`. 10 type values: `timeout`,
+  `not_found`, `obscured`, `disabled`, `stale`, `zero_rect`,
+  `off_viewport`, `not_stable`, `missing_param`, `unexpected`. 6
+  factories. Dual-write into `errorDetail` (JSON envelope alongside the
+  free-form message) preserves backward compat for substring-matching
+  agents. Levenshtein with prefix-bonus drives the suggestions list for
+  `not_found`. `RefRegistry.activeRefs()` added to support candidate
+  collection.
+- **`ext.dusk.wait_for_network_idle`** (Step 3.4 cross-package): polls
+  `TelescopeStore.pendingHttpCount` until the count hits zero for a
+  configurable `idleMs` window. Params `timeoutMs` (5000), `idleMs` (500),
+  `pollIntervalMs` (200). Function-pointer indirection
+  (`pendingHttpCountReader` exported from `dusk.dart`) keeps dusk free of
+  a hard telescope dependency; magic-side wires the real reader at
+  install time. New CLI command `dusk:wait_for_network_idle`.
+- **4 utility tools** (Step 3.5): `dusk_console` (telescope log reader,
+  function-pointer indirection via `recentLogsReader`), `dusk_exceptions`
+  (telescope exception reader via `recentExceptionsReader`),
+  `dusk_dblclick` (two synthesised taps with 100ms inter-tap delay,
+  shared 5-gate actionability + snapshot embed), `dusk_set_checkbox`
+  (idempotent `Checkbox` / `Switch` toggle via element walk; no-op when
+  current value matches target).
+
+### Added — Wave 4 (agent loop optimization)
+
+- **`ext.dusk.observe`** (Step 4.1): Stagehand-style observe-once-act-many
+  pattern WITHOUT server-side LLM. Walks every active `PipelineOwner`
+  semantics tree, filters interactive nodes (buttons / textfields /
+  links / checkboxes / dropdowns via `_roleFor` / `_isInteractive` —
+  mirrors `ext_snapshot.dart`), mints a re-resolvable `q<N>` ref per
+  candidate (Playwright Locator pattern; never `e<N>`), and returns a
+  structured JSON list `{candidates: [...], count: N}`. Each candidate
+  carries `ref`, `role`, `label`, `value`, `bounds`, `isEnabled`,
+  `isVisible`, plus enricher-projected fields under
+  `includeEnrichers='defaults'` (subset: `magicFormField`, `magicRoute`,
+  `magicGateResult`, `wind.{breakpoint,states}`) or
+  `includeEnrichers='full'` (full enricher payload). Params: `intent`
+  (caller hint, echoed only), `limit` (default 50), `roles`
+  (comma-separated filter), `includeEnrichers`.
+- **`dusk:hot_reload_and_snap`** (Step 4.2): mcp_flutter
+  `fmt_hot_reload_and_capture` equivalent. CLI-side orchestration via
+  `VmServiceClient.reloadSources` (in-isolate handler cannot reload its
+  own isolate; deadlock avoidance). Sequence: reload → wait → snap →
+  screenshot → exceptions → bundle. Success envelope
+  `{reloaded, durationMs, snapshot, screenshot, recentExceptions}`;
+  compile-error envelope skips snap/screenshot but still gathers
+  exceptions. Screenshot failure surfaces as partial-result
+  `screenshotError` rather than aborting the round-trip. MCP descriptor
+  uses the artisan substrate routing prefix
+  (`extensionMethod: 'artisan:dusk:hot_reload_and_snap'`) so the MCP
+  server dispatches to the CLI command in-process.
+
+### Surface deltas
+
+- **CLI commands**: 18 → **25** (Wave 3.4 +1, Wave 3.5 +4, Wave 4.1 +1,
+  Wave 4.2 +1).
+- **MCP tool descriptors**: 17 → **24** (same breakdown).
+- **VM Service extensions**: 17 → **23** (no extension for
+  `dusk_hot_reload_and_snap` per the in-isolate constraint).
+- **Tests**: 395 baseline → **547** (+152 across Wave 3 and Wave 4).
+
 ## [0.0.1] - 2026-05-19
 
 Initial release. E2E driver for Flutter apps. Snapshot, tap, type, drag, scroll, screenshot, wait, find via VM Service extensions (`ext.dusk.*`). Framework-agnostic (vanilla Flutter friendly); Magic / Wind integrations ship inside those packages via `DuskPlugin.enrichers` extension point.

@@ -8,11 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Flutter SDK package. Version 0.0.1. Requires the Flutter runtime (widgets, foundation, dart:ui, gestures, services)
 for synthesised pointer / key events and the Semantics tree walk. Dart 3.4+ / Flutter 3.22+. Plugin of
-`fluttersdk_artisan`: contributes `DuskArtisanProvider` which surfaces 18 CLI commands (`dusk:install`, `dusk:snap`,
+`fluttersdk_artisan`: contributes `DuskArtisanProvider` which surfaces **25 CLI commands** (`dusk:install`, `dusk:snap`,
 `dusk:tap`, `dusk:screenshot`, `dusk:type`, `dusk:scroll`, `dusk:wait`, `dusk:hover`, `dusk:drag`, `dusk:modal`,
 `dusk:doctor`, `dusk:navigate`, `dusk:navigate_back`, `dusk:get_routes`, `dusk:press_key`, `dusk:select_option`,
-`dusk:close_app`, `dusk:find`) and 17 MCP tools backed by `ext.dusk.*` VM Service extensions. `dusk_evaluate` is
-intentionally MCP-only (magic_tinker owns the connected REPL surface).
+`dusk:close_app`, `dusk:find`, `dusk:wait_for_network_idle`, `dusk:console`, `dusk:exceptions`, `dusk:dblclick`,
+`dusk:set_checkbox`, `dusk:observe`, `dusk:hot_reload_and_snap`) and **24 MCP tools** backed by `ext.dusk.*` VM Service
+extensions (23 of the 24 tools have a backing VM extension; `dusk_hot_reload_and_snap` is dispatched via the
+`artisan:` substrate routing prefix to a CLI command because hot-reload from inside the same isolate would deadlock).
+`dusk_evaluate` is intentionally MCP-only (magic_tinker owns the connected REPL surface).
 
 Deps: `fluttersdk_artisan` (path), `meta: ^1.16.0`, `image: ^4.0.0`. Dev deps: `flutter_test`, `flutter_lints`. This
 package is debug-only at the consumer call site: the consumer wraps `DuskPlugin.install()` inside `if (kDebugMode)`

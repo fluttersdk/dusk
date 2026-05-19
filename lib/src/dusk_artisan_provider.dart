@@ -8,11 +8,13 @@ import 'commands/dusk_drag_command.dart';
 import 'commands/dusk_exceptions_command.dart';
 import 'commands/dusk_find_command.dart';
 import 'commands/dusk_get_routes_command.dart';
+import 'commands/dusk_hot_reload_and_snap_command.dart';
 import 'commands/dusk_hover_command.dart';
 import 'commands/dusk_install_command.dart';
 import 'commands/dusk_modal_command.dart';
 import 'commands/dusk_navigate_back_command.dart';
 import 'commands/dusk_navigate_command.dart';
+import 'commands/dusk_observe_command.dart';
 import 'commands/dusk_press_key_command.dart';
 import 'commands/dusk_screenshot_command.dart';
 import 'commands/dusk_scroll_command.dart';
@@ -91,6 +93,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         DuskExceptionsCommand(),
         DuskDblclickCommand(),
         DuskSetCheckboxCommand(),
+        // Wave 4 Step 4.1: structured candidate list (Stagehand observe-once-
+        // act-many; no server-side LLM).
+        DuskObserveCommand(),
+        // Wave 4 Step 4.2: fused round-trip (mcp_flutter's
+        // `fmt_hot_reload_and_capture` pattern). Reload lives CLI-side
+        // because an in-isolate handler cannot reload itself.
+        DuskHotReloadAndSnapCommand(),
       ];
 
   @override
@@ -968,6 +977,140 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             'required': <String>['ref', 'value'],
           },
           extensionMethod: 'ext.dusk.set_checkbox',
+        ),
+        // ---------------------------------------------------------------------
+        // 23. Observe: structured candidate list (Stagehand observe-once-
+        // act-many; no server-side LLM).
+        // ---------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_observe',
+          description:
+              'Return a structured candidate list of every interactive widget '
+              'on screen.\n'
+              '\n'
+              'Walks the live Semantics + Element tree once, finds every '
+              'interactive node (buttons, text fields, links, checkboxes, '
+              'dropdowns — same role detection as dusk_find), and mints a '
+              're-resolvable `q<N>` ref for each candidate via the '
+              'Playwright-Locator pattern. NO server-side LLM is invoked: '
+              'the agent reads the candidate list and decides which refs to '
+              'act on. Implements Stagehand\'s observe-once-act-many pattern '
+              '(model-agnostic locked decision).\n'
+              '\n'
+              'Each candidate carries: `ref`, `role`, `label`, `value`, '
+              '`bounds` (x/y/w/h), `isEnabled`, `isVisible`, plus a subset '
+              'of per-candidate enricher fields when '
+              '`includeEnrichers=true` (default: `magicFormField`, '
+              '`magicRoute`, `magicGateResult`, `wind.breakpoint`, '
+              '`wind.states`).\n'
+              '\n'
+              'Usage:\n'
+              '- No required params; sensible defaults observe every role '
+              'with `limit=50` and the default enricher subset.\n'
+              '- Pass `intent: "<hint>"` to record what the agent is looking '
+              'for (NOT used server-side; accepted purely for caller-side '
+              'audit logging).\n'
+              '- Pass `roles: "button,textbox"` to filter the candidate '
+              'list to a comma-separated subset.\n'
+              '- Pass `limit: <n>` to cap the candidate count.\n'
+              '- Pass `includeEnrichers: "false"` to skip enricher fields '
+              'entirely; pass `includeEnrichers: "full"` for every enricher '
+              'field (incl. full `wind` block).\n'
+              '- q-refs survive widget rebuilds; reuse a single observe '
+              'output across many follow-up dusk_tap / dusk_type / dusk_drag '
+              'calls without re-observing.\n'
+              '\n'
+              'Examples:\n'
+              '- `{ "roles": "button", "limit": 20 }`\n'
+              '- `{ "intent": "login form", "roles": "textbox,button" }`',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'intent': <String, dynamic>{
+                'type': 'string',
+                'description': 'Free-form caller hint describing what the '
+                    'agent is looking for (e.g. "login form"). NOT used '
+                    'server-side; echoed in audit logs only.',
+              },
+              'roles': <String, dynamic>{
+                'type': 'string',
+                'description': 'Comma-separated role filter '
+                    '(e.g. `"button,textbox"`). Roles match the same '
+                    'vocabulary as dusk_snap: `button`, `textbox`, `link`, '
+                    '`checkbox`, `heading`, `image`. Omit for every role.',
+              },
+              'limit': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Maximum number of candidates to return. '
+                    'Default 50.',
+              },
+              'includeEnrichers': <String, dynamic>{
+                'type': 'string',
+                'enum': <String>['true', 'false', 'full'],
+                'description': 'Toggle per-candidate enricher fields. '
+                    '`"true"` (default) projects the default subset '
+                    '(magicFormField, magicRoute, magicGateResult, '
+                    'wind.breakpoint+states); `"false"` projects no '
+                    'enricher fields; `"full"` projects every field '
+                    'including all wind sub-fields.',
+              },
+            },
+          },
+          extensionMethod: 'ext.dusk.observe',
+        ),
+        // ---------------------------------------------------------------------
+        // 24. Hot reload and snap (Step 4.2): mcp_flutter's
+        // fmt_hot_reload_and_capture pattern. Triggers a VM Service hot reload
+        // from outside the running isolate (a same-isolate handler would block
+        // on reloadSources against itself), then bundles snapshot + screenshot
+        // + recent exceptions into one response.
+        //
+        // extensionMethod routes through the `artisan:` substrate dispatch
+        // prefix instead of `ext.dusk.*`; the MCP server executes the CLI
+        // command (`dusk:hot_reload_and_snap`) in-process so the orchestration
+        // can drive `vm.reloadSources` against the target isolate.
+        // ---------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_hot_reload_and_snap',
+          description: 'Hot reload the running Flutter app, then capture a '
+              'snapshot, screenshot, and recent exceptions in one '
+              'round-trip.\n'
+              '\n'
+              'Triggers `reloadSources` over the VM Service against the '
+              'running app, waits for completion, then calls dusk_snap + '
+              'dusk_screenshot + dusk_exceptions and bundles every result '
+              'into a single response. Equivalent to mcp_flutter\'s '
+              '`fmt_hot_reload_and_capture`; saves three round-trips when '
+              'the agent needs to validate that a code change took effect.\n'
+              '\n'
+              'Usage:\n'
+              '- No required params; sensible defaults capture the '
+              'screenshot.\n'
+              '- Pass `screenshot: "false"` to skip the screenshot step '
+              '(useful when the agent only needs the Semantics tree).\n'
+              '- On reload success the response carries `reloaded: true`, '
+              '`durationMs`, `snapshot`, `screenshot` (or `screenshotError` '
+              'when capture failed; the snapshot still lands), and '
+              '`recentExceptions`.\n'
+              '- On compile error the response carries `reloaded: false`, '
+              '`durationMs`, `error` (the compile message), and '
+              '`recentExceptions`. snapshot + screenshot are omitted.\n'
+              '- Recent exceptions reuse dusk_exceptions wiring; missing '
+              'telescope is graceful (empty list).\n'
+              '\n'
+              'Example: `{ "screenshot": "false" }`',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'screenshot': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Capture a screenshot after the reload '
+                    '(default true). Pass `false` to skip the screenshot '
+                    'step.',
+              },
+            },
+          },
+          extensionMethod: 'artisan:dusk:hot_reload_and_snap',
         ),
       ];
 }
