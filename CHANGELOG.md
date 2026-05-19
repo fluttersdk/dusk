@@ -22,7 +22,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **Actionability gate (behavior change)**: action handlers no longer silently succeed when the target widget is offscreen, hit-test-occluded, or disabled. They now return a structured `actionability` error result naming the failing precondition (`visibility` / `hit-test` / `enabled`). Callers that previously relied on the silent no-op must either re-snap into view first or pre-check via `dusk_find`. This is the only behavior change in alpha-2; everything else is additive.
+- **Actionability gate (behavior change)**: action handlers no longer silently succeed when the target widget is disabled, has a zero-area rect, or sits off-viewport. They now surface a `ServiceExtensionResponse.error(extensionError, "Widget ref=$ref is not actionable: $reason")` envelope with `$reason` ∈ {`"not enabled"`, `"zero rect"`, `"off-viewport (rect=..., viewport=...)"`}. Callers that previously relied on the silent no-op must either re-snap into view first or pre-check via `dusk_find`. This is the only behavior change in alpha-2; everything else is additive.
 
 ### Magic-side coordinated changes (require magic ^[1.0.0-alpha.14] or unreleased main)
 
@@ -31,7 +31,7 @@ All notable changes to this project will be documented in this file.
 
 ### Test coverage
 
-- Dusk: per-command + per-handler tests for the 8 new commands and 11 new handler entry points, plus actionability-gate unit tests (visibility / hit-test / enabled / disabled-edge), `dusk_find` stale-handle round-trip, Chrome reaper subprocess teardown, and `dusk:doctor` categorised-report shape.
+- Dusk: per-command + per-handler tests for the 8 new commands and 11 new handler entry points, plus actionability-gate unit tests (enabled / zero-rect / off-viewport / Tristate.none-passes / empty-viewport edge case), `dusk_find` stale-handle round-trip, Chrome reaper subprocess teardown, and `dusk:doctor` categorised-report shape.
 - Dusk full suite: 248 tests green (up from the alpha-1 baseline of 11). New surfaces: 12 ext.dusk.find tests, 23 dusk:doctor tests, 16 chrome_reaper tests, 10 actionability_gate tests, 26 ext.dusk.navigate tests, 8 dispatcher-contract tests, 6 ext.dusk.close_app + 5 ext.dusk.evaluate tests, 14 DuskInstallCommand tests, 57 CLI command tests, plus 5 press_key + 4 select_option pre-existing-handler coverage backfills.
 - Magic full suite: 1163 tests green (+43 from new enricher integration + GateResult equality + GateManager.lastResult MRU + MagicRouter.currentRoute reactivity, across `test/cli/dusk_integration_test.dart` and `test/auth/`).
 

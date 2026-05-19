@@ -40,7 +40,7 @@ Single barrel: `lib/dusk.dart` re-exports the full public API. Subsystem layout 
 |---|---|
 | `extensions/` | `registerDuskExtensions()` aggregator + per-concern VM Service handlers: `ext_snapshot.dart`, `ext_screenshot.dart`, `ext_pointer.dart` (tap / hover / drag), `ext_text_input.dart` (type / press_key / select_option), `ext_scroll.dart`, `ext_wait_find.dart`, `ext_modal_router.dart` (dismiss_modals / navigate / navigate_back / get_routes), `ext_evaluate.dart`, `ext_close_app.dart`, `ext_find.dart`. |
 | `commands/` | `DuskInstallCommand`, `DuskSnapCommand`, `DuskTapCommand`, `DuskScreenshotCommand`, `DuskTypeCommand`, `DuskScrollCommand`, `DuskWaitCommand`, `DuskHoverCommand`, `DuskDragCommand`, `DuskModalCommand`, `DuskDoctorCommand` (11 ArtisanCommand subclasses, one file each). |
-| `utils/` | `actionability_gate.dart` (visibility + hit-test + enabled precondition gate, shared by every action handler), `chrome_reaper.dart` (graceful Chromium subprocess teardown between dusk:* runs), `dusk_exceptions.dart` (typed error classes for the structured `actionability` / `stale-handle` MCP error results). |
+| `utils/` | `actionability_gate.dart` (enabled + zero-rect + off-viewport precondition gate, shared by tap / hover / drag / type), `chrome_reaper.dart` (graceful Chromium subprocess teardown between dusk:* runs), `dusk_exceptions.dart` (`DuskActionabilityException` + `DuskStaleHandleException` typed exceptions; handlers serialize their `message` field as a free-form string via `ServiceExtensionResponse.error(extensionError, message)`). |
 | `console/` | YAML emitter for `dusk_snap` output: per-node `[ref=eN]` token + role + label + actions + bounds + enricher-contributed indented lines. |
 | `ref_registry.dart` | `e<N>` (snapshot-frozen) + `q<N>` (re-resolvable, `dusk_find`-minted) token system. Singleton; cleared on snap. |
 | `dusk_plugin.dart` | `DuskPlugin.install()` entry + `registerEnricher()` extension point. Idempotent. Wraps the app's widget root in a `RepaintBoundary` (no `GlobalKey`) so `ext.dusk.screenshot` finds it via render-tree walk. |
@@ -95,8 +95,9 @@ is a deferred-idea candidate; see CHANGELOG `### Known gaps`.
   primary tree-shake boundary.
 - VM Service handler signature: `Future<ServiceExtensionResponse> Function(String method, Map<String, String>
   params)`. Parse integers via `int.tryParse(params['key'] ?? '')`. Return `.result(jsonEncode(payload))` or
-  `.error(kInvalidParams, msg)`. Errors flowing out of the actionability gate use a structured payload (`{kind:
-  "actionability", precondition: "visibility" | "hit-test" | "enabled"}`) so the agent can branch.
+  `.error(ServiceExtensionResponse.extensionError, msg)`. Errors flowing out of the actionability gate surface as
+  the flat string `"Widget ref=$ref is not actionable: $reason"`; the agent branches by substring-matching
+  `$reason` against `"not enabled"` / `"zero rect"` / `"off-viewport"`. No typed precondition enum on the wire.
 - `q<N>` handles re-resolve every action call. `e<N>` handles freeze at snap time. The dispatcher distinguishes by
   prefix; never mix the two ref shapes inside a single handler implementation.
 - TDD strict: every behavioral change arrives as a failing test first. Red then green, no exceptions.
