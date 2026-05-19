@@ -20,7 +20,7 @@ void _resetDoctorHooks() {
   DuskDoctorCommand.nowProvider = DateTime.now;
   DuskDoctorCommand.semanticsEnabledProbe = () => true;
   DuskDoctorCommand.duskDisableEnvReader = () => '';
-  DuskDoctorCommand.enrichersProbe = () => DuskPlugin.enrichers;
+  DuskDoctorCommand.enrichersProbe = () => DuskPlugin.enrichers.length;
   DuskDoctorCommand.mainDartPathResolver = () => 'lib/main.dart';
   DuskDoctorCommand.mainDartReader = (String path) {
     final file = File(path);
@@ -199,8 +199,7 @@ void main() {
   group('Check 3: enricher list non-empty', () {
     test('PASS when at least one enricher is registered (count echoed)',
         () async {
-      DuskDoctorCommand.enrichersProbe =
-          () => <DuskSnapshotEnricher>[_fakeEnricher, _fakeEnricher];
+      DuskDoctorCommand.enrichersProbe = () => 2;
 
       final output = BufferedOutput();
       final exit = await DuskDoctorCommand()
@@ -211,7 +210,7 @@ void main() {
     });
 
     test('WARN when DuskPlugin.enrichers is empty', () async {
-      DuskDoctorCommand.enrichersProbe = () => <DuskSnapshotEnricher>[];
+      DuskDoctorCommand.enrichersProbe = () => 0;
 
       final output = BufferedOutput();
       final exit = await DuskDoctorCommand()
@@ -229,8 +228,7 @@ void main() {
 
     test('PASS with count = 1 when exactly one enricher is registered',
         () async {
-      DuskDoctorCommand.enrichersProbe =
-          () => <DuskSnapshotEnricher>[_fakeEnricher];
+      DuskDoctorCommand.enrichersProbe = () => 1;
 
       final output = BufferedOutput();
       final exit = await DuskDoctorCommand()

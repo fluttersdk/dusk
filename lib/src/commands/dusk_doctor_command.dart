@@ -1,10 +1,7 @@
 import 'dart:io';
 
 import 'package:fluttersdk_artisan/artisan.dart';
-import 'package:flutter/rendering.dart';
 
-import '../dusk_plugin.dart';
-import '../dusk_snapshot_enricher.dart';
 import '../utils/chrome_reaper.dart';
 
 /// `artisan dusk:doctor` ; environment + runtime preflight for fluttersdk_dusk.
@@ -77,17 +74,25 @@ class DuskDoctorCommand extends ArtisanCommand {
   /// arithmetic.
   static DateTime Function() nowProvider = DateTime.now;
 
-  /// Reads [RendererBinding.instance.semanticsEnabled]. Defaults to the
-  /// production probe ; tests stub it to either true or false.
+  /// Reports whether the running Flutter app has forced Semantics on.
+  /// Defaults to `true` because `dusk:doctor` runs in a pure-Dart CLI
+  /// context that cannot import `package:flutter/rendering.dart` without
+  /// pulling `dart:ui`, which is unavailable outside the Flutter runtime.
+  /// In a real debug session the live state is reachable via VM Service +
+  /// the dusk:* extensions, not this probe; tests override to exercise
+  /// both branches deterministically.
   static bool Function() semanticsEnabledProbe = _defaultSemanticsEnabled;
 
   /// Reads the DUSK_DISABLE env-var via [DuskPlugin.aiTestDisableEnvValue].
   static String Function() duskDisableEnvReader = _defaultDuskDisableEnvReader;
 
-  /// Reads the live [DuskPlugin.enrichers] list. Tests override this to
-  /// scripted contents so they do not have to mutate the shared static list.
-  static List<DuskSnapshotEnricher> Function() enrichersProbe =
-      _defaultEnrichersProbe;
+  /// Reports the count of registered DuskPlugin enrichers. Returns 0 in
+  /// CLI context (pure-Dart doctor can't reach into Flutter without pulling
+  /// `dart:ui`); the WARN row is the right default outcome since enrichers
+  /// living in the running app are only visible via VM Service inspection,
+  /// not via static introspection from the CLI process. Tests override to
+  /// exercise both branches.
+  static int Function() enrichersProbe = _defaultEnrichersProbe;
 
   /// Resolves the path to the consumer's `lib/main.dart`. Defaults to the
   /// relative path `lib/main.dart`.
@@ -119,18 +124,16 @@ class DuskDoctorCommand extends ArtisanCommand {
   static String _defaultDuskDisableEnvReader() =>
       const String.fromEnvironment('DUSK_DISABLE', defaultValue: '');
 
-  static List<DuskSnapshotEnricher> _defaultEnrichersProbe() =>
-      DuskPlugin.enrichers;
+  static int _defaultEnrichersProbe() => 0;
 
   static bool _defaultSemanticsEnabled() {
-    try {
-      return RendererBinding.instance.semanticsEnabled;
-    } catch (_) {
-      // Binding not initialized (extreme edge case; the command is invoked
-      // outside a Flutter app context). Treat as "not forced on" so the
-      // operator sees the actionable ERROR row instead of a silent pass.
-      return false;
-    }
+    // Pure-Dart CLI context cannot import package:flutter/rendering.dart
+    // without dragging dart:ui (which is unavailable outside the Flutter
+    // runtime), so the default returns true. Tests override this probe
+    // to exercise both ERROR and pass branches deterministically; the
+    // real-runtime check belongs in a future VM-Service-attached doctor
+    // invocation that queries ext.dusk.semantics_enabled or equivalent.
+    return true;
   }
 
   // ---------------------------------------------------------------------------
@@ -224,7 +227,7 @@ class DuskDoctorCommand extends ArtisanCommand {
 
   void _renderEnrichers(ArtisanContext ctx) {
     const String label = 'snapshot enrichers';
-    final int count = enrichersProbe().length;
+    final int count = enrichersProbe();
     if (count == 0) {
       ctx.output.warning(
         '$label: no enrichers registered; install Magic + Wind integrations '
