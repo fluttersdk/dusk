@@ -82,6 +82,32 @@ Future<void> ensureActionableForViews(
   bool checkStable = true,
   bool checkReceivesEvents = true,
 }) async {
+  // 0. Defunct guard — the snapshot may have minted this ref against an
+  //    Element that has since been deactivated (parent rebuild, route pop,
+  //    list-item recycle). Calling findRenderObject on a defunct element
+  //    throws `FlutterError: Cannot get renderObject of inactive element`
+  //    which the JSON-RPC handler then propagates with a multi-kilobyte
+  //    stack trace. Detect the lifecycle state up front and emit a typed
+  //    stale envelope so the agent re-snaps + re-resolves.
+  try {
+    final RenderObject? probe = entry.element.findRenderObject();
+    if (probe == null) {
+      throw DuskActionabilityException(
+        ref: ref,
+        reason: 'defunct (element no longer attached to a render object)',
+      );
+    }
+  } on FlutterError catch (e) {
+    if (e.message.contains('inactive element') ||
+        e.message.contains('_ElementLifecycle.defunct')) {
+      throw DuskActionabilityException(
+        ref: ref,
+        reason: 'defunct (element no longer mounted)',
+      );
+    }
+    rethrow;
+  }
+
   // 1. Enabled check — only meaningful when a SemanticsNode was captured at
   //    registration time. Synthetic entries (e.g. find_by_text) pass through
   //    untouched. We compare against Tristate.isFalse explicitly so the

@@ -111,6 +111,8 @@ class DuskErrorEnvelope {
       type = 'not_stable';
     } else if (reason.contains('obscured by')) {
       type = 'obscured';
+    } else if (reason.contains('defunct') || reason.contains('not mounted')) {
+      type = 'stale';
     } else {
       type = 'unexpected';
     }
