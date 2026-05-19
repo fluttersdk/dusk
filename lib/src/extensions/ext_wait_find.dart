@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:ui' show CheckedState;
 
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
@@ -435,12 +436,12 @@ List<String> findByLabelInSemantics({
   void visit(SemanticsNode node) {
     // 1. Check label match — node.label is the merged accessibility label.
     if (node.label == label) {
-      // 2. Check optional role flag.
-      //    node.hasFlag is deprecated but is the only way to check an arbitrary
-      //    SemanticsFlag against a SemanticsNode in this Flutter version (3.41.x).
-      //    SemanticsFlags has no contains(SemanticsFlag) method.
-      // ignore: deprecated_member_use
-      final bool roleMatches = roleFlag == null || node.hasFlag(roleFlag);
+      // 2. Check optional role flag via SemanticsFlags named getters (Flutter 3.41+).
+      final bool roleMatches = roleFlag == null ||
+          _semanticsFlagsHasRole(
+            node.getSemanticsData().flagsCollection,
+            roleFlag,
+          );
 
       if (roleMatches) {
         // 3. Resolve a bounding rect from the node's transform + rect.
@@ -469,10 +470,9 @@ List<String> findByLabelInSemantics({
     });
   }
 
-  // Use pipelineOwner.semanticsOwner — matches ext_snapshot.dart pattern.
-  // ignore: deprecated_member_use
-  final SemanticsNode? root =
-      WidgetsBinding.instance.pipelineOwner.semanticsOwner?.rootSemanticsNode;
+  // Use rootPipelineOwner.semanticsOwner — matches ext_snapshot.dart pattern.
+  final SemanticsNode? root = RendererBinding
+      .instance.rootPipelineOwner.semanticsOwner?.rootSemanticsNode;
   if (root != null) {
     visit(root);
   }
@@ -529,6 +529,25 @@ SemanticsFlag? _roleToFlag(String? role) {
   };
 }
 
+/// Dispatches [flag] to the matching named getter on [flags].
+///
+/// `SemanticsFlags` (Flutter 3.41+) exposes each flag as a named field rather
+/// than a `Set`-like `.contains()` method. This helper bridges the gap so
+/// callers can still work with the `SemanticsFlag` enum values returned by
+/// [_roleToFlag].
+///
+/// Only the five roles wired in [_roleToFlag] are handled; all others return
+/// `false`.
+bool _semanticsFlagsHasRole(SemanticsFlags flags, SemanticsFlag flag) {
+  if (flag == SemanticsFlag.isButton) return flags.isButton;
+  if (flag == SemanticsFlag.isTextField) return flags.isTextField;
+  if (flag == SemanticsFlag.hasCheckedState) {
+    return flags.isChecked != CheckedState.none;
+  }
+  if (flag == SemanticsFlag.isLink) return flags.isLink;
+  if (flag == SemanticsFlag.isImage) return flags.isImage;
+  return false;
+}
 
 Element? _elementForSemanticsNode(SemanticsNode node) {
   // Use the root element as the anchor for semantics-node refs. The rect on

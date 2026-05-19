@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:ui' show CheckedState;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
@@ -75,8 +75,8 @@ Future<Map<String, dynamic>> duskSnapBuild({int? maxDepth}) async {
     final Map<RenderObject, Element> elementByRenderObject =
         _buildElementByRenderObject();
 
-    final SemanticsNode? root =
-        WidgetsBinding.instance.pipelineOwner.semanticsOwner?.rootSemanticsNode;
+    final SemanticsNode? root = RendererBinding
+        .instance.rootPipelineOwner.semanticsOwner?.rootSemanticsNode;
 
     final StringBuffer buffer = StringBuffer();
     if (root != null) {
@@ -144,7 +144,7 @@ void _emitNode({
         rect: rect,
         element: element,
         groupId: groupId,
-        isTextField: data.hasFlag(SemanticsFlag.isTextField),
+        isTextField: data.flagsCollection.isTextField,
         node: node,
         renderObject: renderObject,
       );
@@ -188,13 +188,13 @@ void _emitNode({
 }
 
 String? _roleFor(SemanticsData data) {
-  if (data.hasFlag(SemanticsFlag.isTextField)) return 'textbox';
-  if (data.hasFlag(SemanticsFlag.hasCheckedState)) return 'checkbox';
-  if (data.hasFlag(SemanticsFlag.isLink)) return 'link';
-  if (data.hasFlag(SemanticsFlag.isHeader)) return 'heading';
-  if (data.hasFlag(SemanticsFlag.isImage)) return 'image';
-  if (data.hasFlag(SemanticsFlag.isButton) ||
-      data.hasAction(SemanticsAction.tap)) {
+  final SemanticsFlags flags = data.flagsCollection;
+  if (flags.isTextField) return 'textbox';
+  if (flags.isChecked != CheckedState.none) return 'checkbox';
+  if (flags.isLink) return 'link';
+  if (flags.isHeader) return 'heading';
+  if (flags.isImage) return 'image';
+  if (flags.isButton || data.hasAction(SemanticsAction.tap)) {
     return 'button';
   }
   return null;
@@ -202,12 +202,13 @@ String? _roleFor(SemanticsData data) {
 
 bool _isInteractive(SemanticsData data) {
   if (data.hasAction(SemanticsAction.tap)) return true;
-  return data.hasFlag(SemanticsFlag.isTextField) ||
-      data.hasFlag(SemanticsFlag.hasCheckedState) ||
-      data.hasFlag(SemanticsFlag.isLink) ||
-      data.hasFlag(SemanticsFlag.isButton) ||
-      data.hasFlag(SemanticsFlag.isHeader) ||
-      data.hasFlag(SemanticsFlag.isImage);
+  final SemanticsFlags flags = data.flagsCollection;
+  return flags.isTextField ||
+      flags.isChecked != CheckedState.none ||
+      flags.isLink ||
+      flags.isButton ||
+      flags.isHeader ||
+      flags.isImage;
 }
 
 RenderObject? _renderObjectFor(SemanticsNode node) {
