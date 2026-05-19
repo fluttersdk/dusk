@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
+import '../utils/actionability_gate.dart';
+import '../utils/dusk_exceptions.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 // ---------------------------------------------------------------------------
@@ -265,10 +267,24 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       );
     }
 
-    // Resolve the element — TestRefRegistry in tests; RefRegistry in production
-    // once Step 6 lands. The test-injection path keeps this module independently
-    // testable without mandating Step 6's implementation.
-    final Element? element = _resolveElement(ref);
+    // 1. Resolve via the production registry first so the actionability gate
+    //    (Step 15) can run with a real RefEntry. The TestRefRegistry path is
+    //    only consulted when the production registry has no entry; tests
+    //    that need to exercise the gate must register through
+    //    [RefRegistry.registerForTesting] instead of [TestRefRegistry.inject].
+    final RefEntry? entry = RefRegistry.lookup(ref);
+    if (entry != null) {
+      try {
+        ensureActionable(entry, ref: ref);
+      } on DuskActionabilityException catch (e) {
+        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          e.message,
+        );
+      }
+    }
+
+    final Element? element = entry?.element ?? TestRefRegistry.lookup(ref);
     if (element == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
@@ -403,19 +419,4 @@ TextEditingController? _extractController(EditableTextState state) {
   } catch (_) {
     return null;
   }
-}
-
-/// Resolves an element for [ref].
-///
-/// During tests, [TestRefRegistry] provides an injection point so widget
-/// tests can inject an [Element] without wiring a full [RefRegistry] group.
-/// In production (and integration tests that call snapshot first), [RefRegistry]
-/// from Step 6 is the authoritative source.
-Element? _resolveElement(String ref) {
-  // 1. Test injection path takes priority — returns null when not in a test.
-  final Element? fromTest = TestRefRegistry.lookup(ref);
-  if (fromTest != null) return fromTest;
-
-  // 2. Production path — RefRegistry populated by the snapshot extension.
-  return RefRegistry.lookup(ref)?.element;
 }

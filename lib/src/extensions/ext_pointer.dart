@@ -5,6 +5,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
+import '../utils/actionability_gate.dart';
+import '../utils/dusk_exceptions.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// Number of intermediate Move events emitted during a drag gesture.
@@ -144,6 +146,18 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     );
   }
 
+  // Actionability gate (Step 15) — refuse to tap a disabled, zero-rect, or
+  // off-viewport widget. Failures surface the gate's canonical message
+  // verbatim so the MCP tool can hand it to the agent without translation.
+  try {
+    ensureActionable(entry, ref: ref);
+  } on DuskActionabilityException catch (e) {
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      e.message,
+    );
+  }
+
   // 1. Inject pointer events at the widget's logical-pixel center.
   //    `WidgetsBinding.instance.handlePointerEvent` (inside `_injectTap`)
   //    runs `hitTestInView` on the render tree, caches the hit-test path
@@ -232,6 +246,19 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
       );
     }
 
+    // Actionability gate (Step 15) — refuse to hover a disabled, zero-rect,
+    // or off-viewport widget. The gate is inside the existing try/catch so
+    // unrelated runtime errors keep their generic surface; the explicit
+    // `on DuskActionabilityException` branch forwards the canonical message.
+    try {
+      ensureActionable(entry, ref: ref);
+    } on DuskActionabilityException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        e.message,
+      );
+    }
+
     // 1. Emit hover event at widget center.
     WidgetsBinding.instance.handlePointerEvent(
       PointerHoverEvent(
@@ -316,6 +343,27 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         'ext.dusk.drag: endRef "$endRef" not found in registry',
+      );
+    }
+
+    // Actionability gate (Step 15) — both endpoints must clear the gate
+    // before the pointer is committed. We gate startRef first so the agent
+    // sees the upstream failure when both ends are bad, mirroring the
+    // pre-existing "missing param" check ordering.
+    try {
+      ensureActionable(startEntry, ref: startRef);
+    } on DuskActionabilityException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        e.message,
+      );
+    }
+    try {
+      ensureActionable(endEntry, ref: endRef);
+    } on DuskActionabilityException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        e.message,
       );
     }
 

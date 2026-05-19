@@ -1,8 +1,10 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_text_input.dart';
+import 'package:fluttersdk_dusk/src/ref_registry.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -355,6 +357,135 @@ void main() {
             },
           );
           expect(response.result, isNull);
+        },
+      );
+    });
+
+    group('aiTestTypeHandler actionability gate', () {
+      setUp(RefRegistry.resetForTesting);
+
+      // -----------------------------------------------------------------------
+      // (d) Zero-rect entry → type fails with descriptive actionability error
+      // -----------------------------------------------------------------------
+
+      testWidgets(
+        '(d) zero-rect ref returns "zero rect" actionability error',
+        (WidgetTester tester) async {
+          await tester.pumpWidget(
+            const MaterialApp(
+              home: Scaffold(
+                body: Center(child: TextField()),
+              ),
+            ),
+          );
+
+          final Element element = tester.element(find.byType(TextField));
+          final String ref = RefRegistry.registerForTesting(
+            rect: const Rect.fromLTWH(10, 10, 0, 40),
+            element: element,
+            groupId: 'g',
+            isTextField: true,
+          );
+
+          final response = await aiTestTypeHandler(
+            'ext.dusk.type',
+            <String, String>{'ref': ref, 'text': 'hello'},
+          );
+
+          expect(response.result, isNull);
+          expect(
+            response.errorDetail ?? '',
+            contains('Widget ref=$ref is not actionable: zero rect'),
+          );
+        },
+      );
+
+      testWidgets(
+        '(d) off-viewport ref returns "off-viewport" actionability error',
+        (WidgetTester tester) async {
+          tester.view.physicalSize = const Size(800, 600);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          await tester.pumpWidget(
+            const MaterialApp(
+              home: Scaffold(
+                body: Center(child: TextField()),
+              ),
+            ),
+          );
+
+          final Element element = tester.element(find.byType(TextField));
+          final String ref = RefRegistry.registerForTesting(
+            rect: const Rect.fromLTWH(5000, 5000, 80, 40),
+            element: element,
+            groupId: 'g',
+            isTextField: true,
+          );
+
+          final response = await aiTestTypeHandler(
+            'ext.dusk.type',
+            <String, String>{'ref': ref, 'text': 'world'},
+          );
+
+          expect(response.result, isNull);
+          expect(
+            response.errorDetail ?? '',
+            allOf(
+              contains('Widget ref=$ref is not actionable'),
+              contains('off-viewport'),
+            ),
+          );
+        },
+      );
+
+      // -----------------------------------------------------------------------
+      // Success path — actionable RefRegistry entry passes the gate and types
+      // -----------------------------------------------------------------------
+
+      testWidgets(
+        'actionable ref types text into the field and returns ok envelope',
+        (WidgetTester tester) async {
+          tester.view.physicalSize = const Size(800, 600);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          final TextEditingController controller = TextEditingController();
+          addTearDown(controller.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Center(child: TextField(controller: controller)),
+              ),
+            ),
+          );
+
+          final Element element = tester.element(find.byType(TextField));
+          final String ref = RefRegistry.registerForTesting(
+            rect: const Rect.fromLTWH(100, 100, 200, 40),
+            element: element,
+            groupId: 'g',
+            isTextField: true,
+          );
+
+          // Handler awaits two endOfFrame ticks; pump alongside so frames
+          // advance under fake-async.
+          final future = aiTestTypeHandler(
+            'ext.dusk.type',
+            <String, String>{'ref': ref, 'text': 'typed'},
+          );
+          await tester.pump();
+          await tester.pump();
+          final response = await future;
+
+          expect(response.result, isNotNull);
+          final Map<String, dynamic> decoded =
+              jsonDecode(response.result!) as Map<String, dynamic>;
+          expect(decoded['text'], equals('typed'));
+          expect(controller.text, equals('typed'));
         },
       );
     });
