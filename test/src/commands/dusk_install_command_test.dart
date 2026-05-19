@@ -5,32 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/commands/dusk_install_command.dart';
 
-/// Recording subprocess runner ; captures every `(executable, args)` call so
-/// tests can assert ordering and per-call exit codes without spawning the
-/// real Dart toolchain.
-class _RecordingRunner {
-  _RecordingRunner({this.exits = const <int>[]});
-
-  /// Per-call exit codes consumed in FIFO order. Missing entries default to 0.
-  final List<int> exits;
-  int _i = 0;
-
-  final List<List<String>> calls = <List<String>>[];
-
-  Future<ProcessResult> run(
-    String executable,
-    List<String> arguments, {
-    String? workingDirectory,
-  }) async {
-    calls.add(<String>[executable, ...arguments]);
-    final code = _i < exits.length ? exits[_i++] : 0;
-    return ProcessResult(0, code, '', code == 0 ? '' : 'mock-stderr');
-  }
-}
-
-/// Seed [tempDir] with a stub [mainDartContents] file at lib/main.dart and a
-/// pubspec.yaml that lists [pubspecDeps] entries under `dependencies:`. Returns
-/// the absolute path to the seeded lib/main.dart.
+/// Seed [tempDir] with a stub `lib/main.dart` carrying [mainDartContents] +
+/// a `pubspec.yaml` that lists [pubspecDeps] entries under
+/// `dependencies:`. Returns the absolute path to the seeded main.dart so
+/// callers can inject it via [DuskInstallCommand.mainDartPathResolver].
 String _seedProject(
   Directory tempDir, {
   required String mainDartContents,
@@ -55,6 +33,12 @@ String _seedProject(
   return mainDartPath;
 }
 
+/// Build a bare [ArtisanContext] suitable for invoking the command without
+/// any real input / output wiring.
+ArtisanContext _ctx() {
+  return ArtisanContext.bare(MapInput(const {}), BufferedOutput());
+}
+
 void main() {
   group('DuskInstallCommand', () {
     late Directory tempDir;
@@ -64,18 +48,17 @@ void main() {
     });
 
     tearDown(() {
-      // Restore module-level hooks between tests; they are static fields, so
-      // a test that mutates them leaks into the next without this reset.
-      DuskInstallCommand.wrapperExistsCheck =
-          () => File('bin/artisan.dart').existsSync();
+      // Restore module-level hooks between tests; they are static fields,
+      // so a test that mutates them leaks into the next without this
+      // reset.
       DuskInstallCommand.mainDartPathResolver = () => 'lib/main.dart';
       DuskInstallCommand.pubspecPathResolver = () => 'pubspec.yaml';
       tempDir.deleteSync(recursive: true);
     });
 
-    // -------------------------------------------------------------------------
+    // ------------------------------------------------------------------
     // Metadata
-    // -------------------------------------------------------------------------
+    // ------------------------------------------------------------------
 
     test('name is dusk:install', () {
       expect(DuskInstallCommand().name, equals('dusk:install'));
@@ -85,402 +68,316 @@ void main() {
       expect(DuskInstallCommand().boot, equals(CommandBoot.none));
     });
 
-    test('description is non-empty', () {
-      expect(DuskInstallCommand().description, isNotEmpty);
-    });
-
-    // -------------------------------------------------------------------------
-    // Wrapper-presence branch: skip consumer:scaffold when wrapper exists
-    // -------------------------------------------------------------------------
-
-    test(
-        'skips consumer:scaffold when bin/artisan.dart already exists; '
-        'plugin:install still runs', () async {
-      final runner = _RecordingRunner();
-      DuskInstallCommand.processRunner = runner.run;
-      DuskInstallCommand.wrapperExistsCheck = () => true;
-      // No main.dart so phase 3 is a no-op.
-      DuskInstallCommand.mainDartPathResolver =
-          () => '${tempDir.path}/lib/main.dart';
-      DuskInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
-
-      final exit = await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
-      );
-
-      expect(exit, equals(0));
-      expect(runner.calls, hasLength(1),
-          reason: 'only plugin:install should run when wrapper present');
+    test('description signals the minimal scope (no scaffold)', () {
+      // The description must NOT promise the heavy consumer-scaffold flow
+      // anymore; the command's single responsibility is main.dart wiring.
+      final desc = DuskInstallCommand().description;
+      expect(desc, isNotEmpty);
+      expect(desc.toLowerCase(), contains('main.dart'));
       expect(
-          runner.calls.single,
-          equals([
-            'dart',
-            'run',
-            'fluttersdk_artisan',
-            'plugin:install',
-            'fluttersdk_dusk'
-          ]));
-    });
-
-    // -------------------------------------------------------------------------
-    // Wrapper-missing branch: run consumer:scaffold then plugin:install
-    // -------------------------------------------------------------------------
-
-    test(
-        'runs consumer:scaffold then plugin:install when bin/artisan.dart '
-        'is missing (correct ordering)', () async {
-      final runner = _RecordingRunner();
-      DuskInstallCommand.processRunner = runner.run;
-      DuskInstallCommand.wrapperExistsCheck = () => false;
-      DuskInstallCommand.mainDartPathResolver =
-          () => '${tempDir.path}/lib/main.dart';
-      DuskInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
-
-      final exit = await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
+        desc.toLowerCase(),
+        isNot(contains('consumer:scaffold')),
+        reason: 'minimal install must not advertise consumer:scaffold',
       );
-
-      expect(exit, equals(0));
-      expect(runner.calls, hasLength(2));
-      expect(runner.calls[0],
-          equals(['dart', 'run', 'fluttersdk_artisan', 'consumer:scaffold']),
-          reason: 'consumer:scaffold must run first');
-      expect(
-          runner.calls[1],
-          equals([
-            'dart',
-            'run',
-            'fluttersdk_artisan',
-            'plugin:install',
-            'fluttersdk_dusk'
-          ]),
-          reason: 'plugin:install must run after scaffold');
     });
 
-    // -------------------------------------------------------------------------
-    // Failure propagation
-    // -------------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // Vanilla flutter app: inject before runApp()
+    // ------------------------------------------------------------------
 
     test(
-        'returns scaffold exit code (and skips plugin:install) when '
-        'consumer:scaffold fails', () async {
-      final runner = _RecordingRunner(exits: <int>[2]);
-      DuskInstallCommand.processRunner = runner.run;
-      DuskInstallCommand.wrapperExistsCheck = () => false;
-      DuskInstallCommand.mainDartPathResolver =
-          () => '${tempDir.path}/lib/main.dart';
-      DuskInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
-
-      final exit = await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
-      );
-
-      expect(exit, equals(2));
-      expect(runner.calls, hasLength(1),
-          reason:
-              'plugin:install must not run after scaffold failure (fail-fast)');
-      expect(runner.calls.single.contains('consumer:scaffold'), isTrue);
-    });
-
-    test(
-        'returns plugin:install exit code when scaffold passes but '
-        'plugin:install fails', () async {
-      // First call (scaffold) succeeds; second call (plugin:install) fails.
-      final runner = _RecordingRunner(exits: <int>[0, 3]);
-      DuskInstallCommand.processRunner = runner.run;
-      DuskInstallCommand.wrapperExistsCheck = () => false;
-      DuskInstallCommand.mainDartPathResolver =
-          () => '${tempDir.path}/lib/main.dart';
-      DuskInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
-
-      final exit = await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
-      );
-
-      expect(exit, equals(3));
-      expect(runner.calls, hasLength(2));
-    });
-
-    // -------------------------------------------------------------------------
-    // Phase 3: vanilla anchor detection (runApp without Magic.init)
-    // -------------------------------------------------------------------------
-
-    test(
-        'vanilla Flutter app: injects imports + DuskPlugin.install + '
-        'WidgetsFlutterBinding.ensureInitialized before runApp(', () async {
-      const stub = '''
+      'vanilla app: injects kDebugMode + DuskPlugin.install() block before '
+      'runApp(',
+      () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          mainDartContents: '''
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const MaterialApp());
+  runApp(const MyApp());
 }
-''';
-      final mainDartPath = _seedProject(tempDir, mainDartContents: stub);
-      final runner = _RecordingRunner();
-      DuskInstallCommand.processRunner = runner.run;
-      DuskInstallCommand.wrapperExistsCheck = () => true;
-      DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
-      DuskInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
 
-      final exit = await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
-      );
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) => const MaterialApp(home: SizedBox());
+}
+''',
+        );
+        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+        DuskInstallCommand.pubspecPathResolver =
+            () => '${tempDir.path}/pubspec.yaml';
 
-      expect(exit, equals(0));
-      final updated = File(mainDartPath).readAsStringSync();
-      expect(updated, contains("import 'package:flutter/foundation.dart'"));
-      expect(updated, contains("import 'package:fluttersdk_dusk/dusk.dart'"));
-      expect(updated, contains('WidgetsFlutterBinding.ensureInitialized()'));
-      expect(updated, contains('if (kDebugMode) {'));
-      expect(updated, contains('DuskPlugin.install();'));
-      // No Magic.init anchor and no Magic dep, so no MagicDuskIntegration.
-      expect(updated, isNot(contains('MagicDuskIntegration.install()')));
-      // No wind dep, so no WindDuskIntegration.
-      expect(updated, isNot(contains('WindDuskIntegration.install()')));
+        final exit = await DuskInstallCommand().handle(_ctx());
+        expect(exit, equals(0));
 
-      final duskInstallPos = updated.indexOf('DuskPlugin.install()');
-      final runAppPos = updated.indexOf('runApp(');
-      expect(duskInstallPos, lessThan(runAppPos),
-          reason: 'DuskPlugin.install() must appear BEFORE runApp(');
-    });
+        final result = File(mainDartPath).readAsStringSync();
+        expect(
+          result.contains(
+            "import 'package:flutter/foundation.dart' show kDebugMode;",
+          ),
+          isTrue,
+        );
+        expect(
+          result.contains("import 'package:fluttersdk_dusk/dusk.dart';"),
+          isTrue,
+        );
+        expect(
+          result.contains('WidgetsFlutterBinding.ensureInitialized();'),
+          isTrue,
+        );
+        expect(
+          result.contains('if (kDebugMode) {'),
+          isTrue,
+        );
+        expect(
+          result.contains('DuskPlugin.install();'),
+          isTrue,
+        );
+        // No Magic deps in this vanilla case, so no MagicDuskIntegration
+        // wire lands.
+        expect(result.contains('MagicDuskIntegration.install()'), isFalse);
+        expect(result.contains('WindDuskIntegration.install()'), isFalse);
+      },
+    );
 
-    // -------------------------------------------------------------------------
-    // Phase 3: Magic-stack anchor detection (await Magic.init present)
-    // -------------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // Magic-stack app: BEFORE-Magic.init + AFTER-Magic.init wires
+    // ------------------------------------------------------------------
 
     test(
-        'Magic-stack app: injects DuskPlugin.install before await Magic.init '
-        'and MagicDuskIntegration.install after it', () async {
-      const stub = '''
+      'magic-stack app: injects DuskPlugin.install() BEFORE Magic.init AND '
+      'MagicDuskIntegration.install() AFTER Magic.init',
+      () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          pubspecDeps: const {'magic': 'any'},
+          mainDartContents: '''
 import 'package:flutter/material.dart';
 import 'package:magic/magic.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Magic.init();
+  await Magic.init(configFactories: [() => {}]);
   runApp(const MagicApplication());
 }
-''';
-      final mainDartPath = _seedProject(
-        tempDir,
-        mainDartContents: stub,
-        pubspecDeps: const {'magic': '^1.0.0'},
-      );
-      final runner = _RecordingRunner();
-      DuskInstallCommand.processRunner = runner.run;
-      DuskInstallCommand.wrapperExistsCheck = () => true;
-      DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
-      DuskInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
+''',
+        );
+        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+        DuskInstallCommand.pubspecPathResolver =
+            () => '${tempDir.path}/pubspec.yaml';
 
-      final exit = await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
-      );
+        final exit = await DuskInstallCommand().handle(_ctx());
+        expect(exit, equals(0));
 
-      expect(exit, equals(0));
-      final updated = File(mainDartPath).readAsStringSync();
-      expect(updated, contains('DuskPlugin.install();'));
-      expect(updated, contains('MagicDuskIntegration.install();'));
+        final result = File(mainDartPath).readAsStringSync();
+        final duskInstallIdx = result.indexOf('DuskPlugin.install();');
+        final magicInitIdx = result.indexOf('await Magic.init(');
+        final magicIntegrationIdx =
+            result.indexOf('MagicDuskIntegration.install();');
 
-      final duskPos = updated.indexOf('DuskPlugin.install()');
-      final magicInitPos = updated.indexOf('await Magic.init(');
-      final magicIntegrationPos =
-          updated.indexOf('MagicDuskIntegration.install()');
-      expect(duskPos, lessThan(magicInitPos),
-          reason: 'DuskPlugin.install must run BEFORE await Magic.init');
-      expect(magicIntegrationPos, greaterThan(magicInitPos),
-          reason: 'MagicDuskIntegration.install must run AFTER Magic.init');
-    });
+        expect(duskInstallIdx, greaterThan(-1));
+        expect(magicInitIdx, greaterThan(-1));
+        expect(magicIntegrationIdx, greaterThan(-1));
+        expect(
+          duskInstallIdx < magicInitIdx,
+          isTrue,
+          reason: 'DuskPlugin.install() must land BEFORE Magic.init()',
+        );
+        expect(
+          magicInitIdx < magicIntegrationIdx,
+          isTrue,
+          reason: 'MagicDuskIntegration.install() must land AFTER Magic.init()',
+        );
+      },
+    );
 
-    // -------------------------------------------------------------------------
-    // Phase 3: Wind dep adds WindDuskIntegration
-    // -------------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // Wind dep: WindDuskIntegration wires alongside DuskPlugin
+    // ------------------------------------------------------------------
 
     test(
-        'wind dep present: injects WindDuskIntegration.install alongside '
-        'DuskPlugin.install', () async {
-      const stub = '''
+      'wind dep present (fluttersdk_wind): wires WindDuskIntegration in the '
+      'same kDebugMode block',
+      () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          pubspecDeps: const {'fluttersdk_wind': 'any'},
+          mainDartContents: '''
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const MaterialApp());
+  runApp(const MyApp());
 }
-''';
-      final mainDartPath = _seedProject(
-        tempDir,
-        mainDartContents: stub,
-        pubspecDeps: const {'wind': '^1.0.0'},
-      );
-      final runner = _RecordingRunner();
-      DuskInstallCommand.processRunner = runner.run;
-      DuskInstallCommand.wrapperExistsCheck = () => true;
-      DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
-      DuskInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
 
-      final exit = await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
-      );
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) => const MaterialApp(home: SizedBox());
+}
+''',
+        );
+        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+        DuskInstallCommand.pubspecPathResolver =
+            () => '${tempDir.path}/pubspec.yaml';
 
-      expect(exit, equals(0));
-      final updated = File(mainDartPath).readAsStringSync();
-      expect(updated, contains('DuskPlugin.install();'));
-      expect(updated, contains('WindDuskIntegration.install();'));
-    });
+        await DuskInstallCommand().handle(_ctx());
+        final result = File(mainDartPath).readAsStringSync();
+        expect(result.contains('WindDuskIntegration.install()'), isTrue);
+      },
+    );
 
-    // -------------------------------------------------------------------------
-    // Phase 3: WidgetsFlutterBinding.ensureInitialized is skipped when already
-    // present (avoids a duplicate call)
-    // -------------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // WidgetsFlutterBinding.ensureInitialized() — no double inject
+    // ------------------------------------------------------------------
 
     test(
-        'does not duplicate WidgetsFlutterBinding.ensureInitialized when '
-        'already present', () async {
-      const stub = '''
+      'WidgetsFlutterBinding.ensureInitialized() is NOT double-injected when '
+      'already present',
+      () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          mainDartContents: '''
 import 'package:flutter/material.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MaterialApp());
+  runApp(const MyApp());
 }
-''';
-      final mainDartPath = _seedProject(tempDir, mainDartContents: stub);
-      final runner = _RecordingRunner();
-      DuskInstallCommand.processRunner = runner.run;
-      DuskInstallCommand.wrapperExistsCheck = () => true;
-      DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
-      DuskInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
 
-      await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
-      );
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) => const MaterialApp(home: SizedBox());
+}
+''',
+        );
+        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+        DuskInstallCommand.pubspecPathResolver =
+            () => '${tempDir.path}/pubspec.yaml';
 
-      final updated = File(mainDartPath).readAsStringSync();
-      final occurrences = 'WidgetsFlutterBinding.ensureInitialized()'
-          .allMatches(updated)
-          .length;
-      expect(occurrences, equals(1),
-          reason: 'must not double-inject the binding-ensure call');
-    });
+        await DuskInstallCommand().handle(_ctx());
+        final result = File(mainDartPath).readAsStringSync();
 
-    // -------------------------------------------------------------------------
-    // Phase 3: re-running is idempotent (no duplicates)
-    // -------------------------------------------------------------------------
+        final ensureInitCount = 'WidgetsFlutterBinding.ensureInitialized()'
+            .allMatches(result)
+            .length;
+        expect(ensureInitCount, equals(1));
+      },
+    );
+
+    // ------------------------------------------------------------------
+    // Idempotency: re-running the command produces no extra inject
+    // ------------------------------------------------------------------
 
     test('re-running the command is idempotent (no duplicate inject)',
         () async {
-      const stub = '''
+      final mainDartPath = _seedProject(
+        tempDir,
+        mainDartContents: '''
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const MaterialApp());
+  runApp(const MyApp());
 }
-''';
-      final mainDartPath = _seedProject(tempDir, mainDartContents: stub);
-      final runner = _RecordingRunner();
-      DuskInstallCommand.processRunner = runner.run;
-      DuskInstallCommand.wrapperExistsCheck = () => true;
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) => const MaterialApp(home: SizedBox());
+}
+''',
+      );
       DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
       DuskInstallCommand.pubspecPathResolver =
           () => '${tempDir.path}/pubspec.yaml';
 
-      await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
-      );
-      final firstPass = File(mainDartPath).readAsStringSync();
+      await DuskInstallCommand().handle(_ctx());
+      final afterFirst = File(mainDartPath).readAsStringSync();
+      await DuskInstallCommand().handle(_ctx());
+      final afterSecond = File(mainDartPath).readAsStringSync();
 
-      await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
+      expect(afterSecond, equals(afterFirst));
+      expect(
+        'DuskPlugin.install();'.allMatches(afterSecond).length,
+        equals(1),
       );
-      final secondPass = File(mainDartPath).readAsStringSync();
-
-      expect(secondPass, equals(firstPass),
-          reason: 'second run must not change the file');
-      expect('DuskPlugin.install()'.allMatches(secondPass).length, equals(1),
-          reason: 'DuskPlugin.install must appear exactly once');
+      expect(
+        "import 'package:fluttersdk_dusk/dusk.dart';"
+            .allMatches(afterSecond)
+            .length,
+        equals(1),
+      );
     });
 
-    // -------------------------------------------------------------------------
-    // Phase 3: lib/main.dart missing is a soft-fail (still returns 0)
-    // -------------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // Missing lib/main.dart returns exit 1
+    // ------------------------------------------------------------------
 
-    test('missing lib/main.dart: skipped softly, exit code remains 0',
-        () async {
-      final runner = _RecordingRunner();
-      DuskInstallCommand.processRunner = runner.run;
-      DuskInstallCommand.wrapperExistsCheck = () => true;
+    test('returns 1 with an error when lib/main.dart is missing', () async {
+      // No seed — the temp dir has neither lib/main.dart nor pubspec.yaml.
       DuskInstallCommand.mainDartPathResolver =
-          () => '${tempDir.path}/lib/missing.dart';
+          () => '${tempDir.path}/lib/main.dart';
       DuskInstallCommand.pubspecPathResolver =
           () => '${tempDir.path}/pubspec.yaml';
 
-      final exit = await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
-      );
-
-      expect(exit, equals(0));
+      final exit = await DuskInstallCommand().handle(_ctx());
+      expect(exit, equals(1));
     });
 
-    // -------------------------------------------------------------------------
-    // Phase 3: three-step inject sequence (import, before-anchor, after-anchor)
-    // verified across a single magic-stack run
-    // -------------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // No bin/artisan.dart or lib/app/ side effects (minimal invariant)
+    // ------------------------------------------------------------------
 
     test(
-        'magic-stack: imports + before-anchor + after-anchor inject sequence '
-        'all land in main.dart', () async {
-      const stub = '''
+      'minimal invariant: never writes bin/artisan.dart, '
+      'lib/app/_plugins.g.dart, or fluttersdk_artisan into the consumer',
+      () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          mainDartContents: '''
 import 'package:flutter/material.dart';
-import 'package:magic/magic.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Magic.init();
-  runApp(const MagicApplication());
+void main() {
+  runApp(const MyApp());
 }
-''';
-      final mainDartPath = _seedProject(
-        tempDir,
-        mainDartContents: stub,
-        pubspecDeps: const {'magic': '^1.0.0', 'wind': '^1.0.0'},
-      );
-      final runner = _RecordingRunner();
-      DuskInstallCommand.processRunner = runner.run;
-      DuskInstallCommand.wrapperExistsCheck = () => true;
-      DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
-      DuskInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
 
-      await DuskInstallCommand().handle(
-        ArtisanContext.bare(MapInput(const {}), BufferedOutput()),
-      );
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) => const MaterialApp(home: SizedBox());
+}
+''',
+        );
+        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+        DuskInstallCommand.pubspecPathResolver =
+            () => '${tempDir.path}/pubspec.yaml';
 
-      final updated = File(mainDartPath).readAsStringSync();
-      // Step 3a: imports.
-      expect(updated,
-          contains("import 'package:flutter/foundation.dart' show kDebugMode"));
-      expect(updated, contains("import 'package:fluttersdk_dusk/dusk.dart'"));
-      // Step 3b: DuskPlugin + WindDuskIntegration before Magic.init.
-      expect(updated, contains('DuskPlugin.install();'));
-      expect(updated, contains('WindDuskIntegration.install();'));
-      // Step 3c: MagicDuskIntegration after Magic.init.
-      expect(updated, contains('MagicDuskIntegration.install();'));
+        await DuskInstallCommand().handle(_ctx());
 
-      final duskPos = updated.indexOf('DuskPlugin.install()');
-      final windPos = updated.indexOf('WindDuskIntegration.install()');
-      final magicInitPos = updated.indexOf('await Magic.init(');
-      final magicIntegrationPos =
-          updated.indexOf('MagicDuskIntegration.install()');
-
-      expect(duskPos, lessThan(magicInitPos));
-      expect(windPos, lessThan(magicInitPos));
-      expect(magicIntegrationPos, greaterThan(magicInitPos));
-    });
+        // The consumer-side artisan dispatcher + plugin barrels MUST NOT
+        // exist after dusk:install: the vanilla UX is `dart run
+        // fluttersdk_dusk <cmd>`, not `dart run bin/artisan.dart <cmd>`.
+        expect(
+          File('${tempDir.path}/bin/artisan.dart').existsSync(),
+          isFalse,
+        );
+        expect(
+          File('${tempDir.path}/lib/app/_plugins.g.dart').existsSync(),
+          isFalse,
+        );
+        expect(
+          File('${tempDir.path}/lib/app/commands/_index.g.dart').existsSync(),
+          isFalse,
+        );
+        // pubspec.yaml MUST NOT have fluttersdk_artisan added; the plugin
+        // is reachable transitively through fluttersdk_dusk and the
+        // consumer never imports artisan directly in a minimal install.
+        final pubspecAfter =
+            File('${tempDir.path}/pubspec.yaml').readAsStringSync();
+        expect(pubspecAfter.contains('fluttersdk_artisan'), isFalse);
+      },
+    );
   });
 }
