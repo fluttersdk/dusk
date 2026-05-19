@@ -4,6 +4,7 @@ import 'ext_console.dart';
 import 'ext_evaluate.dart';
 import 'ext_exceptions.dart';
 import 'ext_find.dart';
+import 'ext_focus.dart';
 import 'ext_modal_router.dart';
 import 'ext_navigation.dart';
 import 'ext_observe.dart';
@@ -61,4 +62,5 @@ void registerAllDuskExtensions() {
   registerExceptionsExtensions();
   registerCheckboxExtensions();
   registerObserveExtensions();
+  registerFocusExtensions();
 }

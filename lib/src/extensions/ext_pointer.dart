@@ -851,4 +851,190 @@ void registerPointerExtensions() {
   registerExtensionIdempotent('ext.dusk.hover', aiTestHoverHandler);
   registerExtensionIdempotent('ext.dusk.drag', aiTestDragHandler);
   registerExtensionIdempotent('ext.dusk.dblclick', aiTestDoubleClickHandler);
+  registerExtensionIdempotent('ext.dusk.right_click', aiTestRightClickHandler);
+  registerExtensionIdempotent(
+      'ext.dusk.triple_click', aiTestTripleClickHandler);
+}
+
+/// Right-click (secondary mouse button) at the ref center. Playwright parity:
+/// `locator.click({ button: 'right' })`. Useful for context menus.
+Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
+  String method,
+  Map<String, String> params,
+) async {
+  try {
+    final String? ref = params['ref'];
+    if (ref == null || ref.isEmpty) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.right_click: missing required param "ref"',
+          DuskErrorEnvelope.missingParam('ref'),
+        ),
+      );
+    }
+    final RefEntry? entry;
+    try {
+      entry = resolveRefForAction(ref);
+    } on DuskStaleHandleException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+      );
+    }
+    if (entry == null) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.right_click: ref "$ref" not found in registry',
+          DuskErrorEnvelope.notFound(
+            ref: ref,
+            candidates: collectSnapshotCandidates(),
+          ),
+        ),
+      );
+    }
+    final bool checkStable =
+        _parseBoolFlag(params, 'checkStable', defaultValue: true);
+    final bool checkReceivesEvents =
+        _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+    try {
+      await ensureActionable(
+        entry,
+        ref: ref,
+        checkStable: checkStable,
+        checkReceivesEvents: checkReceivesEvents,
+      );
+    } on DuskActionabilityException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          e.message,
+          DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+        ),
+      );
+    }
+    final viewId = _viewId();
+    final ts = Duration.zero;
+    WidgetsBinding.instance.handlePointerEvent(
+      PointerDownEvent(
+        pointer: _kSinglePointer,
+        position: entry.rect.center,
+        viewId: viewId,
+        timeStamp: ts,
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryButton,
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    WidgetsBinding.instance.handlePointerEvent(
+      PointerUpEvent(
+        pointer: _kSinglePointer,
+        position: entry.rect.center,
+        viewId: viewId,
+        timeStamp: const Duration(milliseconds: 50),
+        kind: PointerDeviceKind.mouse,
+      ),
+    );
+    await WidgetsBinding.instance.endOfFrame;
+    await WidgetsBinding.instance.endOfFrame;
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'ref': ref,
+      'button': 'right',
+    };
+    await _appendSnapshotIfRequested(payload, params);
+    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+  } catch (e, stackTrace) {
+    developer.log(
+      '[fluttersdk_dusk] ext.dusk.right_click error: $e\n$stackTrace',
+      name: 'dusk',
+    );
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+    );
+  }
+}
+
+/// Three primary taps at ref center with ~100ms inter-tap delay. Playwright
+/// parity: `locator.click({ clickCount: 3 })`. Selects an entire paragraph
+/// in Material text fields.
+Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
+  String method,
+  Map<String, String> params,
+) async {
+  try {
+    final String? ref = params['ref'];
+    if (ref == null || ref.isEmpty) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.triple_click: missing required param "ref"',
+          DuskErrorEnvelope.missingParam('ref'),
+        ),
+      );
+    }
+    final RefEntry? entry;
+    try {
+      entry = resolveRefForAction(ref);
+    } on DuskStaleHandleException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+      );
+    }
+    if (entry == null) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.triple_click: ref "$ref" not found in registry',
+          DuskErrorEnvelope.notFound(
+            ref: ref,
+            candidates: collectSnapshotCandidates(),
+          ),
+        ),
+      );
+    }
+    final bool checkStable =
+        _parseBoolFlag(params, 'checkStable', defaultValue: true);
+    final bool checkReceivesEvents =
+        _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+    try {
+      await ensureActionable(
+        entry,
+        ref: ref,
+        checkStable: checkStable,
+        checkReceivesEvents: checkReceivesEvents,
+      );
+    } on DuskActionabilityException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          e.message,
+          DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+        ),
+      );
+    }
+    await _injectTap(entry.rect.center);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await _injectTap(entry.rect.center);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await _injectTap(entry.rect.center);
+    await WidgetsBinding.instance.endOfFrame;
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'ref': ref,
+      'clickCount': 3,
+    };
+    await _appendSnapshotIfRequested(payload, params);
+    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+  } catch (e, stackTrace) {
+    developer.log(
+      '[fluttersdk_dusk] ext.dusk.triple_click error: $e\n$stackTrace',
+      name: 'dusk',
+    );
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+    );
+  }
 }

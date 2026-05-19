@@ -17,6 +17,12 @@ class DuskSnapCommand extends ArtisanCommand {
   @override
   void configure(ArgParser parser) {
     parser.addOption('depth', help: 'Optional max tree depth.');
+    parser.addFlag(
+      'includeEnrichers',
+      help: 'Emit Magic + Wind enricher fragments under each ref entry. '
+          'Default off (Playwright-style minimal snapshot).',
+      defaultsTo: false,
+    );
   }
 
   @override
@@ -24,6 +30,9 @@ class DuskSnapCommand extends ArtisanCommand {
     final params = <String, dynamic>{};
     final depth = ctx.input.option('depth');
     if (depth != null) params['depth'] = depth;
+    final includeEnrichers =
+        (ctx.input.option('includeEnrichers') as bool?) ?? false;
+    params['includeEnrichers'] = includeEnrichers.toString();
     final result = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.snap',
       params,

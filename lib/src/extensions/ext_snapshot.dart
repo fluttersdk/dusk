@@ -55,7 +55,17 @@ Future<developer.ServiceExtensionResponse> duskSnapHandler(
   try {
     final int? depth =
         params['depth'] != null ? int.tryParse(params['depth']!) : null;
-    final Map<String, dynamic> payload = await duskSnapBuild(maxDepth: depth);
+    // Playwright parity: snapshots are MINIMAL by default — just structural
+    // YAML (role/label/value/[ref=eN]). Pass includeEnrichers=true to opt in
+    // to Magic + Wind enricher fragments (magicRoute, magicAuthUser,
+    // magicRecentHttp, wind.*, etc.). Most agent loops only need refs to
+    // act; enricher payload triples snapshot size on rich app pages.
+    final bool includeEnrichers =
+        (params['includeEnrichers'] ?? 'false') == 'true';
+    final Map<String, dynamic> payload = await duskSnapBuild(
+      maxDepth: depth,
+      includeEnrichers: includeEnrichers,
+    );
     return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, stackTrace) {
     developer.log(
@@ -77,7 +87,10 @@ Future<developer.ServiceExtensionResponse> duskSnapHandler(
 /// direct call to [duskSnapHandler]: walks the live Semantics tree, mints
 /// `eN` ref tokens via [RefRegistry], invokes every enricher registered on
 /// [DuskPlugin.enrichers], and serialises to YAML.
-Future<Map<String, dynamic>> duskSnapBuild({int? maxDepth}) async {
+Future<Map<String, dynamic>> duskSnapBuild({
+  int? maxDepth,
+  bool includeEnrichers = false,
+}) async {
   final String groupId = 'snapshot-${DateTime.now().microsecondsSinceEpoch}';
   final SemanticsHandle handle = WidgetsBinding.instance.ensureSemantics();
   try {
@@ -101,6 +114,7 @@ Future<Map<String, dynamic>> duskSnapBuild({int? maxDepth}) async {
           buffer: buffer,
           groupId: groupId,
           elementByRenderObject: elementByRenderObject,
+          includeEnrichers: includeEnrichers,
         );
       }
       owner.visitChildren(walkOwner);
@@ -141,6 +155,7 @@ void _emitNode({
   required StringBuffer buffer,
   required String groupId,
   required Map<RenderObject, Element> elementByRenderObject,
+  required bool includeEnrichers,
 }) {
   if (maxDepth != null && depth > maxDepth) return;
 
@@ -175,12 +190,18 @@ void _emitNode({
 
       // Enricher loop. Each registered enricher may emit one or more YAML
       // lines indented under the ref entry. Magic + Wind register here.
-      for (final enricher in DuskPlugin.enrichers) {
-        final String? fragment = enricher(element, RefRegistry.instance);
-        if (fragment == null || fragment.isEmpty) continue;
-        for (final line in const LineSplitter().convert(fragment.trimRight())) {
-          if (line.isEmpty) continue;
-          buffer.writeln('${_indent(depth + 1)}$line');
+      // Default off (Playwright parity): callers opt in via
+      // includeEnrichers=true on dusk:snap or the includeEnrichers flag on
+      // action handlers that embed a post-action snapshot.
+      if (includeEnrichers) {
+        for (final enricher in DuskPlugin.enrichers) {
+          final String? fragment = enricher(element, RefRegistry.instance);
+          if (fragment == null || fragment.isEmpty) continue;
+          for (final line
+              in const LineSplitter().convert(fragment.trimRight())) {
+            if (line.isEmpty) continue;
+            buffer.writeln('${_indent(depth + 1)}$line');
+          }
         }
       }
 
@@ -200,6 +221,7 @@ void _emitNode({
       buffer: buffer,
       groupId: groupId,
       elementByRenderObject: elementByRenderObject,
+      includeEnrichers: includeEnrichers,
     );
     return true;
   });

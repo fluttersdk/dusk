@@ -497,6 +497,93 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
 void registerTextInputExtensions() {
   registerExtensionIdempotent('ext.dusk.type', aiTestTypeHandler);
   registerExtensionIdempotent('ext.dusk.press_key', aiTestPressKeyHandler);
+  registerExtensionIdempotent('ext.dusk.clear', aiTestClearHandler);
+}
+
+/// Handler for `ext.dusk.clear` — empties the [TextEditingController] backing
+/// the resolved text field. Playwright parity: `locator.clear()`.
+///
+/// Reuses [_resolveEditableTextState] + [_extractController] helpers so the
+/// behavior matches [aiTestTypeHandler]'s text-write path. Returns the
+/// post-clear value (empty string) plus an optional snapshot.
+Future<developer.ServiceExtensionResponse> aiTestClearHandler(
+  String method,
+  Map<String, String> params,
+) async {
+  try {
+    final String? ref = params['ref'];
+    if (ref == null || ref.isEmpty) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.clear: missing required param "ref"',
+          DuskErrorEnvelope.missingParam('ref'),
+        ),
+      );
+    }
+    final RefEntry? entry;
+    try {
+      entry = resolveRefForAction(ref);
+    } on DuskStaleHandleException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+      );
+    }
+    final Element? element = entry?.element ?? TestRefRegistry.lookup(ref);
+    if (element == null) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.clear: ref "$ref" not found in registry',
+          DuskErrorEnvelope.notFound(
+            ref: ref,
+            candidates: collectSnapshotCandidates(),
+          ),
+        ),
+      );
+    }
+    final EditableTextState? state = _resolveEditableTextState(element);
+    if (state == null) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.clear: no EditableText under ref "$ref"',
+          DuskErrorEnvelope.unexpected(),
+        ),
+      );
+    }
+    final TextEditingController? controller = _extractController(state);
+    if (controller == null) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.clear: could not resolve TextEditingController',
+          DuskErrorEnvelope.unexpected(),
+        ),
+      );
+    }
+    controller.clear();
+    await WidgetsBinding.instance.endOfFrame;
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'ref': ref,
+      'text': '',
+    };
+    if (_parseBoolFlag(params, 'includeSnapshot', defaultValue: false)) {
+      final snap = await duskSnapBuild();
+      payload['snapshot'] = snap['snapshot'];
+    }
+    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+  } catch (e, stackTrace) {
+    developer.log(
+      '[fluttersdk_dusk] ext.dusk.clear error: $e\n$stackTrace',
+      name: 'dusk',
+    );
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

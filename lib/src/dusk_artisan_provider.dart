@@ -1,8 +1,13 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'commands/dusk_blur_command.dart';
+import 'commands/dusk_clear_command.dart';
 import 'commands/dusk_close_app_command.dart';
 import 'commands/dusk_console_command.dart';
 import 'commands/dusk_dblclick_command.dart';
+import 'commands/dusk_focus_command.dart';
+import 'commands/dusk_right_click_command.dart';
+import 'commands/dusk_triple_click_command.dart';
 import 'commands/dusk_doctor_command.dart';
 import 'commands/dusk_drag_command.dart';
 import 'commands/dusk_exceptions_command.dart';
@@ -100,6 +105,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         // `fmt_hot_reload_and_capture` pattern). Reload lives CLI-side
         // because an in-isolate handler cannot reload itself.
         DuskHotReloadAndSnapCommand(),
+        // P4 (Playwright parity): explicit focus management + right-click +
+        // triple-click + clear-text.
+        DuskFocusCommand(),
+        DuskBlurCommand(),
+        DuskClearCommand(),
+        DuskRightClickCommand(),
+        DuskTripleClickCommand(),
       ];
 
   @override
@@ -1111,6 +1123,165 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             },
           },
           extensionMethod: 'artisan:dusk:hot_reload_and_snap',
+        ),
+        // -------------------------------------------------------------------
+        // P4 (Playwright parity): focus / blur / clear / right_click /
+        // triple_click. Five short descriptors; the behavior mirrors the
+        // matching Playwright Locator methods (focus, blur, clear,
+        // click({button:right}), click({clickCount:3})).
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_focus',
+          description: 'Request keyboard focus on the widget identified by '
+              '`ref`.\n\n'
+              'Playwright parity: `locator.focus()`. Walks the resolved '
+              'element to find the nearest Focus ancestor and calls '
+              'requestFocus(). Returns `{ref, focused: true}`.\n\n'
+              'Usage:\n'
+              '- `ref` (required): widget ref token from a prior dusk_snap.\n'
+              '- `includeSnapshot` (default false): embed post-focus snapshot.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'ref': <String, dynamic>{
+                'type': 'string',
+                'description': 'Widget ref token (e.g. "e5").',
+              },
+              'includeSnapshot': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Embed the post-focus snapshot (default false).',
+              },
+            },
+            'required': <String>['ref'],
+          },
+          extensionMethod: 'ext.dusk.focus',
+        ),
+        McpToolDescriptor(
+          name: 'dusk_blur',
+          description: 'Clear keyboard focus from whatever currently holds it.'
+              '\n\n'
+              'Playwright parity: `locator.blur()` / `document.activeElement'
+              '.blur()`. Returns `{blurred: true, hadFocus: bool}`.\n\n'
+              'Usage:\n'
+              '- No required params; blurs the primary focused node.\n'
+              '- `includeSnapshot` (default false): embed post-blur snapshot.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'includeSnapshot': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Embed the post-blur snapshot (default false).',
+              },
+            },
+          },
+          extensionMethod: 'ext.dusk.blur',
+        ),
+        McpToolDescriptor(
+          name: 'dusk_clear',
+          description: 'Empty the TextEditingController backing the resolved '
+              'text field.\n\n'
+              'Playwright parity: `locator.clear()`. Walks the resolved '
+              'element to find an EditableText descendant, extracts its '
+              'controller, calls clear(). Returns `{ref, text: ""}`.\n\n'
+              'Usage:\n'
+              '- `ref` (required): widget ref of a TextField / TextFormField '
+              '/ EditableText.\n'
+              '- `includeSnapshot` (default false): embed post-clear snapshot.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'ref': <String, dynamic>{
+                'type': 'string',
+                'description': 'Widget ref of the text field (e.g. "e5").',
+              },
+              'includeSnapshot': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Embed the post-clear snapshot (default false).',
+              },
+            },
+            'required': <String>['ref'],
+          },
+          extensionMethod: 'ext.dusk.clear',
+        ),
+        McpToolDescriptor(
+          name: 'dusk_right_click',
+          description: 'Fire a right (secondary mouse button) click at the '
+              'widget identified by `ref`.\n\n'
+              'Playwright parity: `locator.click({ button: "right" })`. '
+              'Useful for context menus. Runs the 5-gate actionability check '
+              'before injecting the PointerDownEvent + 50ms hold + '
+              'PointerUpEvent (mouse kind, kSecondaryButton).\n\n'
+              'Usage:\n'
+              '- `ref` (required): widget ref token.\n'
+              '- `includeSnapshot` (default false): embed post-action snapshot.\n'
+              '- `checkStable`/`checkReceivesEvents` (both default true): '
+              'gate opt-outs.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'ref': <String, dynamic>{
+                'type': 'string',
+                'description': 'Widget ref token (e.g. "e5").',
+              },
+              'includeSnapshot': <String, dynamic>{
+                'type': 'boolean',
+                'description':
+                    'Embed the post-action snapshot (default false).',
+              },
+              'checkStable': <String, dynamic>{
+                'type': 'boolean',
+                'description':
+                    'Run the Stable actionability gate (default true).',
+              },
+              'checkReceivesEvents': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Run the Receives-Events actionability gate '
+                    '(default true).',
+              },
+            },
+            'required': <String>['ref'],
+          },
+          extensionMethod: 'ext.dusk.right_click',
+        ),
+        McpToolDescriptor(
+          name: 'dusk_triple_click',
+          description: 'Fire three primary clicks (~100ms apart) at the '
+              'widget identified by `ref`.\n\n'
+              'Playwright parity: `locator.click({ clickCount: 3 })`. In '
+              'Material text fields this selects an entire paragraph. Runs '
+              'the 5-gate actionability check once before the first tap; '
+              'subsequent taps assume the target is still actionable.\n\n'
+              'Usage:\n'
+              '- `ref` (required): widget ref token.\n'
+              '- `includeSnapshot` (default false): embed post-action snapshot.\n'
+              '- `checkStable`/`checkReceivesEvents` (both default true): '
+              'gate opt-outs.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'ref': <String, dynamic>{
+                'type': 'string',
+                'description': 'Widget ref token (e.g. "e5").',
+              },
+              'includeSnapshot': <String, dynamic>{
+                'type': 'boolean',
+                'description':
+                    'Embed the post-action snapshot (default false).',
+              },
+              'checkStable': <String, dynamic>{
+                'type': 'boolean',
+                'description':
+                    'Run the Stable actionability gate (default true).',
+              },
+              'checkReceivesEvents': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Run the Receives-Events actionability gate '
+                    '(default true).',
+              },
+            },
+            'required': <String>['ref'],
+          },
+          extensionMethod: 'ext.dusk.triple_click',
         ),
       ];
 }
