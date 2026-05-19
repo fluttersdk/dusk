@@ -29,12 +29,12 @@ import 'commands/dusk_wait_command.dart';
 /// DuskDoctorCommand lands in Step 21 of the alpha-2 plan and is
 /// intentionally absent here.
 ///
-/// MCP tools: 16 descriptors. The original 6 from alpha-1 (snap / tap /
+/// MCP tools: 17 descriptors. The original 6 from alpha-1 (snap / tap /
 /// screenshot / hover / drag / type) are preserved verbatim; the 10 new
 /// descriptors (scroll / wait_for / dismiss_modals / navigate /
 /// navigate_back / get_routes / press_key / select_option / evaluate /
-/// close_app) come from Wave 2's handler steps. dusk_find lands in Step 16
-/// and is intentionally absent here.
+/// close_app) come from Wave 2's handler steps; dusk_find (Step 16) adds
+/// the Playwright-Locator-style query-handle resolver as the 17th.
 class DuskArtisanProvider extends ArtisanServiceProvider {
   @override
   String get providerName => 'fluttersdk_dusk';
@@ -653,6 +653,65 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             'properties': <String, dynamic>{},
           },
           extensionMethod: 'ext.dusk.close_app',
+        ),
+        // ---------------------------------------------------------------------
+        // 17. Find: Playwright-Locator-style query handle. q-shape refs
+        // re-execute the stored predicates on each action call.
+        // ---------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_find',
+          description:
+              'Find a widget by semantic query (text / semanticsLabel / '
+              'key) and return a re-resolvable handle.\n'
+              '\n'
+              'Mints a `q<N>` handle backed by the supplied predicates. '
+              'Unlike `e<N>` refs from dusk_snap (which freeze the widget '
+              'position at snap time and stale on rebuild), q-handles '
+              're-execute the Semantics + Element tree walk on every '
+              'subsequent dusk_tap / dusk_hover / dusk_drag / dusk_type '
+              'call, so they survive widget rebuilds, route pushes, and '
+              'snapshot disposal as long as the predicates still match.\n'
+              '\n'
+              'Usage:\n'
+              '- Pass at least one of `text`, `semanticsLabel`, or `key`. '
+              'When multiple are supplied they form an intersection.\n'
+              '- Prefer dusk_find when the target survives re-renders '
+              '(stable Text, stable accessibility label, stable Key); '
+              'prefer dusk_snap+`eN` when you want a positional snapshot '
+              'of the whole tree.\n'
+              '- Returns `{ref: "q<N>", matched: true}` on first match, '
+              'or `{ref: null, matched: false}` when no node matches.\n'
+              '- When a follow-up action call finds zero live matches, '
+              'the handler returns a "stale handle" error — agent must '
+              're-find or re-snap, NOT retry.\n'
+              '\n'
+              'Example: `{ "text": "Submit" }` or `{ "key": "monitor-row-7" }`',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'text': <String, dynamic>{
+                'type': 'string',
+                'description': 'Exact match against an accessibility label '
+                    'first, then against `Text.data` as fallback. Example: '
+                    '`"Submit"` matches a labelled button or a visible '
+                    '`Text("Submit")` widget.',
+              },
+              'semanticsLabel': <String, dynamic>{
+                'type': 'string',
+                'description': 'Exact match against `SemanticsNode.label` '
+                    'ONLY (no Text fallback). Use when the visible text '
+                    'differs from the accessibility label.',
+              },
+              'key': <String, dynamic>{
+                'type': 'string',
+                'description': 'Match against a widget Key. For ValueKey, '
+                    'pass the inner value\'s `toString()` (e.g. '
+                    '`"monitor-row-7"`); for arbitrary Keys, pass the '
+                    'full `Key.toString()` value.',
+              },
+            },
+          },
+          extensionMethod: 'ext.dusk.find',
         ),
       ];
 }

@@ -2,12 +2,53 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
+import 'ext_find.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
+
+/// Resolves a ref string to a live [RefEntry].
+///
+/// When [ref] begins with `q` it is treated as a Playwright-Locator-style
+/// query handle: the stored [DuskQuery] is looked up in [RefRegistry] and
+/// re-executed against the live Semantics + Element tree at this moment so
+/// the returned entry reflects the freshest rect / element / node. When no
+/// node matches the stored predicates, [DuskStaleHandleException] is
+/// thrown so the action handler can surface a descriptive error and the
+/// agent can decide to re-find or re-snap.
+///
+/// When [ref] begins with `e` it is a snapshot-frame token: a direct
+/// [RefRegistry.lookup] returns the cached entry or `null` when the
+/// snapshot group has been disposed.
+///
+/// All other prefixes (or empty ref) return `null` so the caller surfaces
+/// the familiar "ref not found in registry" error.
+RefEntry? resolveRefForAction(String ref) {
+  if (ref.isEmpty) return null;
+  if (ref.startsWith('q')) {
+    final DuskQuery? query = RefRegistry.lookupQuery(ref);
+    if (query == null) return null;
+    // Hold a SemanticsHandle for the duration of the re-execution so the
+    // semantics owner's rootSemanticsNode is non-null (the framework only
+    // builds the Semantics subtree while at least one handle is alive).
+    final SemanticsHandle handle = WidgetsBinding.instance.ensureSemantics();
+    final RefEntry? entry;
+    try {
+      entry = resolveQuery(query);
+    } finally {
+      handle.dispose();
+    }
+    if (entry == null) {
+      throw DuskStaleHandleException(ref: ref);
+    }
+    return entry;
+  }
+  return RefRegistry.lookup(ref);
+}
 
 /// Number of intermediate Move events emitted during a drag gesture.
 ///
@@ -138,7 +179,15 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     );
   }
 
-  final entry = RefRegistry.lookup(ref);
+  final RefEntry? entry;
+  try {
+    entry = resolveRefForAction(ref);
+  } on DuskStaleHandleException catch (e) {
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      e.message,
+    );
+  }
   if (entry == null) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
@@ -238,7 +287,15 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
       );
     }
 
-    final entry = RefRegistry.lookup(ref);
+    final RefEntry? entry;
+    try {
+      entry = resolveRefForAction(ref);
+    } on DuskStaleHandleException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        e.message,
+      );
+    }
     if (entry == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
@@ -330,7 +387,15 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       );
     }
 
-    final startEntry = RefRegistry.lookup(startRef);
+    final RefEntry? startEntry;
+    try {
+      startEntry = resolveRefForAction(startRef);
+    } on DuskStaleHandleException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        e.message,
+      );
+    }
     if (startEntry == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
@@ -338,7 +403,15 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       );
     }
 
-    final endEntry = RefRegistry.lookup(endRef);
+    final RefEntry? endEntry;
+    try {
+      endEntry = resolveRefForAction(endRef);
+    } on DuskStaleHandleException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        e.message,
+      );
+    }
     if (endEntry == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,

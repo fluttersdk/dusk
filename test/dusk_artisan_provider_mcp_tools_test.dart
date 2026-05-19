@@ -56,15 +56,15 @@ void main() {
     // Length
     // -------------------------------------------------------------------------
 
-    test('returns exactly 16 descriptors', () {
-      expect(tools, hasLength(16));
+    test('returns exactly 17 descriptors', () {
+      expect(tools, hasLength(17));
     });
 
     // -------------------------------------------------------------------------
     // Names
     // -------------------------------------------------------------------------
 
-    test('contains all 16 expected tool names', () {
+    test('contains all 17 expected tool names', () {
       final names = tools.map((t) => t.name).toList();
       expect(
         names,
@@ -76,7 +76,7 @@ void main() {
           'dusk_hover',
           'dusk_drag',
           'dusk_type',
-          // 10 new in this step.
+          // 10 from Wave 2.
           'dusk_scroll',
           'dusk_wait_for',
           'dusk_dismiss_modals',
@@ -87,13 +87,21 @@ void main() {
           'dusk_select_option',
           'dusk_evaluate',
           'dusk_close_app',
+          // Step 16.
+          'dusk_find',
         ]),
       );
     });
 
-    test('does not yet ship dusk_find (lands in Step 16)', () {
-      final names = tools.map((t) => t.name).toSet();
-      expect(names, isNot(contains('dusk_find')));
+    test('dusk_find descriptor is present and maps to ext.dusk.find', () {
+      final find = tools.firstWhere((t) => t.name == 'dusk_find');
+      expect(find.extensionMethod, equals('ext.dusk.find'));
+      // No top-level required keys — at-least-one validation lives in the
+      // handler itself.
+      expect(find.inputSchema.containsKey('required'), isFalse);
+      final properties = find.inputSchema['properties'] as Map<String, dynamic>;
+      expect(properties.keys,
+          containsAll(<String>['text', 'semanticsLabel', 'key']));
     });
 
     // -------------------------------------------------------------------------
@@ -121,6 +129,8 @@ void main() {
       expect(byName['dusk_select_option'], equals('ext.dusk.select_option'));
       expect(byName['dusk_evaluate'], equals('ext.dusk.evaluate'));
       expect(byName['dusk_close_app'], equals('ext.dusk.close_app'));
+      // Step 16.
+      expect(byName['dusk_find'], equals('ext.dusk.find'));
     });
 
     test('no two descriptors share an extensionMethod (no overlap, no gap)',

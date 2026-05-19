@@ -1,5 +1,6 @@
 import 'ext_close_app.dart';
 import 'ext_evaluate.dart';
+import 'ext_find.dart';
 import 'ext_modal_router.dart';
 import 'ext_navigation.dart';
 import 'ext_pointer.dart';
@@ -22,6 +23,11 @@ import 'ext_wait_find.dart';
 /// - [registerEvaluateExtension] (Step 9): ext.dusk.evaluate.
 /// - [registerCloseAppExtension] (Step 10): ext.dusk.close_app.
 ///
+/// Wave 3 additions (alpha-2):
+/// - [registerFindExtension] (Step 16): ext.dusk.find — Playwright-Locator-
+///   style query handle (`q<N>` refs that re-execute the predicates on
+///   every action call).
+///
 /// Steps 7 (press_key) and 8 (select_option) register their handlers INSIDE
 /// the pre-existing [registerTextInputExtensions] and
 /// [registerScrollExtensions] respectively, so no new aggregator call is
@@ -37,4 +43,5 @@ void registerAllDuskExtensions() {
   registerNavigationExtensions();
   registerEvaluateExtension();
   registerCloseAppExtension();
+  registerFindExtension();
 }

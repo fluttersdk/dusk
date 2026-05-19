@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
+import 'ext_pointer.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 // ---------------------------------------------------------------------------
@@ -268,11 +269,21 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     }
 
     // 1. Resolve via the production registry first so the actionability gate
-    //    (Step 15) can run with a real RefEntry. The TestRefRegistry path is
+    //    (Step 15) can run with a real RefEntry. q-shape refs re-execute the
+    //    stored Semantics query against the live tree (Step 16); e-shape
+    //    refs go through [RefRegistry.lookup]. The TestRefRegistry path is
     //    only consulted when the production registry has no entry; tests
     //    that need to exercise the gate must register through
     //    [RefRegistry.registerForTesting] instead of [TestRefRegistry.inject].
-    final RefEntry? entry = RefRegistry.lookup(ref);
+    final RefEntry? entry;
+    try {
+      entry = resolveRefForAction(ref);
+    } on DuskStaleHandleException catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        e.message,
+      );
+    }
     if (entry != null) {
       try {
         ensureActionable(entry, ref: ref);

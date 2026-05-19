@@ -65,6 +65,43 @@ class RefEntry {
   final RenderObject? renderObject;
 }
 
+/// Immutable predicate set stored alongside a `qN` query handle.
+///
+/// Mirrors the Playwright Locator pattern: a handle is opaque from the
+/// agent's perspective, and the predicates re-execute on every action so the
+/// handle is resilient to re-renders that would invalidate a snapshot-frame
+/// `eN` ref.
+///
+/// The class deliberately stores NO [Element] or [SemanticsNode] handles;
+/// the query walks the live Semantics tree from scratch on each resolution.
+/// This is what makes `qN` refs survive widget rebuild, route push, and
+/// snapshot-group disposal.
+///
+/// At least one of [text], [semanticsLabel], or [keyValue] must be non-null
+/// at construction time; the [extDuskFindHandler] gate enforces this.
+@immutable
+class DuskQuery {
+  /// Creates a [DuskQuery] from the supplied predicates. Callers must pass
+  /// at least one non-null field.
+  const DuskQuery({
+    this.text,
+    this.semanticsLabel,
+    this.keyValue,
+  });
+
+  /// Exact match against [SemanticsNode.label] (preferred for accessibility-
+  /// labelled widgets) or against a [Text.data] descendant when no semantic
+  /// label is set.
+  final String? text;
+
+  /// Exact match against [SemanticsNode.label]. Distinct from [text] so
+  /// agents can opt into label-only matching without [Text.data] fallback.
+  final String? semanticsLabel;
+
+  /// Stringified [Key] value (matches [ValueKey.value.toString()]).
+  final String? keyValue;
+}
+
 /// Static registry mapping `[ref=eN]` tokens to [RefEntry] records.
 ///
 /// V3 mints a fresh `e<N>` token every time [register] is called UNLESS a
@@ -120,6 +157,17 @@ class RefRegistry {
   /// individual entries are removed by [disposeGroup] when the entry's
   /// current `groupId` matches.
   static final Map<int, String> _byNodeId = <int, String>{};
+
+  /// Monotonic counter used to mint `q<N>` query handle tokens.
+  ///
+  /// Separate from [_counter] so query handles (`q1`, `q2`, …) and
+  /// snapshot-frame refs (`e1`, `e2`, …) never collide and the agent can
+  /// tell at a glance which shape it is dealing with.
+  static int _queryCounter = 0;
+
+  /// Token → query predicates. Lookup table for action tools that detect
+  /// the `q` prefix and re-execute the Semantics tree walk on every call.
+  static final Map<String, DuskQuery> _queries = <String, DuskQuery>{};
 
   // ---------------------------------------------------------------------------
   // Public API
@@ -202,6 +250,29 @@ class RefRegistry {
   /// or its owning group has been disposed.
   static RefEntry? lookup(String ref) => _entries[ref];
 
+  /// Mints a fresh `q<N>` query handle for the supplied predicate set and
+  /// stores it for subsequent action-tool re-resolution.
+  ///
+  /// Unlike [register], query handles are NEVER deduped: each call mints a
+  /// fresh token. The caller (the `ext.dusk.find` handler) verifies that at
+  /// least one predicate is non-null before invoking this method.
+  ///
+  /// Query handles are NOT scoped to a `groupId`: they survive snapshot
+  /// disposal because the predicates are re-executed against the live
+  /// Semantics tree on every action call. Use [disposeAll] /
+  /// [resetForTesting] to clear them in tests.
+  static String registerQuery(DuskQuery query) {
+    _queryCounter += 1;
+    final String token = 'q$_queryCounter';
+    _queries[token] = query;
+    return token;
+  }
+
+  /// Looks up the stored [DuskQuery] for a `q<N>` token. Returns `null`
+  /// when the token is unknown (e.g. after [disposeAll], or for `e<N>`
+  /// tokens which live in the [_entries] map instead).
+  static DuskQuery? lookupQuery(String ref) => _queries[ref];
+
   /// Removes every entry whose current `groupId` equals [groupId].
   /// Subsequent [lookup] calls for those tokens return `null`.
   ///
@@ -245,7 +316,9 @@ class RefRegistry {
   static void disposeAll() {
     _entries.clear();
     _byNodeId.clear();
+    _queries.clear();
     _counter = 0;
+    _queryCounter = 0;
   }
 
   /// Returns every token whose current `groupId` equals [groupId].

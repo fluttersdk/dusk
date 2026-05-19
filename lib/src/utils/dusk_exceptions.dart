@@ -48,3 +48,27 @@ class DuskActionabilityException extends DuskException {
   /// or `"off-viewport (rect=..., viewport=...)"`.
   final String reason;
 }
+
+/// Thrown when an action handler resolves a `q<N>` query handle whose stored
+/// predicates no longer match any node in the live Semantics tree.
+///
+/// Unlike `eN` snapshot refs (which fail with a generic
+/// `"ref not found in registry"` when the snapshot group is disposed),
+/// `qN` refs survive snapshot disposal but lose their target when the UI
+/// changes such that the original predicates no longer match. The agent
+/// should re-snap or re-find rather than retrying with the same handle.
+///
+/// [ref] is the `qN` token that resolved to zero live matches.
+class DuskStaleHandleException extends DuskException {
+  /// Creates a [DuskStaleHandleException] for the supplied [ref]; the
+  /// [message] is composed in the canonical
+  /// `"Query handle ref=$ref is stale: no live match for stored predicates"`
+  /// shape.
+  const DuskStaleHandleException({required this.ref})
+      : super(
+          'Query handle ref=$ref is stale: no live match for stored predicates',
+        );
+
+  /// The `qN` token whose stored predicates no longer match any live node.
+  final String ref;
+}
