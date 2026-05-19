@@ -13,28 +13,40 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 11 commands', () {
-      expect(cmds, hasLength(11));
+    test('returns exactly 18 commands', () {
+      expect(cmds, hasLength(18));
     });
 
     test(
-        'contains the 3 V1 commands plus the install command plus 6 alpha-2 '
-        'commands plus DuskDoctorCommand (Step 21)', () {
+        'contains every alpha-2 ship command (3 alpha-1 + install + 6 verbs + '
+        'doctor + 7 CLI/MCP-symmetry pass)', () {
       final names = cmds.map((c) => c.runtimeType.toString()).toSet();
       expect(
         names,
         containsAll(<String>[
+          // Alpha-1.
           'DuskSnapCommand',
           'DuskTapCommand',
           'DuskScreenshotCommand',
+          // Alpha-2 Step 11.
           'DuskInstallCommand',
+          // Alpha-2 Step 12.
           'DuskTypeCommand',
           'DuskScrollCommand',
           'DuskWaitCommand',
           'DuskHoverCommand',
           'DuskDragCommand',
           'DuskModalCommand',
+          // Alpha-2 Step 21.
           'DuskDoctorCommand',
+          // CLI/MCP symmetry pass.
+          'DuskNavigateCommand',
+          'DuskNavigateBackCommand',
+          'DuskGetRoutesCommand',
+          'DuskPressKeyCommand',
+          'DuskSelectOptionCommand',
+          'DuskCloseAppCommand',
+          'DuskFindCommand',
         ]),
       );
     });

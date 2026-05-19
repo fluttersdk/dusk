@@ -1,12 +1,19 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'commands/dusk_close_app_command.dart';
 import 'commands/dusk_doctor_command.dart';
 import 'commands/dusk_drag_command.dart';
+import 'commands/dusk_find_command.dart';
+import 'commands/dusk_get_routes_command.dart';
 import 'commands/dusk_hover_command.dart';
 import 'commands/dusk_install_command.dart';
 import 'commands/dusk_modal_command.dart';
+import 'commands/dusk_navigate_back_command.dart';
+import 'commands/dusk_navigate_command.dart';
+import 'commands/dusk_press_key_command.dart';
 import 'commands/dusk_screenshot_command.dart';
 import 'commands/dusk_scroll_command.dart';
+import 'commands/dusk_select_option_command.dart';
 import 'commands/dusk_snap_command.dart';
 import 'commands/dusk_tap_command.dart';
 import 'commands/dusk_type_command.dart';
@@ -47,7 +54,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         DuskScreenshotCommand(),
         // Alpha-2 Step 11.
         DuskInstallCommand(),
-        // Alpha-2 Step 12.
+        // Alpha-2 Step 12 (six standard verbs).
         DuskTypeCommand(),
         DuskScrollCommand(),
         DuskWaitCommand(),
@@ -56,6 +63,21 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         DuskModalCommand(),
         // Alpha-2 Step 21.
         DuskDoctorCommand(),
+        // CLI symmetry pass: every E2E-driver MCP tool has a matching
+        // CLI command so the two surfaces expose identical capabilities.
+        // Seven verbs land alongside their pre-existing ext.dusk.*
+        // handlers + dusk_* MCP descriptors. dusk_evaluate intentionally
+        // stays MCP-only: magic_tinker (the dedicated REPL package) owns
+        // the actual evaluate-via-VM-Service implementation and ships
+        // `tinker --eval` as the CLI surface; duplicating it under
+        // `dusk:` would split the evaluate contract across two packages.
+        DuskNavigateCommand(),
+        DuskNavigateBackCommand(),
+        DuskGetRoutesCommand(),
+        DuskPressKeyCommand(),
+        DuskSelectOptionCommand(),
+        DuskCloseAppCommand(),
+        DuskFindCommand(),
       ];
 
   @override
