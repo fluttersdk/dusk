@@ -510,4 +510,73 @@ void main() {
       );
     });
   });
+
+  group('TestRefRegistry', () {
+    testWidgets('inject + lookup roundtrip, clear empties the table',
+        (tester) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      final element = tester.element(find.byType(SizedBox));
+      TestRefRegistry.inject('e42', element);
+      expect(TestRefRegistry.lookup('e42'), equals(element));
+      TestRefRegistry.clear();
+      expect(TestRefRegistry.lookup('e42'), isNull);
+    });
+
+    test('lookup returns null for unknown ref', () {
+      expect(TestRefRegistry.lookup('e9999'), isNull);
+    });
+  });
+
+  group('typeIntoElement error paths', () {
+    testWidgets('throws ArgumentError when no EditableText is in the subtree',
+        (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: Text('plain'))),
+      );
+      final element = tester.element(find.byType(Scaffold));
+
+      expect(
+        () => typeIntoElement(element: element, text: 'hello'),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('aiTestTypeHandler param + error paths', () {
+    test('missing ref returns missing-param error', () async {
+      final response = await aiTestTypeHandler(
+        'ext.dusk.type',
+        const <String, String>{'text': 'hello'},
+      );
+      expect(response.result, isNull);
+      expect(
+        response.errorDetail ?? '',
+        contains('missing required param "ref"'),
+      );
+    });
+
+    test('empty ref returns missing-param error', () async {
+      final response = await aiTestTypeHandler(
+        'ext.dusk.type',
+        const <String, String>{'ref': '', 'text': 'hello'},
+      );
+      expect(response.result, isNull);
+      expect(
+        response.errorDetail ?? '',
+        contains('missing required param "ref"'),
+      );
+    });
+
+    test('unknown ref returns not-found error', () async {
+      final response = await aiTestTypeHandler(
+        'ext.dusk.type',
+        const <String, String>{'ref': 'e9999', 'text': 'hello'},
+      );
+      expect(response.result, isNull);
+      expect(
+        response.errorDetail ?? '',
+        contains('not found in registry'),
+      );
+    });
+  });
 }

@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fluttersdk_dusk/src/extensions/register_dusk_extensions.dart';
+
 /// Asserts that `registerAllDuskExtensions()` wires the three alpha-2
 /// aggregator entries added in Wave 2 (Steps 6 / 9 / 10) — navigation,
 /// evaluate, close_app — alongside the alpha-1 entries. Steps 7 (press_key)
@@ -74,6 +76,13 @@ void main() {
       expect(source, contains('registerScreenshotExtension();'));
       expect(source, contains('registerWaitFindExtensions();'));
       expect(source, contains('registerModalRouterExtension();'));
+    });
+  });
+
+  group('registerAllDuskExtensions execution', () {
+    test('invokes every sub-register without throwing (hot-restart safe)', () {
+      registerAllDuskExtensions();
+      registerAllDuskExtensions();
     });
   });
 }

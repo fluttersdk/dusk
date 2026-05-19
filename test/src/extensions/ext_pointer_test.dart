@@ -432,5 +432,152 @@ void main() {
         );
       },
     );
+
+    test(
+      '(d) missing endRef returns the original missing-param error',
+      () async {
+        final response = await aiTestDragHandler(
+          'ext.dusk.drag',
+          <String, String>{'startRef': 'e1'},
+        );
+        expect(response.result, isNull);
+        expect(
+          response.errorDetail ?? '',
+          contains('missing required param "endRef"'),
+        );
+      },
+    );
+
+    test(
+      '(d) unknown startRef returns "not found in registry" error',
+      () async {
+        final response = await aiTestDragHandler(
+          'ext.dusk.drag',
+          <String, String>{'startRef': 'e9999', 'endRef': 'e8888'},
+        );
+        expect(response.result, isNull);
+        expect(
+          response.errorDetail ?? '',
+          contains('startRef "e9999" not found in registry'),
+        );
+      },
+    );
+
+    testWidgets(
+      '(d) known startRef but unknown endRef returns endRef-not-found error',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        final Element element = tester.element(find.byType(SizedBox));
+        final String startRef = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(50, 50, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final response = await aiTestDragHandler(
+          'ext.dusk.drag',
+          <String, String>{'startRef': startRef, 'endRef': 'e9999'},
+        );
+        expect(response.result, isNull);
+        expect(
+          response.errorDetail ?? '',
+          contains('endRef "e9999" not found in registry'),
+        );
+      },
+    );
+  });
+
+  group('aiTestHoverHandler additional error paths', () {
+    setUp(RefRegistry.resetForTesting);
+
+    test('missing ref returns missing-param error', () async {
+      final response = await aiTestHoverHandler(
+        'ext.dusk.hover',
+        const <String, String>{},
+      );
+      expect(response.result, isNull);
+      expect(response.errorDetail ?? '', contains('missing required param'));
+    });
+
+    test('unknown ref returns not-found error', () async {
+      final response = await aiTestHoverHandler(
+        'ext.dusk.hover',
+        const <String, String>{'ref': 'e9999'},
+      );
+      expect(response.result, isNull);
+      expect(response.errorDetail ?? '', contains('not found in registry'));
+    });
+  });
+
+  group('resolveRefForAction', () {
+    setUp(RefRegistry.resetForTesting);
+
+    test('returns null for empty ref', () {
+      expect(resolveRefForAction(''), isNull);
+    });
+
+    test('returns null for unknown q-ref (no query stored)', () {
+      expect(resolveRefForAction('q9999'), isNull);
+    });
+
+    test('returns null for unknown e-ref (no entry stored)', () {
+      expect(resolveRefForAction('e9999'), isNull);
+    });
+  });
+
+  group('registerPointerExtensions', () {
+    test('runs without throwing twice in a row (hot-restart safe)', () {
+      registerPointerExtensions();
+      registerPointerExtensions();
+    });
+  });
+
+  group('aiTestTapHandler textfield post-dispatch path', () {
+    setUp(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'isTextField=true ref invokes _findEditableTextState after pointer dispatch',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: TextField(
+                  decoration: const InputDecoration(hintText: 'type here'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element textFieldElement = tester.element(find.byType(TextField));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 200, 50),
+          element: textFieldElement,
+          groupId: 'g-textfield',
+          isTextField: true,
+        );
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{'ref': ref},
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['ref'], equals(ref));
+      },
+    );
   });
 }

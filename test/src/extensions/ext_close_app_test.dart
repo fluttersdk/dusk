@@ -164,5 +164,25 @@ void main() {
         expect(result['closed'], isTrue);
       },
     );
+
+    test(
+      '(e) handler returns error envelope when closeAppImpl throws',
+      () async {
+        closeAppImpl = () async {
+          throw Exception('boom');
+        };
+
+        final response = await extDuskCloseAppHandler(
+          'ext.dusk.close_app',
+          <String, String>{},
+        );
+
+        expect(response.errorCode, isNotNull);
+        final Map<String, dynamic> body =
+            jsonDecode(response.errorDetail ?? '{}') as Map<String, dynamic>;
+        expect(body['error'], contains('boom'));
+        expect(body.containsKey('stackTrace'), isTrue);
+      },
+    );
   });
 }

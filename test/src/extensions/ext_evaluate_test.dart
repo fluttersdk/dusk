@@ -122,5 +122,26 @@ void main() {
       // test mode. Calling it should not throw.
       expect(() => registerEvaluateExtension(), returnsNormally);
     });
+
+    test(
+      '(f) handler with no injected evaluator falls back to sentinel',
+      () async {
+        final developer.ServiceExtensionResponse response =
+            await extDuskEvaluateHandler(
+          'ext.dusk.evaluate',
+          const <String, String>{'expression': 'someExpr()'},
+          // evaluator omitted → _sentinelEvaluator fires.
+        );
+
+        expect(response.errorCode, isNull);
+        final Map<String, dynamic> body =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(body['expression'], equals('someExpr()'));
+        expect(
+          body['result'] as String,
+          contains('<eval-via-vm-service:'),
+        );
+      },
+    );
   });
 }
