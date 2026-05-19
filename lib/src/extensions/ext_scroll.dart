@@ -72,12 +72,13 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
         duration: const Duration(milliseconds: 300),
       );
       // Derive final offset from the parent scrollable after settling.
-      // ignore: use_build_context_synchronously
       // Element-bound BuildContext from RefRegistry stays valid across
       // ensureVisible's await — the registered element is not unmounted
       // mid-scroll in any production path.
-      final ScrollableState? scrollable = Scrollable.maybeOf(targetContext);
-      finalOffset = scrollable?.position.pixels ?? 0.0;
+      if (targetContext.mounted) {
+        final ScrollableState? scrollable = Scrollable.maybeOf(targetContext);
+        finalOffset = scrollable?.position.pixels ?? 0.0;
+      }
     } else {
       // Scroll by delta — animate to new offset in the target or root scrollable.
       final ScrollableState? scrollable = targetContext != null

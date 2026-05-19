@@ -2,7 +2,6 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
-import 'package:meta/meta.dart';
 
 import 'dusk_snapshot_enricher.dart';
 import 'extensions/register_dusk_extensions.dart';
