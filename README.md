@@ -4,7 +4,7 @@ E2E driver for Flutter apps: snapshot, tap, type, drag, scroll, hover, screensho
 
 ---
 
-> **Alpha Release**: Dusk is under active development. APIs may change before stable.
+> **0.0.1**: Initial release. APIs may evolve across the 0.x line; the typedef + plugin install signatures stay stable.
 
 ## CLI Commands
 
@@ -12,17 +12,24 @@ Registered via `DuskArtisanProvider.commands()` and dispatched through `dart run
 
 | Command | Purpose |
 |---------|---------|
-| `dusk:install` | One-shot bootstrap: scaffolds the consumer artisan harness, runs `plugin:install fluttersdk_dusk`, and injects `DuskPlugin.install()` into `lib/main.dart`. Detects Magic-stack apps via the `await Magic.init(` anchor and injects BEFORE Magic.init (with `MagicDuskIntegration.install()` + `WindDuskIntegration.install()` AFTER); falls back to `runApp(` for vanilla Flutter. Idempotent. |
-| `dusk:snap` | Capture a YAML snapshot of the running app's Semantics tree with stable `[ref=eN]` tokens. |
-| `dusk:tap` | Tap a widget by ref token from a prior `dusk:snap`. |
-| `dusk:screenshot` | Capture a screenshot of the running app as a base64-encoded image (PNG or JPEG). |
+| `dusk:install` | Minimal install. Edits `lib/main.dart` only. Detects Magic-stack via the `await Magic.init(` anchor and injects `DuskPlugin.install()` BEFORE (with `MagicDuskIntegration.install()` + `WindDuskIntegration.install()` AFTER); falls back to `runApp(` for vanilla Flutter. Idempotent. |
+| `dusk:snap` | Capture a YAML snapshot of the Semantics tree with stable `[ref=eN]` tokens. |
+| `dusk:tap` | Tap a widget by ref token from a prior `dusk:snap` (Down + 50ms + Up). |
+| `dusk:screenshot` | Capture the current frame as a base64-encoded image (PNG or JPEG). |
 | `dusk:type` | Type text into a TextField identified by ref token. Replaces existing content. |
-| `dusk:scroll` | Scroll a Scrollable widget by ref token. Optional direction + pixels. |
-| `dusk:wait` | Wait until a UI condition (`text` / `textGone` / `expression`) is satisfied or the timeout expires. |
+| `dusk:scroll` | Scroll a Scrollable widget by ref token (`dy` / `dx` deltas, or `intoView`). |
+| `dusk:wait` | Wait until `text` / `textGone` / `expression` is satisfied, or the timeout expires. |
 | `dusk:hover` | Hover a mouse cursor over a widget by ref token (web + desktop only). |
 | `dusk:drag` | Drag from one widget to another by `startRef` + `endRef` tokens. |
-| `dusk:modal` | Pop every modal route (dialog, bottom sheet, popup) currently above the first persistent route. |
-| `dusk:doctor` | Diagnostic command: checks VM Service reachability, artisan plugin registration, actionability-gate prerequisites, Chrome reaper permissions. Categorised report (OK / WARN / ERROR per check). |
+| `dusk:modal` | Pop every modal route (dialog, bottom sheet, popup) above the first persistent route. |
+| `dusk:navigate` | Push a route path onto the active navigator (`--route /dashboard`). |
+| `dusk:navigate_back` | Pop the top route off the active navigator stack. |
+| `dusk:get_routes` | Print the active navigator's location + title. |
+| `dusk:press_key` | Synthesise `KeyDownEvent` + `KeyUpEvent` for a logical key (`--key Enter`, optional `--modifiers`). |
+| `dusk:select_option` | Drive a `DropdownButton` to the matching item (`--ref <ref> --value <value>`). |
+| `dusk:close_app` | Graceful shutdown via `SystemNavigator.pop()` (no-op on web). |
+| `dusk:find` | Mint a Playwright-Locator-style `q<N>` query handle (`--text` / `--semantics-label` / `--key`). Re-executes on every action call. |
+| `dusk:doctor` | Diagnostic command: Chrome staleness, `DUSK_DISABLE` env-var, enricher count, Semantics tree, Magic-init wiring. Categorised report (OK / WARN / ERROR per check). |
 
 ## MCP Tools
 
@@ -31,26 +38,28 @@ Exposed via `DuskArtisanProvider` when the consumer registers it in `bin/artisan
 | Tool | Extension method | Purpose |
 |------|------------------|---------|
 | `dusk_snap` | `ext.dusk.snap` | YAML snapshot of the Semantics tree with stable `[ref=eN]` tokens. |
-| `dusk_tap` | `ext.dusk.tap` | Tap a widget by ref token (Down + 50ms + Up). |
 | `dusk_screenshot` | `ext.dusk.screenshot` | Base64-encoded PNG / JPEG of the current frame. |
+| `dusk_tap` | `ext.dusk.tap` | Tap a widget by ref token (Down + 50ms + Up). |
+| `dusk_type` | `ext.dusk.type` | Type text into a TextField via `userUpdateTextEditingValue`. Replaces existing content. |
+| `dusk_press_key` | `ext.dusk.press_key` | Synthesise `KeyDownEvent` + `KeyUpEvent` with optional modifiers. |
 | `dusk_hover` | `ext.dusk.hover` | `PointerHoverEvent` of `PointerDeviceKind.mouse` at widget center. |
 | `dusk_drag` | `ext.dusk.drag` | Pointer Down + 5x Move + Up sequence between `startRef` and `endRef`. |
-| `dusk_type` | `ext.dusk.type` | Type text into a TextField via `userUpdateTextEditingValue`. Replaces existing content. |
-| `dusk_scroll` | `ext.dusk.scroll` | Drive the nearest Scrollable ancestor of `ref` (direction + pixels). |
-| `dusk_wait_for` | `ext.dusk.wait_for` | Poll until `text` / `textGone` / `expression` condition flips, or the timeout expires. |
+| `dusk_scroll` | `ext.dusk.scroll` | Drive the nearest Scrollable ancestor of `ref` (direction + pixels, or `intoView`). |
+| `dusk_select_option` | `ext.dusk.select_option` | Drive a `DropdownButton` to the matching item by `ref` + `value`. |
+| `dusk_wait_for` | `ext.dusk.wait_for` | Poll until `text` / `textGone` / `expression` flips, or the timeout expires. |
 | `dusk_dismiss_modals` | `ext.dusk.dismiss_modals` | Pop every modal route above the first persistent route. |
 | `dusk_navigate` | `ext.dusk.navigate` | Push a route path onto the active router (`MagicRoute.to` or `Navigator.pushNamed`). |
 | `dusk_navigate_back` | `ext.dusk.navigate_back` | Pop the top route off the active navigator stack. |
-| `dusk_get_routes` | `ext.dusk.get_routes` | List declared route paths from the active `MagicRouter` (empty when no Magic router). |
-| `dusk_press_key` | `ext.dusk.press_key` | Synthesise a `KeyDownEvent` + `KeyUpEvent` with optional modifiers (`control` / `shift` / `alt` / `meta`). |
-| `dusk_select_option` | `ext.dusk.select_option` | Drive a `DropdownButton` / `DropdownButtonFormField` to the matching item by `ref` + `value`. |
-| `dusk_evaluate` | `ext.dusk.evaluate` | Forward a Dart expression to the Tinker bridge (`ext.tinker.evaluate`) and return the stringified result. |
+| `dusk_get_routes` | `ext.dusk.get_routes` | Return current router location + page title. |
 | `dusk_close_app` | `ext.dusk.close_app` | Graceful shutdown via `SystemNavigator.pop()` (no-op on web). |
-| `dusk_find` | `ext.dusk.find` | Mint a Playwright-Locator-style `q<N>` query handle. Re-executes the Semantics + Element walk on every action call; survives widget rebuilds and route pushes as long as the predicates still match. |
+| `dusk_find` | `ext.dusk.find` | Mint a Playwright-Locator-style `q<N>` handle. Re-executes on every action call; survives widget rebuilds + route pushes. |
+| `dusk_doctor` | `ext.dusk.doctor` | Diagnostic snapshot of the runtime + consumer wiring (mirrors `dusk:doctor`). |
+
+`dusk_evaluate` is intentionally MCP-only (no matching CLI): the `magic_tinker` plugin owns the connected REPL surface; the dusk tool exists so MCP-only agents can fan out to evaluate without juggling two plugins.
 
 ## VM Service extensions
 
-All extensions register through `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety, route through the actionability gate where relevant, and return `ServiceExtensionResponse.result(jsonEncode(payload))` on success or `.error(kInvalidParams, msg)` on bad input.
+All extensions register through `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety, route through the actionability gate where relevant, and return `ServiceExtensionResponse.result(jsonEncode(payload))` on success or `.error(extensionError, msg)` on bad input.
 
 `ext.dusk.snap`, `ext.dusk.screenshot`, `ext.dusk.tap`, `ext.dusk.hover`, `ext.dusk.drag`, `ext.dusk.type`, `ext.dusk.scroll`, `ext.dusk.wait_for`, `ext.dusk.dismiss_modals`, `ext.dusk.press_key`, `ext.dusk.select_option`, `ext.dusk.navigate`, `ext.dusk.navigate_back`, `ext.dusk.get_routes`, `ext.dusk.evaluate`, `ext.dusk.close_app`, `ext.dusk.find`.
 
@@ -58,13 +67,15 @@ All extensions register through `registerExtensionIdempotent` (from `fluttersdk_
 
 ### Option A (recommended): one-shot install
 
-Once the consumer has `fluttersdk_artisan` wired (`bin/artisan.dart` + `.artisan/plugins.json`), let dusk install itself end-to-end:
+Once the consumer has `fluttersdk_artisan` wired (`bin/artisan.dart` + `.artisan/plugins.json`), let dusk install itself:
 
 ```bash
 dart run :artisan dusk:install
 ```
 
-The command scaffolds the consumer artisan harness if it's missing, runs `plugin:install fluttersdk_dusk`, and patches `lib/main.dart` so `DuskPlugin.install()` runs before `Magic.init()` (or before `runApp` on vanilla Flutter). When Magic is detected, the patch also adds `MagicDuskIntegration.install()` + `WindDuskIntegration.install()` AFTER `Magic.init()` so all 8 snapshot enrichers register. Idempotent; safe to re-run.
+The command patches `lib/main.dart` so `DuskPlugin.install()` runs before `Magic.init()` (or before `runApp` on vanilla Flutter). When Magic is detected, the patch also adds `MagicDuskIntegration.install()` + `WindDuskIntegration.install()` AFTER `Magic.init()` so the snapshot enrichers register. Idempotent; safe to re-run.
+
+For vanilla Flutter apps (no Magic), the consumer does NOT need `bin/artisan.dart` or `lib/app/` scaffolding — just `dart run fluttersdk_dusk <cmd>` from the package root.
 
 ### Option B: manual wiring
 
@@ -110,7 +121,7 @@ void main() async {
 
 #### 3. Register the Artisan provider (MCP tools + CLI commands)
 
-In `bin/artisan.dart`, register `DuskArtisanProvider` so the 17 `dusk_*` MCP tools + 11 `dusk:*` CLI commands surface to Claude Code and other MCP / CLI clients:
+In `bin/artisan.dart`, register `DuskArtisanProvider` so the 17 `dusk_*` MCP tools + 18 `dusk:*` CLI commands surface to Claude Code and other MCP / CLI clients:
 
 ```dart
 import 'package:fluttersdk_dusk/dusk.dart' show DuskArtisanProvider;
@@ -129,19 +140,23 @@ exit(await runArtisan(
 
 ### `example/`
 
-Vanilla Flutter app (no Magic framework) that exercises the framework-agnostic capture + drive surface: snapshot, tap, type, screenshot, scroll, drag, hover, wait, find. Demonstrates the minimal install pattern.
+Vanilla Flutter app (no Magic framework) with 7 scenario screens: home menu, buttons, inputs, scroll, modals, drawer, forms. Exercises the framework-agnostic capture + drive surface: snapshot, tap, type, screenshot, scroll, drag, hover, wait, find, select_option, press_key, modal dismiss, navigate, navigate_back.
 
 ```bash
 cd example && flutter run -d chrome
 ```
 
-### `example_magic/`
-
-Magic + Wind stack app that exercises all 8 snapshot enrichers via `MagicDuskIntegration` (`magicFormField`, `magicRoute`, `magicControllerEnricher`, `magicFormErrorsEnricher`, `magicGateResultEnricher`, `magicMiddlewareEnricher`, `magicAuthUserEnricher`) + `WindDuskIntegration` (6-field enricher: breakpoint, brightness, platform, states, bgColor, textColor). Use the artisan MCP server from this directory to verify all 17 `dusk_*` MCP tools surface correctly.
+Then drive it from a separate terminal:
 
 ```bash
-cd example_magic && flutter run -d chrome
+dart run fluttersdk_dusk dusk:snap
+dart run fluttersdk_dusk dusk:tap --ref e7
+dart run fluttersdk_dusk dusk:type --ref e12 --text 'hello dusk'
 ```
+
+## DUSK_DISABLE kill switch
+
+Set the `DUSK_DISABLE` env var (or `--dart-define=DUSK_DISABLE=1`) to `1`, `true`, or `yes` (case-insensitive) to skip `DuskPlugin.install()` even when called from `kDebugMode` code. Useful for screenshot-only release builds or pixel-diff CI pipelines that need a clean tree.
 
 ## Changelog
 

@@ -6,11 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Stack
 
-Flutter SDK package. Requires the Flutter runtime (widgets, foundation, dart:ui, gestures, services) for synthesised
-pointer / key events and the Semantics tree walk. Dart 3.4+ / Flutter 3.22+. Plugin of `fluttersdk_artisan`:
-contributes `DuskArtisanProvider` which surfaces 11 CLI commands (`dusk:install`, `dusk:snap`, `dusk:tap`,
-`dusk:screenshot`, `dusk:type`, `dusk:scroll`, `dusk:wait`, `dusk:hover`, `dusk:drag`, `dusk:modal`, `dusk:doctor`)
-and 17 MCP tools backed by `ext.dusk.*` VM Service extensions.
+Flutter SDK package. Version 0.0.1. Requires the Flutter runtime (widgets, foundation, dart:ui, gestures, services)
+for synthesised pointer / key events and the Semantics tree walk. Dart 3.4+ / Flutter 3.22+. Plugin of
+`fluttersdk_artisan`: contributes `DuskArtisanProvider` which surfaces 18 CLI commands (`dusk:install`, `dusk:snap`,
+`dusk:tap`, `dusk:screenshot`, `dusk:type`, `dusk:scroll`, `dusk:wait`, `dusk:hover`, `dusk:drag`, `dusk:modal`,
+`dusk:doctor`, `dusk:navigate`, `dusk:navigate_back`, `dusk:get_routes`, `dusk:press_key`, `dusk:select_option`,
+`dusk:close_app`, `dusk:find`) and 17 MCP tools backed by `ext.dusk.*` VM Service extensions. `dusk_evaluate` is
+intentionally MCP-only (magic_tinker owns the connected REPL surface).
 
 Deps: `fluttersdk_artisan` (path), `meta: ^1.16.0`, `image: ^4.0.0`. Dev deps: `flutter_test`, `flutter_lints`. This
 package is debug-only at the consumer call site: the consumer wraps `DuskPlugin.install()` inside `if (kDebugMode)`
@@ -26,7 +28,8 @@ fluttersdk_dusk` work end-to-end via the artisan PluginInstaller.
 
 | Command | When |
 |---|---|
-| `flutter test` | Run all tests (baseline green after alpha-2). |
+| `flutter test` | Run all tests (395 tests green at 0.0.1). |
+| `flutter test --coverage` | Generate `coverage/lcov.info`. Line coverage currently 79.4%. |
 | `dart format lib/ test/` | Format. Must produce no diff. |
 | `dart analyze` | Static analysis. Zero issues required across `lib/` and `test/`. |
 | `dart pub get` | Resolve deps after pubspec.yaml changes. |
@@ -39,13 +42,13 @@ Single barrel: `lib/dusk.dart` re-exports the full public API. Subsystem layout 
 | Path | Purpose |
 |---|---|
 | `extensions/` | `registerDuskExtensions()` aggregator + per-concern VM Service handlers: `ext_snapshot.dart`, `ext_screenshot.dart`, `ext_pointer.dart` (tap / hover / drag), `ext_text_input.dart` (type / press_key / select_option), `ext_scroll.dart`, `ext_wait_find.dart`, `ext_modal_router.dart` (dismiss_modals / navigate / navigate_back / get_routes), `ext_evaluate.dart`, `ext_close_app.dart`, `ext_find.dart`. |
-| `commands/` | `DuskInstallCommand`, `DuskSnapCommand`, `DuskTapCommand`, `DuskScreenshotCommand`, `DuskTypeCommand`, `DuskScrollCommand`, `DuskWaitCommand`, `DuskHoverCommand`, `DuskDragCommand`, `DuskModalCommand`, `DuskDoctorCommand` (11 ArtisanCommand subclasses, one file each). |
+| `commands/` | `DuskInstallCommand`, `DuskSnapCommand`, `DuskTapCommand`, `DuskScreenshotCommand`, `DuskTypeCommand`, `DuskScrollCommand`, `DuskWaitCommand`, `DuskHoverCommand`, `DuskDragCommand`, `DuskModalCommand`, `DuskDoctorCommand`, `DuskNavigateCommand`, `DuskNavigateBackCommand`, `DuskGetRoutesCommand`, `DuskPressKeyCommand`, `DuskSelectOptionCommand`, `DuskCloseAppCommand`, `DuskFindCommand` (18 ArtisanCommand subclasses, one file each). |
 | `utils/` | `actionability_gate.dart` (enabled + zero-rect + off-viewport precondition gate, shared by tap / hover / drag / type), `chrome_reaper.dart` (graceful Chromium subprocess teardown between dusk:* runs), `dusk_exceptions.dart` (`DuskActionabilityException` + `DuskStaleHandleException` typed exceptions; handlers serialize their `message` field as a free-form string via `ServiceExtensionResponse.error(extensionError, message)`). |
 | `console/` | YAML emitter for `dusk_snap` output: per-node `[ref=eN]` token + role + label + actions + bounds + enricher-contributed indented lines. |
 | `ref_registry.dart` | `e<N>` (snapshot-frozen) + `q<N>` (re-resolvable, `dusk_find`-minted) token system. Singleton; cleared on snap. |
 | `dusk_plugin.dart` | `DuskPlugin.install()` entry + `registerEnricher()` extension point. Idempotent. Wraps the app's widget root in a `RepaintBoundary` (no `GlobalKey`) so `ext.dusk.screenshot` finds it via render-tree walk. |
 | `dusk_snapshot_enricher.dart` | `DuskSnapshotEnricher` typedef (FROZEN — see Off-limits). |
-| `dusk_artisan_provider.dart` | `DuskArtisanProvider extends ArtisanServiceProvider`: 11 commands + 17 MCP tool descriptors. |
+| `dusk_artisan_provider.dart` | `DuskArtisanProvider extends ArtisanServiceProvider`: 18 commands + 17 MCP tool descriptors. |
 | `bin/fluttersdk_dusk.dart` | Flutter-free CLI wrapper (no `dart:ui` import) — runs the provider's commands standalone via `dart run fluttersdk_dusk`. |
 | `lib/cli.dart` | Flutter-free codegen barrel with `FluttersdkDuskArtisanProvider` typedef alias; consumed by consumer-side `lib/app/_plugins.g.dart` auto-discovery. |
 | `install.yaml` | V1 plugin manifest (empty publish list + post-install bootstrap message) required by `plugin:install fluttersdk_dusk`. |
