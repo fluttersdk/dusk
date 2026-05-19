@@ -39,20 +39,22 @@ void main() {
       expect(DuskWaitCommand().description, isNotEmpty);
     });
 
-    test('signature declares --text option', () {
-      expect(DuskWaitCommand().signature, contains('--text'));
-    });
-
-    test('signature declares --textGone option', () {
-      expect(DuskWaitCommand().signature, contains('--textGone'));
-    });
-
-    test('signature declares --expression option', () {
-      expect(DuskWaitCommand().signature, contains('--expression'));
-    });
-
-    test('signature declares --timeoutMs option', () {
-      expect(DuskWaitCommand().signature, contains('--timeoutMs'));
+    test('configure declares --text / --textGone / --expression / --timeoutMs',
+        () {
+      // Switched from the signature-DSL to configure(ArgParser) so the
+      // camelCase option names (textGone / timeoutMs) pass artisan's
+      // signature-parser strict-lowercase rule. Inspect the configured
+      // parser directly.
+      final parser = ArgParser();
+      DuskWaitCommand().configure(parser);
+      expect(
+          parser.options.keys,
+          containsAll(<String>[
+            'text',
+            'textGone',
+            'expression',
+            'timeoutMs',
+          ]));
     });
 
     test('handle calls ext.dusk.wait_for', () async {

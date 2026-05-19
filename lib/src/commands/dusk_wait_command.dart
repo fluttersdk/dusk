@@ -14,11 +14,25 @@ class DuskWaitCommand extends ArtisanCommand {
   CommandBoot get boot => CommandBoot.connected;
 
   @override
-  String get signature => 'dusk:wait '
-      '{--text= : Wait until this text appears in the widget tree.} '
-      '{--textGone= : Wait until this text disappears from the widget tree.} '
-      '{--expression= : Wait until this Dart expression evaluates to true.} '
-      '{--timeoutMs=5000 : Maximum wait time in milliseconds.}';
+  void configure(ArgParser parser) {
+    parser.addOption(
+      'text',
+      help: 'Wait until this text appears in the widget tree.',
+    );
+    parser.addOption(
+      'textGone',
+      help: 'Wait until this text disappears from the widget tree.',
+    );
+    parser.addOption(
+      'expression',
+      help: 'Wait until this Dart expression evaluates to true.',
+    );
+    parser.addOption(
+      'timeoutMs',
+      help: 'Maximum wait time in milliseconds.',
+      defaultsTo: '5000',
+    );
+  }
 
   @override
   Future<int> handle(ArtisanContext ctx) async {
