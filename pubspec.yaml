@@ -1,6 +1,6 @@
 name: fluttersdk_dusk
 description: "E2E driver for Flutter apps. Snapshot, tap, type, drag, scroll, screenshot, wait, find via VM Service extensions (ext.dusk.*). Framework-agnostic (vanilla Flutter friendly); Magic/Wind integrations ship inside those packages via DuskPlugin.enrichers extension point."
-version: 1.0.0-alpha.1
+version: 1.0.0-alpha.2
 homepage: https://dusk.fluttersdk.com
 repository: https://github.com/fluttersdk/dusk
 
@@ -15,6 +15,12 @@ dependencies:
     path: ../fluttersdk_artisan
   meta: ^1.16.0
   image: ^4.0.0
+
+executables:
+  # `dart run fluttersdk_dusk <cmd>` ; dusk-flavoured artisan wrapper.
+  # Proxies the full artisan CLI surface AND surfaces the 3 dusk CLI
+  # commands + 6 dusk_* MCP tools via DuskArtisanProvider.
+  fluttersdk_dusk: fluttersdk_dusk
 
 dev_dependencies:
   flutter_test:

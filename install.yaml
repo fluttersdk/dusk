@@ -1,0 +1,51 @@
+# fluttersdk_dusk install manifest (PluginInstaller DSL schema v1).
+#
+# Dusk is an E2E driver plugin. Install registers DuskArtisanProvider into the
+# consumer's lib/app/_plugins.g.dart codegen barrel (via the artisan manifest
+# installer's _registerArtisanProvider step) so the 11 dusk CLI commands + 17
+# dusk_* MCP tools surface in the consumer's `dart run artisan` and
+# `dart run fluttersdk_artisan:mcp` outputs.
+#
+# No stub files are published: dusk captures via VM Service extensions
+# (ext.dusk.*) + snapshot enrichers, not scaffolded code. The consumer wires
+# the runtime install in their lib/main.dart manually (see post_install message).
+#
+# See doc/install_yaml_schema.md (in fluttersdk_artisan) for the full schema.
+
+plugin_name: fluttersdk_dusk
+
+publish: {}
+
+magic:
+  provider: null   # dusk is artisan-only; no magic provider class to inject.
+
+post_install:
+  message: |
+    fluttersdk_dusk plugin:installed. Bootstrap workflow:
+
+    1. In your consumer's lib/main.dart, gated under `if (kDebugMode)`:
+
+         DuskPlugin.install();                         // before runApp() (or before Magic.init() for the Magic stack)
+
+    2. If you use Magic, ALSO call MagicDuskIntegration.install()
+       AFTER Magic.init() to wire the 5 Magic-side enrichers
+       (magicControllerEnricher, magicFormErrorsEnricher, magicGateResultEnricher,
+        magicMiddlewareEnricher, magicAuthUserEnricher).
+
+    3. If you use Wind, ALSO call WindDuskIntegration.install()
+       AFTER Magic.init() to wire the Wind 6-field enricher
+       (breakpoint, brightness, platform, states, bgColor, textColor).
+
+    4. Verify the CLI:
+
+         dart run artisan list             # consumer wrapper: lists artisan + plugin commands incl. dusk:*
+         dart run fluttersdk_dusk list    # dusk's own wrapper: same surface, namespaced entry point
+
+    5. Verify the MCP surface:
+
+         dart run fluttersdk_artisan mcp:install    # add fluttersdk MCP server entry to .mcp.json
+         # then restart Claude Code; /mcp will list 17 dusk_* tools
+         # (dusk_snap, dusk_screenshot, dusk_tap, dusk_hover, dusk_drag,
+         #  dusk_type, dusk_scroll, dusk_wait_for, dusk_dismiss_modals,
+         #  dusk_navigate, dusk_navigate_back, dusk_get_routes, dusk_find,
+         #  dusk_press_key, dusk_select_option, dusk_evaluate, dusk_close_app).
