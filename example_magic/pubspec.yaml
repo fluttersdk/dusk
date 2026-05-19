@@ -1,0 +1,45 @@
+name: example_magic
+description: "Magic-stack example app for fluttersdk_dusk. Exercises DuskPlugin, WindDuskIntegration, and MagicDuskIntegration enrichers."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  fluttersdk_dusk:
+    path: ../
+  magic:
+    path: ../../magic
+  fluttersdk_wind:
+    path: ../../wind
+
+  dio: ^5.7.0
+  logging: ^1.2.0
+
+dependency_overrides:
+  fluttersdk_artisan:
+    path: ../../fluttersdk_artisan
+  fluttersdk_dusk:
+    path: ../
+  fluttersdk_telescope:
+    path: ../../fluttersdk_telescope
+  fluttersdk_wind:
+    path: ../../wind
+  magic:
+    path: ../../magic
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
