@@ -1,13 +1,10 @@
 import 'dart:io';
 
 import 'package:fluttersdk_artisan/artisan.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/commands/dusk_doctor_command.dart';
 import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
-import 'package:fluttersdk_dusk/src/dusk_snapshot_enricher.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
 
 /// Restore every static test seam between tests so per-test overrides do not
 /// leak. The doctor command leans on roughly eight injected probes; without
@@ -27,10 +24,6 @@ void _resetDoctorHooks() {
     return file.existsSync() ? file.readAsStringSync() : null;
   };
 }
-
-/// Trivial enricher used to push [DuskPlugin.enrichers] above zero. The body
-/// is never executed by the doctor command (it just counts the list length).
-String? _fakeEnricher(Element element, RefRegistry refs) => null;
 
 void main() {
   setUp(() {

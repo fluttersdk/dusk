@@ -67,12 +67,17 @@ hot-restart safety.
 
 ### Actionability gate
 
-Every action handler (`tap`, `hover`, `drag`, `type`, `scroll`, `select_option`, `press_key`) resolves through
-`utils/actionability_gate.dart` BEFORE synthesising the pointer / key event. The gate verifies three preconditions in
-order: (1) visibility (target's `RenderObject` is attached + paint bounds are non-zero), (2) hit-testability (no
-opaque sibling occludes the target's hit-test region), (3) enabled (the widget's own enabled / interactive flag is
-true). Any failure returns a structured `actionability` MCP error result naming the failing precondition; the agent
-re-snaps or re-finds, never silently retries.
+The four direct-action handlers (`tap`, `hover`, `drag`, `type`) resolve through `utils/actionability_gate.dart`
+BEFORE synthesising the pointer / key event. The gate verifies three preconditions in order: (1) visibility
+(target's `RenderObject` is attached + paint bounds are non-zero), (2) hit-testability (no opaque sibling occludes
+the target's hit-test region), (3) enabled (the widget's own enabled / interactive flag is true). Any failure
+returns a structured `actionability` MCP error result naming the failing precondition; the agent re-snaps or
+re-finds, never silently retries.
+
+`scroll`, `select_option`, and `press_key` intentionally skip the gate (alpha-2): scroll operates on the parent
+scrollable not the ref target, select_option dispatches through Material/Cupertino popup machinery that owns its
+own enabled check, and press_key targets the focused widget rather than a ref. Adding the gate to these handlers
+is a deferred-idea candidate; see CHANGELOG `### Known gaps`.
 
 ## Conventions
 

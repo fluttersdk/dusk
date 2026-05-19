@@ -27,11 +27,15 @@ import '../utils/chrome_reaper.dart';
 ///      Zero registered enrichers means the consumer wired DuskPlugin but
 ///      neither Magic nor Wind glue ; snapshots will still work, just with
 ///      less context. WARN, never fail.
-///   4. **Semantics tree forced on** ; checks
-///      `RendererBinding.instance.semanticsEnabled`. False means
-///      [DuskPlugin.install] never ran (or was skipped via DUSK_DISABLE
-///      before semantics could be forced on). This is the only ERROR-class
-///      check ; failure surfaces a non-zero exit code.
+///   4. **Semantics tree forced on** ; reports whether
+///      `RendererBinding.instance.semanticsEnabled` is true. The only
+///      ERROR-class check; failure surfaces a non-zero exit code. NOTE:
+///      `dusk:doctor` runs in pure-Dart CLI context that cannot import
+///      `package:flutter/rendering.dart` (would drag `dart:ui` into a
+///      `dart run` invocation), so the default probe returns `true`
+///      unconditionally and ERROR is unreachable from CLI alone. The
+///      real-runtime check belongs to a future VM-Service-attached doctor
+///      invocation; tests override this probe to exercise both branches.
 ///   5. **Magic-init detection** ; reads `lib/main.dart` and reports whether
 ///      the consumer wired `Magic.init(` alongside `MagicDuskIntegration.
 ///      install()`. INFO only ; never fails the doctor regardless of the
