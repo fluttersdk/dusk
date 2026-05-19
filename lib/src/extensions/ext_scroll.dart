@@ -6,7 +6,35 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/error_envelope.dart';
 import 'ext_find.dart' show resolveQuery;
+import 'ext_snapshot.dart' show duskSnapBuild;
+
+/// Parses the optional `'true' | 'false'` flag [params] field [name],
+/// returning [defaultValue] when missing or empty.
+bool _parseBoolFlag(
+  Map<String, String> params,
+  String name, {
+  required bool defaultValue,
+}) {
+  final String? raw = params[name];
+  if (raw == null || raw.isEmpty) return defaultValue;
+  return raw != 'false' && raw != '0';
+}
+
+/// Builds the post-action snapshot YAML and appends it under the
+/// `snapshot` key of [payload], unless [params] sets
+/// `includeSnapshot: 'false'`.
+Future<void> _appendSnapshotIfRequested(
+  Map<String, dynamic> payload,
+  Map<String, String> params,
+) async {
+  if (!_parseBoolFlag(params, 'includeSnapshot', defaultValue: true)) {
+    return;
+  }
+  final Map<String, dynamic> snap = await duskSnapBuild();
+  payload['snapshot'] = snap['snapshot'];
+}
 
 /// Registers the `ext.dusk.scroll` and `ext.dusk.select_option` VM Service
 /// extensions.
@@ -38,8 +66,11 @@ void registerScrollExtensions() {
 /// - `intoView` (optional, default `false`): when `true`, calls
 ///   [Scrollable.ensureVisible] on the resolved element with `alignment: 0.5`
 ///   and a 300 ms duration. Requires `ref` to identify the target element.
+/// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
+///   embedding the post-scroll accessibility snapshot in the response.
 ///
-/// Returns `{ scrolled: true, finalOffset: <pixels> }` on success, or an
+/// Returns `{ scrolled: true, finalOffset: <pixels>, snapshot: '<yaml>' }`
+/// on success (snapshot key absent when `includeSnapshot: 'false'`), or an
 /// extension error response on failure.
 ///
 /// Must NOT use [PointerScrollEvent] (mouse-only; would not work on touch or
@@ -91,7 +122,13 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       if (scrollable == null) {
         return developer.ServiceExtensionResponse.error(
           developer.ServiceExtensionResponse.extensionError,
-          'No scrollable found in the widget tree.',
+          wrapErrorDetail(
+            'No scrollable found in the widget tree.',
+            DuskErrorEnvelope.notFound(
+              ref: ref ?? 'scrollable',
+              candidates: collectSnapshotCandidates(),
+            ),
+          ),
         );
       }
 
@@ -103,12 +140,22 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
     // 4. Wait for the UI to settle before returning.
     await WidgetsBinding.instance.endOfFrame;
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'scrolled': true,
-        'finalOffset': finalOffset,
-      }),
-    );
+    // 5. Embed post-action snapshot (opt-out via includeSnapshot:'false').
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'scrolled': true,
+      'finalOffset': finalOffset,
+    };
+    try {
+      await _appendSnapshotIfRequested(payload, params);
+    } catch (e) {
+      developer.log(
+        '[ai-test-v3] ext.dusk.scroll: post-dispatch snapshot build '
+        'swallowed: $e',
+        name: 'ai-test',
+      );
+    }
+
+    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, stackTrace) {
     developer.log(
       '[ai-test-v3] ext.dusk.scroll error: $e\n$stackTrace',
@@ -116,7 +163,7 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }
@@ -238,7 +285,10 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
     if (value == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        'Missing required parameter: value.',
+        wrapErrorDetail(
+          'Missing required parameter: value.',
+          DuskErrorEnvelope.missingParam('value'),
+        ),
       );
     }
 
@@ -254,7 +304,13 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
     if (!invoked) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        'No selectable widget found for ref=$ref value=$value.',
+        wrapErrorDetail(
+          'No selectable widget found for ref=$ref value=$value.',
+          DuskErrorEnvelope.notFound(
+            ref: ref ?? 'select',
+            candidates: collectSnapshotCandidates(),
+          ),
+        ),
       );
     }
 
@@ -274,7 +330,7 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }

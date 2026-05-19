@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
 // Self-registration entry point
@@ -54,8 +55,11 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
     if (text == null && semanticsLabel == null && keyValue == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        'ext.dusk.find: at least one of "text", "semanticsLabel", or '
-        '"key" is required',
+        wrapErrorDetail(
+          'ext.dusk.find: at least one of "text", "semanticsLabel", or '
+          '"key" is required',
+          DuskErrorEnvelope.missingParam('text|semanticsLabel|key'),
+        ),
       );
     }
 
@@ -96,7 +100,7 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }

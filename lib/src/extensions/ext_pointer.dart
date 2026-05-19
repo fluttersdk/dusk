@@ -8,8 +8,46 @@ import 'package:flutter/widgets.dart';
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/error_envelope.dart';
 import 'ext_find.dart';
+import 'ext_snapshot.dart' show duskSnapBuild;
 import 'package:fluttersdk_artisan/artisan.dart';
+
+/// Parses the optional `'true' | 'false'` flag [params] field [name],
+/// returning [defaultValue] when missing or empty.
+///
+/// Used to thread Playwright-style opt-out flags
+/// (`checkStable`, `checkReceivesEvents`, `includeSnapshot`) through the
+/// VM Service param map (always `Map<String, String>`).
+bool _parseBoolFlag(
+  Map<String, String> params,
+  String name, {
+  required bool defaultValue,
+}) {
+  final String? raw = params[name];
+  if (raw == null || raw.isEmpty) return defaultValue;
+  return raw != 'false' && raw != '0';
+}
+
+/// Builds the post-action snapshot YAML and appends it under the
+/// `snapshot` key of [payload], unless [params] sets
+/// `includeSnapshot: 'false'`.
+///
+/// Mirrors Playwright MCP's `setIncludeSnapshot()` pattern: every mutating
+/// action returns the fresh accessibility tree alongside its primary
+/// confirmation so the agent can decide its next move without a second
+/// round-trip. Caller already awaited any necessary `endOfFrame` ticks so
+/// the snapshot reflects the post-action tree.
+Future<void> _appendSnapshotIfRequested(
+  Map<String, dynamic> payload,
+  Map<String, String> params,
+) async {
+  if (!_parseBoolFlag(params, 'includeSnapshot', defaultValue: true)) {
+    return;
+  }
+  final Map<String, dynamic> snap = await duskSnapBuild();
+  payload['snapshot'] = snap['snapshot'];
+}
 
 /// Resolves a ref string to a live [RefEntry].
 ///
@@ -159,8 +197,23 @@ Future<void> _injectTap(Offset center,
 ///
 /// Parameters:
 /// - `ref` (required): opaque ref string from a prior `ext.dusk.snapshot` call.
+/// - `checkStable` (optional, default `'true'`): when `'false'`, skip the
+///   Playwright stable-rect gate. Production callers leave the default;
+///   tests that fabricate synthetic [RefEntry] rects opt out so the gate
+///   does not trip on the geometry mismatch.
+/// - `checkReceivesEvents` (optional, default `'true'`): when `'false'`,
+///   skip the Playwright receives-events hit-test gate. Same rationale as
+///   `checkStable`.
+/// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
+///   embedding the post-action accessibility snapshot in the response.
+///   Mirrors Playwright MCP's `setIncludeSnapshot()` opt-out.
 ///
-/// Response JSON:
+/// Response JSON (default):
+/// ```json
+/// { "ref": "e3", "snapshot": "<yaml>" }
+/// ```
+///
+/// With `includeSnapshot: 'false'`:
 /// ```json
 /// { "ref": "e3" }
 /// ```
@@ -175,7 +228,10 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   if (ref == null || ref.isEmpty) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      'ext.dusk.tap: missing required param "ref"',
+      wrapErrorDetail(
+        'ext.dusk.tap: missing required param "ref"',
+        DuskErrorEnvelope.missingParam('ref'),
+      ),
     );
   }
 
@@ -185,25 +241,45 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   } on DuskStaleHandleException catch (e) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.message,
+      wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
     );
   }
   if (entry == null) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      'ext.dusk.tap: ref "$ref" not found in registry',
+      wrapErrorDetail(
+        'ext.dusk.tap: ref "$ref" not found in registry',
+        DuskErrorEnvelope.notFound(
+          ref: ref,
+          candidates: collectSnapshotCandidates(),
+        ),
+      ),
     );
   }
 
-  // Actionability gate (Step 15) — refuse to tap a disabled, zero-rect, or
-  // off-viewport widget. Failures surface the gate's canonical message
-  // verbatim so the MCP tool can hand it to the agent without translation.
+  // Actionability gate (Steps 15 + 3.1) — refuse to tap a disabled,
+  // zero-rect, off-viewport, unstable, or obscured widget. Failures
+  // surface the gate's canonical message verbatim so the MCP tool can
+  // hand it to the agent without translation. Stable and receives-events
+  // gates are opt-out via params for tests with synthetic geometry.
+  final bool checkStable =
+      _parseBoolFlag(params, 'checkStable', defaultValue: true);
+  final bool checkReceivesEvents =
+      _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
   try {
-    ensureActionable(entry, ref: ref);
+    await ensureActionable(
+      entry,
+      ref: ref,
+      checkStable: checkStable,
+      checkReceivesEvents: checkReceivesEvents,
+    );
   } on DuskActionabilityException catch (e) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.message,
+      wrapErrorDetail(
+        e.message,
+        DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+      ),
     );
   }
 
@@ -229,7 +305,10 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      'ext.dusk.tap: injectTap failed: $e',
+      wrapErrorDetail(
+        'ext.dusk.tap: injectTap failed: $e',
+        DuskErrorEnvelope.unexpected(widgetPath: ref),
+      ),
     );
   }
 
@@ -256,9 +335,21 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     }
   }
 
-  return developer.ServiceExtensionResponse.result(
-    jsonEncode(<String, dynamic>{'ref': ref}),
-  );
+  // 3. Build the post-action snapshot (Playwright parity) and embed it
+  //    under `snapshot`. Snapshot-build failures are post-dispatch noise
+  //    and must NOT convert a successful tap into an error envelope.
+  final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
+  try {
+    await _appendSnapshotIfRequested(payload, params);
+  } catch (e) {
+    developer.log(
+      '[ai-test-v3] ext.dusk.tap: post-dispatch snapshot build swallowed '
+      'for ref "$ref": $e',
+      name: 'ai-test',
+    );
+  }
+
+  return developer.ServiceExtensionResponse.result(jsonEncode(payload));
 }
 
 /// Handler for the `ext.dusk.hover` VM Service extension.
@@ -269,10 +360,14 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
 ///
 /// Parameters:
 /// - `ref` (required): opaque ref string from `ext.dusk.snapshot`.
+/// - `checkStable` / `checkReceivesEvents` (optional, default `'true'`):
+///   Playwright actionability opt-outs. See [aiTestTapHandler] for details.
+/// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
+///   embedding the post-action snapshot in the response.
 ///
-/// Response JSON:
+/// Response JSON (default):
 /// ```json
-/// { "ref": "e5" }
+/// { "ref": "e5", "snapshot": "<yaml>" }
 /// ```
 Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
   String method,
@@ -283,7 +378,10 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     if (ref == null || ref.isEmpty) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        'ext.dusk.hover: missing required param "ref"',
+        wrapErrorDetail(
+          'ext.dusk.hover: missing required param "ref"',
+          DuskErrorEnvelope.missingParam('ref'),
+        ),
       );
     }
 
@@ -293,26 +391,43 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     } on DuskStaleHandleException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        e.message,
+        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
       );
     }
     if (entry == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        'ext.dusk.hover: ref "$ref" not found in registry',
+        wrapErrorDetail(
+          'ext.dusk.hover: ref "$ref" not found in registry',
+          DuskErrorEnvelope.notFound(
+            ref: ref,
+            candidates: collectSnapshotCandidates(),
+          ),
+        ),
       );
     }
 
-    // Actionability gate (Step 15) — refuse to hover a disabled, zero-rect,
-    // or off-viewport widget. The gate is inside the existing try/catch so
-    // unrelated runtime errors keep their generic surface; the explicit
-    // `on DuskActionabilityException` branch forwards the canonical message.
+    // Actionability gate (Steps 15 + 3.1) — refuse to hover a disabled,
+    // zero-rect, off-viewport, unstable, or obscured widget. Stable and
+    // receives-events gates opt-out via params for synthetic test rects.
+    final bool checkStable =
+        _parseBoolFlag(params, 'checkStable', defaultValue: true);
+    final bool checkReceivesEvents =
+        _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
     try {
-      ensureActionable(entry, ref: ref);
+      await ensureActionable(
+        entry,
+        ref: ref,
+        checkStable: checkStable,
+        checkReceivesEvents: checkReceivesEvents,
+      );
     } on DuskActionabilityException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        e.message,
+        wrapErrorDetail(
+          e.message,
+          DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+        ),
       );
     }
 
@@ -331,9 +446,21 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     await WidgetsBinding.instance.endOfFrame;
     await WidgetsBinding.instance.endOfFrame;
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{'ref': ref}),
-    );
+    // 3. Embed post-action snapshot (opt-out via includeSnapshot:'false').
+    //    Snapshot build failures are best-effort; never convert success
+    //    into error.
+    final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
+    try {
+      await _appendSnapshotIfRequested(payload, params);
+    } catch (e) {
+      developer.log(
+        '[ai-test-v3] ext.dusk.hover: post-dispatch snapshot build '
+        'swallowed for ref "$ref": $e',
+        name: 'ai-test',
+      );
+    }
+
+    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, st) {
     developer.log(
       '[ai-test-v3] ext.dusk.hover: unexpected error: $e\n$st',
@@ -341,7 +468,10 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      'ext.dusk.hover: $e',
+      wrapErrorDetail(
+        'ext.dusk.hover: $e',
+        DuskErrorEnvelope.unexpected(),
+      ),
     );
   }
 }
@@ -361,10 +491,15 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
 /// Parameters:
 /// - `startRef` (required): ref for the drag source widget.
 /// - `endRef` (required): ref for the drag destination widget.
+/// - `checkStable` / `checkReceivesEvents` (optional, default `'true'`):
+///   Playwright actionability opt-outs applied to BOTH endpoints. See
+///   [aiTestTapHandler].
+/// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
+///   embedding the post-action snapshot in the response.
 ///
-/// Response JSON:
+/// Response JSON (default):
 /// ```json
-/// { "startRef": "e1", "endRef": "e2" }
+/// { "startRef": "e1", "endRef": "e2", "snapshot": "<yaml>" }
 /// ```
 Future<developer.ServiceExtensionResponse> aiTestDragHandler(
   String method,
@@ -377,13 +512,19 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     if (startRef == null || startRef.isEmpty) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        'ext.dusk.drag: missing required param "startRef"',
+        wrapErrorDetail(
+          'ext.dusk.drag: missing required param "startRef"',
+          DuskErrorEnvelope.missingParam('startRef'),
+        ),
       );
     }
     if (endRef == null || endRef.isEmpty) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        'ext.dusk.drag: missing required param "endRef"',
+        wrapErrorDetail(
+          'ext.dusk.drag: missing required param "endRef"',
+          DuskErrorEnvelope.missingParam('endRef'),
+        ),
       );
     }
 
@@ -393,13 +534,19 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     } on DuskStaleHandleException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        e.message,
+        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(startRef)),
       );
     }
     if (startEntry == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        'ext.dusk.drag: startRef "$startRef" not found in registry',
+        wrapErrorDetail(
+          'ext.dusk.drag: startRef "$startRef" not found in registry',
+          DuskErrorEnvelope.notFound(
+            ref: startRef,
+            candidates: collectSnapshotCandidates(),
+          ),
+        ),
       );
     }
 
@@ -409,34 +556,61 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     } on DuskStaleHandleException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        e.message,
+        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(endRef)),
       );
     }
     if (endEntry == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        'ext.dusk.drag: endRef "$endRef" not found in registry',
+        wrapErrorDetail(
+          'ext.dusk.drag: endRef "$endRef" not found in registry',
+          DuskErrorEnvelope.notFound(
+            ref: endRef,
+            candidates: collectSnapshotCandidates(),
+          ),
+        ),
       );
     }
 
-    // Actionability gate (Step 15) — both endpoints must clear the gate
-    // before the pointer is committed. We gate startRef first so the agent
-    // sees the upstream failure when both ends are bad, mirroring the
-    // pre-existing "missing param" check ordering.
+    // Actionability gate (Steps 15 + 3.1) — both endpoints must clear the
+    // gate before the pointer is committed. We gate startRef first so the
+    // agent sees the upstream failure when both ends are bad, mirroring
+    // the pre-existing "missing param" check ordering. Stable and
+    // receives-events gates opt-out via params for synthetic test rects.
+    final bool checkStable =
+        _parseBoolFlag(params, 'checkStable', defaultValue: true);
+    final bool checkReceivesEvents =
+        _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
     try {
-      ensureActionable(startEntry, ref: startRef);
+      await ensureActionable(
+        startEntry,
+        ref: startRef,
+        checkStable: checkStable,
+        checkReceivesEvents: checkReceivesEvents,
+      );
     } on DuskActionabilityException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        e.message,
+        wrapErrorDetail(
+          e.message,
+          DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+        ),
       );
     }
     try {
-      ensureActionable(endEntry, ref: endRef);
+      await ensureActionable(
+        endEntry,
+        ref: endRef,
+        checkStable: checkStable,
+        checkReceivesEvents: checkReceivesEvents,
+      );
     } on DuskActionabilityException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        e.message,
+        wrapErrorDetail(
+          e.message,
+          DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+        ),
       );
     }
 
@@ -491,12 +665,22 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     await WidgetsBinding.instance.endOfFrame;
     await WidgetsBinding.instance.endOfFrame;
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'startRef': startRef,
-        'endRef': endRef,
-      }),
-    );
+    // 5. Embed post-action snapshot (opt-out via includeSnapshot:'false').
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'startRef': startRef,
+      'endRef': endRef,
+    };
+    try {
+      await _appendSnapshotIfRequested(payload, params);
+    } catch (e) {
+      developer.log(
+        '[ai-test-v3] ext.dusk.drag: post-dispatch snapshot build '
+        'swallowed: $e',
+        name: 'ai-test',
+      );
+    }
+
+    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, st) {
     developer.log(
       '[ai-test-v3] ext.dusk.drag: unexpected error: $e\n$st',
@@ -504,12 +688,152 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      'ext.dusk.drag: $e',
+      wrapErrorDetail(
+        'ext.dusk.drag: $e',
+        DuskErrorEnvelope.unexpected(),
+      ),
     );
   }
 }
 
-/// Registers all three pointer-event VM Service extensions.
+/// Handler for the `ext.dusk.dblclick` VM Service extension.
+///
+/// Fires two tap sequences at the widget identified by `ref` with a ~100ms
+/// delay between them, matching Playwright's double-click model. Both taps
+/// share the same pointer ID ([_kSinglePointer]) since the Up event from
+/// the first tap closes the hit-test cache entry before the second Down.
+///
+/// Passes through the same 4-gate actionability check as [aiTestTapHandler]
+/// (enabled, zero-rect, off-viewport, stable/receives-events). The snapshot
+/// is embedded ONCE, after both taps complete, so `includeSnapshot` fires
+/// exactly once regardless of tap count. This matches the briefing's
+/// requirement that dblclick is a single handler — latency is minimised and
+/// the snapshot only captures the final post-dblclick tree.
+///
+/// Parameters: identical to [aiTestTapHandler] — `ref`, `checkStable`,
+/// `checkReceivesEvents`, `includeSnapshot`.
+///
+/// Response JSON (default):
+/// ```json
+/// { "ref": "e3", "snapshot": "<yaml>" }
+/// ```
+Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
+  String method,
+  Map<String, String> params,
+) async {
+  // PRE-DISPATCH: hard error gates — same guard-clause shape as aiTestTapHandler.
+
+  final ref = params['ref'];
+  if (ref == null || ref.isEmpty) {
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(
+        'ext.dusk.dblclick: missing required param "ref"',
+        DuskErrorEnvelope.missingParam('ref'),
+      ),
+    );
+  }
+
+  final RefEntry? entry;
+  try {
+    entry = resolveRefForAction(ref);
+  } on DuskStaleHandleException catch (e) {
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+    );
+  }
+  if (entry == null) {
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(
+        'ext.dusk.dblclick: ref "$ref" not found in registry',
+        DuskErrorEnvelope.notFound(
+          ref: ref,
+          candidates: collectSnapshotCandidates(),
+        ),
+      ),
+    );
+  }
+
+  final bool checkStable =
+      _parseBoolFlag(params, 'checkStable', defaultValue: true);
+  final bool checkReceivesEvents =
+      _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+  try {
+    await ensureActionable(
+      entry,
+      ref: ref,
+      checkStable: checkStable,
+      checkReceivesEvents: checkReceivesEvents,
+    );
+  } on DuskActionabilityException catch (e) {
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(
+        e.message,
+        DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+      ),
+    );
+  }
+
+  // 1. First tap — identical to aiTestTapHandler's _injectTap call.
+  try {
+    await _injectTap(entry.rect.center);
+  } catch (e, st) {
+    developer.log(
+      '[ai-test-v3] ext.dusk.dblclick: first _injectTap failed for ref '
+      '"$ref": $e\n$st',
+      name: 'ai-test',
+    );
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(
+        'ext.dusk.dblclick: first injectTap failed: $e',
+        DuskErrorEnvelope.unexpected(widgetPath: ref),
+      ),
+    );
+  }
+
+  // 2. Inter-tap delay (~100ms) to match Playwright's double-click timing.
+  await Future<void>.delayed(const Duration(milliseconds: 100));
+
+  // 3. Second tap — pointer ID reused safely because the first Up event
+  //    closed the hit-test cache entry (sequential, non-concurrent).
+  try {
+    await _injectTap(entry.rect.center);
+  } catch (e, st) {
+    developer.log(
+      '[ai-test-v3] ext.dusk.dblclick: second _injectTap failed for ref '
+      '"$ref": $e\n$st',
+      name: 'ai-test',
+    );
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(
+        'ext.dusk.dblclick: second injectTap failed: $e',
+        DuskErrorEnvelope.unexpected(widgetPath: ref),
+      ),
+    );
+  }
+
+  // POST-DISPATCH: best-effort enrichment — snapshot fires once, after both
+  // taps, so the agent sees the final post-dblclick accessibility tree.
+  final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
+  try {
+    await _appendSnapshotIfRequested(payload, params);
+  } catch (e) {
+    developer.log(
+      '[ai-test-v3] ext.dusk.dblclick: post-dispatch snapshot build '
+      'swallowed for ref "$ref": $e',
+      name: 'ai-test',
+    );
+  }
+
+  return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+}
+
+/// Registers all pointer-event VM Service extensions.
 ///
 /// Called by the Wave 3 aggregator (`extensions.dart#registerAllAiTestExtensions`)
 /// during [DuskPlugin.install]. This module uses [registerExtensionIdempotent]
@@ -521,8 +845,10 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
 /// - `ext.dusk.tap` — pointer Down+50ms+Up at ref center; requestKeyboard for text fields.
 /// - `ext.dusk.hover` — PointerHoverEvent (mouse kind) at ref center.
 /// - `ext.dusk.drag` — Down+5×Move+Up from startRef to endRef.
+/// - `ext.dusk.dblclick` — two tap sequences (~100ms apart) at ref center.
 void registerPointerExtensions() {
   registerExtensionIdempotent('ext.dusk.tap', aiTestTapHandler);
   registerExtensionIdempotent('ext.dusk.hover', aiTestHoverHandler);
   registerExtensionIdempotent('ext.dusk.drag', aiTestDragHandler);
+  registerExtensionIdempotent('ext.dusk.dblclick', aiTestDoubleClickHandler);
 }

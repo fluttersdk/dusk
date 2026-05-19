@@ -1,5 +1,8 @@
+import 'ext_checkbox.dart';
 import 'ext_close_app.dart';
+import 'ext_console.dart';
 import 'ext_evaluate.dart';
+import 'ext_exceptions.dart';
 import 'ext_find.dart';
 import 'ext_modal_router.dart';
 import 'ext_navigation.dart';
@@ -32,6 +35,15 @@ import 'ext_wait_find.dart';
 /// the pre-existing [registerTextInputExtensions] and
 /// [registerScrollExtensions] respectively, so no new aggregator call is
 /// needed for them.
+///
+/// Step 3.4 adds `ext.dusk.wait_for_network_idle` INSIDE
+/// [registerWaitFindExtensions]; no new aggregator call needed there either.
+///
+/// Step 3.5 additions:
+/// - [registerConsoleExtensions]: ext.dusk.console — telescope log reader.
+/// - [registerExceptionsExtensions]: ext.dusk.exceptions — telescope exception reader.
+/// - `ext.dusk.dblclick` is registered INSIDE [registerPointerExtensions].
+/// - [registerCheckboxExtensions]: ext.dusk.set_checkbox — checkbox setter.
 void registerAllDuskExtensions() {
   registerSnapExtension();
   registerPointerExtensions();
@@ -44,4 +56,7 @@ void registerAllDuskExtensions() {
   registerEvaluateExtension();
   registerCloseAppExtension();
   registerFindExtension();
+  registerConsoleExtensions();
+  registerExceptionsExtensions();
+  registerCheckboxExtensions();
 }

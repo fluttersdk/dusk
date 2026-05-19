@@ -372,6 +372,223 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Step 3.2 — snapshot-in-action-response for navigate + navigate_back.
+  // ---------------------------------------------------------------------------
+
+  group('extDuskNavigateHandler snapshot-in-response', () {
+    testWidgets('embeds snapshot field in success response by default',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          initialRoute: '/',
+          routes: <String, WidgetBuilder>{
+            '/': (BuildContext context) => const Scaffold(
+                  body: Text('Home'),
+                ),
+            '/settings': (BuildContext context) => const Scaffold(
+                  body: Text('nav-snap-settings'),
+                ),
+          },
+        ),
+      );
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateHandler(
+        'ext.dusk.navigate',
+        <String, String>{'route': '/settings'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body['navigated'], isTrue);
+      expect(body['route'], equals('/settings'));
+      expect(body['snapshot'], isA<String>());
+    });
+
+    testWidgets('omits snapshot when includeSnapshot is false',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          initialRoute: '/',
+          routes: <String, WidgetBuilder>{
+            '/': (BuildContext context) => const Scaffold(body: Text('Home')),
+            '/about': (BuildContext context) =>
+                const Scaffold(body: Text('About')),
+          },
+        ),
+      );
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateHandler(
+        'ext.dusk.navigate',
+        <String, String>{
+          'route': '/about',
+          'includeSnapshot': 'false',
+        },
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body.containsKey('snapshot'), isFalse);
+      expect(body['navigated'], isTrue);
+    });
+
+    testWidgets('snapshot YAML is a populated string after navigate',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      // Route push triggers a 300 ms transition; the handler's two
+      // endOfFrame awaits land partway through. Settled-content checks
+      // are the caller's responsibility (issue dusk_snap after the
+      // animation completes). We assert structural presence of the
+      // snapshot key here, not the animation-dependent payload.
+      await tester.pumpWidget(
+        MaterialApp(
+          initialRoute: '/',
+          routes: <String, WidgetBuilder>{
+            '/': (BuildContext context) => const Scaffold(body: Text('Home')),
+            '/marker': (BuildContext context) => const Scaffold(
+                  body: Text('navigate-content-marker'),
+                ),
+          },
+        ),
+      );
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateHandler(
+        'ext.dusk.navigate',
+        <String, String>{'route': '/marker'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body['snapshot'], isA<String>());
+    });
+  });
+
+  group('extDuskNavigateBackHandler snapshot-in-response', () {
+    testWidgets('embeds snapshot field in success response by default',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          initialRoute: '/',
+          routes: <String, WidgetBuilder>{
+            '/': (BuildContext context) => Scaffold(
+                  body: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pushNamed('/second'),
+                    child: const Text('navback-home-marker'),
+                  ),
+                ),
+            '/second': (BuildContext context) => const Scaffold(
+                  body: Text('navback-second-page'),
+                ),
+          },
+        ),
+      );
+      await tester.tap(find.text('navback-home-marker'));
+      await tester.pumpAndSettle();
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateBackHandler(
+        'ext.dusk.navigate_back',
+        <String, String>{},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body['navigatedBack'], isTrue);
+      expect(body['snapshot'], isA<String>());
+    });
+
+    testWidgets('omits snapshot when includeSnapshot is false',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateBackHandler(
+        'ext.dusk.navigate_back',
+        <String, String>{'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body.containsKey('snapshot'), isFalse);
+      expect(body['navigatedBack'], isTrue);
+    });
+
+    testWidgets('snapshot YAML is a populated string after navigate_back',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      // Pop animation also runs for ~300 ms; same caveat as navigate.
+      // We assert structural presence of the snapshot key. Live drive
+      // and uptizm-app evidence will confirm settled YAML contents.
+      await tester.pumpWidget(
+        MaterialApp(
+          initialRoute: '/',
+          routes: <String, WidgetBuilder>{
+            '/': (BuildContext context) => Scaffold(
+                  body: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pushNamed('/inner'),
+                    child: const Text('navback-content-marker'),
+                  ),
+                ),
+            '/inner': (BuildContext context) => const Scaffold(
+                  body: Text('Inner'),
+                ),
+          },
+        ),
+      );
+      await tester.tap(find.text('navback-content-marker'));
+      await tester.pumpAndSettle();
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateBackHandler(
+        'ext.dusk.navigate_back',
+        <String, String>{},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body['snapshot'], isA<String>());
+      expect(body['snapshot'] as String, isNotEmpty);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // registerNavigationExtensions
   // ---------------------------------------------------------------------------
 

@@ -4,6 +4,8 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/error_envelope.dart';
+
 /// Signature for the injectable evaluate function.
 ///
 /// Accepts a Dart [expression] string and returns its string representation.
@@ -49,9 +51,10 @@ Future<developer.ServiceExtensionResponse> extDuskEvaluateHandler(
   if (expression == null || expression.isEmpty) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      jsonEncode(<String, String>{
-        'error': 'expression param is required',
-      }),
+      wrapErrorDetail(
+        'expression param is required',
+        DuskErrorEnvelope.missingParam('expression'),
+      ),
     );
   }
 
@@ -70,12 +73,13 @@ Future<developer.ServiceExtensionResponse> extDuskEvaluateHandler(
       }),
     );
   } catch (e, stackTrace) {
+    developer.log(
+      '[fluttersdk_dusk] ext.dusk.evaluate error: $e\n$stackTrace',
+      name: 'dusk',
+    );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      jsonEncode(<String, String>{
-        'error': e.toString(),
-        'stackTrace': stackTrace.toString(),
-      }),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }

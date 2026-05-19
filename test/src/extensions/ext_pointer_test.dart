@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
 
 /// Tests for the actionability gate wired into [aiTestTapHandler],
 /// [aiTestHoverHandler], and [aiTestDragHandler] (Step 15).
@@ -53,10 +54,18 @@ void main() {
         );
 
         // The handler awaits a 50ms delay and two endOfFrame ticks; pump
-        // alongside the future so frames advance under fake-async.
+        // alongside the future so frames advance under fake-async. Stable +
+        // receives-events gates opt-out because registerForTesting mints a
+        // synthetic rect that does not match the Center widget's live
+        // geometry (Step 3.1 introduced the 4-gate; Step 3.2 made the gates
+        // opt-out via params).
         final future = aiTestTapHandler(
           'ext.dusk.tap',
-          <String, String>{'ref': ref},
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
         );
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
@@ -233,7 +242,11 @@ void main() {
 
         final future = aiTestHoverHandler(
           'ext.dusk.hover',
-          <String, String>{'ref': ref},
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
         );
         await tester.pump();
         await tester.pump();
@@ -313,9 +326,16 @@ void main() {
         );
 
         // Drag handler awaits 5 × 16ms delays plus two endOfFrame ticks.
+        // Stable + receives-events gates opt-out: synthetic test rects do
+        // not align with the live Center widget geometry.
         final future = aiTestDragHandler(
           'ext.dusk.drag',
-          <String, String>{'startRef': startRef, 'endRef': endRef},
+          <String, String>{
+            'startRef': startRef,
+            'endRef': endRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
         );
         for (int i = 0; i < 6; i++) {
           await tester.pump(const Duration(milliseconds: 20));
@@ -398,9 +418,21 @@ void main() {
           isTextField: false,
         );
 
+        // startRef is on-viewport (100,100,50,50) so it must clear the
+        // gate before the handler checks endRef. With the Step 3.1 Stable
+        // gate default-on, startRef would trip on stable (synthetic rect
+        // vs live SizedBox.shrink geometry), masking the off-viewport
+        // failure we want to assert on endRef. Opt out stable +
+        // receives-events so startRef passes through to the off-viewport
+        // check on endRef.
         final response = await aiTestDragHandler(
           'ext.dusk.drag',
-          <String, String>{'startRef': startRef, 'endRef': endRef},
+          <String, String>{
+            'startRef': startRef,
+            'endRef': endRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
         );
 
         expect(response.result, isNull);
@@ -427,7 +459,7 @@ void main() {
         );
         expect(response.result, isNull);
         expect(
-          response.errorDetail ?? '',
+          parseMessageFromErrorDetail(response.errorDetail ?? ''),
           contains('missing required param "startRef"'),
         );
       },
@@ -442,7 +474,7 @@ void main() {
         );
         expect(response.result, isNull);
         expect(
-          response.errorDetail ?? '',
+          parseMessageFromErrorDetail(response.errorDetail ?? ''),
           contains('missing required param "endRef"'),
         );
       },
@@ -457,7 +489,7 @@ void main() {
         );
         expect(response.result, isNull);
         expect(
-          response.errorDetail ?? '',
+          parseMessageFromErrorDetail(response.errorDetail ?? ''),
           contains('startRef "e9999" not found in registry'),
         );
       },
@@ -481,7 +513,7 @@ void main() {
         );
         expect(response.result, isNull);
         expect(
-          response.errorDetail ?? '',
+          parseMessageFromErrorDetail(response.errorDetail ?? ''),
           contains('endRef "e9999" not found in registry'),
         );
       },
@@ -566,7 +598,11 @@ void main() {
 
         final future = aiTestTapHandler(
           'ext.dusk.tap',
-          <String, String>{'ref': ref},
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
         );
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
@@ -577,6 +613,623 @@ void main() {
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
         expect(decoded['ref'], equals(ref));
+      },
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Step 3.2 — snapshot-in-action-response (Playwright setIncludeSnapshot
+  // parity). Every mutating action handler embeds the post-action YAML
+  // snapshot under `snapshot` by default; `includeSnapshot: 'false'` opts
+  // out for back-compat callers that do not want the extra payload.
+  // ---------------------------------------------------------------------------
+
+  group('aiTestTapHandler snapshot-in-response', () {
+    setUp(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'embeds snapshot field in success response by default',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () {},
+                  child: const Text('snap-tap'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(ElevatedButton));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 80, 40),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['ref'], equals(ref));
+        expect(decoded['snapshot'], isA<String>());
+        expect(decoded['snapshot'] as String, isNotEmpty);
+      },
+    );
+
+    testWidgets(
+      'omits snapshot field when includeSnapshot is false',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('no-snap'))),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Scaffold));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+            'includeSnapshot': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['ref'], equals(ref));
+        expect(decoded.containsKey('snapshot'), isFalse);
+      },
+    );
+
+    testWidgets(
+      'snapshot YAML contains the tapped widget label',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () {},
+                  child: const Text('snap-content-target'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(ElevatedButton));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 80, 40),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final String snapshot = decoded['snapshot'] as String;
+        expect(snapshot, contains('snap-content-target'));
+      },
+    );
+  });
+
+  group('aiTestHoverHandler snapshot-in-response', () {
+    setUp(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'embeds snapshot field by default',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('hover-snap'))),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Scaffold));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(50, 50, 60, 60),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestHoverHandler(
+          'ext.dusk.hover',
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['snapshot'], isA<String>());
+      },
+    );
+
+    testWidgets(
+      'omits snapshot when includeSnapshot is false',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('hover-nosnap'))),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Scaffold));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(50, 50, 60, 60),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestHoverHandler(
+          'ext.dusk.hover',
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+            'includeSnapshot': 'false',
+          },
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded.containsKey('snapshot'), isFalse);
+      },
+    );
+
+    testWidgets(
+      'snapshot YAML reflects the post-hover tree contents',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () {},
+                  child: const Text('hover-content-marker'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Scaffold));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(50, 50, 60, 60),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestHoverHandler(
+          'ext.dusk.hover',
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['snapshot'] as String, contains('hover-content-marker'));
+      },
+    );
+  });
+
+  group('aiTestDragHandler snapshot-in-response', () {
+    setUp(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'embeds snapshot field in success response by default',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('drag-snap-target'))),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Scaffold));
+        final String startRef = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(50, 50, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+        final String endRef = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(300, 300, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestDragHandler(
+          'ext.dusk.drag',
+          <String, String>{
+            'startRef': startRef,
+            'endRef': endRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        for (int i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['startRef'], equals(startRef));
+        expect(decoded['endRef'], equals(endRef));
+        expect(decoded['snapshot'], isA<String>());
+      },
+    );
+
+    testWidgets(
+      'omits snapshot when includeSnapshot is false',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('drag-nosnap'))),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Scaffold));
+        final String startRef = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(50, 50, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+        final String endRef = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(300, 300, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestDragHandler(
+          'ext.dusk.drag',
+          <String, String>{
+            'startRef': startRef,
+            'endRef': endRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+            'includeSnapshot': 'false',
+          },
+        );
+        for (int i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded.containsKey('snapshot'), isFalse);
+      },
+    );
+
+    testWidgets(
+      'snapshot YAML reflects the post-drag tree',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () {},
+                  child: const Text('drag-content-marker'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Scaffold));
+        final String startRef = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(50, 50, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+        final String endRef = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(300, 300, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestDragHandler(
+          'ext.dusk.drag',
+          <String, String>{
+            'startRef': startRef,
+            'endRef': endRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        for (int i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['snapshot'] as String, contains('drag-content-marker'));
+      },
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // D3 — aiTestDoubleClickHandler (dblclick)
+  // ---------------------------------------------------------------------------
+
+  group('aiTestDoubleClickHandler', () {
+    setUp(RefRegistry.resetForTesting);
+
+    // -------------------------------------------------------------------------
+    // (a) Success path — double-click on an actionable widget returns ok envelope.
+    // -------------------------------------------------------------------------
+
+    testWidgets(
+      '(a) actionable widget double-click returns ok envelope with ref',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        int tapCount = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: GestureDetector(
+                onTap: () => tapCount++,
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Scaffold));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestDoubleClickHandler(
+          'ext.dusk.dblclick',
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        // Two taps each with 50ms hold + 100ms inter-tap delay; pump through.
+        for (int i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['ref'], equals(ref));
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (b) Actionability-blocked — off-viewport ref returns error.
+    // -------------------------------------------------------------------------
+
+    testWidgets(
+      '(b) off-viewport double-click returns actionability error',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        final Element element = tester.element(find.byType(SizedBox));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(5000, 5000, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final response = await aiTestDoubleClickHandler(
+          'ext.dusk.dblclick',
+          <String, String>{'ref': ref},
+        );
+
+        expect(response.result, isNull);
+        expect(
+          response.errorDetail ?? '',
+          allOf(
+            contains('Widget ref=$ref is not actionable'),
+            contains('off-viewport'),
+          ),
+        );
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (c) Missing ref param — returns missingParam error.
+    // -------------------------------------------------------------------------
+
+    test(
+      '(c) missing ref param returns missing_param error envelope',
+      () async {
+        final response = await aiTestDoubleClickHandler(
+          'ext.dusk.dblclick',
+          <String, String>{},
+        );
+
+        expect(response.result, isNull);
+        expect(response.errorDetail ?? '', contains('missing required param'));
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (d) Snapshot embed — double-click with includeSnapshot:true returns snapshot.
+    // -------------------------------------------------------------------------
+
+    testWidgets(
+      '(d) includeSnapshot:true embeds snapshot in response',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('dblclick-snap-test'))),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Scaffold));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestDoubleClickHandler(
+          'ext.dusk.dblclick',
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+            'includeSnapshot': 'true',
+          },
+        );
+        for (int i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded.containsKey('snapshot'), isTrue);
       },
     );
   });

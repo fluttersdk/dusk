@@ -1,8 +1,11 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'commands/dusk_close_app_command.dart';
+import 'commands/dusk_console_command.dart';
+import 'commands/dusk_dblclick_command.dart';
 import 'commands/dusk_doctor_command.dart';
 import 'commands/dusk_drag_command.dart';
+import 'commands/dusk_exceptions_command.dart';
 import 'commands/dusk_find_command.dart';
 import 'commands/dusk_get_routes_command.dart';
 import 'commands/dusk_hover_command.dart';
@@ -14,10 +17,12 @@ import 'commands/dusk_press_key_command.dart';
 import 'commands/dusk_screenshot_command.dart';
 import 'commands/dusk_scroll_command.dart';
 import 'commands/dusk_select_option_command.dart';
+import 'commands/dusk_set_checkbox_command.dart';
 import 'commands/dusk_snap_command.dart';
 import 'commands/dusk_tap_command.dart';
 import 'commands/dusk_type_command.dart';
 import 'commands/dusk_wait_command.dart';
+import 'commands/dusk_wait_for_network_idle_command.dart';
 
 /// Contributes dusk:* commands and MCP tool descriptors to the artisan
 /// dispatcher.
@@ -78,6 +83,14 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         DuskSelectOptionCommand(),
         DuskCloseAppCommand(),
         DuskFindCommand(),
+        // Step 3.4: network-idle waiter wired against
+        // TelescopeStore.pendingHttpCount via pendingHttpCountReader.
+        DuskWaitForNetworkIdleCommand(),
+        // Step 3.5: telescope readers + double-click + checkbox setter.
+        DuskConsoleCommand(),
+        DuskExceptionsCommand(),
+        DuskDblclickCommand(),
+        DuskSetCheckboxCommand(),
       ];
 
   @override
@@ -736,6 +749,225 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             },
           },
           extensionMethod: 'ext.dusk.find',
+        ),
+        // ---------------------------------------------------------------------
+        // 18. Wait for network idle (Step 3.4). Polls
+        // TelescopeStore.pendingHttpCount via the pendingHttpCountReader
+        // function-pointer indirection (set by the host when telescope is
+        // installed; defaults to () => 0 otherwise ; missing-telescope
+        // graceful path returns matched=true immediately).
+        // ---------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_wait_for_network_idle',
+          description: 'Wait until the running app reports zero in-flight HTTP '
+              'requests for a contiguous idleMs window.\n'
+              '\n'
+              'Polls the host\'s in-flight HTTP counter (wired by '
+              'fluttersdk_telescope\'s `MagicHttpFacadeAdapter.pendingCount` '
+              'when both packages are present) every `pollIntervalMs` ms. '
+              'When the counter reaches 0 a continuous-zero countdown of '
+              '`idleMs` starts; any spike back to a positive count fully '
+              'resets the accumulator (Playwright `waitForLoadState` '
+              'network-idle semantics). On success returns '
+              '`{matched: true, idleAchievedMs: <int>}`; on timeout returns '
+              'a structured error envelope with `type: "timeout"` and the '
+              'max in-flight count observed inside the wire `message` field.\n'
+              '\n'
+              'Usage:\n'
+              '- No required params; sensible defaults '
+              '(`timeoutMs=5000`, `idleMs=500`, `pollIntervalMs=200`).\n'
+              '- Call AFTER dusk_tap / dusk_navigate / dusk_select_option to '
+              'bridge async network round-trips before a follow-up dusk_snap. '
+              'Replaces the `dusk_wait_for textGone=Loading...` pattern when '
+              'the loading affordance is not Semantically labelled.\n'
+              '- Missing-telescope graceful: when the host has not wired '
+              'telescope the counter is constantly 0 and the call returns '
+              'idle immediately, so callers do not need to branch on the '
+              'host\'s install state.\n'
+              '- `pollIntervalMs` must be >= 100ms (CPU constraint); the '
+              'handler asserts this internally.\n'
+              '\n'
+              'Example: `{ "timeoutMs": 8000, "idleMs": 750 }`',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'timeoutMs': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Maximum total wait time in milliseconds. '
+                    'Default 5000.',
+              },
+              'idleMs': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Contiguous-zero window the loop must observe '
+                    'before declaring idle. Default 500.',
+              },
+              'pollIntervalMs': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Poll cadence in milliseconds. Minimum 100; '
+                    'default 200.',
+              },
+            },
+          },
+          extensionMethod: 'ext.dusk.wait_for_network_idle',
+        ),
+        // ---------------------------------------------------------------------
+        // 19. Console: reads recent log entries from the telescope store.
+        // ---------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_console',
+          description: 'Read recent log entries from the running app\'s '
+              'telescope store.\n'
+              '\n'
+              'Reads structured log entries recorded by the telescope HTTP '
+              'adapter and log watcher when `fluttersdk_telescope` is '
+              'installed and wired. When telescope is absent the call '
+              'returns an empty list immediately (missing-telescope graceful '
+              'path), so callers do not need to branch on install state.\n'
+              '\n'
+              'Usage:\n'
+              '- No required params; defaults to the 50 most recent entries '
+              'at any severity level.\n'
+              '- Pass `limit: <n>` to cap the returned count.\n'
+              '- Pass `minLevel: "WARNING"` (or `"ERROR"`) to filter by '
+              'minimum severity level.\n'
+              '- Each log entry contains `level`, `message`, `time`, and '
+              '`logger` fields.\n'
+              '- Useful for asserting that a controller logged an expected '
+              'message without needing to inspect the UI tree.\n'
+              '\n'
+              'Example: `{ "limit": 10, "minLevel": "ERROR" }`',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'limit': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Maximum number of log entries to return. '
+                    'Default 50.',
+              },
+              'minLevel': <String, dynamic>{
+                'type': 'string',
+                'description': 'Minimum severity level to include. Examples: '
+                    '`INFO`, `WARNING`, `ERROR`. Omit to include all levels.',
+              },
+            },
+          },
+          extensionMethod: 'ext.dusk.console',
+        ),
+        // ---------------------------------------------------------------------
+        // 20. Exceptions: reads recent exception entries from telescope.
+        // ---------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_exceptions',
+          description: 'Read recent exceptions recorded by the running app\'s '
+              'telescope store.\n'
+              '\n'
+              'Returns structured exception entries captured by the telescope '
+              'exception watcher when `fluttersdk_telescope` is installed. '
+              'Missing-telescope graceful: returns an empty list when the '
+              'host has not wired telescope, so callers never need to branch '
+              'on install state.\n'
+              '\n'
+              'Usage:\n'
+              '- No required params; defaults to the 20 most recent exceptions.\n'
+              '- Pass `limit: <n>` to cap the returned count.\n'
+              '- Each entry contains `type`, `message`, `stackHead` (first '
+              '3 lines of the stack trace), and `time` fields.\n'
+              '- Useful for asserting that an action did not trigger an '
+              'unexpected exception before a follow-up dusk_snap.\n'
+              '\n'
+              'Example: `{ "limit": 5 }`',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'limit': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Maximum number of exception entries to '
+                    'return. Default 20.',
+              },
+            },
+          },
+          extensionMethod: 'ext.dusk.exceptions',
+        ),
+        // ---------------------------------------------------------------------
+        // 21. Double-click: two tap sequences at ref center (~100ms apart).
+        // ---------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_dblclick',
+          description: 'Double-click a widget by ref token from a prior '
+              'dusk_snap.\n'
+              '\n'
+              'Synthesizes two pointer Down+50ms+Up sequences at the center '
+              'of the widget identified by `ref`, with ~100ms between the '
+              'two taps, matching Playwright\'s double-click model. Triggers '
+              '`GestureDetector.onDoubleTap` and any double-tap handlers '
+              'registered on that widget. The 4-gate actionability check '
+              '(enabled, non-zero rect, in-viewport, stable) runs before the '
+              'first tap; the post-action snapshot is captured once after the '
+              'second tap completes.\n'
+              '\n'
+              'Usage:\n'
+              '- Call dusk_snap first to get a ref token; the ref string '
+              'has shape `e<N>` or `q<N>`.\n'
+              '- For single tap use dusk_tap; for drag use dusk_drag.\n'
+              '- Returns the ref of the clicked widget on success; errors '
+              'when the ref is unknown, stale, or the widget fails the '
+              'actionability gate.\n'
+              '\n'
+              'Example: `{ "ref": "e7" }`',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'ref': <String, dynamic>{
+                'type': 'string',
+                'description': 'Widget ref token from a prior dusk_snap '
+                    'call. Shape: `e<N>` (e.g. `e5`, `e23`).',
+              },
+            },
+            'required': <String>['ref'],
+          },
+          extensionMethod: 'ext.dusk.dblclick',
+        ),
+        // ---------------------------------------------------------------------
+        // 22. Set checkbox: read + conditionally toggle a Checkbox or Switch.
+        // ---------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_set_checkbox',
+          description: 'Set the checked state of a Checkbox or Switch widget '
+              'by ref.\n'
+              '\n'
+              'Reads the widget\'s current checked state via an element/Semantics '
+              'walk. When the current value already matches `value` the call '
+              'returns an idempotent success without tapping (safe to call '
+              'speculatively). When the current value differs, injects a tap '
+              'at the widget\'s center to toggle it.\n'
+              '\n'
+              'Usage:\n'
+              '- Call dusk_snap first to get a ref token for the target '
+              'Checkbox or Switch widget.\n'
+              '- Pass `value: "true"` to check or `value: "false"` to uncheck.\n'
+              '- Returns `{ref, previousValue, value, toggled: bool}` — use '
+              '`toggled` to confirm whether a tap was actually issued.\n'
+              '- Re-snap after a toggle to see the updated Semantics tree.\n'
+              '\n'
+              'Example: `{ "ref": "e4", "value": "true" }`',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'ref': <String, dynamic>{
+                'type': 'string',
+                'description': 'Checkbox or Switch widget ref token (`e<N>`) '
+                    'from a prior dusk_snap.',
+              },
+              'value': <String, dynamic>{
+                'type': 'string',
+                'enum': <String>['true', 'false'],
+                'description': 'Target checked state. `"true"` checks the '
+                    'widget; `"false"` unchecks it.',
+              },
+            },
+            'required': <String>['ref', 'value'],
+          },
+          extensionMethod: 'ext.dusk.set_checkbox',
         ),
       ];
 }

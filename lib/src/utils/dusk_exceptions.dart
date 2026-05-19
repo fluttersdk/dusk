@@ -25,11 +25,27 @@ abstract class DuskException implements Exception {
 }
 
 /// Thrown by [ensureActionable] when a registered ref cannot accept an
-/// action because the underlying widget is disabled, has a zero-area rect,
-/// or sits outside the current root view.
+/// action because the underlying widget fails one of the 5 Playwright-parity
+/// gates: not enabled, zero-area rect, off-viewport, unstable bounding box,
+/// or obscured by another widget.
 ///
-/// [ref] is the `eN` token that triggered the check; [reason] is one of
-/// `"not enabled"`, `"zero rect"`, or `"off-viewport (rect=..., viewport=...)"`.
+/// [ref] is the `eN` token that triggered the check; [reason] is one of:
+///
+/// * `"not enabled"` — semantics flag `isEnabled` is `Tristate.isFalse`.
+/// * `"zero rect"` — rect width or height is 0.
+/// * `"off-viewport (rect=..., viewport=...)"` — rect does not overlap the
+///   logical viewport.
+/// * `"not stable (rect changed by Xpx)"` — bounding box drifted more than
+///   0.5 logical pixels between two consecutive frames (animated widget).
+/// * `"obscured by other widget (top=<runtimeType>)"` — hit-test at
+///   `rect.center` resolved a non-descendant target (overlay, modal scrim,
+///   stacked widget).
+///
+/// Agents branch on substring of [reason] (`"not enabled"`, `"zero rect"`,
+/// `"off-viewport"`, `"not stable"`, `"obscured by"`); the substrings are a
+/// load-bearing public contract — see `lib/src/utils/actionability_gate.dart`
+/// off-limits notes.
+///
 /// [message] is the pre-formatted string action handlers can surface
 /// verbatim back to the agent.
 class DuskActionabilityException extends DuskException {
@@ -44,8 +60,9 @@ class DuskActionabilityException extends DuskException {
   /// The `eN` token whose underlying widget failed the actionability check.
   final String ref;
 
-  /// Short, machine-readable cause: one of `"not enabled"`, `"zero rect"`,
-  /// or `"off-viewport (rect=..., viewport=...)"`.
+  /// Short, machine-readable cause. Substring is the agent-parseable
+  /// contract: one of `"not enabled"`, `"zero rect"`, `"off-viewport"`,
+  /// `"not stable"`, or `"obscured by"`.
   final String reason;
 }
 

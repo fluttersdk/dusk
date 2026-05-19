@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_text_input.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -472,10 +473,17 @@ void main() {
           );
 
           // Handler awaits two endOfFrame ticks; pump alongside so frames
-          // advance under fake-async.
+          // advance under fake-async. Stable + receives-events gates
+          // opt-out: registerForTesting mints a synthetic rect that does
+          // not align with the live TextField geometry.
           final future = aiTestTypeHandler(
             'ext.dusk.type',
-            <String, String>{'ref': ref, 'text': 'typed'},
+            <String, String>{
+              'ref': ref,
+              'text': 'typed',
+              'checkStable': 'false',
+              'checkReceivesEvents': 'false',
+            },
           );
           await tester.pump();
           await tester.pump();
@@ -492,19 +500,27 @@ void main() {
 
     group('ext.dusk.press_key registration', () {
       // -----------------------------------------------------------------------
-      // Test registration state (no duplicate handler)
+      // Test registration state (no duplicate handler).
+      //
+      // Uses testWidgets so the handler's post-Step-3.2 endOfFrame awaits
+      // can settle. A bare test() would hang once any prior testWidgets
+      // has initialised the WidgetsBinding rootElement.
       // -----------------------------------------------------------------------
 
-      test(
+      testWidgets(
         'ext.dusk.press_key is registered after registerTextInputExtensions',
-        () async {
+        (WidgetTester tester) async {
+          await tester.pumpWidget(const MaterialApp(home: Scaffold()));
           registerTextInputExtensions();
           // If registration fails, it would throw; succeeding here validates
           // that the registration succeeded previously.
-          final response = await aiTestPressKeyHandler(
+          final future = aiTestPressKeyHandler(
             'ext.dusk.press_key',
-            {'key': 'Enter'},
+            <String, String>{'key': 'Enter'},
           );
+          await tester.pump();
+          await tester.pump();
+          final response = await future;
           expect(response.result, isNotNull);
         },
       );
@@ -542,6 +558,235 @@ void main() {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // Step 3.2 — snapshot-in-action-response (type + press_key handlers).
+  // ---------------------------------------------------------------------------
+
+  group('aiTestTypeHandler snapshot-in-response', () {
+    setUp(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'embeds snapshot field in success response by default',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final TextEditingController controller = TextEditingController();
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(child: TextField(controller: controller)),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(TextField));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 200, 40),
+          element: element,
+          groupId: 'g',
+          isTextField: true,
+        );
+
+        final future = aiTestTypeHandler(
+          'ext.dusk.type',
+          <String, String>{
+            'ref': ref,
+            'text': 'snap-type',
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['text'], equals('snap-type'));
+        expect(decoded['snapshot'], isA<String>());
+      },
+    );
+
+    testWidgets(
+      'omits snapshot when includeSnapshot is false',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final TextEditingController controller = TextEditingController();
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(child: TextField(controller: controller)),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(TextField));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 200, 40),
+          element: element,
+          groupId: 'g',
+          isTextField: true,
+        );
+
+        final future = aiTestTypeHandler(
+          'ext.dusk.type',
+          <String, String>{
+            'ref': ref,
+            'text': 'no-snap-type',
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+            'includeSnapshot': 'false',
+          },
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded.containsKey('snapshot'), isFalse);
+      },
+    );
+
+    testWidgets(
+      'snapshot YAML reflects the post-type tree',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final TextEditingController controller = TextEditingController();
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(child: TextField(controller: controller)),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(TextField));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 200, 40),
+          element: element,
+          groupId: 'g',
+          isTextField: true,
+        );
+
+        final future = aiTestTypeHandler(
+          'ext.dusk.type',
+          <String, String>{
+            'ref': ref,
+            'text': 'snap-type-content',
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        // The TextField's textbox role is the marker emitted by
+        // duskSnapBuild for editable nodes.
+        expect(decoded['snapshot'] as String, contains('textbox'));
+      },
+    );
+  });
+
+  group('aiTestPressKeyHandler snapshot-in-response', () {
+    testWidgets(
+      'embeds snapshot field in success response by default',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('presskey-snap'))),
+          ),
+        );
+
+        final future = aiTestPressKeyHandler(
+          'ext.dusk.press_key',
+          <String, String>{'key': 'Enter'},
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['ok'], isTrue);
+        expect(decoded['key'], equals('Enter'));
+        expect(decoded['snapshot'], isA<String>());
+      },
+    );
+
+    testWidgets(
+      'omits snapshot when includeSnapshot is false',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('presskey-nosnap'))),
+          ),
+        );
+
+        final future = aiTestPressKeyHandler(
+          'ext.dusk.press_key',
+          <String, String>{
+            'key': 'Tab',
+            'includeSnapshot': 'false',
+          },
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded.containsKey('snapshot'), isFalse);
+      },
+    );
+
+    testWidgets(
+      'snapshot YAML reflects the post-key tree contents',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: Center(child: Text('presskey-content-marker')),
+            ),
+          ),
+        );
+
+        final future = aiTestPressKeyHandler(
+          'ext.dusk.press_key',
+          <String, String>{'key': 'Escape'},
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(
+            decoded['snapshot'] as String, contains('presskey-content-marker'));
+      },
+    );
+  });
+
   group('aiTestTypeHandler param + error paths', () {
     test('missing ref returns missing-param error', () async {
       final response = await aiTestTypeHandler(
@@ -550,7 +795,7 @@ void main() {
       );
       expect(response.result, isNull);
       expect(
-        response.errorDetail ?? '',
+        parseMessageFromErrorDetail(response.errorDetail ?? ''),
         contains('missing required param "ref"'),
       );
     });
@@ -562,7 +807,7 @@ void main() {
       );
       expect(response.result, isNull);
       expect(
-        response.errorDetail ?? '',
+        parseMessageFromErrorDetail(response.errorDetail ?? ''),
         contains('missing required param "ref"'),
       );
     });

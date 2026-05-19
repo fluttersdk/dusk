@@ -7,16 +7,18 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
+import '../utils/error_envelope.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 // ---------------------------------------------------------------------------
 // Self-registration entry point
 // ---------------------------------------------------------------------------
 
-/// Registers the `ext.dusk.wait_for`, `ext.dusk.find_by_text`, and
-/// `ext.dusk.find_by_label` VM Service extensions.
+/// Registers the `ext.dusk.wait_for`, `ext.dusk.find_by_text`,
+/// `ext.dusk.find_by_label`, and `ext.dusk.wait_for_network_idle` VM Service
+/// extensions.
 ///
-/// All three extensions help LLM agents synchronise with dynamic UI state
+/// All four extensions help LLM agents synchronise with dynamic UI state
 /// without busy-polling from the MCP client (which adds network round-trip
 /// overhead). The wait loop runs Dart-side so a single RPC call blocks until
 /// the condition is met or the timeout expires.
@@ -37,7 +39,34 @@ void registerWaitFindExtensions() {
     'ext.dusk.find_by_label',
     aiTestFindByLabelHandler,
   );
+  registerExtensionIdempotent(
+    'ext.dusk.wait_for_network_idle',
+    aiTestWaitForNetworkIdleHandler,
+  );
 }
+
+// ---------------------------------------------------------------------------
+// In-flight HTTP count provider (function-pointer indirection).
+// ---------------------------------------------------------------------------
+
+/// Reader for the live in-flight HTTP request count.
+///
+/// Defaults to a function that returns 0 so dusk runs without any HTTP
+/// observation layer wired up (the missing-telescope graceful path: the
+/// network is treated as continuously idle, so `wait_for_network_idle`
+/// returns immediately).
+///
+/// Hosts that ship `fluttersdk_telescope` wire the real source by writing:
+///
+/// ```dart
+/// pendingHttpCountReader = () => TelescopeStore.pendingHttpCount;
+/// ```
+///
+/// The indirection keeps dusk's pubspec free of a telescope dependency
+/// (pre-existing xml/image conflict in this repo blocks adding it as a
+/// path-dep) while letting the wait_for_network_idle handler still observe
+/// real network traffic when telescope is present.
+int Function() pendingHttpCountReader = () => 0;
 
 // ---------------------------------------------------------------------------
 // ext.dusk.wait_for
@@ -83,8 +112,11 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
     if (text == null && textGone == null && expression == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        '[ai-test-v3] ext.dusk.wait_for: at least one of text, textGone, '
-        'or expression is required',
+        wrapErrorDetail(
+          '[ai-test-v3] ext.dusk.wait_for: at least one of text, textGone, '
+          'or expression is required',
+          DuskErrorEnvelope.missingParam('text|textGone|expression'),
+        ),
       );
     }
 
@@ -124,7 +156,7 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }
@@ -160,7 +192,10 @@ Future<developer.ServiceExtensionResponse> aiTestFindByTextHandler(
     if (text == null || text.isEmpty) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        '[ai-test-v3] ext.dusk.find_by_text: missing required param "text"',
+        wrapErrorDetail(
+          '[ai-test-v3] ext.dusk.find_by_text: missing required param "text"',
+          DuskErrorEnvelope.missingParam('text'),
+        ),
       );
     }
 
@@ -185,7 +220,7 @@ Future<developer.ServiceExtensionResponse> aiTestFindByTextHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }
@@ -219,7 +254,10 @@ Future<developer.ServiceExtensionResponse> aiTestFindByLabelHandler(
     if (label == null || label.isEmpty) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        '[ai-test-v3] ext.dusk.find_by_label: missing required param "label"',
+        wrapErrorDetail(
+          '[ai-test-v3] ext.dusk.find_by_label: missing required param "label"',
+          DuskErrorEnvelope.missingParam('label'),
+        ),
       );
     }
 
@@ -245,7 +283,7 @@ Future<developer.ServiceExtensionResponse> aiTestFindByLabelHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }
@@ -555,4 +593,156 @@ Element? _elementForSemanticsNode(SemanticsNode node) {
   // a best-effort anchor used only for EditableText focus lookups (which do
   // not apply to generic semantics-label refs).
   return WidgetsBinding.instance.rootElement;
+}
+
+// ---------------------------------------------------------------------------
+// ext.dusk.wait_for_network_idle
+// ---------------------------------------------------------------------------
+
+/// Default network-idle parameters. Match the briefing's contract:
+///   `timeoutMs` defaults to 5000, `idleMs` to 500, `pollIntervalMs` to 200.
+const int _kNetworkIdleDefaultTimeoutMs = 5000;
+const int _kNetworkIdleDefaultIdleMs = 500;
+const int _kNetworkIdleDefaultPollIntervalMs = 200;
+
+/// Handler for the `ext.dusk.wait_for_network_idle` VM Service extension.
+///
+/// Blocks (Dart-side) until [pendingHttpCountReader] reports 0 for a
+/// continuous window of [idleMs], or until [timeoutMs] elapses. Polls every
+/// [pollIntervalMs] (minimum 100 ms enforced by [networkIdleWaitLoop]).
+///
+/// Params (all string-valued):
+/// - `timeoutMs` (optional, default 5000): hard ceiling on the wait.
+/// - `idleMs` (optional, default 500): continuous-zero window the loop must
+///   observe before declaring idle.
+/// - `pollIntervalMs` (optional, default 200): poll cadence; must be >= 100.
+///
+/// Success response:
+/// ```json
+/// { "matched": true, "idleAchievedMs": 500 }
+/// ```
+///
+/// Timeout: returns an [ServiceExtensionResponse.error] whose detail is the
+/// structured envelope `{type: "timeout", suggestions: []}` carrying the
+/// max in-flight count observed during the wait window inside `message`.
+///
+/// Missing-telescope graceful path: when the host has not overridden
+/// [pendingHttpCountReader] the default `() => 0` makes the loop satisfy
+/// `idleMs` on the very first poll, returning `matched: true` immediately.
+Future<developer.ServiceExtensionResponse> aiTestWaitForNetworkIdleHandler(
+  String method,
+  Map<String, String> params,
+) async {
+  try {
+    final int timeoutMs =
+        _parseInt(params['timeoutMs']) ?? _kNetworkIdleDefaultTimeoutMs;
+    final int idleMs =
+        _parseInt(params['idleMs']) ?? _kNetworkIdleDefaultIdleMs;
+    final int pollIntervalMs = _parseInt(params['pollIntervalMs']) ??
+        _kNetworkIdleDefaultPollIntervalMs;
+
+    final Map<String, dynamic> result = await networkIdleWaitLoop(
+      timeoutMs: timeoutMs,
+      idleMs: idleMs,
+      pollIntervalMs: pollIntervalMs,
+      pendingCountReader: pendingHttpCountReader,
+    );
+
+    if (result['matched'] == true) {
+      return developer.ServiceExtensionResponse.result(jsonEncode(result));
+    }
+
+    // 1. Timeout path: surface the free-form `errorDetail` message alongside
+    //    the structured envelope (Step 3.3 wire shape). Agents that parse the
+    //    envelope branch on `type: "timeout"`; legacy callers still see the
+    //    "max pending" substring inside the JSON-encoded message field.
+    final int maxPending = (result['maxPending'] as int?) ?? 0;
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(
+        '[ai-test-v3] ext.dusk.wait_for_network_idle: timeout after '
+        '${timeoutMs}ms (maxPending=$maxPending, idleMs=$idleMs)',
+        DuskErrorEnvelope.timeout(),
+      ),
+    );
+  } catch (e, stackTrace) {
+    developer.log(
+      '[ai-test-v3] ext.dusk.wait_for_network_idle error: $e\n$stackTrace',
+      name: 'ai-test',
+    );
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+    );
+  }
+}
+
+/// Polls [pendingCountReader] at [pollIntervalMs] cadence and returns once a
+/// continuous-zero window of [idleMs] has been observed, or the cumulative
+/// elapsed time reaches [timeoutMs].
+///
+/// Mirrors [findByTextWaitLoop]'s `pollCount * pollIntervalMs` elapsed
+/// arithmetic so the loop is deterministic under `tester.runAsync` + fake
+/// async harnesses.
+///
+/// Returns one of:
+/// - `{matched: true, idleAchievedMs: <int>}` ; idle window satisfied.
+/// - `{matched: false, reason: 'timeout', maxPending: <int>}` ; timeout fired
+///   before `idleMs` of contiguous zeros accumulated.
+///
+/// The transient-zero behaviour matches Playwright's `waitForLoadState`
+/// network-idle window: a spike back to a positive count fully resets the
+/// accumulator, so a one-tick zero between two requests does NOT count as
+/// the start of idle.
+@visibleForTesting
+Future<Map<String, dynamic>> networkIdleWaitLoop({
+  required int timeoutMs,
+  required int idleMs,
+  required int pollIntervalMs,
+  required int Function() pendingCountReader,
+}) async {
+  assert(
+    pollIntervalMs >= 100,
+    'poll interval must be >= 100ms (CPU constraint)',
+  );
+
+  int elapsedMs = 0;
+  int idleAccumulatedMs = 0;
+  int maxPending = 0;
+
+  while (true) {
+    // 1. Sample the pending count once per poll.
+    final int pending = pendingCountReader();
+    if (pending > maxPending) maxPending = pending;
+
+    if (pending == 0) {
+      idleAccumulatedMs += pollIntervalMs;
+      if (idleAccumulatedMs >= idleMs) {
+        return <String, dynamic>{
+          'matched': true,
+          'idleAchievedMs': idleAccumulatedMs,
+        };
+      }
+    } else {
+      // 2. Any positive sample resets the contiguous-idle accumulator so a
+      //    transient drop to zero does NOT count toward the idleMs window.
+      idleAccumulatedMs = 0;
+    }
+
+    // 3. Timeout check fires AFTER the sample so an idle-from-start counter
+    //    with timeoutMs=0 short-circuits to matched=true on the first tick
+    //    when idleMs <= pollIntervalMs.
+    if (elapsedMs >= timeoutMs) {
+      return <String, dynamic>{
+        'matched': false,
+        'reason': 'timeout',
+        'maxPending': maxPending,
+      };
+    }
+
+    // 4. Yield one poll interval and advance the deterministic elapsed
+    //    counter (real clock + counter arithmetic mirror findByTextWaitLoop).
+    await Future<void>.delayed(Duration(milliseconds: pollIntervalMs));
+    elapsedMs += pollIntervalMs;
+  }
 }

@@ -13,13 +13,14 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 18 commands', () {
-      expect(cmds, hasLength(18));
+    test('returns exactly 23 commands', () {
+      expect(cmds, hasLength(23));
     });
 
     test(
         'contains every alpha-2 ship command (3 alpha-1 + install + 6 verbs + '
-        'doctor + 7 CLI/MCP-symmetry pass)', () {
+        'doctor + 7 CLI/MCP-symmetry pass + Step 3.4 network-idle waiter + '
+        'Step 3.5 console + exceptions + dblclick + set_checkbox)', () {
       final names = cmds.map((c) => c.runtimeType.toString()).toSet();
       expect(
         names,
@@ -47,6 +48,13 @@ void main() {
           'DuskSelectOptionCommand',
           'DuskCloseAppCommand',
           'DuskFindCommand',
+          // Step 3.4.
+          'DuskWaitForNetworkIdleCommand',
+          // Step 3.5.
+          'DuskConsoleCommand',
+          'DuskExceptionsCommand',
+          'DuskDblclickCommand',
+          'DuskSetCheckboxCommand',
         ]),
       );
     });
@@ -63,15 +71,15 @@ void main() {
     // Length
     // -------------------------------------------------------------------------
 
-    test('returns exactly 17 descriptors', () {
-      expect(tools, hasLength(17));
+    test('returns exactly 22 descriptors', () {
+      expect(tools, hasLength(22));
     });
 
     // -------------------------------------------------------------------------
     // Names
     // -------------------------------------------------------------------------
 
-    test('contains all 17 expected tool names', () {
+    test('contains all 22 expected tool names', () {
       final names = tools.map((t) => t.name).toList();
       expect(
         names,
@@ -96,6 +104,13 @@ void main() {
           'dusk_close_app',
           // Step 16.
           'dusk_find',
+          // Step 3.4.
+          'dusk_wait_for_network_idle',
+          // Step 3.5.
+          'dusk_console',
+          'dusk_exceptions',
+          'dusk_dblclick',
+          'dusk_set_checkbox',
         ]),
       );
     });
@@ -138,6 +153,16 @@ void main() {
       expect(byName['dusk_close_app'], equals('ext.dusk.close_app'));
       // Step 16.
       expect(byName['dusk_find'], equals('ext.dusk.find'));
+      // Step 3.4.
+      expect(
+        byName['dusk_wait_for_network_idle'],
+        equals('ext.dusk.wait_for_network_idle'),
+      );
+      // Step 3.5.
+      expect(byName['dusk_console'], equals('ext.dusk.console'));
+      expect(byName['dusk_exceptions'], equals('ext.dusk.exceptions'));
+      expect(byName['dusk_dblclick'], equals('ext.dusk.dblclick'));
+      expect(byName['dusk_set_checkbox'], equals('ext.dusk.set_checkbox'));
     });
 
     test('no two descriptors share an extensionMethod (no overlap, no gap)',

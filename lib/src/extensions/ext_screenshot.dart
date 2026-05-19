@@ -10,6 +10,7 @@ import 'package:image/image.dart' as img_lib;
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/error_envelope.dart';
 
 /// Registers the `ext.dusk.screenshot` VM Service extension.
 ///
@@ -65,8 +66,11 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
     if (rectParam != null && rectParam.isNotEmpty && subRect == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        'ext.dusk.screenshot: malformed rect "$rectParam". '
-        'Expected "x,y,w,h" with four non-negative numbers.',
+        wrapErrorDetail(
+          'ext.dusk.screenshot: malformed rect "$rectParam". '
+          'Expected "x,y,w,h" with four non-negative numbers.',
+          DuskErrorEnvelope.missingParam('rect'),
+        ),
       );
     }
 
@@ -101,7 +105,10 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
         if (byteData == null) {
           return developer.ServiceExtensionResponse.error(
             developer.ServiceExtensionResponse.extensionError,
-            'toByteData returned null for PNG format',
+            wrapErrorDetail(
+              'toByteData returned null for PNG format',
+              DuskErrorEnvelope.unexpected(),
+            ),
           );
         }
 
@@ -116,7 +123,10 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
         if (pngByteData == null) {
           return developer.ServiceExtensionResponse.error(
             developer.ServiceExtensionResponse.extensionError,
-            'toByteData returned null for intermediate PNG (JPEG path)',
+            wrapErrorDetail(
+              'toByteData returned null for intermediate PNG (JPEG path)',
+              DuskErrorEnvelope.unexpected(),
+            ),
           );
         }
 
@@ -144,7 +154,7 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }

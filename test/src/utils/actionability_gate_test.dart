@@ -84,9 +84,14 @@ void main() {
           node: node,
         );
 
-        expect(
-          () => ensureActionable(entry, ref: 'e1'),
-          returnsNormally,
+        await expectLater(
+          ensureActionable(
+            entry,
+            ref: 'e1',
+            checkStable: false,
+            checkReceivesEvents: false,
+          ),
+          completes,
         );
       },
     );
@@ -123,8 +128,13 @@ void main() {
           node: node,
         );
 
-        expect(
-          () => ensureActionable(entry, ref: 'e7'),
+        await expectLater(
+          ensureActionable(
+            entry,
+            ref: 'e7',
+            checkStable: false,
+            checkReceivesEvents: false,
+          ),
           throwsA(
             isA<DuskActionabilityException>()
                 .having((DuskActionabilityException e) => e.ref, 'ref', 'e7')
@@ -166,9 +176,14 @@ void main() {
           node: node,
         );
 
-        expect(
-          () => ensureActionable(entry, ref: 'e2'),
-          returnsNormally,
+        await expectLater(
+          ensureActionable(
+            entry,
+            ref: 'e2',
+            checkStable: false,
+            checkReceivesEvents: false,
+          ),
+          completes,
         );
       },
     );
@@ -187,8 +202,13 @@ void main() {
           element: element,
         );
 
-        expect(
-          () => ensureActionable(entry, ref: 'e3'),
+        await expectLater(
+          ensureActionable(
+            entry,
+            ref: 'e3',
+            checkStable: false,
+            checkReceivesEvents: false,
+          ),
           throwsA(
             isA<DuskActionabilityException>()
                 .having(
@@ -216,8 +236,13 @@ void main() {
           element: element,
         );
 
-        expect(
-          () => ensureActionable(entry, ref: 'e4'),
+        await expectLater(
+          ensureActionable(
+            entry,
+            ref: 'e4',
+            checkStable: false,
+            checkReceivesEvents: false,
+          ),
           throwsA(
             isA<DuskActionabilityException>().having(
               (DuskActionabilityException e) => e.reason,
@@ -250,8 +275,13 @@ void main() {
           element: element,
         );
 
-        expect(
-          () => ensureActionable(entry, ref: 'e5'),
+        await expectLater(
+          ensureActionable(
+            entry,
+            ref: 'e5',
+            checkStable: false,
+            checkReceivesEvents: false,
+          ),
           throwsA(
             isA<DuskActionabilityException>()
                 .having(
@@ -290,9 +320,14 @@ void main() {
           rect: const Rect.fromLTWH(100, 100, 50, 50),
           element: element,
         );
-        expect(
-          () => ensureActionable(inside, ref: 'e6'),
-          returnsNormally,
+        await expectLater(
+          ensureActionable(
+            inside,
+            ref: 'e6',
+            checkStable: false,
+            checkReceivesEvents: false,
+          ),
+          completes,
         );
 
         // Logical rect at (1000, 1000) sits OUTSIDE the 800x600 logical
@@ -302,8 +337,13 @@ void main() {
           rect: const Rect.fromLTWH(1000, 1000, 50, 50),
           element: element,
         );
-        expect(
-          () => ensureActionable(outside, ref: 'e7'),
+        await expectLater(
+          ensureActionable(
+            outside,
+            ref: 'e7',
+            checkStable: false,
+            checkReceivesEvents: false,
+          ),
           throwsA(
             isA<DuskActionabilityException>().having(
               (DuskActionabilityException e) => e.reason,
@@ -321,7 +361,7 @@ void main() {
 
     test(
       'returns gracefully (no throw) when platformDispatcher.views is empty',
-      () {
+      () async {
         // We cannot easily empty platformDispatcher.views from a test, but
         // we can call ensureActionableForViews directly with an empty view
         // list to exercise the same code path the production gate uses.
@@ -333,13 +373,15 @@ void main() {
           isTextField: false,
         );
 
-        expect(
-          () => ensureActionableForViews(
+        await expectLater(
+          ensureActionableForViews(
             entry,
             ref: 'e8',
             views: const <FlutterView>[],
+            checkStable: false,
+            checkReceivesEvents: false,
           ),
-          returnsNormally,
+          completes,
         );
       },
     );
@@ -377,8 +419,13 @@ void main() {
           node: node,
         );
 
-        expect(
-          () => ensureActionable(entry, ref: 'e9'),
+        await expectLater(
+          ensureActionable(
+            entry,
+            ref: 'e9',
+            checkStable: false,
+            checkReceivesEvents: false,
+          ),
           throwsA(
             isA<DuskActionabilityException>().having(
               (DuskActionabilityException e) => e.reason,
@@ -389,7 +436,547 @@ void main() {
         );
       },
     );
+
+    // -------------------------------------------------------------------------
+    // (g) Stable gate — bounding box must not drift across two frames
+    // -------------------------------------------------------------------------
+
+    testWidgets(
+      'stable-pass: passes when the live rect matches the entry rect within'
+      ' 0.5px',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  key: ValueKey<String>('static-box'),
+                  width: 100,
+                  height: 100,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(
+          find.byKey(const ValueKey<String>('static-box')),
+        );
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final Offset topLeft = box.localToGlobal(Offset.zero);
+        final Rect liveRect = topLeft & box.size;
+
+        final RefEntry entry = _buildEntry(
+          rect: liveRect,
+          element: element,
+        );
+
+        // Kick off the gate, then pump so its internal `endOfFrame` await
+        // resolves; finally drain the returned future to assert success.
+        final Future<void> future = ensureActionable(
+          entry,
+          ref: 'e10',
+          checkReceivesEvents: false,
+        );
+        await tester.pump();
+        await expectLater(future, completes);
+      },
+    );
+
+    testWidgets(
+      'stable-fail: throws "not stable" when the widget rect drifts more'
+      ' than 0.5px between two consecutive frames',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: _AnimatedMover(
+                key: ValueKey<String>('mover'),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final Element moverElement = tester.element(
+          find.byKey(const ValueKey<String>('mover')),
+        );
+        final _AnimatedMoverState moverState =
+            (moverElement as StatefulElement).state as _AnimatedMoverState;
+
+        final Finder childFinder = find.byKey(
+          const ValueKey<String>('moving-child'),
+        );
+        final Element childElement = tester.element(childFinder);
+        final RenderBox childBox =
+            childElement.findRenderObject()! as RenderBox;
+        final Rect startRect =
+            childBox.localToGlobal(Offset.zero) & childBox.size;
+
+        final RefEntry entry = _buildEntry(
+          rect: startRect,
+          element: childElement,
+        );
+
+        // Kick off the gate. It captures the rect synchronously, awaits
+        // `endOfFrame`, then re-resolves the rect. We jump the controller
+        // forward AFTER the kick-off so the next pump's frame observes
+        // the new transform offset (offset 0 → offset 100).
+        final Future<void> future = ensureActionable(
+          entry,
+          ref: 'e11',
+          checkReceivesEvents: false,
+        );
+        // expectLater observes the future-rejection BEFORE the pump so the
+        // rejection does not propagate to the test zone as an unhandled
+        // async error.
+        final Future<void> expectation = expectLater(
+          future,
+          throwsA(
+            isA<DuskActionabilityException>()
+                .having(
+                  (DuskActionabilityException e) => e.reason,
+                  'reason',
+                  startsWith('not stable'),
+                )
+                .having(
+                  (DuskActionabilityException e) => e.message,
+                  'message',
+                  contains('not actionable: not stable'),
+                ),
+          ),
+        );
+        moverState.jumpTo(0.25);
+        await tester.pump();
+        await expectation;
+      },
+    );
+
+    testWidgets(
+      'stable-skip: passes when checkStable is false even on a widget that'
+      ' just drifted',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: _AnimatedMover(
+                key: ValueKey<String>('mover'),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        final Element moverElement = tester.element(
+          find.byKey(const ValueKey<String>('mover')),
+        );
+        final _AnimatedMoverState moverState =
+            (moverElement as StatefulElement).state as _AnimatedMoverState;
+
+        final Finder childFinder = find.byKey(
+          const ValueKey<String>('moving-child'),
+        );
+        final Element childElement = tester.element(childFinder);
+        final RenderBox childBox =
+            childElement.findRenderObject()! as RenderBox;
+        final Rect startRect =
+            childBox.localToGlobal(Offset.zero) & childBox.size;
+
+        moverState.jumpTo(0.25);
+        await tester.pump();
+
+        final RefEntry entry = _buildEntry(
+          rect: startRect,
+          element: childElement,
+        );
+
+        // checkStable: false short-circuits — no `endOfFrame` await, so we
+        // can synchronously await the gate without pump-future interleaving.
+        await expectLater(
+          ensureActionable(
+            entry,
+            ref: 'e12',
+            checkStable: false,
+            checkReceivesEvents: false,
+          ),
+          completes,
+        );
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (h) Receives-events gate — hit-test target must match the entry
+    // -------------------------------------------------------------------------
+
+    testWidgets(
+      'receives-events-pass: passes when hit-test at rect.center lands on the'
+      ' entry render object',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: Container(
+                  key: const ValueKey<String>('hittable'),
+                  color: const Color(0xFF2196F3),
+                  width: 200,
+                  height: 200,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(
+          find.byKey(const ValueKey<String>('hittable')),
+        );
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final Rect liveRect = box.localToGlobal(Offset.zero) & box.size;
+
+        final RefEntry entry = _buildEntry(
+          rect: liveRect,
+          element: element,
+        );
+
+        await expectLater(
+          ensureActionable(
+            entry,
+            ref: 'e13',
+            checkStable: false,
+          ),
+          completes,
+        );
+      },
+    );
+
+    testWidgets(
+      'receives-events-fail: throws "obscured by other widget" when a modal'
+      ' overlay covers the entry rect',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: <Widget>[
+                  Align(
+                    alignment: Alignment.topLeft,
+                    child: Container(
+                      key: const ValueKey<String>('below'),
+                      color: const Color(0xFF2196F3),
+                      width: 200,
+                      height: 200,
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: () {},
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        key: const ValueKey<String>('overlay'),
+                        color: const Color(0x88000000),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final Element belowElement = tester.element(
+          find.byKey(const ValueKey<String>('below')),
+        );
+        final RenderBox belowBox =
+            belowElement.findRenderObject()! as RenderBox;
+        final Rect belowRect =
+            belowBox.localToGlobal(Offset.zero) & belowBox.size;
+
+        final RefEntry entry = _buildEntry(
+          rect: belowRect,
+          element: belowElement,
+        );
+
+        await expectLater(
+          ensureActionable(
+            entry,
+            ref: 'e14',
+            checkStable: false,
+          ),
+          throwsA(
+            isA<DuskActionabilityException>()
+                .having(
+                  (DuskActionabilityException e) => e.reason,
+                  'reason',
+                  startsWith('obscured by other widget'),
+                )
+                .having(
+                  (DuskActionabilityException e) => e.message,
+                  'message',
+                  contains('obscured by other widget (top='),
+                ),
+          ),
+        );
+      },
+    );
+
+    testWidgets(
+      'receives-events-skip: passes when checkReceivesEvents is false even on'
+      ' an obscured widget',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: <Widget>[
+                  Align(
+                    alignment: Alignment.topLeft,
+                    child: Container(
+                      key: const ValueKey<String>('below'),
+                      color: const Color(0xFF2196F3),
+                      width: 200,
+                      height: 200,
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: () {},
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(color: const Color(0x88000000)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final Element belowElement = tester.element(
+          find.byKey(const ValueKey<String>('below')),
+        );
+        final RenderBox belowBox =
+            belowElement.findRenderObject()! as RenderBox;
+        final Rect belowRect =
+            belowBox.localToGlobal(Offset.zero) & belowBox.size;
+
+        final RefEntry entry = _buildEntry(
+          rect: belowRect,
+          element: belowElement,
+        );
+
+        await expectLater(
+          ensureActionable(
+            entry,
+            ref: 'e15',
+            checkStable: false,
+            checkReceivesEvents: false,
+          ),
+          completes,
+        );
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (i) Gate ordering — existing 3 gates fire before the new 2
+    // -------------------------------------------------------------------------
+
+    testWidgets(
+      'reports "off-viewport" before "not stable" / "obscured by" when an'
+      ' off-viewport rect is also unstable / obscured',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        final Element element = tester.element(find.byType(SizedBox));
+        final RefEntry entry = _buildEntry(
+          rect: const Rect.fromLTWH(5000, 5000, 50, 50),
+          element: element,
+        );
+
+        await expectLater(
+          ensureActionable(entry, ref: 'e16'),
+          throwsA(
+            isA<DuskActionabilityException>().having(
+              (DuskActionabilityException e) => e.reason,
+              'reason',
+              startsWith('off-viewport'),
+            ),
+          ),
+        );
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (j) Reason substring contract — every reason carries its agent-parseable
+    //     substring verbatim so prompt-side branching does not break.
+    // -------------------------------------------------------------------------
+
+    testWidgets(
+      'every reason string contains its canonical agent-parseable substring',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // Reuse the disabled-semantics widget for the "not enabled" reason.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: Semantics(
+                  enabled: false,
+                  label: 'reason-substring-target',
+                  child: const SizedBox(width: 10, height: 10),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final SemanticsNode node = tester.getSemantics(
+          find.bySemanticsLabel('reason-substring-target'),
+        );
+        final Element element = tester.element(find.byType(Scaffold));
+
+        // 1. not enabled
+        try {
+          await ensureActionable(
+            _buildEntry(
+              rect: const Rect.fromLTWH(10, 10, 50, 50),
+              element: element,
+              node: node,
+            ),
+            ref: 'e17a',
+            checkStable: false,
+            checkReceivesEvents: false,
+          );
+          fail('expected "not enabled" throw');
+        } on DuskActionabilityException catch (e) {
+          expect(e.reason, contains('not enabled'));
+        }
+
+        // 2. zero rect
+        try {
+          await ensureActionable(
+            _buildEntry(
+              rect: const Rect.fromLTWH(10, 10, 0, 50),
+              element: element,
+            ),
+            ref: 'e17b',
+            checkStable: false,
+            checkReceivesEvents: false,
+          );
+          fail('expected "zero rect" throw');
+        } on DuskActionabilityException catch (e) {
+          expect(e.reason, contains('zero rect'));
+        }
+
+        // 3. off-viewport
+        try {
+          await ensureActionable(
+            _buildEntry(
+              rect: const Rect.fromLTWH(5000, 5000, 50, 50),
+              element: element,
+            ),
+            ref: 'e17c',
+            checkStable: false,
+            checkReceivesEvents: false,
+          );
+          fail('expected "off-viewport" throw');
+        } on DuskActionabilityException catch (e) {
+          expect(e.reason, contains('off-viewport'));
+        }
+      },
+    );
   });
+}
+
+/// Stateful widget used by the stable-gate tests. Holds an
+/// [AnimationController] driving an [AnimatedBuilder] that translates a
+/// [SizedBox] horizontally. Calling [moveRight] flips the controller forward
+/// so the next pumped frame advances the position; the gate then observes
+/// the rect drift between the captured rect and the post-pump rect.
+class _AnimatedMover extends StatefulWidget {
+  const _AnimatedMover({super.key});
+
+  @override
+  State<_AnimatedMover> createState() => _AnimatedMoverState();
+}
+
+class _AnimatedMoverState extends State<_AnimatedMover>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 1),
+  );
+
+  void moveRight() {
+    _controller.forward();
+  }
+
+  void jumpTo(double value) {
+    _controller.value = value;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (BuildContext context, Widget? child) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Transform.translate(
+            offset: Offset(_controller.value * 400, 0),
+            child: const SizedBox(
+              key: ValueKey<String>('moving-child'),
+              width: 100,
+              height: 100,
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// Minimal [Element] stub used by the platformDispatcher.views-empty test

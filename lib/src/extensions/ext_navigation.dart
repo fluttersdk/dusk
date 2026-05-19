@@ -5,7 +5,35 @@ import 'package:flutter/material.dart';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/error_envelope.dart';
 import 'ext_modal_router.dart';
+import 'ext_snapshot.dart' show duskSnapBuild;
+
+/// Parses the optional `'true' | 'false'` flag [params] field [name],
+/// returning [defaultValue] when missing or empty.
+bool _parseBoolFlag(
+  Map<String, String> params,
+  String name, {
+  required bool defaultValue,
+}) {
+  final String? raw = params[name];
+  if (raw == null || raw.isEmpty) return defaultValue;
+  return raw != 'false' && raw != '0';
+}
+
+/// Builds the post-action snapshot YAML and appends it under the
+/// `snapshot` key of [payload], unless [params] sets
+/// `includeSnapshot: 'false'`.
+Future<void> _appendSnapshotIfRequested(
+  Map<String, dynamic> payload,
+  Map<String, String> params,
+) async {
+  if (!_parseBoolFlag(params, 'includeSnapshot', defaultValue: true)) {
+    return;
+  }
+  final Map<String, dynamic> snap = await duskSnapBuild();
+  payload['snapshot'] = snap['snapshot'];
+}
 
 /// Registers the navigation VM Service extensions for fluttersdk_dusk.
 ///
@@ -85,8 +113,11 @@ Map<String, dynamic> buildGetRoutesResponse() => <String, dynamic>{
 ///
 /// Params:
 /// - `route` (required): path to navigate to (e.g. `/dashboard`).
+/// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
+///   embedding the post-navigation accessibility snapshot in the response.
 ///
-/// On success: `{ "navigated": true, "route": "/dashboard" }`.
+/// On success (default):
+/// `{ "navigated": true, "route": "/dashboard", "snapshot": "<yaml>" }`.
 /// On missing or empty `route` param: returns an extension error response.
 ///
 /// Steps:
@@ -105,7 +136,10 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
     if (route == null || route.isEmpty) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        'ext.dusk.navigate: missing required param "route"',
+        wrapErrorDetail(
+          'ext.dusk.navigate: missing required param "route"',
+          DuskErrorEnvelope.missingParam('route'),
+        ),
       );
     }
 
@@ -128,10 +162,21 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
       await WidgetsBinding.instance.endOfFrame;
     }
 
-    // 5. Return confirmation so the MCP tool can assert navigation happened.
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(buildNavigateResponse(route)),
-    );
+    // 5. Embed post-action snapshot (opt-out via includeSnapshot:'false')
+    //    + return confirmation so the MCP tool can assert navigation
+    //    happened. Snapshot-build failures must not convert a successful
+    //    push into an error envelope.
+    final Map<String, dynamic> payload = buildNavigateResponse(route);
+    try {
+      await _appendSnapshotIfRequested(payload, params);
+    } catch (e) {
+      developer.log(
+        '[fluttersdk_dusk] extDuskNavigateHandler: post-dispatch snapshot '
+        'build swallowed for route "$route": $e',
+        name: 'dusk',
+      );
+    }
+    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] extDuskNavigateHandler error: $e\n$stackTrace',
@@ -139,16 +184,19 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }
 
 /// Handler for `ext.dusk.navigate_back`.
 ///
-/// Params: none.
+/// Params:
+/// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
+///   embedding the post-pop accessibility snapshot in the response.
 ///
-/// On success: `{ "navigatedBack": true }`.
+/// On success (default):
+/// `{ "navigatedBack": true, "snapshot": "<yaml>" }`.
 ///
 /// Steps:
 /// 1. Find the [NavigatorState] via a depth-first tree walk.
@@ -178,10 +226,19 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
       await WidgetsBinding.instance.endOfFrame;
     }
 
-    // 4. Return confirmation.
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(buildNavigateBackResponse()),
-    );
+    // 4. Embed post-action snapshot (opt-out via includeSnapshot:'false')
+    //    + return confirmation.
+    final Map<String, dynamic> payload = buildNavigateBackResponse();
+    try {
+      await _appendSnapshotIfRequested(payload, params);
+    } catch (e) {
+      developer.log(
+        '[fluttersdk_dusk] extDuskNavigateBackHandler: post-dispatch '
+        'snapshot build swallowed: $e',
+        name: 'dusk',
+      );
+    }
+    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] extDuskNavigateBackHandler error: $e\n$stackTrace',
@@ -189,7 +246,7 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }
@@ -219,10 +276,7 @@ Future<developer.ServiceExtensionResponse> extDuskGetRoutesHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      jsonEncode(<String, String>{
-        'error': e.toString(),
-        'stackTrace': stackTrace.toString(),
-      }),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }

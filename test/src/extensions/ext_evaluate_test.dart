@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_evaluate.dart';
+import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
 
 void main() {
   group('ext.dusk.evaluate', () {
@@ -24,9 +25,17 @@ void main() {
         equals(developer.ServiceExtensionResponse.extensionError),
       );
 
-      final Map<String, dynamic> body =
-          jsonDecode(response.errorDetail!) as Map<String, dynamic>;
-      expect(body['error'], contains('expression'));
+      // Step 3.3: error responses now carry the structured envelope wrapper.
+      // The original free-form message is recoverable via parseMessage; the
+      // envelope's type field is the new typed-failure surface.
+      expect(
+        parseMessageFromErrorDetail(response.errorDetail!),
+        contains('expression'),
+      );
+      final Map<String, dynamic>? envelope =
+          parseEnvelopeFromErrorDetail(response.errorDetail!);
+      expect(envelope, isNotNull);
+      expect(envelope!['type'], equals('missing_param'));
     });
 
     // -------------------------------------------------------------------------
@@ -103,13 +112,15 @@ void main() {
           equals(developer.ServiceExtensionResponse.extensionError),
         );
 
-        final Map<String, dynamic> body =
-            jsonDecode(response.errorDetail!) as Map<String, dynamic>;
-        expect(body['error'], isA<String>());
+        // Step 3.3: error responses now carry the structured envelope.
         expect(
-          (body['error'] as String),
+          parseMessageFromErrorDetail(response.errorDetail!),
           contains('CompilationError'),
         );
+        final Map<String, dynamic>? envelope =
+            parseEnvelopeFromErrorDetail(response.errorDetail!);
+        expect(envelope, isNotNull);
+        expect(envelope!['type'], equals('unexpected'));
       },
     );
 

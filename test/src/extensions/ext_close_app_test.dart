@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_close_app.dart';
+import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
 
 void main() {
   // Reset the injection point before every test so tests are isolated.
@@ -178,10 +179,16 @@ void main() {
         );
 
         expect(response.errorCode, isNotNull);
-        final Map<String, dynamic> body =
-            jsonDecode(response.errorDetail ?? '{}') as Map<String, dynamic>;
-        expect(body['error'], contains('boom'));
-        expect(body.containsKey('stackTrace'), isTrue);
+        // Step 3.3: error envelope contract — message carries the raw
+        // exception text; envelope.type is 'unexpected' for caught throws.
+        expect(
+          parseMessageFromErrorDetail(response.errorDetail ?? ''),
+          contains('boom'),
+        );
+        final Map<String, dynamic>? envelope =
+            parseEnvelopeFromErrorDetail(response.errorDetail ?? '');
+        expect(envelope, isNotNull);
+        expect(envelope!['type'], equals('unexpected'));
       },
     );
   });

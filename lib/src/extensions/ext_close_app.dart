@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/error_envelope.dart';
+
 /// Signature for the function that performs the actual app-close operation.
 ///
 /// Defaults to [defaultCloseApp]. Tests override [closeAppImpl] with a stub
@@ -81,10 +83,7 @@ Future<developer.ServiceExtensionResponse> extDuskCloseAppHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      jsonEncode(<String, String>{
-        'error': e.toString(),
-        'stackTrace': stackTrace.toString(),
-      }),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }

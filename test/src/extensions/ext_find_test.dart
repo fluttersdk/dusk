@@ -7,6 +7,7 @@ import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
 import 'package:fluttersdk_dusk/src/utils/dusk_exceptions.dart';
+import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
 
 /// Tests for the Playwright-Locator-style query handles introduced in
 /// Step 16.
@@ -38,7 +39,7 @@ void main() {
         );
         expect(response.result, isNull);
         expect(
-          response.errorDetail ?? '',
+          parseMessageFromErrorDetail(response.errorDetail ?? ''),
           contains('at least one of "text", "semanticsLabel", or "key"'),
         );
       },
@@ -220,9 +221,18 @@ void main() {
             as Map<String, dynamic>)['ref'] as String;
         expect(qRef, startsWith('q'));
 
+        // Opt out of the Step 3.1 stable + receives-events gates: the
+        // q-ref rect is freshly resolved from the live semantics so
+        // stable would normally pass, but the test scheduler does not
+        // settle the gate's extra `await endOfFrame` deterministically.
+        // Production callers leave the defaults.
         final future = aiTestTapHandler(
           'ext.dusk.tap',
-          <String, String>{'ref': qRef},
+          <String, String>{
+            'ref': qRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
         );
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
@@ -303,7 +313,11 @@ void main() {
 
         final future = aiTestTapHandler(
           'ext.dusk.tap',
-          <String, String>{'ref': qRef},
+          <String, String>{
+            'ref': qRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
         );
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
@@ -401,7 +415,11 @@ void main() {
 
         final future = aiTestTapHandler(
           'ext.dusk.tap',
-          <String, String>{'ref': eRef},
+          <String, String>{
+            'ref': eRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
         );
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();

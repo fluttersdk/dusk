@@ -321,6 +321,22 @@ class RefRegistry {
     _queryCounter = 0;
   }
 
+  /// Returns every currently-registered ref token (both `eN` and `qN`).
+  ///
+  /// Used by the fuzzy-match suggestion path in
+  /// `utils/error_envelope.dart#collectSnapshotCandidates` to surface
+  /// "did you mean?" candidates when an action handler receives an unknown
+  /// ref. Order is iteration order of the underlying maps, which is
+  /// stable-insertion in Dart — callers must not rely on it.
+  static Iterable<String> activeRefs() sync* {
+    for (final String token in _entries.keys) {
+      yield token;
+    }
+    for (final String token in _queries.keys) {
+      yield token;
+    }
+  }
+
   /// Returns every token whose current `groupId` equals [groupId].
   ///
   /// Used by tests to verify [disposeGroup] semantics; production code

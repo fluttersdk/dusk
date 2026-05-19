@@ -9,6 +9,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../dusk_plugin.dart';
 import '../ref_registry.dart';
+import '../utils/error_envelope.dart';
 
 /// `ext.dusk.snap` — Playwright-MCP-shaped accessibility snapshot.
 ///
@@ -57,17 +58,25 @@ Future<developer.ServiceExtensionResponse> duskSnapHandler(
     final Map<String, dynamic> payload = await duskSnapBuild(maxDepth: depth);
     return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, stackTrace) {
+    developer.log(
+      '[fluttersdk_dusk] ext.dusk.snap error: $e\n$stackTrace',
+      name: 'dusk',
+    );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      jsonEncode(<String, String>{
-        'error': e.toString(),
-        'stackTrace': stackTrace.toString(),
-      }),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }
 
-@visibleForTesting
+/// Builds the same `{snapshot, groupId}` payload that `ext.dusk.snap` emits.
+///
+/// Production callers in this package (action handlers in Step 3.2) reuse
+/// this to embed a fresh accessibility snapshot in their action responses
+/// (Playwright `setIncludeSnapshot()` parity). Behaves identically to a
+/// direct call to [duskSnapHandler]: walks the live Semantics tree, mints
+/// `eN` ref tokens via [RefRegistry], invokes every enricher registered on
+/// [DuskPlugin.enrichers], and serialises to YAML.
 Future<Map<String, dynamic>> duskSnapBuild({int? maxDepth}) async {
   final String groupId = 'snapshot-${DateTime.now().microsecondsSinceEpoch}';
   final SemanticsHandle handle = WidgetsBinding.instance.ensureSemantics();

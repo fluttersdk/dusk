@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
@@ -166,6 +167,111 @@ void main() {
       final response = await future;
       expect(response.errorCode, isNull);
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Step 3.2 — snapshot-in-action-response for ext.dusk.scroll.
+  // ---------------------------------------------------------------------------
+
+  group('aiTestScrollHandler snapshot-in-response', () {
+    testWidgets(
+      'embeds snapshot field in success response by default',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ListView(
+                children: List<Widget>.generate(
+                  40,
+                  (i) => SizedBox(height: 60, child: Text('scroll-row-$i')),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final future = aiTestScrollHandler(
+          'ext.dusk.scroll',
+          const <String, String>{'dy': '120'},
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['scrolled'], isTrue);
+        expect(decoded['snapshot'], isA<String>());
+      },
+    );
+
+    testWidgets(
+      'omits snapshot when includeSnapshot is false',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ListView(
+                children: List<Widget>.generate(
+                  40,
+                  (i) => SizedBox(height: 60, child: Text('row $i')),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final future = aiTestScrollHandler(
+          'ext.dusk.scroll',
+          const <String, String>{
+            'dy': '120',
+            'includeSnapshot': 'false',
+          },
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded.containsKey('snapshot'), isFalse);
+      },
+    );
+
+    testWidgets(
+      'snapshot YAML reflects the post-scroll tree contents',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ListView(
+                children: List<Widget>.generate(
+                  40,
+                  (i) => SizedBox(
+                    height: 60,
+                    child: Text('scroll-content-marker-$i'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final future = aiTestScrollHandler(
+          'ext.dusk.scroll',
+          const <String, String>{'dy': '60'},
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(
+            decoded['snapshot'] as String, contains('scroll-content-marker'));
+      },
+    );
   });
 
   group('registerScrollExtensions', () {

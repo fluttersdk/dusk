@@ -8,8 +8,37 @@ import 'package:flutter/widgets.dart';
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/error_envelope.dart';
 import 'ext_pointer.dart';
+import 'ext_snapshot.dart' show duskSnapBuild;
 import 'package:fluttersdk_artisan/artisan.dart';
+
+/// Parses the optional `'true' | 'false'` flag [params] field [name],
+/// returning [defaultValue] when missing or empty. Mirrors the helper in
+/// `ext_pointer.dart` — kept local to keep this file self-contained.
+bool _parseBoolFlag(
+  Map<String, String> params,
+  String name, {
+  required bool defaultValue,
+}) {
+  final String? raw = params[name];
+  if (raw == null || raw.isEmpty) return defaultValue;
+  return raw != 'false' && raw != '0';
+}
+
+/// Builds the post-action snapshot YAML and appends it under the
+/// `snapshot` key of [payload], unless [params] sets
+/// `includeSnapshot: 'false'`. See `ext_pointer.dart` for the rationale.
+Future<void> _appendSnapshotIfRequested(
+  Map<String, dynamic> payload,
+  Map<String, String> params,
+) async {
+  if (!_parseBoolFlag(params, 'includeSnapshot', defaultValue: true)) {
+    return;
+  }
+  final Map<String, dynamic> snap = await duskSnapBuild();
+  payload['snapshot'] = snap['snapshot'];
+}
 
 // ---------------------------------------------------------------------------
 // Logical key lookup table
@@ -248,10 +277,16 @@ Future<void> pressKey({
 ///   resolved to an [Element] via [RefRegistry] (Step 6) or [TestRefRegistry]
 ///   during tests.
 /// - `text` (required): the text value to set on the field.
+/// - `checkStable` / `checkReceivesEvents` (optional, default `'true'`):
+///   Playwright actionability opt-outs. Set to `'false'` in tests with
+///   synthetic [RefEntry] rects so the gate does not trip on geometry
+///   mismatch.
+/// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
+///   embedding the post-action accessibility snapshot in the response.
 ///
-/// Response (success):
+/// Response (success, default):
 /// ```json
-/// { "text": "typed value" }
+/// { "text": "typed value", "snapshot": "<yaml>" }
 /// ```
 Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
   String method,
@@ -264,7 +299,10 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     if (ref == null || ref.isEmpty) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        '[ai-test-v3] ext.dusk.type: missing required param "ref"',
+        wrapErrorDetail(
+          '[ai-test-v3] ext.dusk.type: missing required param "ref"',
+          DuskErrorEnvelope.missingParam('ref'),
+        ),
       );
     }
 
@@ -281,16 +319,30 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     } on DuskStaleHandleException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        e.message,
+        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
       );
     }
     if (entry != null) {
+      // Step 3.1: stable + receives-events gates default on; opt-out via
+      // params for tests with synthetic rect.
+      final bool checkStable =
+          _parseBoolFlag(params, 'checkStable', defaultValue: true);
+      final bool checkReceivesEvents =
+          _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
       try {
-        ensureActionable(entry, ref: ref);
+        await ensureActionable(
+          entry,
+          ref: ref,
+          checkStable: checkStable,
+          checkReceivesEvents: checkReceivesEvents,
+        );
       } on DuskActionabilityException catch (e) {
         return developer.ServiceExtensionResponse.error(
           developer.ServiceExtensionResponse.extensionError,
-          e.message,
+          wrapErrorDetail(
+            e.message,
+            DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+          ),
         );
       }
     }
@@ -299,7 +351,13 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     if (element == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        '[ai-test-v3] ext.dusk.type: ref "$ref" not found in registry',
+        wrapErrorDetail(
+          '[ai-test-v3] ext.dusk.type: ref "$ref" not found in registry',
+          DuskErrorEnvelope.notFound(
+            ref: ref,
+            candidates: collectSnapshotCandidates(),
+          ),
+        ),
       );
     }
 
@@ -311,9 +369,21 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     await WidgetsBinding.instance.endOfFrame;
     await WidgetsBinding.instance.endOfFrame;
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{'text': text}),
-    );
+    // 2. Embed post-action snapshot (opt-out via includeSnapshot:'false').
+    //    Snapshot-build noise must NOT convert a successful type into an
+    //    error envelope: the text has already landed in the controller.
+    final Map<String, dynamic> payload = <String, dynamic>{'text': text};
+    try {
+      await _appendSnapshotIfRequested(payload, params);
+    } catch (e) {
+      developer.log(
+        '[ai-test-v3] ext.dusk.type: post-dispatch snapshot build swallowed '
+        'for ref "$ref": $e',
+        name: 'ai-test',
+      );
+    }
+
+    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, stackTrace) {
     developer.log(
       '[ai-test-v3] ext.dusk.type error: $e\n$stackTrace',
@@ -321,7 +391,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }
@@ -333,10 +403,12 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
 ///   (Enter, Tab, Escape, ArrowUp, ArrowDown, etc.).
 /// - `modifiers` (optional): comma-separated modifier names; accepted but
 ///   not yet applied to the dispatched event (reserved for future use).
+/// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
+///   embedding the post-action accessibility snapshot in the response.
 ///
-/// Response (success):
+/// Response (success, default):
 /// ```json
-/// { "ok": true, "key": "Enter" }
+/// { "ok": true, "key": "Enter", "snapshot": "<yaml>" }
 /// ```
 Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
   String method,
@@ -347,7 +419,10 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
     if (key == null || key.isEmpty) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        '[ai-test-v3] ext.dusk.press_key: missing required param "key"',
+        wrapErrorDetail(
+          '[ai-test-v3] ext.dusk.press_key: missing required param "key"',
+          DuskErrorEnvelope.missingParam('key'),
+        ),
       );
     }
 
@@ -360,9 +435,40 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
 
     await pressKey(key: key, modifiers: modifiers);
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{'ok': true, 'key': key}),
-    );
+    // Wait two frames before snapshotting so any rebuild triggered by the
+    // key (e.g. Tab moving focus, Enter submitting a form) lands in the
+    // post-action accessibility tree. Pre-Step-3.2 this handler skipped
+    // the endOfFrame await entirely — research flagged the shortfall.
+    // Guard on rootElement: when no widget tree is mounted (headless /
+    // bare `test()` contexts) the endOfFrame future never completes
+    // without a frame scheduler, so we skip the awaits and the snapshot
+    // embed below. Mirrors the same guard in ext_navigation.dart.
+    if (WidgetsBinding.instance.rootElement != null) {
+      await WidgetsBinding.instance.endOfFrame;
+      await WidgetsBinding.instance.endOfFrame;
+    }
+
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'ok': true,
+      'key': key,
+    };
+    // Snapshot build needs a live widget tree; in headless test contexts
+    // (plain `test()` with no `pumpWidget`) the walk produces an empty
+    // YAML and we omit the embed so the existing back-compat shape
+    // `{ok, key}` survives verbatim.
+    if (WidgetsBinding.instance.rootElement != null) {
+      try {
+        await _appendSnapshotIfRequested(payload, params);
+      } catch (e) {
+        developer.log(
+          '[ai-test-v3] ext.dusk.press_key: post-dispatch snapshot build '
+          'swallowed for key "$key": $e',
+          name: 'ai-test',
+        );
+      }
+    }
+
+    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, stackTrace) {
     developer.log(
       '[ai-test-v3] ext.dusk.press_key error: $e\n$stackTrace',
@@ -370,7 +476,7 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }

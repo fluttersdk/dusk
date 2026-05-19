@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/error_envelope.dart';
+
 // ---------------------------------------------------------------------------
 // Self-registration entry point
 // ---------------------------------------------------------------------------
@@ -149,7 +151,7 @@ Future<developer.ServiceExtensionResponse> aiTestDismissModalsHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      e.toString(),
+      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
 }
