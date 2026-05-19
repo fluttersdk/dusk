@@ -1,5 +1,6 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'commands/dusk_doctor_command.dart';
 import 'commands/dusk_drag_command.dart';
 import 'commands/dusk_hover_command.dart';
 import 'commands/dusk_install_command.dart';
@@ -24,10 +25,9 @@ import 'commands/dusk_wait_command.dart';
 /// };
 /// ```
 ///
-/// Alpha-2 ships 10 CLI commands (snap / tap / screenshot from alpha-1 +
-/// install + type / scroll / wait / hover / drag / modal added in Wave 2).
-/// DuskDoctorCommand lands in Step 21 of the alpha-2 plan and is
-/// intentionally absent here.
+/// Alpha-2 ships 11 CLI commands (snap / tap / screenshot from alpha-1 +
+/// install + type / scroll / wait / hover / drag / modal added in Wave 2 +
+/// doctor added in Wave 4b Step 21).
 ///
 /// MCP tools: 17 descriptors. The original 6 from alpha-1 (snap / tap /
 /// screenshot / hover / drag / type) are preserved verbatim; the 10 new
@@ -54,6 +54,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         DuskHoverCommand(),
         DuskDragCommand(),
         DuskModalCommand(),
+        // Alpha-2 Step 21.
+        DuskDoctorCommand(),
       ];
 
   @override

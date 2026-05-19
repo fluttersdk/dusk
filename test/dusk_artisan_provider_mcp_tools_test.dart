@@ -13,14 +13,13 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 10 commands', () {
-      expect(cmds, hasLength(10));
+    test('returns exactly 11 commands', () {
+      expect(cmds, hasLength(11));
     });
 
     test(
         'contains the 3 V1 commands plus the install command plus 6 alpha-2 '
-        'commands (DuskDoctorCommand is intentionally absent until Step 21)',
-        () {
+        'commands plus DuskDoctorCommand (Step 21)', () {
       final names = cmds.map((c) => c.runtimeType.toString()).toSet();
       expect(
         names,
@@ -35,13 +34,9 @@ void main() {
           'DuskHoverCommand',
           'DuskDragCommand',
           'DuskModalCommand',
+          'DuskDoctorCommand',
         ]),
       );
-    });
-
-    test('does not yet ship DuskDoctorCommand (lands in Step 21)', () {
-      final names = cmds.map((c) => c.runtimeType.toString()).toSet();
-      expect(names, isNot(contains('DuskDoctorCommand')));
     });
   });
 
