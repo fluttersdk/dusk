@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// `artisan dusk:exceptions [--limit=<n>]` — read recent exception entries
@@ -36,11 +38,11 @@ class DuskExceptionsCommand extends ArtisanCommand {
       params['limit'] = limit;
     }
 
-    await ctx.callExtension<Map<String, dynamic>>(
+    final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.exceptions',
       params,
     );
-    ctx.output.success('Exceptions retrieved');
+    ctx.output.writeln(jsonEncode(response));
     return 0;
   }
 }

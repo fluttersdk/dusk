@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
@@ -146,11 +147,37 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
     // 2. Dismiss open modal overlays so navigation is unobstructed.
     await dismissAllModals();
 
-    // 3. Find the Navigator via tree walk and push the route.
+    // 3. Push the route. Try Navigator 1.0 (pushNamed via onGenerateRoute)
+    //    first; on failure (typically Navigator.onGenerateRoute is null
+    //    because the app uses a Router-based stack like go_router / auto_route),
+    //    fall back to the platform-channel route-information broadcast which
+    //    every Router-backed delegate listens to.
     final Element? root = WidgetsBinding.instance.rootElement;
+    bool pushed = false;
     if (root != null) {
       final NavigatorState? navigator = _findNavigator(root);
-      navigator?.pushNamed(route);
+      if (navigator != null) {
+        try {
+          await navigator.pushNamed(route);
+          pushed = true;
+        } catch (e) {
+          // Navigator.onGenerateRoute null (go_router stack). Fall through to
+          // the cross-router platform channel below.
+          developer.log(
+            '[fluttersdk_dusk] extDuskNavigateHandler: Navigator.pushNamed '
+            'failed for "$route" ($e); falling back to '
+            'SystemNavigator.routeInformationUpdated.',
+            name: 'dusk',
+          );
+        }
+      }
+    }
+    if (!pushed) {
+      // Router-based (go_router, auto_route, Navigator 2.0): broadcast a
+      // route-information update. Every Router widget's
+      // routeInformationProvider picks this up via the system message bus,
+      // which then calls routerDelegate.setNewRoutePath.
+      SystemNavigator.routeInformationUpdated(uri: Uri.parse(route));
     }
 
     // 4. Settle two frame ticks before returning so MCP snapshot calls that

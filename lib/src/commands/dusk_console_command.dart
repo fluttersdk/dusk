@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// `artisan dusk:console [--limit=<n>] [--minLevel=<level>]` — read recent
@@ -44,8 +46,9 @@ class DuskConsoleCommand extends ArtisanCommand {
       params['minLevel'] = minLevel;
     }
 
-    await ctx.callExtension<Map<String, dynamic>>('ext.dusk.console', params);
-    ctx.output.success('Console logs retrieved');
+    final response = await ctx.callExtension<Map<String, dynamic>>(
+        'ext.dusk.console', params);
+    ctx.output.writeln(jsonEncode(response));
     return 0;
   }
 }
