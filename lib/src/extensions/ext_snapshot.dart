@@ -75,20 +75,29 @@ Future<Map<String, dynamic>> duskSnapBuild({int? maxDepth}) async {
     final Map<RenderObject, Element> elementByRenderObject =
         _buildElementByRenderObject();
 
-    final SemanticsNode? root = RendererBinding
-        .instance.rootPipelineOwner.semanticsOwner?.rootSemanticsNode;
-
+    // Walk rootPipelineOwner AND descend into every child pipeline owner.
+    // The Flutter test harness, Flutter web, and modern engine configs
+    // host the actual widget tree under a CHILD pipeline owner; the root
+    // owner's semanticsOwner is typically null in those contexts, so a
+    // root-only walk emits an empty buffer. Mirrors the child-walk fix
+    // already in place at ext_find.dart for the q-handle re-resolver.
     final StringBuffer buffer = StringBuffer();
-    if (root != null) {
-      _emitNode(
-        node: root,
-        depth: 0,
-        maxDepth: maxDepth,
-        buffer: buffer,
-        groupId: groupId,
-        elementByRenderObject: elementByRenderObject,
-      );
+    void walkOwner(PipelineOwner owner) {
+      final SemanticsNode? root = owner.semanticsOwner?.rootSemanticsNode;
+      if (root != null) {
+        _emitNode(
+          node: root,
+          depth: 0,
+          maxDepth: maxDepth,
+          buffer: buffer,
+          groupId: groupId,
+          elementByRenderObject: elementByRenderObject,
+        );
+      }
+      owner.visitChildren(walkOwner);
     }
+
+    walkOwner(RendererBinding.instance.rootPipelineOwner);
 
     return <String, dynamic>{
       'snapshot': buffer.toString(),
