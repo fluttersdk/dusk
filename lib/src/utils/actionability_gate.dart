@@ -184,16 +184,43 @@ Future<void> ensureActionableForViews(
             identical(e.target, target) || _isDescendantOf(e.target, target),
       );
       if (!targetInPath) {
-        final HitTestTarget? top = path.isEmpty ? null : path.first.target;
-        final String topName =
-            top == null ? 'none' : top.runtimeType.toString();
-        throw DuskActionabilityException(
-          ref: ref,
-          reason: 'obscured by other widget (top=$topName)',
-        );
+        // Graceful degradation: when the hit-test path contains ONLY the
+        // root render view (Flutter Web's `_ReusableRenderView` or the
+        // generic `RenderView`), the platform compositor swallowed the
+        // synthetic hit-test before it reached the widget layer. Treat as
+        // "could not determine receivership" and let the action proceed.
+        // The behavior happens routinely in Flutter Web's debug build
+        // because DWDS pipes hit-tests through a snapshot view that does
+        // not always mirror the live element subtree, and breaking valid
+        // taps on that artifact is a worse failure mode than letting
+        // pointer dispatch decide.
+        final bool platformOnly =
+            path.length == 1 && _isRootRenderView(path.first.target);
+        if (platformOnly || path.isEmpty) {
+          // proceed
+        } else {
+          final HitTestTarget top = path.first.target;
+          final String topName = top.runtimeType.toString();
+          throw DuskActionabilityException(
+            ref: ref,
+            reason: 'obscured by other widget (top=$topName)',
+          );
+        }
       }
     }
   }
+}
+
+/// Recognises the framework-level RenderView wrappers that legitimately
+/// sit at the top of every Flutter hit-test path. The class names are
+/// matched on `runtimeType` so the gate stays portable across the
+/// `RenderView` (mobile + desktop) and `_ReusableRenderView` (web debug
+/// build) variants without taking a hard import on the private symbol.
+bool _isRootRenderView(HitTestTarget target) {
+  final String name = target.runtimeType.toString();
+  return name == 'RenderView' ||
+      name == '_ReusableRenderView' ||
+      name.endsWith('RenderView');
 }
 
 /// Re-resolves the global-coordinate bounding rect of [element] from its
