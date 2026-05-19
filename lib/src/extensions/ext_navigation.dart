@@ -73,6 +73,65 @@ void registerNavigationExtensions() {
 // on the map shape independently of the handler + WidgetsBinding machinery)
 // ---------------------------------------------------------------------------
 
+/// Walks the active widget tree for the first [Router] and polls its
+/// `routeInformationProvider.value.uri` until the path component starts
+/// with [requested]; returns the matching URI string on success, `null`
+/// when [timeoutMs] elapses without a match. Polling is generous on the
+/// FIRST tick so the common case (router applied the URL within one
+/// frame) returns immediately.
+Future<String?> _observeActivePathUntil({
+  required String requested,
+  required int pollIntervalMs,
+  required int timeoutMs,
+}) async {
+  final Uri requestedUri = Uri.parse(requested);
+  final String requestedPath =
+      requestedUri.path.isEmpty ? '/' : requestedUri.path;
+  final Stopwatch sw = Stopwatch()..start();
+  while (sw.elapsedMilliseconds <= timeoutMs) {
+    final String? observed = _readActiveRouterUri();
+    if (observed != null) {
+      final Uri observedUri = Uri.tryParse(observed) ?? Uri();
+      final String observedPath =
+          observedUri.path.isEmpty ? '/' : observedUri.path;
+      if (observedPath == requestedPath ||
+          observedPath.startsWith('$requestedPath/')) {
+        return observed;
+      }
+    }
+    await Future<void>.delayed(Duration(milliseconds: pollIntervalMs));
+  }
+  return null;
+}
+
+/// Returns the URI string the first [Router] widget reports as its
+/// current location, or `null` when no Router is mounted. Reaches into
+/// `Router.routeInformationProvider` via `Router.maybeOf(context)` for
+/// every Router under the root element; the first one with a non-null
+/// provider wins.
+String? _readActiveRouterUri() {
+  final Element? root = WidgetsBinding.instance.rootElement;
+  if (root == null) return null;
+  String? found;
+  void visit(Element element) {
+    if (found != null) return;
+    final Widget widget = element.widget;
+    if (widget is Router) {
+      final RouteInformationProvider? provider =
+          widget.routeInformationProvider;
+      final Uri? uri = provider?.value.uri;
+      if (uri != null) {
+        found = uri.toString();
+        return;
+      }
+    }
+    element.visitChildren(visit);
+  }
+
+  root.visitChildren(visit);
+  return found;
+}
+
 /// Builds the success payload for `ext.dusk.navigate`.
 ///
 /// Returns a map with:
@@ -189,11 +248,33 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
       await WidgetsBinding.instance.endOfFrame;
     }
 
+    // 4b. Verify post-navigate URL actually matches what we asked. Some
+    //    Router setups silently drop unknown routes; we previously always
+    //    returned `navigated:true` regardless of outcome. Poll the active
+    //    Router's routeInformationProvider for up to 300ms; the active
+    //    URI MUST start with the requested route's path (Routes with
+    //    query params or redirect targets append, but the prefix is the
+    //    minimum honest contract). If the URL never matches, return
+    //    `navigated:false` plus the observed URI so the agent can branch.
+    final String? activeUri = await _observeActivePathUntil(
+      requested: route,
+      pollIntervalMs: 50,
+      timeoutMs: 300,
+    );
+    final bool actuallyNavigated = activeUri != null;
+
     // 5. Embed post-action snapshot (opt-out via includeSnapshot:'false')
     //    + return confirmation so the MCP tool can assert navigation
     //    happened. Snapshot-build failures must not convert a successful
     //    push into an error envelope.
-    final Map<String, dynamic> payload = buildNavigateResponse(route);
+    final Map<String, dynamic> payload = actuallyNavigated
+        ? buildNavigateResponse(route)
+        : <String, dynamic>{
+            'navigated': false,
+            'route': route,
+            'reason': 'router did not honor the new route; observed URI did not '
+                'change. Route may be unregistered or guarded by a redirect.',
+          };
     try {
       await _appendSnapshotIfRequested(payload, params);
     } catch (e) {

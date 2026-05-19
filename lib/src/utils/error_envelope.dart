@@ -183,9 +183,33 @@ class DuskErrorEnvelope {
 /// `decoded['message']` for the original free-form message.
 String wrapErrorDetail(String message, DuskErrorEnvelope envelope) {
   return jsonEncode(<String, dynamic>{
-    'message': message,
+    'message': _capMessage(message),
     'envelope': envelope.toJson(),
   });
+}
+
+/// Caps an error message at 10 lines + first 2KB so we do not ship 240KB+
+/// Dart stack traces through the MCP transport (line-delimited JSON-RPC).
+/// The first line is the human-readable summary; the next 9 lines are the
+/// stack head, enough to localize the throw site without flooding the
+/// agent context. Truncation adds an explicit `(... N more lines truncated)`
+/// marker so downstream tooling knows the body was capped.
+String _capMessage(String message) {
+  const int maxLines = 10;
+  const int maxChars = 2048;
+  final List<String> lines = message.split('\n');
+  final bool exceededLines = lines.length > maxLines;
+  final List<String> head =
+      exceededLines ? lines.take(maxLines).toList() : lines;
+  String result = head.join('\n');
+  if (exceededLines) {
+    result += '\n(... ${lines.length - maxLines} more lines truncated)';
+  }
+  if (result.length > maxChars) {
+    result =
+        '${result.substring(0, maxChars)}\n(... truncated at $maxChars chars)';
+  }
+  return result;
 }
 
 /// Parses the envelope JSON out of an [errorDetail] string produced by
