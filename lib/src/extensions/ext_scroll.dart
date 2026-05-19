@@ -5,6 +5,9 @@ import 'package:flutter/widgets.dart';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../ref_registry.dart';
+import 'ext_find.dart' show resolveQuery;
+
 /// Registers the `ext.dusk.scroll` and `ext.dusk.select_option` VM Service
 /// extensions.
 ///
@@ -159,19 +162,25 @@ Future<void> aiTestScrollByDelta(
 
 /// Resolves a `ref` string to a [BuildContext] via [RefRegistry].
 ///
-/// Returns `null` when the ref is unknown or the registry has not yet
-/// populated. Step 6 lands [RefRegistry]; until then callers must guard the
-/// return value.
+/// Handles both `e<N>` (snapshot-frame) and `q<N>` (re-resolvable query) refs.
+/// For q-refs, re-executes the stored DuskQuery against the live tree.
+/// Returns `null` when the ref is unknown / unmounted; callers fall back
+/// to the root-scrollable walk in that case.
 BuildContext? _resolveRefContext(String ref) {
-  // RefRegistry is introduced in Step 6 (parallel Wave 3 module). Import is
-  // deferred to avoid a hard compile-time dependency before that step lands.
-  // For now, return null so callers fall through to root-scrollable logic.
-  //
-  // Step 14b wires the real lookup:
-  //   return RefRegistry.lookup(ref)?.element.mounted == true
-  //       ? RefRegistry.lookup(ref)!.element
-  //       : null;
-  return null;
+  final RefEntry? entry =
+      ref.startsWith('q') ? _resolveQueryToEntry(ref) : RefRegistry.lookup(ref);
+  if (entry == null) return null;
+  final Element element = entry.element;
+  return element.mounted ? element : null;
+}
+
+/// Re-runs the stored predicates for a q-handle against the live tree and
+/// returns the materialised RefEntry, or null when the predicates no
+/// longer match.
+RefEntry? _resolveQueryToEntry(String qRef) {
+  final DuskQuery? query = RefRegistry.lookupQuery(qRef);
+  if (query == null) return null;
+  return resolveQuery(query);
 }
 
 /// Finds the first [ScrollableState] reachable from the widget tree root.
