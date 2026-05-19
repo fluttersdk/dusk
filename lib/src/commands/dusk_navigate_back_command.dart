@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// `artisan dusk:navigate_back` — pop the topmost route off the active
@@ -14,12 +16,25 @@ class DuskNavigateBackCommand extends ArtisanCommand {
   CommandBoot get boot => CommandBoot.connected;
 
   @override
+  void configure(ArgParser parser) {
+    parser.addFlag('includeSnapshot',
+        help: 'Embed the post-pop snapshot in the response.',
+        defaultsTo: false);
+  }
+
+  @override
   Future<int> handle(ArtisanContext ctx) async {
-    await ctx.callExtension<Map<String, dynamic>>(
+    final includeSnapshot =
+        (ctx.input.option('includeSnapshot') as bool?) ?? false;
+    final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.navigate_back',
-      const <String, String>{},
+      {'includeSnapshot': includeSnapshot.toString()},
     );
-    ctx.output.success('Popped current route');
+    if (includeSnapshot) {
+      ctx.output.writeln(jsonEncode(response));
+    } else {
+      ctx.output.success('Popped current route');
+    }
     return 0;
   }
 }

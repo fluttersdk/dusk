@@ -105,6 +105,13 @@ Future<void> ensureActionableForViews(
   //    the rect is off-screen and must let the action proceed. The stable
   //    and receives-events checks also rely on a live view, so they share
   //    this early return.
+  //
+  //    Playwright auto-actionability: when the target rect lies outside the
+  //    viewport, call RenderObject.showOnScreen which walks every Scrollable
+  //    ancestor and brings the element into view, then await one frame and
+  //    re-check. The gate only fails when scroll-into-view cannot place the
+  //    target inside the viewport (no scrollable ancestor, or the page
+  //    layout cannot accommodate the element).
   final FlutterView? view = views.isEmpty ? null : views.first;
   if (view == null) {
     return;
@@ -117,22 +124,38 @@ Future<void> ensureActionableForViews(
     physical.width / dpr,
     physical.height / dpr,
   );
-  if (!rect.overlaps(viewport)) {
-    throw DuskActionabilityException(
-      ref: ref,
-      reason: 'off-viewport (rect=$rect, viewport=$viewport)',
-    );
+  Rect currentRect = rect;
+  if (!currentRect.overlaps(viewport)) {
+    final RenderObject? renderObject = entry.element.renderObject;
+    if (renderObject != null && renderObject.attached) {
+      renderObject.showOnScreen(duration: Duration.zero);
+      await WidgetsBinding.instance.endOfFrame;
+      final Rect? liveRect = _liveRectOf(entry.element);
+      if (liveRect != null) {
+        currentRect = liveRect;
+      }
+    }
+    if (!currentRect.overlaps(viewport)) {
+      throw DuskActionabilityException(
+        ref: ref,
+        reason: 'off-viewport (rect=$currentRect, viewport=$viewport)',
+      );
+    }
   }
 
   // 4. Stable check — re-resolve the rect from the live render object after
   //    awaiting one frame. If any side has drifted by more than 0.5 logical
   //    pixels the widget is still animating; the agent should wait or
   //    re-snap rather than tap a moving target.
+  //
+  //    Baseline is [currentRect] (post-auto-scroll, if step 3 ran) instead of
+  //    the original entry.rect — otherwise the deliberate scroll motion from
+  //    step 3 would always trip this gate.
   if (checkStable) {
     await WidgetsBinding.instance.endOfFrame;
     final Rect? liveRect = _liveRectOf(entry.element);
     if (liveRect != null) {
-      final double delta = _maxSideDelta(rect, liveRect);
+      final double delta = _maxSideDelta(currentRect, liveRect);
       if (delta > 0.5) {
         final String formatted = delta.toStringAsFixed(1);
         throw DuskActionabilityException(
@@ -140,6 +163,7 @@ Future<void> ensureActionableForViews(
           reason: 'not stable (rect changed by ${formatted}px)',
         );
       }
+      currentRect = liveRect;
     }
   }
 
@@ -151,7 +175,8 @@ Future<void> ensureActionableForViews(
     final RenderObject? target = entry.element.findRenderObject();
     if (target != null) {
       final BoxHitTestResult result = BoxHitTestResult();
-      RendererBinding.instance.hitTestInView(result, rect.center, view.viewId);
+      RendererBinding.instance
+          .hitTestInView(result, currentRect.center, view.viewId);
       final List<HitTestEntry<HitTestTarget>> path =
           result.path.toList(growable: false);
       final bool targetInPath = path.any(

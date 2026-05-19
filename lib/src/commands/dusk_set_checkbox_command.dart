@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// `artisan dusk:set_checkbox --ref=<ref> --value=<true|false>` — set the
@@ -28,6 +30,9 @@ class DuskSetCheckboxCommand extends ArtisanCommand {
       'value',
       help: 'Target checked state: "true" or "false".',
     );
+    parser.addFlag('includeSnapshot',
+        help: 'Embed the post-toggle snapshot in the response.',
+        defaultsTo: false);
   }
 
   @override
@@ -44,16 +49,23 @@ class DuskSetCheckboxCommand extends ArtisanCommand {
       return 1;
     }
 
+    final includeSnapshot =
+        (ctx.input.option('includeSnapshot') as bool?) ?? false;
     final params = <String, dynamic>{
       'ref': ref,
       'value': value,
+      'includeSnapshot': includeSnapshot.toString(),
     };
 
-    await ctx.callExtension<Map<String, dynamic>>(
+    final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.set_checkbox',
       params,
     );
-    ctx.output.success('Checkbox $ref set to $value');
+    if (includeSnapshot) {
+      ctx.output.writeln(jsonEncode(response));
+    } else {
+      ctx.output.success('Checkbox $ref set to $value');
+    }
     return 0;
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// `artisan dusk:scroll --ref=<eN> [--dy=<px>] [--dx=<px>] [--intoView]`
@@ -33,6 +35,9 @@ class DuskScrollCommand extends ArtisanCommand {
       help: 'Scroll until the ref widget is visible.',
       defaultsTo: false,
     );
+    parser.addFlag('includeSnapshot',
+        help: 'Embed the post-scroll snapshot in the response.',
+        defaultsTo: false);
   }
 
   @override
@@ -57,9 +62,17 @@ class DuskScrollCommand extends ArtisanCommand {
     if (intoView != null && intoView != false) {
       params['intoView'] = intoView.toString();
     }
+    final includeSnapshot =
+        (ctx.input.option('includeSnapshot') as bool?) ?? false;
+    params['includeSnapshot'] = includeSnapshot.toString();
 
-    await ctx.callExtension<Map<String, dynamic>>('ext.dusk.scroll', params);
-    ctx.output.success('Scrolled $ref');
+    final response = await ctx.callExtension<Map<String, dynamic>>(
+        'ext.dusk.scroll', params);
+    if (includeSnapshot) {
+      ctx.output.writeln(jsonEncode(response));
+    } else {
+      ctx.output.success('Scrolled $ref');
+    }
     return 0;
   }
 }

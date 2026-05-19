@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// `artisan dusk:observe [--intent=<hint>] [--roles=<csv>] [--limit=<n>]
@@ -72,8 +74,9 @@ class DuskObserveCommand extends ArtisanCommand {
       params['includeEnrichers'] = includeEnrichers;
     }
 
-    await ctx.callExtension<Map<String, dynamic>>('ext.dusk.observe', params);
-    ctx.output.success('Observed candidates');
+    final response = await ctx.callExtension<Map<String, dynamic>>(
+        'ext.dusk.observe', params);
+    ctx.output.writeln(jsonEncode(response));
     return 0;
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// `artisan dusk:press_key --key=<name> [--modifiers=<csv>]` — synthesise
@@ -25,6 +27,9 @@ class DuskPressKeyCommand extends ArtisanCommand {
       'modifiers',
       help: 'Comma-separated modifier list, e.g. ctrl,shift.',
     );
+    parser.addFlag('includeSnapshot',
+        help: 'Embed the post-press snapshot in the response.',
+        defaultsTo: false);
   }
 
   @override
@@ -41,11 +46,19 @@ class DuskPressKeyCommand extends ArtisanCommand {
       params['modifiers'] = modifiers;
     }
 
-    await ctx.callExtension<Map<String, dynamic>>(
+    final includeSnapshot =
+        (ctx.input.option('includeSnapshot') as bool?) ?? false;
+    params['includeSnapshot'] = includeSnapshot.toString();
+
+    final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.press_key',
       params,
     );
-    ctx.output.success('Pressed $key');
+    if (includeSnapshot) {
+      ctx.output.writeln(jsonEncode(response));
+    } else {
+      ctx.output.success('Pressed $key');
+    }
     return 0;
   }
 }

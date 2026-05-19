@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// `artisan dusk:dblclick --ref=<ref>` — fire a double-click at the widget
@@ -24,6 +26,13 @@ class DuskDblclickCommand extends ArtisanCommand {
       'ref',
       help: 'Widget ref token from a prior dusk:snap call (e.g. e5).',
     );
+    parser.addFlag('includeSnapshot',
+        help: 'Embed the post-dblclick snapshot in the response.',
+        defaultsTo: false);
+    parser.addFlag('checkStable',
+        help: 'Run the Stable actionability gate.', defaultsTo: true);
+    parser.addFlag('checkReceivesEvents',
+        help: 'Run the Receives-Events actionability gate.', defaultsTo: true);
   }
 
   @override
@@ -34,11 +43,26 @@ class DuskDblclickCommand extends ArtisanCommand {
       ctx.output.error('Provide --ref with a widget ref token (e.g. e5).');
       return 1;
     }
+    final includeSnapshot =
+        (ctx.input.option('includeSnapshot') as bool?) ?? false;
+    final checkStable = (ctx.input.option('checkStable') as bool?) ?? true;
+    final checkReceivesEvents =
+        (ctx.input.option('checkReceivesEvents') as bool?) ?? true;
 
-    final params = <String, dynamic>{'ref': ref};
-
-    await ctx.callExtension<Map<String, dynamic>>('ext.dusk.dblclick', params);
-    ctx.output.success('Double-clicked ref $ref');
+    final response = await ctx.callExtension<Map<String, dynamic>>(
+      'ext.dusk.dblclick',
+      {
+        'ref': ref,
+        'includeSnapshot': includeSnapshot.toString(),
+        'checkStable': checkStable.toString(),
+        'checkReceivesEvents': checkReceivesEvents.toString(),
+      },
+    );
+    if (includeSnapshot) {
+      ctx.output.writeln(jsonEncode(response));
+    } else {
+      ctx.output.success('Double-clicked ref $ref');
+    }
     return 0;
   }
 }

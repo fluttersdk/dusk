@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// `artisan dusk:navigate --route=<path>` — push a named route onto the
@@ -20,6 +22,9 @@ class DuskNavigateCommand extends ArtisanCommand {
       help: 'Route path to push, e.g. /forms.',
       mandatory: true,
     );
+    parser.addFlag('includeSnapshot',
+        help: 'Embed the post-navigate snapshot in the response.',
+        defaultsTo: false);
   }
 
   @override
@@ -29,12 +34,17 @@ class DuskNavigateCommand extends ArtisanCommand {
       ctx.output.error('Missing --route=<path>.');
       return 1;
     }
-
-    await ctx.callExtension<Map<String, dynamic>>(
+    final includeSnapshot =
+        (ctx.input.option('includeSnapshot') as bool?) ?? false;
+    final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.navigate',
-      {'route': route},
+      {'route': route, 'includeSnapshot': includeSnapshot.toString()},
     );
-    ctx.output.success('Navigated to $route');
+    if (includeSnapshot) {
+      ctx.output.writeln(jsonEncode(response));
+    } else {
+      ctx.output.success('Navigated to $route');
+    }
     return 0;
   }
 }
