@@ -190,6 +190,12 @@ Future<void> main() async {
           isTrue,
           reason: 'MagicDuskIntegration.install() must land AFTER Magic.init()',
         );
+        expect(
+          result.contains("import 'package:magic/dusk_integration.dart';"),
+          isTrue,
+          reason: 'magic-stack inject must reference the new dusk_integration '
+              'sub-barrel, not the legacy magic.dart main barrel',
+        );
       },
     );
 

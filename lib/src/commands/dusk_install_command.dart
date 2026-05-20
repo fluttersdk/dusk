@@ -152,7 +152,7 @@ class DuskInstallCommand extends ArtisanCommand {
     if (_hasMagicDep()) {
       MainDartEditor.addImport(
         mainDartPath,
-        "import 'package:magic/magic.dart';",
+        "import 'package:magic/dusk_integration.dart';",
       );
       try {
         MainDartEditor.injectAfterMagicInit(
