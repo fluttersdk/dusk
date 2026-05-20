@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- `dusk:install` magic-detect branch now injects `import 'package:magic/dusk_integration.dart';` instead of `import 'package:magic/magic.dart';`. Pairs with magic 1.0.0-alpha.15 which extracts the integration class into a dedicated sub-barrel.
+
 ### Added: CDP driver (Chrome viewport / device emulation)
 
 - **`CdpClient`** (`lib/src/cdp/cdp_client.dart`): minimal in-house Chrome DevTools Protocol client (~110 LoC, dart:io WebSocket + dart:convert; no pub.dev deps). Public surface: `connect(port:)`, `send(method, params)`, `close()`. Internals: monotonic `_nextId` + `Completer` correlation map, 30s per-request timeout, on-disconnect drain. Test seams `cdpHttpGet` / `cdpWsConnect` via `@visibleForTesting` static fields (mirrors `chrome_reaper.dart` injection pattern).
