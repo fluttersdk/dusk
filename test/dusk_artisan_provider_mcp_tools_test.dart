@@ -13,8 +13,8 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 30 commands', () {
-      expect(cmds, hasLength(30));
+    test('returns exactly 32 commands', () {
+      expect(cmds, hasLength(32));
     });
 
     test(
@@ -76,15 +76,15 @@ void main() {
     // Length
     // -------------------------------------------------------------------------
 
-    test('returns exactly 29 descriptors', () {
-      expect(tools, hasLength(29));
+    test('returns exactly 31 descriptors', () {
+      expect(tools, hasLength(31));
     });
 
     // -------------------------------------------------------------------------
     // Names
     // -------------------------------------------------------------------------
 
-    test('contains all 24 expected tool names', () {
+    test('contains all 26 expected tool names', () {
       final names = tools.map((t) => t.name).toList();
       expect(
         names,
@@ -120,6 +120,9 @@ void main() {
           'dusk_observe',
           // Step 4.2.
           'dusk_hot_reload_and_snap',
+          // Wave 4 CDP tools.
+          'dusk_resize_viewport',
+          'dusk_device_profile',
         ]),
       );
     });
@@ -181,6 +184,17 @@ void main() {
       expect(
         byName['dusk_hot_reload_and_snap'],
         equals('artisan:dusk:hot_reload_and_snap'),
+      );
+      // Wave 4 CDP tools. Both route via artisan: dispatch prefix to CLI
+      // commands instead of VM Service extensions (CDP is orchestrator-side,
+      // not inside the running Flutter app).
+      expect(
+        byName['dusk_resize_viewport'],
+        equals('artisan:dusk:resize'),
+      );
+      expect(
+        byName['dusk_device_profile'],
+        equals('artisan:dusk:device'),
       );
     });
 
@@ -329,6 +343,17 @@ void main() {
       // required at the schema level (validation happens in the handler).
       final wait = tools.firstWhere((t) => t.name == 'dusk_wait_for');
       expect(wait.inputSchema.containsKey('required'), isFalse);
+    });
+
+    test('dusk_resize_viewport declares width and height as required', () {
+      final resize = tools.firstWhere((t) => t.name == 'dusk_resize_viewport');
+      final required = resize.inputSchema['required'] as List<dynamic>;
+      expect(required, containsAll(<String>['width', 'height']));
+    });
+
+    test('dusk_device_profile does not declare required params', () {
+      final device = tools.firstWhere((t) => t.name == 'dusk_device_profile');
+      expect(device.inputSchema.containsKey('required'), isFalse);
     });
   });
 }

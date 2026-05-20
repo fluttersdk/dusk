@@ -4,7 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added — Wave 3 (Playwright-pattern action layer)
+### Added: CDP driver (Chrome viewport / device emulation)
+
+- **`CdpClient`** (`lib/src/cdp/cdp_client.dart`): minimal in-house Chrome DevTools Protocol client (~110 LoC, dart:io WebSocket + dart:convert; no pub.dev deps). Public surface: `connect(port:)`, `send(method, params)`, `close()`. Internals: monotonic `_nextId` + `Completer` correlation map, 30s per-request timeout, on-disconnect drain. Test seams `cdpHttpGet` / `cdpWsConnect` via `@visibleForTesting` static fields (mirrors `chrome_reaper.dart` injection pattern).
+- **`DevicePresets`** (`lib/src/cdp/device_presets.dart`): 8 curated device presets with explicit DPR values (never 0): `iphone-x`, `iphone-13`, `iphone-15-pro`, `pixel-5`, `pixel-8`, `ipad-pro-12.9`, `desktop-1440`, `desktop-1920`. Each entry includes width, height, deviceScaleFactor, isMobile, hasTouch, userAgent. `lookupPreset(name)` normalises input (lowercase + underscore/space-to-hyphen + collapse adjacent hyphens).
+- **`ChromeFinder`** (`lib/src/cdp/chrome_finder.dart`): probes `http://localhost:<port>/json/version` until Chrome answers or the timeout expires. Distinguishes connection-refused (retry), HTTP 404 (wrong-Chrome-instance fail-fast), and timeout. `DuskCdpException` re-exported from `cdp_client.dart`.
+- **`DuskResizeCommand` + `dusk:resize` CLI** (`lib/src/commands/dusk_resize_command.dart`): `dart run fluttersdk_artisan dusk:resize --width=375 --height=812 [--dpr=3] [--mobile] [--touch]`. Reads `cdpPort` from state.json, opens `CdpClient`, sends `Emulation.setDeviceMetricsOverride` (+ optional `setTouchEmulationEnabled`). `--reset` sends 3-call clear chain (UA empty -> touch off -> clearMetrics). Fails loudly when CDP not enabled.
+- **`DuskDeviceCommand` + `dusk:device` CLI** (`lib/src/commands/dusk_device_command.dart`): `dart run fluttersdk_artisan dusk:device --preset=iphone-x`. Applies the full emulation chain (metrics + conditional touch + UA) from the curated preset database. `--list` prints all 8 preset entries; `--reset` mirrors `dusk:resize --reset`.
+- **2 new MCP tools** in `DuskArtisanProvider.mcpTools()`: `dusk_resize_viewport` + `dusk_device_profile`. Both dispatch via the existing `artisan:` substrate prefix (no `mcp_server.dart` changes). Tool count: 29 -> 31. Command count: 30 -> 32.
+- **`FakeCdpServer` test harness** (`test/src/cdp/fake_cdp_server.dart`): dart:io `HttpServer` + `WebSocketTransformer.upgrade` on an ephemeral loopback port. Serves `/json/version` + accepts `/devtools/browser/abc` WS upgrade. Configurable failure modes (`failOnJsonVersion`, `dropWebSocket`, `delayResponseMs`). Used by `cdp_client_test.dart`, `dusk_resize_command_test.dart`, `dusk_device_command_test.dart`.
+- **Integration smoke test** (`test/integration/cdp_smoke_test.dart`): exercises the full chain end-to-end (artisan start --cdp-port + dusk:resize + Browser.getVersion round-trip + FIFO hot reload smoke + artisan stop Chrome reap). Tagged `@Skip` so default `flutter test` skips it; run manually via `flutter test test/integration --tags integration` to validate `dart-lang/webdev#2642` regression status against the user's Flutter SDK.
+
+### Risks Accepted
+
+- **`dart-lang/webdev#2642` live regression**: "Hot restart broken when running DWDS without Chrome Debug Port". Integration smoke test (Test 2) surfaces this if active. Mitigation lives in the user's pinned Flutter SDK; plan does not block on regression resolution.
+- **Flutter SDK >= 3.30.0** required for `--cdp-port` (per `flutter/flutter#170612`). Lower versions get an actionable error from both `artisan doctor` (advisory) and `artisan start --cdp-port` (fail-fast).
+
+### Added: Wave 3 (Playwright-pattern action layer)
 
 - **5-gate actionability**: Stable + Receives-Events gates added to
   `ensureActionable` (now async). Total preconditions in evaluation order:

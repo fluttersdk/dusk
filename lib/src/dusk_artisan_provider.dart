@@ -5,6 +5,7 @@ import 'commands/dusk_clear_command.dart';
 import 'commands/dusk_close_app_command.dart';
 import 'commands/dusk_console_command.dart';
 import 'commands/dusk_dblclick_command.dart';
+import 'commands/dusk_device_command.dart';
 import 'commands/dusk_focus_command.dart';
 import 'commands/dusk_right_click_command.dart';
 import 'commands/dusk_triple_click_command.dart';
@@ -21,6 +22,7 @@ import 'commands/dusk_navigate_back_command.dart';
 import 'commands/dusk_navigate_command.dart';
 import 'commands/dusk_observe_command.dart';
 import 'commands/dusk_press_key_command.dart';
+import 'commands/dusk_resize_command.dart';
 import 'commands/dusk_screenshot_command.dart';
 import 'commands/dusk_scroll_command.dart';
 import 'commands/dusk_select_option_command.dart';
@@ -112,6 +114,9 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         DuskClearCommand(),
         DuskRightClickCommand(),
         DuskTripleClickCommand(),
+        // Wave 4 Step 6+7 (CDP): device emulation commands.
+        DuskResizeCommand(),
+        DuskDeviceCommand(),
       ];
 
   @override
@@ -1282,6 +1287,150 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             'required': <String>['ref'],
           },
           extensionMethod: 'ext.dusk.triple_click',
+        ),
+        // -------------------------------------------------------------------
+        // 25. Resize viewport: set dimensions, DPR, mobile, touch via CDP.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_resize_viewport',
+          description: 'Resize the running Flutter web app viewport via Chrome '
+              'DevTools Protocol.\n'
+              '\n'
+              'Sets browser viewport dimensions, device pixel ratio, mobile '
+              'profile, and touch emulation flags via the Emulation.* CDP '
+              'methods. Allows testing responsive layouts and mobile-only UI '
+              'without DevTools manual intervention. Requires artisan to have '
+              'been started with --cdp-port (which pre-launches Chrome with a '
+              'debug port); fail-loudly if cdpPort is not set.\n'
+              '\n'
+              'Usage:\n'
+              '- Requires `width` (integer, CSS pixels; e.g. 375 for iPhone) '
+              'and `height` (integer, CSS pixels; e.g. 812).\n'
+              '- Optional `deviceScaleFactor` (number; default 1.0) simulates '
+              'device DPR. Use 2.0 for Retina, 3.0 for iPhone Pro.\n'
+              '- Optional `mobile` (boolean; default false) enables mobile '
+              'device profile (affects text sizing, viewport meta, scrolling '
+              'UX).\n'
+              '- Optional `touch` (boolean; default false) enables touch event '
+              'synthesis (PointerDown/Move/Up sequences).\n'
+              '- Optional `reset` (boolean; default false) clears ALL viewport '
+              'overrides (metrics, touch, user agent) in one call. When true, '
+              'all other params are ignored.\n'
+              '\n'
+              'Examples:\n'
+              '- `{"width": 375, "height": 812, "deviceScaleFactor": 3.0, '
+              '"mobile": true, "touch": true}` (iPhone-X emulation).\n'
+              '- `{"width": 1440, "height": 900, "reset": false}` (desktop '
+              'viewport).\n'
+              '- `{"reset": true}` (clear overrides, revert to host defaults).',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'width': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Viewport width in CSS pixels (required). '
+                    'Example: 375 for mobile, 1440 for desktop.',
+              },
+              'height': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Viewport height in CSS pixels (required). '
+                    'Example: 812 for mobile, 900 for desktop.',
+              },
+              'deviceScaleFactor': <String, dynamic>{
+                'type': 'number',
+                'description': 'Device pixel ratio (optional; default 1.0). '
+                    'Use 2.0 for Retina, 3.0 for iPhone Pro DPR. Must be '
+                    'greater than 0.',
+              },
+              'mobile': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Enable mobile device profile (optional; default '
+                    'false). Affects viewport meta tag behavior, text autosizing, '
+                    'and scrolling UX.',
+              },
+              'touch': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Enable touch event synthesis (optional; default '
+                    'false). When true, browser fires touch events instead of '
+                    'mouse events.',
+              },
+              'reset': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Clear all viewport overrides (optional; default '
+                    'false). When true, metrics + touch + user agent are reset. '
+                    'All other params ignored when reset is true.',
+              },
+            },
+            'required': <String>['width', 'height'],
+          },
+          extensionMethod: 'artisan:dusk:resize',
+        ),
+        // -------------------------------------------------------------------
+        // 26. Device profile: emulate a named device preset via CDP.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_device_profile',
+          description: 'Emulate a named device profile (viewport + DPR + touch '
+              '+ user agent) via Chrome DevTools Protocol.\n'
+              '\n'
+              'Applies a curated device preset (iphone-x, pixel-5, ipad-pro, '
+              'desktop-1440, etc.) in a single call. Each preset bundles the '
+              'correct viewport dimensions, device pixel ratio, touch '
+              'emulation flag, and user agent string so the app renders as it '
+              'would on that actual device. Requires artisan to have been '
+              'started with --cdp-port (which pre-launches Chrome with a debug '
+              'port).\n'
+              '\n'
+              'Usage:\n'
+              '- Call with `list: true` (no `preset` required) to enumerate '
+              'all available device presets with dimensions.\n'
+              '- Call with `preset: "<name>"` (string; no list) to apply a '
+              'preset. Valid preset names: iphone-x, iphone-13, iphone-15-pro, '
+              'pixel-5, pixel-8, ipad-pro-12.9, desktop-1440, desktop-1920.\n'
+              '- Call with `reset: true` (optional; no preset required) to '
+              'clear all overrides (metrics, touch, user agent). Equivalent to '
+              'dusk_resize_viewport with reset=true.\n'
+              '- When `preset` is unknown, exits with error and suggests '
+              'running with `list: true` to see available options.\n'
+              '\n'
+              'Examples:\n'
+              '- `{"preset": "iphone-x"}` (apply iPhone-X emulation).\n'
+              '- `{"list": true}` (show all 8 presets).\n'
+              '- `{"reset": true}` (clear overrides).',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'preset': <String, dynamic>{
+                'type': 'string',
+                'enum': <String>[
+                  'iphone-x',
+                  'iphone-13',
+                  'iphone-15-pro',
+                  'pixel-5',
+                  'pixel-8',
+                  'ipad-pro-12.9',
+                  'desktop-1440',
+                  'desktop-1920',
+                ],
+                'description': 'Device preset name (optional). One of: '
+                    'iphone-x, iphone-13, iphone-15-pro, pixel-5, pixel-8, '
+                    'ipad-pro-12.9, desktop-1440, desktop-1920. Omit when '
+                    'using list or reset.',
+              },
+              'list': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'List all available device presets (optional; '
+                    'default false). When true, preset and reset are ignored.',
+              },
+              'reset': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Clear all viewport overrides (optional; default '
+                    'false). When true, metrics + touch + user agent are reset. '
+                    'Preset is ignored when reset is true.',
+              },
+            },
+          },
+          extensionMethod: 'artisan:dusk:device',
         ),
       ];
 }
