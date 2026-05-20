@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  analyze-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed lib/ test/ bin/
+
+      - name: Analyze code
+        run: dart analyze lib/ test/ bin/
+
+      - name: Run tests with coverage
+        run: flutter test --coverage --exclude-tags=integration
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v6
+        with:
+          files: coverage/lcov.info
+          fail_ci_if_error: false
+
+      - name: Validate publish archive
+        run: dart pub publish --dry-run
