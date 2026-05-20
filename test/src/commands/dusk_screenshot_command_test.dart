@@ -68,7 +68,10 @@ void main() {
       final exit = await DuskScreenshotCommand().handle(ctx);
       expect(exit, equals(0));
       expect(ctx.lastMethod, equals('ext.dusk.screenshot'));
-      expect(ctx.lastParams, equals({'format': 'png', 'quality': 90}));
+      expect(
+        ctx.lastParams,
+        allOf(containsPair('format', 'png'), containsPair('quality', 90)),
+      );
       expect(File(outPath).existsSync(), isTrue);
       expect(File(outPath).readAsBytesSync(), equals(base64Decode(fakeBase64)));
     });
@@ -81,7 +84,10 @@ void main() {
         response: const {'base64': 'aGVsbG8='},
       );
       await DuskScreenshotCommand().handle(ctx);
-      expect(ctx.lastParams, equals({'format': 'jpeg', 'quality': 70}));
+      expect(
+        ctx.lastParams,
+        allOf(containsPair('format', 'jpeg'), containsPair('quality', 70)),
+      );
     });
 
     test('handle returns 1 when --output is missing', () async {

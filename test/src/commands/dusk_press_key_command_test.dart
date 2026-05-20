@@ -47,7 +47,7 @@ void main() {
       );
       await DuskPressKeyCommand().handle(ctx);
       expect(ctx.lastMethod, equals('ext.dusk.press_key'));
-      expect(ctx.lastParams, equals({'key': 'Enter'}));
+      expect(ctx.lastParams, containsPair('key', 'Enter'));
     });
 
     test('handle forwards --key + --modifiers when both present', () async {
@@ -56,7 +56,13 @@ void main() {
         output: BufferedOutput(),
       );
       await DuskPressKeyCommand().handle(ctx);
-      expect(ctx.lastParams, equals({'key': 'a', 'modifiers': 'ctrl,shift'}));
+      expect(
+        ctx.lastParams,
+        allOf(
+          containsPair('key', 'a'),
+          containsPair('modifiers', 'ctrl,shift'),
+        ),
+      );
     });
 
     test('handle returns 1 when --key is missing', () async {

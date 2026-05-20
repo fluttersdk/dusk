@@ -48,7 +48,7 @@ void main() {
       final exit = await DuskTapCommand().handle(ctx);
       expect(exit, equals(0));
       expect(ctx.lastMethod, equals('ext.dusk.tap'));
-      expect(ctx.lastParams, equals({'ref': 'e5'}));
+      expect(ctx.lastParams, containsPair('ref', 'e5'));
     });
 
     test('handle accepts q-shape refs (Playwright Locator path)', () async {
@@ -57,7 +57,7 @@ void main() {
         output: BufferedOutput(),
       );
       await DuskTapCommand().handle(ctx);
-      expect(ctx.lastParams, equals({'ref': 'q3'}));
+      expect(ctx.lastParams, containsPair('ref', 'q3'));
     });
 
     test('handle returns 1 when --ref is missing', () async {

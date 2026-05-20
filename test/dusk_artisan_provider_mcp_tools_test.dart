@@ -13,8 +13,8 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 25 commands', () {
-      expect(cmds, hasLength(25));
+    test('returns exactly 30 commands', () {
+      expect(cmds, hasLength(30));
     });
 
     test(
@@ -76,8 +76,8 @@ void main() {
     // Length
     // -------------------------------------------------------------------------
 
-    test('returns exactly 24 descriptors', () {
-      expect(tools, hasLength(24));
+    test('returns exactly 29 descriptors', () {
+      expect(tools, hasLength(29));
     });
 
     // -------------------------------------------------------------------------

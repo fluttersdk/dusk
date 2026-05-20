@@ -46,7 +46,12 @@ void main() {
       final exit = await DuskNavigateBackCommand().handle(ctx);
       expect(exit, equals(0));
       expect(ctx.lastMethod, equals('ext.dusk.navigate_back'));
-      expect(ctx.lastParams, isEmpty);
+      // Command adds includeSnapshot:'false' default; just assert it
+      // didn't get any unexpected payload keys.
+      expect(
+        ctx.lastParams!.keys.where((k) => k != 'includeSnapshot'),
+        isEmpty,
+      );
     });
   });
 }

@@ -55,7 +55,7 @@ void main() {
       final exit = await DuskNavigateCommand().handle(ctx);
       expect(exit, equals(0));
       expect(ctx.lastMethod, equals('ext.dusk.navigate'));
-      expect(ctx.lastParams, equals({'route': '/forms'}));
+      expect(ctx.lastParams, containsPair('route', '/forms'));
     });
 
     test('handle returns 1 when --route is missing', () async {

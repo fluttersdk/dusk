@@ -50,7 +50,10 @@ void main() {
       final exit = await DuskSnapCommand().handle(ctx);
       expect(exit, equals(0));
       expect(ctx.lastMethod, equals('ext.dusk.snap'));
-      expect(ctx.lastParams, isEmpty);
+      // Caller passed nothing; command may add default flags (e.g.
+      // includeEnrichers) so we only assert the caller-supplied keys
+      // are NOT present.
+      expect(ctx.lastParams!.containsKey('depth'), isFalse);
     });
 
     test('handle forwards --depth to ext.dusk.snap when provided', () async {
@@ -60,7 +63,7 @@ void main() {
         response: const {'snapshot': ''},
       );
       await DuskSnapCommand().handle(ctx);
-      expect(ctx.lastParams, equals({'depth': '3'}));
+      expect(ctx.lastParams, containsPair('depth', '3'));
     });
 
     test('handle prints the snapshot string to ctx.output', () async {

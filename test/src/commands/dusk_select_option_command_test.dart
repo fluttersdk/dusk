@@ -47,7 +47,10 @@ void main() {
       );
       await DuskSelectOptionCommand().handle(ctx);
       expect(ctx.lastMethod, equals('ext.dusk.select_option'));
-      expect(ctx.lastParams, equals({'ref': 'e4', 'value': 'Japonya'}));
+      expect(
+        ctx.lastParams,
+        allOf(containsPair('ref', 'e4'), containsPair('value', 'Japonya')),
+      );
     });
 
     test('handle returns 1 when --ref is missing', () async {

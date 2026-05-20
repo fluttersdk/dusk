@@ -51,7 +51,7 @@ void main() {
       );
       await DuskFindCommand().handle(ctx);
       expect(ctx.lastMethod, equals('ext.dusk.find'));
-      expect(ctx.lastParams, equals({'text': 'Submit'}));
+      expect(ctx.lastParams, containsPair('text', 'Submit'));
     });
 
     test('handle forwards --semanticsLabel only', () async {
@@ -61,7 +61,9 @@ void main() {
       );
       await DuskFindCommand().handle(ctx);
       expect(
-          ctx.lastParams, equals({'semanticsLabel': 'Open navigation menu'}));
+        ctx.lastParams,
+        containsPair('semanticsLabel', 'Open navigation menu'),
+      );
     });
 
     test('handle forwards --key only', () async {
@@ -70,7 +72,7 @@ void main() {
         output: BufferedOutput(),
       );
       await DuskFindCommand().handle(ctx);
-      expect(ctx.lastParams, equals({'key': 'monitor-row-7'}));
+      expect(ctx.lastParams, containsPair('key', 'monitor-row-7'));
     });
 
     test('handle forwards every supplied predicate', () async {
