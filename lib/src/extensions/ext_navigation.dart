@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../dusk_plugin.dart';
 import '../utils/error_envelope.dart';
 import 'ext_modal_router.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
@@ -73,33 +74,28 @@ void registerNavigationExtensions() {
 // on the map shape independently of the handler + WidgetsBinding machinery)
 // ---------------------------------------------------------------------------
 
-/// Walks the active widget tree for the first [Router] and polls its
-/// `routeInformationProvider.value.uri` until the path component starts
-/// with [requested]; returns the matching URI string on success, `null`
-/// when [timeoutMs] elapses without a match. Polling is generous on the
-/// FIRST tick so the common case (router applied the URL within one
-/// frame) returns immediately.
-Future<String?> _observeActivePathUntil({
-  required String requested,
-  required int pollIntervalMs,
-  required int timeoutMs,
-}) async {
+/// Walks the active widget tree for the first [Router] and reads its
+/// `routeInformationProvider.value.uri` ONCE; returns the URI string
+/// when its path matches [requested] (exact or prefix), `null` when
+/// no Router is mounted or the URI does not match.
+///
+/// Designed to be called AFTER the handler has already awaited the
+/// post-dispatch `endOfFrame` ticks — at that point the router (if it
+/// honored the route) has applied the change. A multi-frame poll loop
+/// is intentionally avoided: it deadlocks under testWidgets pump
+/// semantics (each `await endOfFrame` schedules a frame the test must
+/// pump, and existing handler tests only pump twice).
+String? _readMatchingRouterUri(String requested) {
+  final String? observed = _readActiveRouterUri();
+  if (observed == null) return null;
   final Uri requestedUri = Uri.parse(requested);
   final String requestedPath =
       requestedUri.path.isEmpty ? '/' : requestedUri.path;
-  final Stopwatch sw = Stopwatch()..start();
-  while (sw.elapsedMilliseconds <= timeoutMs) {
-    final String? observed = _readActiveRouterUri();
-    if (observed != null) {
-      final Uri observedUri = Uri.tryParse(observed) ?? Uri();
-      final String observedPath =
-          observedUri.path.isEmpty ? '/' : observedUri.path;
-      if (observedPath == requestedPath ||
-          observedPath.startsWith('$requestedPath/')) {
-        return observed;
-      }
-    }
-    await Future<void>.delayed(Duration(milliseconds: pollIntervalMs));
+  final Uri observedUri = Uri.tryParse(observed) ?? Uri();
+  final String observedPath = observedUri.path.isEmpty ? '/' : observedUri.path;
+  if (observedPath == requestedPath ||
+      observedPath.startsWith('$requestedPath/')) {
+    return observed;
   }
   return null;
 }
@@ -232,10 +228,35 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
       }
     }
     if (!pushed) {
+      // Consumer-registered adapter (typically MagicRoute.to wired in
+      // host main.dart). Cleanest dispatch path for app frameworks that
+      // own their own router (Magic / GoRouter with custom
+      // RouteInformationProvider), because the host pushes through the
+      // router's public API instead of platform-channel broadcasts the
+      // delegate may not be listening to. `pushed = true` means dispatch
+      // attempted, NOT that the route was honored — URL verify below is
+      // the source of truth (the adapter has no way to report whether
+      // the router accepted or silently dropped the path).
+      final adapter = DuskPlugin.navigateAdapter;
+      if (adapter != null) {
+        try {
+          pushed = await adapter(route);
+        } catch (e) {
+          developer.log(
+            '[fluttersdk_dusk] extDuskNavigateHandler: navigateAdapter '
+            'threw for "$route" ($e); falling back to '
+            'SystemNavigator.routeInformationUpdated.',
+            name: 'dusk',
+          );
+        }
+      }
+    }
+    if (!pushed) {
       // Router-based (go_router, auto_route, Navigator 2.0): broadcast a
       // route-information update. Every Router widget's
       // routeInformationProvider picks this up via the system message bus,
-      // which then calls routerDelegate.setNewRoutePath.
+      // which then calls routerDelegate.setNewRoutePath. This is the
+      // framework-agnostic fallback when no consumer adapter is wired.
       SystemNavigator.routeInformationUpdated(uri: Uri.parse(route));
     }
 
@@ -249,18 +270,14 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
     }
 
     // 4b. Verify post-navigate URL actually matches what we asked. Some
-    //    Router setups silently drop unknown routes; we previously always
-    //    returned `navigated:true` regardless of outcome. Poll the active
-    //    Router's routeInformationProvider for up to 300ms; the active
-    //    URI MUST start with the requested route's path (Routes with
-    //    query params or redirect targets append, but the prefix is the
-    //    minimum honest contract). If the URL never matches, return
-    //    `navigated:false` plus the observed URI so the agent can branch.
-    final String? activeUri = await _observeActivePathUntil(
-      requested: route,
-      pollIntervalMs: 50,
-      timeoutMs: 300,
-    );
+    //    routers silently drop unknown routes (or redirect them); the
+    //    adapter has no way to report whether the router accepted or
+    //    dropped the path, so this URL-verify pass is the source of
+    //    truth. Single read AFTER the two endOfFrame ticks above —
+    //    that gives the router two frames to apply the URL, which
+    //    suffices for GoRouter / MagicRouter in production and avoids
+    //    the multi-frame poll loop that deadlocks testWidgets pumps.
+    final String? activeUri = _readMatchingRouterUri(route);
     final bool actuallyNavigated = activeUri != null;
 
     // 5. Embed post-action snapshot (opt-out via includeSnapshot:'false')

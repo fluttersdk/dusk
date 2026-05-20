@@ -13,6 +13,7 @@
 library;
 
 export 'src/dusk_artisan_provider.dart';
+export 'src/dusk_navigate_adapter.dart';
 export 'src/dusk_plugin.dart';
 export 'src/dusk_snapshot_enricher.dart';
 export 'src/extensions/ext_console.dart' show recentLogsReader;

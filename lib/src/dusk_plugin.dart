@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
+import 'dusk_navigate_adapter.dart';
 import 'dusk_snapshot_enricher.dart';
 import 'extensions/register_dusk_extensions.dart';
 
@@ -34,6 +35,21 @@ class DuskPlugin {
   /// insertion order on every snapshot call (live read; mid-session adds
   /// are picked up immediately).
   static final List<DuskSnapshotEnricher> enrichers = <DuskSnapshotEnricher>[];
+
+  /// Consumer-registered router adapter consulted by `ext.dusk.navigate`
+  /// before falling back to [SystemNavigator.routeInformationUpdated].
+  /// Null when no adapter is wired — dusk stays framework-agnostic.
+  ///
+  /// See [DuskNavigateAdapter] for the contract.
+  static DuskNavigateAdapter? get navigateAdapter => _navigateAdapter;
+  static DuskNavigateAdapter? _navigateAdapter;
+
+  /// Wires a router adapter. Subsequent calls overwrite the previous
+  /// adapter so hot-reload tests can rebind cleanly. Passing `null`
+  /// clears the adapter (back to framework-agnostic broadcast).
+  static void registerNavigateAdapter(DuskNavigateAdapter? adapter) {
+    _navigateAdapter = adapter;
+  }
 
   /// Idempotent install. Safe to call multiple times within the same
   /// isolate lifetime. Hot-restart resets the counter naturally (statics
