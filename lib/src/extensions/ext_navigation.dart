@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:developer' as developer;
 
@@ -213,7 +214,14 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
       final NavigatorState? navigator = _findNavigator(root);
       if (navigator != null) {
         try {
-          await navigator.pushNamed(route);
+          // Fire-and-forget. `Navigator.pushNamed` returns a Future that
+          // completes when the pushed route is POPPED, not when it lands —
+          // awaiting it would block this handler until the agent navigates
+          // away, which deadlocks any test (and any test-like context) that
+          // never pops. The push itself happens synchronously inside the
+          // call; the post-dispatch endOfFrame ticks below guarantee the
+          // new route is mounted before we URL-verify.
+          unawaited(navigator.pushNamed(route));
           pushed = true;
         } catch (e) {
           // Navigator.onGenerateRoute null (go_router stack). Fall through to
