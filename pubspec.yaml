@@ -21,8 +21,13 @@ dependencies:
   flutter:
     sdk: flutter
   fluttersdk_artisan: ^0.0.3
-  meta: ^1.16.0
   image: ^4.0.0
+  meta: ^1.16.0
+  wind_diagnostics_contracts: ^1.0.0-alpha.1
+
+dependency_overrides:
+  wind_diagnostics_contracts:
+    path: ../wind_diagnostics_contracts
 
 executables:
   # `dart run fluttersdk_dusk <cmd>` is the dusk-flavoured artisan wrapper.

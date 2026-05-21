@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:fluttersdk_dusk/dusk.dart';
-import 'package:fluttersdk_wind/dusk_integration.dart';
 import 'package:magic/dusk_integration.dart';
 import 'package:magic/magic.dart';
 import 'config/app.dart';
@@ -17,11 +16,11 @@ import 'config/view.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Install DuskPlugin + Wind enricher BEFORE Magic.init so the
-  //    enrichers are registered before the widget tree is built.
+  // 1. Install DuskPlugin + Wind diagnostics resolver BEFORE Magic.init so
+  //    the wiring is in place before the widget tree is built.
   if (kDebugMode) {
     DuskPlugin.install();
-    WindDuskIntegration.install();
+    Wind.installDebugResolver();
   }
 
   // 2. Bootstrap Magic framework with full config factories.

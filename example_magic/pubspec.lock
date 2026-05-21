@@ -352,7 +352,7 @@ packages:
       path: "../../wind"
       relative: true
     source: path
-    version: "1.0.0-alpha.8"
+    version: "1.0.0-alpha.9"
   glob:
     dependency: transitive
     description:
@@ -575,7 +575,7 @@ packages:
       path: "../../magic"
       relative: true
     source: path
-    version: "1.0.0-alpha.14"
+    version: "1.0.0-alpha.15"
   matcher:
     dependency: transitive
     description:
