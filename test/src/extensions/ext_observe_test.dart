@@ -6,6 +6,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_observe.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:wind_diagnostics_contracts/wind_diagnostics_contracts.dart';
+
+/// Fake resolver that emits the 6 core wind fields for any Element.
+/// Used to assert the new `WindDebugRegistry` walk in `_mergeEnricherFields`
+/// (wind alpha-10 replaces the enricher-list contribution).
+class _FakeWindResolver implements WindDebugResolver {
+  @override
+  Map<String, Object?> resolve(Element element) {
+    return const <String, Object?>{
+      'className': 'flex p-4',
+      'breakpoint': 'lg',
+      'brightness': 'dark',
+      'platform': 'web',
+      'states': <String>['hover'],
+      'bgColor': '#3B82F6',
+    };
+  }
+}
 
 /// Tests for `ext.dusk.observe` (Stagehand observe-once-act-many).
 ///
@@ -567,6 +585,146 @@ void main() {
                 as Map<String, dynamic>;
 
         expect(first.containsKey('magicFormField'), isFalse);
+        expect(first.containsKey('wind'), isFalse);
+      },
+    );
+  });
+
+  group('extDuskObserveHandler — wind_diagnostics_contracts registry', () {
+    setUp(() {
+      RefRegistry.resetForTesting();
+      DuskPlugin.enrichers.clear();
+      WindDebugRegistry.resetForTesting();
+    });
+
+    tearDown(() {
+      RefRegistry.resetForTesting();
+      DuskPlugin.enrichers.clear();
+      WindDebugRegistry.resetForTesting();
+    });
+
+    testWidgets(
+      '(l) when a WindDebugResolver is registered, the wind block survives '
+      'in observe output without any enricher-list contribution',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        WindDebugRegistry.registerForTesting(_FakeWindResolver());
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ElevatedButton(
+                onPressed: () {},
+                child: const Text('Submit'),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final response = await extDuskObserveHandler(
+          'ext.dusk.observe',
+          <String, String>{},
+        );
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final Map<String, dynamic> first =
+            (decoded['candidates'] as List<dynamic>).first
+                as Map<String, dynamic>;
+
+        final Map<String, dynamic>? wind =
+            first['wind'] as Map<String, dynamic>?;
+        expect(wind, isNotNull,
+            reason: 'wind block must come from WindDebugRegistry, '
+                'not the enricher list');
+        expect(wind!['breakpoint'], equals('lg'));
+        expect(wind['states'], equals('hover'));
+        expect(wind.containsKey('brightness'), isFalse,
+            reason: 'defaults mode filters to _kDefaultWindKeys subset');
+        expect(wind.containsKey('platform'), isFalse);
+        expect(wind.containsKey('bgColor'), isFalse);
+      },
+    );
+
+    testWidgets(
+      '(m) includeEnrichers="full" projects all wind sub-fields from the '
+      'resolver',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        WindDebugRegistry.registerForTesting(_FakeWindResolver());
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ElevatedButton(
+                onPressed: () {},
+                child: const Text('Submit'),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final response = await extDuskObserveHandler(
+          'ext.dusk.observe',
+          <String, String>{'includeEnrichers': 'full'},
+        );
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final Map<String, dynamic> first =
+            (decoded['candidates'] as List<dynamic>).first
+                as Map<String, dynamic>;
+
+        final Map<String, dynamic>? wind =
+            first['wind'] as Map<String, dynamic>?;
+        expect(wind, isNotNull);
+        expect(wind!['breakpoint'], equals('lg'));
+        expect(wind['brightness'], equals('dark'));
+        expect(wind['platform'], equals('web'));
+        expect(wind['states'], equals('hover'));
+        expect(wind['bgColor'], equals('#3B82F6'));
+        expect(wind['className'], equals('flex p-4'));
+      },
+    );
+
+    testWidgets(
+      '(n) includeEnrichers="false" still suppresses the wind block even '
+      'when a resolver is registered',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        WindDebugRegistry.registerForTesting(_FakeWindResolver());
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ElevatedButton(
+                onPressed: () {},
+                child: const Text('Submit'),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final response = await extDuskObserveHandler(
+          'ext.dusk.observe',
+          <String, String>{'includeEnrichers': 'false'},
+        );
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final Map<String, dynamic> first =
+            (decoded['candidates'] as List<dynamic>).first
+                as Map<String, dynamic>;
+
         expect(first.containsKey('wind'), isFalse);
       },
     );

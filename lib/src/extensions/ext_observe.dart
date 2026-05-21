@@ -5,6 +5,7 @@ import 'dart:ui' show CheckedState, FlutterView, Tristate;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:wind_diagnostics_contracts/wind_diagnostics_contracts.dart';
 
 import '../dusk_plugin.dart';
 import '../dusk_snapshot_enricher.dart';
@@ -43,9 +44,10 @@ const Set<String> _kDefaultEnricherKeys = <String>{
 };
 
 /// Default-subset wind sub-fields (the `includeEnrichers='true'` projection).
-/// The full `WindClassNameEnricher` block exposes 6+ fields including hex
-/// colours and per-state breakdowns; the default subset keeps only the two
-/// that drive agent decisions (breakpoint + active state).
+/// The full Wind diagnostics block (sourced via `wind_diagnostics_contracts`)
+/// exposes the 6 core fields including hex colours and per-state breakdowns;
+/// the default subset keeps only the two that drive agent decisions
+/// (breakpoint + active state).
 const Set<String> _kDefaultWindKeys = <String>{
   'breakpoint',
   'states',
@@ -285,6 +287,32 @@ void _mergeEnricherFields(
   Element element,
   _EnricherMode mode,
 ) {
+  // Wind diagnostics via wind_diagnostics_contracts neutral bridge.
+  // Wind registers a WindDebugResolver at app boot (Wind.installDebugResolver);
+  // observe reads it here without ever importing wind types. Mirrors the
+  // additive walk in ext_snapshot.dart so the `wind:` block survives in
+  // observe output after alpha-10's enricher removal.
+  final WindDebugResolver? resolver = WindDebugRegistry.current;
+  if (resolver != null) {
+    final Map<String, Object?> windData = resolver.resolve(element);
+    if (windData.isNotEmpty &&
+        (mode != _EnricherMode.defaults ||
+            _kDefaultEnricherKeys.contains('wind'))) {
+      final Map<String, dynamic> filteredChildren = <String, dynamic>{};
+      windData.forEach((String subKey, Object? subValue) {
+        if (mode == _EnricherMode.defaults &&
+            !_kDefaultWindKeys.contains(subKey)) {
+          return;
+        }
+        filteredChildren[subKey] =
+            subValue is List ? subValue.join(', ') : subValue?.toString() ?? '';
+      });
+      if (filteredChildren.isNotEmpty) {
+        candidate.putIfAbsent('wind', () => filteredChildren);
+      }
+    }
+  }
+  // Existing enricher loop UNCHANGED (Magic still uses this path).
   for (final DuskSnapshotEnricher enricher in DuskPlugin.enrichers) {
     final String? fragment = enricher(element, RefRegistry.instance);
     if (fragment == null || fragment.isEmpty) continue;

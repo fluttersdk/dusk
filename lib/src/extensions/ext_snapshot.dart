@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:wind_diagnostics_contracts/wind_diagnostics_contracts.dart';
 
 import '../dusk_plugin.dart';
 import '../ref_registry.dart';
@@ -22,8 +23,10 @@ import '../utils/error_envelope.dart';
 /// After minting a token, every enricher registered on
 /// [DuskPlugin.enrichers] is invoked with the element + ref registry.
 /// Non-null returns are appended as indented child lines beneath the ref
-/// entry. Magic and Wind ship their own enrichers via
-/// `MagicDuskIntegration.install()` and `WindDuskIntegration.install()`.
+/// entry. Magic ships its enrichers via `MagicDuskIntegration.install()`.
+/// Wind diagnostics flow through `wind_diagnostics_contracts.WindDebugRegistry`
+/// (registered by `Wind.installDebugResolver()`) and are emitted as a
+/// `wind:` sub-block above the enricher loop.
 ///
 /// ## YAML shape
 ///
@@ -194,6 +197,26 @@ void _emitNode({
       // includeEnrichers=true on dusk:snap or the includeEnrichers flag on
       // action handlers that embed a post-action snapshot.
       if (includeEnrichers) {
+        // Wind diagnostics via wind_diagnostics_contracts neutral bridge.
+        // Wind registers a WindDebugResolver at app boot (Wind.installDebugResolver);
+        // dusk reads it here without ever importing wind types. Returns const {}
+        // for non-Wind widgets, a graceful no-op.
+        final WindDebugResolver? resolver = WindDebugRegistry.current;
+        if (resolver != null) {
+          final Map<String, Object?> windData = resolver.resolve(element);
+          if (windData.isNotEmpty) {
+            buffer.writeln('${_indent(depth + 1)}wind:');
+            windData.forEach((key, value) {
+              if (value is List) {
+                buffer.writeln(
+                    '${_indent(depth + 2)}$key: [${value.join(', ')}]');
+              } else {
+                buffer.writeln('${_indent(depth + 2)}$key: $value');
+              }
+            });
+          }
+        }
+        // Existing enricher loop UNCHANGED (Magic still uses this path).
         for (final enricher in DuskPlugin.enrichers) {
           final String? fragment = enricher(element, RefRegistry.instance);
           if (fragment == null || fragment.isEmpty) continue;
