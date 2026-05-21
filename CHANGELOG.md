@@ -6,7 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `dusk:install` wind-detect branch now injects `import 'package:fluttersdk_wind/dusk_integration.dart';` alongside the existing `WindDuskIntegration.install();` snippet. Pairs with wind 1.0.0-alpha.9 which extracts the integration class into a dedicated sub-barrel and drops it from the main barrel.
+- `ext.dusk.snap` snapshot pipeline now reads wind state via `wind_diagnostics_contracts.WindDebugRegistry.current?.resolve(element)` in addition to the existing enricher list dispatch. Magic enricher contract UNCHANGED.
+- New production dep: `wind_diagnostics_contracts: ^1.0.0-alpha.1`.
+- `dusk:install` wind-detect branch removed: wind alpha-10 needs no install-time wiring from dusk; consumer calls `Wind.installDebugResolver()` directly.
+- `ext.dusk.observe` enricher merge also reads wind state through `WindDebugRegistry`; the `wind:` block (filtered by `_kDefaultWindKeys` in `defaults` mode) survives alpha-10's enricher removal.
 
 ## [0.0.1] - 2026-05-20
 
