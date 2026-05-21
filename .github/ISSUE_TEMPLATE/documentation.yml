@@ -1,0 +1,47 @@
+name: Documentation Issue
+description: Report incorrect, missing, or unclear documentation
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us improve the fluttersdk_dusk documentation.
+
+  - type: input
+    id: page
+    attributes:
+      label: Documentation Page
+      description: Which doc page has the issue? Use the deployed URL or the repo path.
+      placeholder: "https://dusk.fluttersdk.com/commands/snap OR doc/commands/snap.md"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue Type
+      options:
+        - Incorrect information
+        - Missing information
+        - Unclear explanation
+        - Broken code example
+        - Missing code example
+        - Broken internal link
+        - Outdated after a recent change
+        - Typo
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What's wrong or missing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Fix
+      description: How should the documentation be corrected? Quote the corrected sentence or paste the corrected example.

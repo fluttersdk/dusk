@@ -1,0 +1,110 @@
+name: Bug Report
+description: Report a bug in fluttersdk_dusk
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in the details below so we can reproduce and fix it.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the bug.
+      placeholder: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this bug?
+      placeholder: |
+        1. Run `dart run fluttersdk_dusk dusk:snap` in a running Flutter app
+        2. Run `dart run fluttersdk_dusk dusk:tap --ref=e1`
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened? Include the full error message and stack trace if available.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: subsystem
+    attributes:
+      label: Subsystem
+      description: Which part of the framework is affected?
+      options:
+        - Extensions (ext.dusk.* handlers)
+        - Commands (dusk:* CLI)
+        - Actionability gate (5-gate, error envelope)
+        - RefRegistry (e<N> / q<N> tokens)
+        - Snapshot enrichers (DuskSnapshotEnricher)
+        - CDP driver (cdp_client, device_presets, chrome_finder)
+        - MCP tools (DuskArtisanProvider mcpTools)
+        - Plugin integration (Magic / Wind)
+        - Doctor / Doctor checks
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command Invocation
+      description: The exact `dart run fluttersdk_dusk ...` command (or MCP tool name + arguments) that triggered the bug.
+      placeholder: "dart run fluttersdk_dusk dusk:snap"
+      render: shell
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Minimal Reproduction Code
+      description: A minimal code snippet (or pubspec.yaml fragment) that reproduces the issue.
+      render: dart
+
+  - type: input
+    id: dusk-version
+    attributes:
+      label: fluttersdk_dusk Version
+      placeholder: "0.0.1"
+    validations:
+      required: true
+
+  - type: input
+    id: dart-version
+    attributes:
+      label: Dart / Flutter Version
+      description: Output of `flutter --version`.
+      placeholder: "Flutter 3.22.0 / Dart 3.4.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Which platform is the Flutter app running on?
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - All
+    validations:
+      required: true

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / Discussion
+    url: https://github.com/fluttersdk/dusk/discussions
+    about: Ask questions and discuss fluttersdk_dusk with the community
+  - name: Documentation
+    url: https://dusk.fluttersdk.com
+    about: Browse the canonical documentation site
