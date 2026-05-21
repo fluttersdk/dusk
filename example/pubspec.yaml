@@ -38,10 +38,6 @@ dependencies:
   fluttersdk_dusk:
     path: ../
 
-dependency_overrides:
-  fluttersdk_wind_diagnostics_contracts:
-    path: ../../fluttersdk_wind_diagnostics_contracts
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

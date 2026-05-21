@@ -131,11 +131,12 @@ packages:
     source: path
     version: "0.0.1"
   fluttersdk_wind_diagnostics_contracts:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "../../fluttersdk_wind_diagnostics_contracts"
-      relative: true
-    source: path
+      name: fluttersdk_wind_diagnostics_contracts
+      sha256: "5d6b324dc334da9ab0b4b4703a551af5b080c4f659f57209a5516cf94e04f1f1"
+      url: "https://pub.dev"
+    source: hosted
     version: "1.0.0"
   image:
     dependency: transitive
@@ -344,4 +345,4 @@ packages:
     version: "2.2.4"
 sdks:
   dart: ">=3.11.4 <4.0.0"
-  flutter: ">=3.22.0"
+  flutter: ">=3.27.0"

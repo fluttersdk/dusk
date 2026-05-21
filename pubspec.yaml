@@ -25,10 +25,6 @@ dependencies:
   meta: ^1.16.0
   fluttersdk_wind_diagnostics_contracts: ^1.0.0
 
-dependency_overrides:
-  fluttersdk_wind_diagnostics_contracts:
-    path: ../fluttersdk_wind_diagnostics_contracts
-
 executables:
   # `dart run fluttersdk_dusk <cmd>` is the dusk-flavoured artisan wrapper.
   # Surfaces 32 CLI commands + 31 MCP tools (28 ext.dusk.* + 3 artisan:dusk:*) via DuskArtisanProvider.
