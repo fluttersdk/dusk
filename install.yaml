@@ -2,9 +2,10 @@
 #
 # Dusk is an E2E driver plugin. Install registers DuskArtisanProvider into the
 # consumer's lib/app/_plugins.g.dart codegen barrel (via the artisan manifest
-# installer's _registerArtisanProvider step) so the 11 dusk CLI commands + 17
-# dusk_* MCP tools surface in the consumer's `dart run artisan` and
-# `dart run fluttersdk_artisan:mcp` outputs.
+# installer's _registerArtisanProvider step) so the 32 dusk CLI commands + 31
+# dusk_* MCP tools (28 ext.dusk.* + 3 artisan:dusk:* substrate-routed) surface
+# in the consumer's `dart run artisan` and `dart run fluttersdk_artisan:mcp`
+# outputs.
 #
 # No stub files are published: dusk captures via VM Service extensions
 # (ext.dusk.*) + snapshot enrichers, not scaffolded code. The consumer wires
@@ -44,8 +45,13 @@ post_install:
     5. Verify the MCP surface:
 
          dart run fluttersdk_artisan mcp:install    # add fluttersdk MCP server entry to .mcp.json
-         # then restart Claude Code; /mcp will list 17 dusk_* tools
-         # (dusk_snap, dusk_screenshot, dusk_tap, dusk_hover, dusk_drag,
-         #  dusk_type, dusk_scroll, dusk_wait_for, dusk_dismiss_modals,
-         #  dusk_navigate, dusk_navigate_back, dusk_get_routes, dusk_find,
-         #  dusk_press_key, dusk_select_option, dusk_evaluate, dusk_close_app).
+         # then restart Claude Code; /mcp will list 31 dusk_* tools
+         # (dusk_blur, dusk_clear, dusk_close_app, dusk_console, dusk_dblclick,
+         #  dusk_device_profile, dusk_dismiss_modals, dusk_drag, dusk_evaluate,
+         #  dusk_exceptions, dusk_find, dusk_focus, dusk_get_routes,
+         #  dusk_hot_reload_and_snap, dusk_hover, dusk_navigate,
+         #  dusk_navigate_back, dusk_observe, dusk_press_key,
+         #  dusk_resize_viewport, dusk_right_click, dusk_screenshot, dusk_scroll,
+         #  dusk_select_option, dusk_set_checkbox, dusk_snap, dusk_tap,
+         #  dusk_triple_click, dusk_type, dusk_wait_for,
+         #  dusk_wait_for_network_idle).
