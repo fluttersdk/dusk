@@ -22,10 +22,6 @@ import 'package:fluttersdk_artisan/artisan.dart';
 ///     enrichers, which only resolves once the container is ready).
 ///   - Vanilla apps: wire `DuskPlugin.install()` before `runApp(`.
 ///
-/// Wind enricher integration: when the consumer's pubspec lists
-/// `fluttersdk_wind:` as a dep, `WindDuskIntegration.install()` lands
-/// inside the same `kDebugMode` block as `DuskPlugin.install()`.
-///
 /// Idempotent across re-runs: each `addImport` / `injectBeforeAnchor` /
 /// `injectAfterMagicInit` call early-returns when the snippet is already
 /// present, so re-running `dusk:install` is a safe no-op.
@@ -49,7 +45,7 @@ class DuskInstallCommand extends ArtisanCommand {
   static String _defaultMainDartPath() => 'lib/main.dart';
 
   /// Hook for tests to override the resolved `pubspec.yaml` path used
-  /// for `magic:` / `fluttersdk_wind:` dependency detection.
+  /// for `magic:` dependency detection.
   static String Function() pubspecPathResolver = _defaultPubspecPath;
 
   static String _defaultPubspecPath() => 'pubspec.yaml';
@@ -81,10 +77,7 @@ class DuskInstallCommand extends ArtisanCommand {
   ///      already present) + the `kDebugMode`-gated dusk block before
   ///      the canonical install anchor: `await Magic.init(` on
   ///      Magic-stack apps (so dusk is wired before Magic boot side
-  ///      effects), otherwise `runApp(` for vanilla Flutter apps. When
-  ///      `fluttersdk_wind:` is a pubspec dep, also wires
-  ///      `WindDuskIntegration.install()` inside the same kDebugMode
-  ///      block.
+  ///      effects), otherwise `runApp(` for vanilla Flutter apps.
   ///   3. When pubspec has `magic:` AND main.dart has `await Magic.init(`,
   ///      inject `MagicDuskIntegration.install()` AFTER that call (the
   ///      integration queries `Magic.find<X>()` for the form / nav
@@ -102,16 +95,6 @@ class DuskInstallCommand extends ArtisanCommand {
       mainDartPath,
       "import 'package:fluttersdk_dusk/dusk.dart';",
     );
-    // Wind sub-barrel import lands here (before the readFile + in-memory
-    // transform below) so the cached `source` includes it when the final
-    // writeFile flushes back. wind alpha-9 dropped the main-barrel
-    // re-export; consumers reach WindDuskIntegration via this sub-barrel.
-    if (_hasWindDep()) {
-      MainDartEditor.addImport(
-        mainDartPath,
-        "import 'package:fluttersdk_wind/dusk_integration.dart';",
-      );
-    }
 
     // 2. Read once, choose the correct anchor, transform via two
     //    pure-functional injects (idempotent: each helper checks
@@ -138,18 +121,12 @@ class DuskInstallCommand extends ArtisanCommand {
       );
     }
 
-    // Build the kDebugMode block. WindDuskIntegration.install lands
-    // inside the same gate when `fluttersdk_wind:` is a top-level dep of
-    // the consumer (the import for the sub-barrel was already added
-    // before the readFile above).
-    final hasWind = _hasWindDep();
-    final windLine = hasWind ? '    WindDuskIntegration.install();\n' : '';
+    // Build the kDebugMode block.
     source = MainDartEditor.injectBeforeAnchor(
       source: source,
       anchor: anchor,
       snippet: '  if (kDebugMode) {\n'
           '    DuskPlugin.install();\n'
-          '$windLine'
           '  }\n',
     );
 
@@ -185,15 +162,5 @@ class DuskInstallCommand extends ArtisanCommand {
     final pubspec = File(pubspecPathResolver());
     if (!pubspec.existsSync()) return false;
     return RegExp(r'\n  magic:').hasMatch(pubspec.readAsStringSync());
-  }
-
-  /// Returns true when the consumer's pubspec.yaml lists `fluttersdk_wind:`
-  /// as a top-level dependency (2-space indent under `dependencies:`).
-  /// The actual package name is `fluttersdk_wind` per the wind repo's own
-  /// pubspec; the historical alias `wind:` is NOT a valid package import.
-  static bool _hasWindDep() {
-    final pubspec = File(pubspecPathResolver());
-    if (!pubspec.existsSync()) return false;
-    return RegExp(r'\n  fluttersdk_wind:').hasMatch(pubspec.readAsStringSync());
   }
 }

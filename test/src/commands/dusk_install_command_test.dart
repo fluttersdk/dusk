@@ -200,48 +200,6 @@ Future<void> main() async {
     );
 
     // ------------------------------------------------------------------
-    // Wind dep: WindDuskIntegration wires alongside DuskPlugin
-    // ------------------------------------------------------------------
-
-    test(
-      'wind dep present (fluttersdk_wind): wires WindDuskIntegration in the '
-      'same kDebugMode block',
-      () async {
-        final mainDartPath = _seedProject(
-          tempDir,
-          pubspecDeps: const {'fluttersdk_wind': 'any'},
-          mainDartContents: '''
-import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-  @override
-  Widget build(BuildContext context) => const MaterialApp(home: SizedBox());
-}
-''',
-        );
-        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
-        DuskInstallCommand.pubspecPathResolver =
-            () => '${tempDir.path}/pubspec.yaml';
-
-        await DuskInstallCommand().handle(_ctx());
-        final result = File(mainDartPath).readAsStringSync();
-        expect(result.contains('WindDuskIntegration.install()'), isTrue);
-        expect(
-          result.contains(
-              "import 'package:fluttersdk_wind/dusk_integration.dart';"),
-          isTrue,
-          reason:
-              'wind inject must reference the new dusk_integration sub-barrel, not the legacy main barrel',
-        );
-      },
-    );
-
-    // ------------------------------------------------------------------
     // WidgetsFlutterBinding.ensureInitialized() — no double inject
     // ------------------------------------------------------------------
 
