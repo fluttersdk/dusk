@@ -23,7 +23,7 @@ dependencies:
   fluttersdk_artisan: ^0.0.3
   image: ^4.0.0
   meta: ^1.16.0
-  fluttersdk_wind_diagnostics_contracts: ^1.0.0-alpha.1
+  fluttersdk_wind_diagnostics_contracts: ^1.0.0
 
 dependency_overrides:
   fluttersdk_wind_diagnostics_contracts:
