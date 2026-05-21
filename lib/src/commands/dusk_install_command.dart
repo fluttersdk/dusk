@@ -102,6 +102,16 @@ class DuskInstallCommand extends ArtisanCommand {
       mainDartPath,
       "import 'package:fluttersdk_dusk/dusk.dart';",
     );
+    // Wind sub-barrel import lands here (before the readFile + in-memory
+    // transform below) so the cached `source` includes it when the final
+    // writeFile flushes back. wind alpha-9 dropped the main-barrel
+    // re-export; consumers reach WindDuskIntegration via this sub-barrel.
+    if (_hasWindDep()) {
+      MainDartEditor.addImport(
+        mainDartPath,
+        "import 'package:fluttersdk_wind/dusk_integration.dart';",
+      );
+    }
 
     // 2. Read once, choose the correct anchor, transform via two
     //    pure-functional injects (idempotent: each helper checks
@@ -130,7 +140,8 @@ class DuskInstallCommand extends ArtisanCommand {
 
     // Build the kDebugMode block. WindDuskIntegration.install lands
     // inside the same gate when `fluttersdk_wind:` is a top-level dep of
-    // the consumer.
+    // the consumer (the import for the sub-barrel was already added
+    // before the readFile above).
     final hasWind = _hasWindDep();
     final windLine = hasWind ? '    WindDuskIntegration.install();\n' : '';
     source = MainDartEditor.injectBeforeAnchor(

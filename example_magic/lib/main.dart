@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:fluttersdk_dusk/dusk.dart';
+import 'package:fluttersdk_wind/dusk_integration.dart';
 import 'package:magic/dusk_integration.dart';
 import 'package:magic/magic.dart';
 import 'config/app.dart';

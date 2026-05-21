@@ -231,6 +231,13 @@ class MyApp extends StatelessWidget {
         await DuskInstallCommand().handle(_ctx());
         final result = File(mainDartPath).readAsStringSync();
         expect(result.contains('WindDuskIntegration.install()'), isTrue);
+        expect(
+          result.contains(
+              "import 'package:fluttersdk_wind/dusk_integration.dart';"),
+          isTrue,
+          reason:
+              'wind inject must reference the new dusk_integration sub-barrel, not the legacy main barrel',
+        );
       },
     );
 

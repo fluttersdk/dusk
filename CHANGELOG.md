@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- `dusk:install` wind-detect branch now injects `import 'package:fluttersdk_wind/dusk_integration.dart';` alongside the existing `WindDuskIntegration.install();` snippet. Pairs with wind 1.0.0-alpha.9 which extracts the integration class into a dedicated sub-barrel and drops it from the main barrel.
+
 ## [0.0.1] - 2026-05-20
 
 Initial release. E2E driver for Flutter apps. Snapshot, tap, type, drag, scroll, screenshot, wait, find via VM Service extensions (`ext.dusk.*`). Framework-agnostic (vanilla Flutter friendly); Magic / Wind integrations ship inside those packages via `DuskPlugin.enrichers` extension point.
