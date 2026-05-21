@@ -18,6 +18,7 @@ import 'ref_registry.dart';
 ///    (e.g. MagicFormEnricher returns null for elements outside a MagicForm).
 ///
 /// Magic registers `MagicFormEnricher.call` + `MagicNavigationEnricher.call`.
-/// Wind registers `WindClassNameEnricher.call`.
+/// Wind diagnostics flow through `wind_diagnostics_contracts.WindDebugRegistry`
+/// rather than this typedef (see [ext_snapshot.dart]'s wind walk).
 typedef DuskSnapshotEnricher = String? Function(
     Element element, RefRegistry refs);

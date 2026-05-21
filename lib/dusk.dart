@@ -7,8 +7,9 @@
 /// - [RefRegistry]: `e<N>` token system for stable element handles across
 ///   snapshot/action tool calls.
 /// - [DuskSnapshotEnricher]: typedef for the snapshot-enricher extension
-///   point (Magic ships MagicFormEnricher via this; Wind ships
-///   WindClassNameEnricher).
+///   point (Magic ships MagicFormEnricher via this). Wind diagnostics
+///   flow through `wind_diagnostics_contracts.WindDebugRegistry` instead
+///   (registered by `Wind.installDebugResolver()`).
 /// - [DuskArtisanProvider]: registers 13 dusk:* commands into artisan.
 library;
 
