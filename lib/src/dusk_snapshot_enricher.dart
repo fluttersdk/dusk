@@ -19,5 +19,5 @@ import 'ref_registry.dart';
 ///
 /// Magic registers `MagicFormEnricher.call` + `MagicNavigationEnricher.call`.
 /// Wind registers `WindClassNameEnricher.call`.
-typedef DuskSnapshotEnricher =
-    String? Function(Element element, RefRegistry refs);
+typedef DuskSnapshotEnricher = String? Function(
+    Element element, RefRegistry refs);
