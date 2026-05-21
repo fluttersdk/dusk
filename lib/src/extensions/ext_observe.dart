@@ -5,7 +5,7 @@ import 'dart:ui' show CheckedState, FlutterView, Tristate;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
-import 'package:wind_diagnostics_contracts/wind_diagnostics_contracts.dart';
+import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
 
 import '../dusk_plugin.dart';
 import '../dusk_snapshot_enricher.dart';
@@ -44,7 +44,7 @@ const Set<String> _kDefaultEnricherKeys = <String>{
 };
 
 /// Default-subset wind sub-fields (the `includeEnrichers='true'` projection).
-/// The full Wind diagnostics block (sourced via `wind_diagnostics_contracts`)
+/// The full Wind diagnostics block (sourced via `fluttersdk_wind_diagnostics_contracts`)
 /// exposes the 6 core fields including hex colours and per-state breakdowns;
 /// the default subset keeps only the two that drive agent decisions
 /// (breakpoint + active state).
@@ -287,7 +287,7 @@ void _mergeEnricherFields(
   Element element,
   _EnricherMode mode,
 ) {
-  // Wind diagnostics via wind_diagnostics_contracts neutral bridge.
+  // Wind diagnostics via fluttersdk_wind_diagnostics_contracts neutral bridge.
   // Wind registers a WindDebugResolver at app boot (Wind.installDebugResolver);
   // observe reads it here without ever importing wind types. Mirrors the
   // additive walk in ext_snapshot.dart so the `wind:` block survives in

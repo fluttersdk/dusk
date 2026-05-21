@@ -118,7 +118,7 @@ is a deferred-idea candidate; see CHANGELOG `### Known gaps`.
 - **`DuskSnapshotEnricher` typedef is FROZEN for the alpha-2 cycle**. The signature `String? Function(Element
   element, RefRegistry refs)` MUST NOT change in any alpha-2 patch release. Any change requires a coordinated bump
   across this package + `magic` (which ships 7 enrichers via `MagicDuskIntegration`). Wind no longer uses this
-  typedef as of wind alpha-10; wind diagnostics flow through `wind_diagnostics_contracts.WindDebugRegistry`, read
+  typedef as of wind alpha-10; wind diagnostics flow through `fluttersdk_wind_diagnostics_contracts.WindDebugRegistry`, read
   by `ext_snapshot.dart` + `ext_observe.dart` ahead of the enricher loop. Treat the typedef as a load-bearing
   Magic-side contract.
 - `DuskPlugin.install()` / `DuskPlugin.registerEnricher()` signatures are frozen for the same reason.
@@ -128,7 +128,7 @@ is a deferred-idea candidate; see CHANGELOG `### Known gaps`.
   and their `ext.dusk.*` extension method names are frozen. Renames break agent prompts and pinned consumer scripts.
 - `install.yaml` manifest at the package root is required for `plugin:install fluttersdk_dusk`. Do not delete it;
   the V1 manifest carries the post-install bootstrap message + the `executables:` mapping anchor.
-- No new production dependencies beyond `fluttersdk_artisan`, `meta`, `image`, and `wind_diagnostics_contracts`
+- No new production dependencies beyond `fluttersdk_artisan`, `meta`, `image`, and `fluttersdk_wind_diagnostics_contracts`
   (alpha-2 cycle addition; the neutral bridge to wind's runtime widget state). Example apps may add their own
   demo deps (`magic` + `wind` for `example_magic`).
 - The actionability gate's three preconditions (enabled → zero-rect → off-viewport) are evaluated in that order

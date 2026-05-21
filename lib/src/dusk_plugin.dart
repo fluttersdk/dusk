@@ -28,7 +28,7 @@ import 'extensions/register_dusk_extensions.dart';
 /// - [enrichers]: live-read list of snapshot enrichers. Magic registers
 ///   MagicFormEnricher + MagicNavigationEnricher via this. Wind no longer
 ///   uses this list as of wind alpha-10; wind diagnostics flow through
-///   `wind_diagnostics_contracts.WindDebugRegistry` instead, read by
+///   `fluttersdk_wind_diagnostics_contracts.WindDebugRegistry` instead, read by
 ///   `ext_snapshot.dart` / `ext_observe.dart` directly.
 class DuskPlugin {
   DuskPlugin._();

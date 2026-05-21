@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
-import 'package:wind_diagnostics_contracts/wind_diagnostics_contracts.dart';
+import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
 
 import '../dusk_plugin.dart';
 import '../ref_registry.dart';
@@ -24,7 +24,7 @@ import '../utils/error_envelope.dart';
 /// [DuskPlugin.enrichers] is invoked with the element + ref registry.
 /// Non-null returns are appended as indented child lines beneath the ref
 /// entry. Magic ships its enrichers via `MagicDuskIntegration.install()`.
-/// Wind diagnostics flow through `wind_diagnostics_contracts.WindDebugRegistry`
+/// Wind diagnostics flow through `fluttersdk_wind_diagnostics_contracts.WindDebugRegistry`
 /// (registered by `Wind.installDebugResolver()`) and are emitted as a
 /// `wind:` sub-block above the enricher loop.
 ///
@@ -197,7 +197,7 @@ void _emitNode({
       // includeEnrichers=true on dusk:snap or the includeEnrichers flag on
       // action handlers that embed a post-action snapshot.
       if (includeEnrichers) {
-        // Wind diagnostics via wind_diagnostics_contracts neutral bridge.
+        // Wind diagnostics via fluttersdk_wind_diagnostics_contracts neutral bridge.
         // Wind registers a WindDebugResolver at app boot (Wind.installDebugResolver);
         // dusk reads it here without ever importing wind types. Returns const {}
         // for non-Wind widgets, a graceful no-op.

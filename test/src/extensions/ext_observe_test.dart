@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_observe.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
-import 'package:wind_diagnostics_contracts/wind_diagnostics_contracts.dart';
+import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
 
 /// Fake resolver that emits the 6 core wind fields for any Element.
 /// Used to assert the new `WindDebugRegistry` walk in `_mergeEnricherFields`
@@ -590,7 +590,7 @@ void main() {
     );
   });
 
-  group('extDuskObserveHandler — wind_diagnostics_contracts registry', () {
+  group('extDuskObserveHandler — fluttersdk_wind_diagnostics_contracts registry', () {
     setUp(() {
       RefRegistry.resetForTesting();
       DuskPlugin.enrichers.clear();

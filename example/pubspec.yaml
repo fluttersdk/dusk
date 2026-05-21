@@ -39,8 +39,8 @@ dependencies:
     path: ../
 
 dependency_overrides:
-  wind_diagnostics_contracts:
-    path: ../../wind_diagnostics_contracts
+  fluttersdk_wind_diagnostics_contracts:
+    path: ../../fluttersdk_wind_diagnostics_contracts
 
 dev_dependencies:
   flutter_test:
