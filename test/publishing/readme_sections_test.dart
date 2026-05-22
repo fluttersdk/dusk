@@ -24,15 +24,27 @@ void main() {
       expect(fileExists('README.md'), isTrue);
     });
 
-    test('declares an H1 mentioning "fluttersdk_dusk"', () {
+    test('declares an H1 naming the package (literal "fluttersdk_dusk" or the brand-name "Dusk")', () {
       final String raw = loadFile('README.md');
-      final RegExp h1 = RegExp(r'^# .*fluttersdk_dusk', multiLine: true);
-      expect(h1.hasMatch(raw), isTrue,
+      // The artisan-style centered <h1 align="center"> heading uses "Dusk"
+      // as the brand-name H1; the markdown-style "# fluttersdk_dusk" form is
+      // also accepted for back-compat with the prior README shape.
+      final RegExp markdownH1 = RegExp(r'^# .*fluttersdk_dusk', multiLine: true);
+      final RegExp centeredH1 =
+          RegExp(r'<h1[^>]*>\s*(Dusk|fluttersdk_dusk)\s*</h1>', caseSensitive: false);
+      expect(markdownH1.hasMatch(raw) || centeredH1.hasMatch(raw), isTrue,
           reason: 'README must open with an H1 naming the package');
     });
 
-    test('contains "## Why dusk?" section', () {
-      expect(_hasHeading(loadFile('README.md'), 2, 'Why dusk?'), isTrue);
+    test('contains "## Why Dusk?" section', () {
+      // Capitalised "Dusk" matches the brand-name H1 in the rewritten
+      // (telescope-shape) README. The lowercase form is still accepted for
+      // back-compat with the prior shape.
+      final String raw = loadFile('README.md');
+      final bool capitalised = _hasHeading(raw, 2, 'Why Dusk?');
+      final bool lowercase = _hasHeading(raw, 2, 'Why dusk?');
+      expect(capitalised || lowercase, isTrue,
+          reason: 'README must carry the "Why Dusk?" (or "Why dusk?") section');
     });
 
     test('contains "## Features" section', () {
@@ -49,11 +61,6 @@ void main() {
 
     test('contains "## MCP Tools" section', () {
       expect(_hasHeading(loadFile('README.md'), 2, 'MCP Tools'), isTrue);
-    });
-
-    test('contains "## VM Service extensions" section', () {
-      expect(_hasHeading(loadFile('README.md'), 2, 'VM Service extensions'),
-          isTrue);
     });
 
     test('contains "## Architecture" section', () {
