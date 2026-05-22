@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:meta/meta.dart';
@@ -200,28 +202,132 @@ class DuskHotReloadAndSnapCommand extends ArtisanCommand {
   }
 }
 
-/// Default [HotReloadFn]: fires `vm.reloadSources(force: true)` against the
-/// running app's main isolate. `force: true` matches mcp_flutter's
-/// implementation: an idempotent re-import even when no source has changed
-/// guarantees the post-reload `reassemble` rebuilds the widget tree (so a
-/// caller running the tool a second time still sees a fresh snapshot).
+/// Default [HotReloadFn]: drives `flutter run`'s own keystroke protocol by
+/// writing `r\n` to the stdin FIFO recorded in `~/.artisan/state.json`, then
+/// waits for the VM Service `IsolateReload` event so the post-reload widget
+/// tree is settled before the snapshot capture runs.
+///
+/// Direct `vm.reloadSources` is intentionally avoided: when `flutter run` is
+/// mediating (the normal case for `artisan start`), the Flutter Tool watches
+/// the file system and owns the reload pipeline; a raw VM Service reload
+/// from a sibling process is rejected with `success=false` and produces no
+/// reassemble. The keystroke path is the same one `reload` uses and works
+/// uniformly across web/desktop/mobile targets.
 Future<HotReloadResult> _defaultReload(ArtisanContext ctx) async {
-  final client = ctx.vmClient;
-  if (client == null) {
+  final Map<String, dynamic>? state = await StateFile.read();
+  if (state == null) {
     return const HotReloadResult(
       success: false,
-      error: 'No VM Service client; run `artisan start` first.',
+      error: 'No artisan state file; run `artisan start` first.',
     );
   }
-  try {
-    final isolateId = await client.getMainIsolateId();
-    final report = await client.reloadSources(isolateId, force: true);
-    final bool success = report.success ?? false;
+  final String? pipePath = state['stdinPipe'] as String?;
+  if (pipePath == null) {
+    return const HotReloadResult(
+      success: false,
+      error:
+          'state.json has no stdinPipe entry; restart the app via `artisan restart`.',
+    );
+  }
+  if (!File(pipePath).existsSync()) {
     return HotReloadResult(
-      success: success,
-      error: success ? null : 'Hot reload reported success=false',
+      success: false,
+      error: 'flutter run stdin pipe missing at $pipePath',
+    );
+  }
+
+  // Discover the flutter run log path so we can tail-poll for the
+  // "Reloaded N libraries in Mms" marker that flutter_tools emits once a
+  // reload finishes (compile + reassemble both done). The VM Service
+  // `IsolateReload` event would be cleaner but does NOT fire on no-op
+  // reloads (0 libraries changed) — and `hot_reload_and_snap` is most
+  // useful precisely when the caller wants to FORCE a reassemble without
+  // editing files.
+  final String? logPath = state['logPath'] as String? ??
+      state['log'] as String? ??
+      _defaultLogPath();
+  final File logFile = logPath == null ? File('') : File(logPath);
+  final int baselineLogLength =
+      logFile.existsSync() ? logFile.lengthSync() : 0;
+
+  try {
+    // 1. Push `r\n` through `printf %s > fifo`. Dart's File.open() calls
+    //    lseek which FIFOs reject; the shell write opens-writes-closes
+    //    without seeking, matching the canonical reload command.
+    final ProcessResult write = await Process.run('sh', <String>[
+      '-c',
+      "printf 'r\\n' > ${_shellQuote(pipePath)}",
+    ]);
+    if (write.exitCode != 0) {
+      return HotReloadResult(
+        success: false,
+        error:
+            'Failed to write to flutter run stdin pipe (exit ${write.exitCode}): '
+            '${write.stderr}',
+      );
+    }
+
+    // 2. Poll the log for a "Reloaded N libraries" line that appears after
+    //    [baselineLogLength]. flutter_tools always emits this line on a
+    //    successful reload (even when N==0); a compile error emits
+    //    "Try again after fixing the above error(s)." instead.
+    final RegExp successMarker =
+        RegExp(r'Reloaded \d+( of \d+)? librar(y|ies) in \d+ms');
+    final RegExp failureMarker =
+        RegExp(r'Try again after fixing the above error');
+    final Stopwatch deadline = Stopwatch()..start();
+    const Duration timeout = Duration(seconds: 10);
+    while (deadline.elapsed < timeout) {
+      if (logFile.existsSync()) {
+        final String tail = await _readLogTail(logFile, baselineLogLength);
+        if (failureMarker.hasMatch(tail)) {
+          return HotReloadResult(
+            success: false,
+            error: 'Hot reload reported a compile error; see flutter run log.',
+          );
+        }
+        if (successMarker.hasMatch(tail)) {
+          // Reassemble runs synchronously inside the same flutter_tools
+          // tick that emits the marker, so the next frame is already the
+          // post-reload tree.
+          return const HotReloadResult(success: true);
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    return const HotReloadResult(
+      success: false,
+      error: 'Hot reload did not signal completion in time',
     );
   } catch (e) {
     return HotReloadResult(success: false, error: e.toString());
   }
+}
+
+/// Resolve the canonical flutter run log path (`~/.artisan/flutter-dev.log`)
+/// in the same shape `start` writes it.
+String? _defaultLogPath() {
+  final home = Platform.environment['HOME'];
+  if (home == null || home.isEmpty) return null;
+  return '$home/.artisan/flutter-dev.log';
+}
+
+/// Read the slice of [file] that lives past [baseline] bytes. Returns an
+/// empty string when the slice is empty or the file shrank (log rotation).
+Future<String> _readLogTail(File file, int baseline) async {
+  final int end = file.lengthSync();
+  if (end <= baseline) return '';
+  final RandomAccessFile raf = await file.open();
+  try {
+    await raf.setPosition(baseline);
+    final List<int> bytes = await raf.read(end - baseline);
+    return utf8.decode(bytes, allowMalformed: true);
+  } finally {
+    await raf.close();
+  }
+}
+
+String _shellQuote(String s) {
+  if (RegExp(r'^[A-Za-z0-9_./=:-]+$').hasMatch(s)) return s;
+  return "'${s.replaceAll("'", r"'\''")}'";
 }

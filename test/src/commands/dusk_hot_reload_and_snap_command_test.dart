@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -329,6 +332,171 @@ void main() {
 
       expect(cmd.lastResult!['screenshot'], isNull);
       expect(ctx.methodLog, isNot(contains('ext.dusk.screenshot')));
+    });
+  });
+
+  // ===========================================================================
+  // Default reload path — exercises the production `_defaultReload`
+  // (FIFO stdin + log poll) via the no-arg ctor so the file's largest
+  // uncovered branch becomes reachable in coverage.
+  // ===========================================================================
+  group('DuskHotReloadAndSnapCommand defaultReload integration', () {
+    late Directory tempHome;
+
+    setUp(() {
+      tempHome =
+          Directory.systemTemp.createTempSync('dusk_hot_reload_default_');
+      StateFile.debugHomeOverride = tempHome.path;
+      Directory('${tempHome.path}/.artisan').createSync(recursive: true);
+    });
+
+    tearDown(() {
+      StateFile.debugHomeOverride = null;
+      if (tempHome.existsSync()) {
+        tempHome.deleteSync(recursive: true);
+      }
+    });
+
+    test('reloaded=false when state.json is absent', () async {
+      // No state.json written → StateFile.read() returns null.
+      final cmd = DuskHotReloadAndSnapCommand(); // default _defaultReload
+      final ctx = _StubContext(
+        input: MapInput(const {'screenshot': false}),
+        output: BufferedOutput(),
+      );
+      await cmd.handle(ctx);
+      expect(cmd.lastResult!['reloaded'], isFalse);
+      expect(
+        cmd.lastResult!['error'] as String,
+        contains('No artisan state file'),
+      );
+    });
+
+    test('reloaded=false when state.json has no stdinPipe entry', () async {
+      File('${tempHome.path}/.artisan/state.json').writeAsStringSync(
+        jsonEncode({'pid': 1, 'vmServiceUri': 'ws://x'}),
+      );
+      final cmd = DuskHotReloadAndSnapCommand();
+      final ctx = _StubContext(
+        input: MapInput(const {'screenshot': false}),
+        output: BufferedOutput(),
+      );
+      await cmd.handle(ctx);
+      expect(cmd.lastResult!['reloaded'], isFalse);
+      expect(
+        cmd.lastResult!['error'] as String,
+        contains('no stdinPipe entry'),
+      );
+    });
+
+    test('reloaded=false when the recorded stdin pipe is missing on disk',
+        () async {
+      File('${tempHome.path}/.artisan/state.json').writeAsStringSync(
+        jsonEncode({
+          'pid': 1,
+          'stdinPipe': '${tempHome.path}/.artisan/nonexistent.fifo',
+        }),
+      );
+      final cmd = DuskHotReloadAndSnapCommand();
+      final ctx = _StubContext(
+        input: MapInput(const {'screenshot': false}),
+        output: BufferedOutput(),
+      );
+      await cmd.handle(ctx);
+      expect(cmd.lastResult!['reloaded'], isFalse);
+      expect(
+        cmd.lastResult!['error'] as String,
+        contains('flutter run stdin pipe missing'),
+      );
+    });
+
+    test(
+        'reloaded=true when the success marker appears in the log after '
+        'the keystroke write', () async {
+      final pipeFile = File('${tempHome.path}/.artisan/pipe')..createSync();
+      final logFile = File('${tempHome.path}/.artisan/flutter-dev.log')
+        ..writeAsStringSync('Launching app...\n');
+      File('${tempHome.path}/.artisan/state.json').writeAsStringSync(
+        jsonEncode({
+          'pid': 1,
+          'stdinPipe': pipeFile.path,
+          'logPath': logFile.path,
+        }),
+      );
+
+      // Append the success marker shortly after handle() starts polling.
+      // 120ms gives the printf write time to complete; the loop polls
+      // every 50ms so the marker is seen within ~one extra cycle.
+      // ignore: unawaited_futures
+      Future<void>.delayed(const Duration(milliseconds: 120), () {
+        logFile.writeAsStringSync(
+          'Reloaded 0 of 1 libraries in 50ms (compile: 5 ms, reload: 0 ms).\n',
+          mode: FileMode.append,
+        );
+      });
+
+      final cmd = DuskHotReloadAndSnapCommand();
+      final ctx = _StubContext(
+        input: MapInput(const {'screenshot': false}),
+        output: BufferedOutput(),
+        responses: <String, Map<String, dynamic>>{
+          'ext.dusk.snap': const {'snapshot': '- root', 'groupId': 'g'},
+          'ext.dusk.exceptions': const {
+            'exceptions': <Map<String, dynamic>>[],
+            'count': 0,
+          },
+        },
+      );
+
+      await cmd.handle(ctx);
+
+      expect(cmd.lastResult!['reloaded'], isTrue);
+      expect(cmd.lastResult!['snapshot'], equals('- root'));
+      expect(pipeFile.readAsStringSync(), equals('r\n'));
+    });
+
+    test(
+        'reloaded=false with compile-error envelope when the failure marker '
+        'appears in the log', () async {
+      final pipeFile = File('${tempHome.path}/.artisan/pipe')..createSync();
+      final logFile = File('${tempHome.path}/.artisan/flutter-dev.log')
+        ..writeAsStringSync('Launching app...\n');
+      File('${tempHome.path}/.artisan/state.json').writeAsStringSync(
+        jsonEncode({
+          'pid': 1,
+          'stdinPipe': pipeFile.path,
+          'logPath': logFile.path,
+        }),
+      );
+
+      // ignore: unawaited_futures
+      Future<void>.delayed(const Duration(milliseconds: 120), () {
+        logFile.writeAsStringSync(
+          "lib/main.dart:5:1: Error: expected ';'\n"
+          'Try again after fixing the above error(s).\n',
+          mode: FileMode.append,
+        );
+      });
+
+      final cmd = DuskHotReloadAndSnapCommand();
+      final ctx = _StubContext(
+        input: MapInput(const {'screenshot': false}),
+        output: BufferedOutput(),
+        responses: <String, Map<String, dynamic>>{
+          'ext.dusk.exceptions': const {
+            'exceptions': <Map<String, dynamic>>[],
+            'count': 0,
+          },
+        },
+      );
+
+      await cmd.handle(ctx);
+
+      expect(cmd.lastResult!['reloaded'], isFalse);
+      expect(
+        cmd.lastResult!['error'] as String,
+        contains('compile error'),
+      );
     });
   });
 }
