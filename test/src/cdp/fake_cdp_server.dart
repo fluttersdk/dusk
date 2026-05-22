@@ -147,7 +147,36 @@ class FakeCdpServer {
   }
 
   Future<void> _handleRequest(HttpRequest request) async {
-    // 1. /json/version: HTTP discovery handshake.
+    // 1a. /json: tab discovery handshake. CdpClient.connect calls this to
+    //     locate the first `type: "page"` tab and reuse its
+    //     webSocketDebuggerUrl. Returns a JSON ARRAY of tab descriptors so
+    //     CdpClient's array-or-bust parser is satisfied. Honors
+    //     [failOnJsonVersion] (the flag covers any tab-list failure path).
+    if (request.method == 'GET' && request.uri.path == '/json') {
+      if (_failOnJsonVersion) {
+        request.response.statusCode = HttpStatus.internalServerError;
+        await request.response.close();
+        return;
+      }
+      final List<Map<String, dynamic>> body = <Map<String, dynamic>>[
+        <String, dynamic>{
+          'type': 'page',
+          'id': 'tab-0',
+          'title': 'Fake tab',
+          'url': 'about:blank',
+          'webSocketDebuggerUrl': webSocketDebuggerUrl,
+        },
+      ];
+      request.response.statusCode = HttpStatus.ok;
+      request.response.headers
+          .set(HttpHeaders.contentTypeHeader, 'application/json');
+      request.response.write(jsonEncode(body));
+      await request.response.close();
+      return;
+    }
+
+    // 1b. /json/version: legacy browser-level discovery endpoint. Some
+    //     tests still exercise the metadata payload directly.
     if (request.method == 'GET' && request.uri.path == '/json/version') {
       if (_failOnJsonVersion) {
         request.response.statusCode = HttpStatus.internalServerError;
