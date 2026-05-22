@@ -1,5 +1,5 @@
 name: fluttersdk_dusk
-description: "E2E driver for Flutter apps. Snap, tap, type, drag, scroll and find via VM Service extensions (ext.dusk.*). Framework-agnostic; enricher API supports Magic and Wind integrations."
+description: "Flutter E2E driver for LLM agents and CI. 32 CLI commands and 31 MCP tools drive a running app over VM Service extensions — no flutter_test harness needed."
 version: 0.0.1
 homepage: https://dusk.fluttersdk.com
 repository: https://github.com/fluttersdk/dusk
@@ -7,15 +7,16 @@ issue_tracker: https://github.com/fluttersdk/dusk/issues
 documentation: https://dusk.fluttersdk.com
 
 # pub.dev search topics (max 5, lowercase + hyphens, regex ^[a-z][a-z0-9-]{0,31}$).
-# Order = priority. `mcp-server` + `e2e-testing` are the strongest signals for
-# LLM-agent-driven Flutter test tooling; `testing` + `automation` widen the funnel
-# for human discovery; `vm-service` captures Dart VM Service Protocol searches.
+# Order = priority. `mcp-server` + `e2e-testing` are near-empty pub.dev topic
+# spaces dusk can rank #1 on immediately; `ai-agents` is forward-looking with
+# no current claimant; `testing` is the canonical broad-reach term; `flutter`
+# is the high-traffic exact-match anchor.
 topics:
   - mcp-server
   - e2e-testing
+  - ai-agents
   - testing
-  - automation
-  - vm-service
+  - flutter
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
