@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:meta/meta.dart';
 
 import '../utils/chrome_reaper.dart';
 
@@ -295,6 +296,13 @@ class DuskDoctorCommand extends ArtisanCommand {
   // Default process-start-time probe (ported from V3 doctor_command.dart:
   // 190 ; 209, adapted to the new doctor's lstart-only signature).
   // ---------------------------------------------------------------------------
+
+  @visibleForTesting
+  static DateTime? defaultProcessStartTime(int pid) =>
+      _defaultProcessStartTime(pid);
+
+  @visibleForTesting
+  static DateTime? parsePsLstartForTesting(String raw) => _parsePsLstart(raw);
 
   static DateTime? _defaultProcessStartTime(int pid) {
     try {
