@@ -11,9 +11,9 @@ lib/
 ├── dusk.dart                    # Public barrel: DuskPlugin, RefRegistry, DuskArtisanProvider, DuskSnapshotEnricher
 ├── cli.dart                     # Flutter-free codegen barrel (FluttersdkDuskArtisanProvider typedef)
 └── src/
-    ├── extensions/              # 18 files: ext_snapshot, ext_pointer, ext_text_input, ext_screenshot, ext_navigation, ...
+    ├── extensions/              # 17 files: 16 ext_*.dart (snapshot/pointer/text_input/screenshot/scroll/wait_find/modal_router/navigation/evaluate/close_app/find/console/exceptions/checkbox/observe/focus) + register_dusk_extensions.dart aggregator
     ├── commands/                # 32 ArtisanCommand subclasses (one file each)
-    ├── utils/                   # actionability_gate (5-gate), error_envelope, chrome_reaper, dusk_exceptions
+    ├── utils/                   # actionability_gate (6-step: defunct/enabled/zero-rect/off-viewport/stable/receives-events), error_envelope, chrome_reaper, dusk_exceptions
     ├── cdp/                     # cdp_client + chrome_finder + 8 device_presets
     ├── dusk_plugin.dart         # DuskPlugin.install() entry, enricher list, navigate adapter
     ├── ref_registry.dart        # e<N> + q<N> dual token system; live re-resolution for q-refs
@@ -32,7 +32,7 @@ Wrap app root in RepaintBoundary (no GlobalKey; render-tree walk finds it for sc
     ↓
 WidgetsBinding.instance.ensureSemantics()                # force semantics on
     ↓
-registerAllDuskExtensions()                              # 24 ext.dusk.* via registerExtensionIdempotent
+registerAllDuskExtensions()                              # 28 ext.dusk.* via registerExtensionIdempotent (across 16 aggregator register functions)
     ↓
 Consumer registers DuskArtisanProvider (auto-wired by `dusk:install` via _plugins.g.dart)
     ↓
@@ -65,7 +65,7 @@ The 31 `McpToolDescriptor` entries in `dusk_artisan_provider.dart:123-1435`. 28 
 
 `dusk_evaluate` is MCP-only (no CLI mirror) so `magic_tinker` owns the connected REPL surface.
 
-## VM Service extension surface (24 ext.dusk.*)
+## VM Service extension surface (28 ext.dusk.*)
 
 ```
 ext.dusk.snap                  ext.dusk.screenshot          ext.dusk.tap
@@ -87,16 +87,16 @@ Every registration routes through `registerExtensionIdempotent` (from `fluttersd
 These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:
 
 1. `DuskSnapshotEnricher` typedef shape: `String? Function(Element, RefRegistry)`
-2. `DuskPlugin.install()` and `DuskPlugin.registerEnricher()` signatures
-3. `RefRegistry` public method signatures (`mint`, `lookup`, `recordQuery`, `resolveQuery`, `clear`, `resetForTesting`)
+2. `DuskPlugin.install()`, the `DuskPlugin.enrichers` live-append list (magic appends to it via `MagicDuskIntegration`), and `DuskPlugin.registerNavigateAdapter()` signatures
+3. `RefRegistry` public method signatures (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`)
 4. The 6 alpha-1 MCP tool names (`dusk_snap`, `dusk_tap`, `dusk_screenshot`, `dusk_hover`, `dusk_drag`, `dusk_type`) and their `ext.dusk.*` extension method names
 5. `DuskActionabilityException` `reason` substring vocabulary (`not enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured by`)
-6. Actionability gate 5-precondition order (defunct, enabled, zero-rect, off-viewport, stable, receives-events)
+6. Actionability gate 6-step evaluation order (Step 0 defunct preflight + Steps 1-5 ordered: enabled, zero-rect, off-viewport, stable, receives-events)
 7. `e<N>` and `q<N>` token spaces are disjoint
 
 ## Actionability gate
 
-`lib/src/utils/actionability_gate.dart` runs five preconditions in order before any tap, hover, drag, dblclick, right_click, triple_click, or type:
+`lib/src/utils/actionability_gate.dart` runs six preconditions in order (Step 0 defunct preflight + Steps 1-5 ordered) before any tap, hover, drag, dblclick, right_click, triple_click, or type:
 
 | Step | Check | Fail reason string | Notes |
 |---|---|---|---|
