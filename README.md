@@ -103,7 +103,7 @@ Dusk is the first Flutter MCP server focused on **UI automation** (tap, snap, sc
 | **VS Code** | [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall) or `code --add-mcp '{"name":"fluttersdk","command":"./bin/fsa","args":["mcp:serve"]}'` |
 | **Cursor** | [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=fluttersdk) or Settings > MCP > Add new MCP Server |
 | **Windsurf** | Drop the standard config into `.codeium/windsurf/mcp_config.json` |
-| **Goose** | [![Install in Goose](https://block.github.io/goose/img/extension-install-dark.svg)](https://block.github.io/goose/extension?cmd=./bin/fsa&arg=mcp:serve&id=fluttersdk&name=Dusk) |
+| **Goose** | Advanced settings > Extensions > Add custom extension; or use the one-click [Install link](https://block.github.io/goose/extension?cmd=./bin/fsa&arg=mcp:serve&id=fluttersdk&name=Dusk) |
 | **Warp** | Settings > AI > Manage MCP Servers; or `/add-mcp` slash command with standard config |
 | **Claude Desktop** | Edit `claude_desktop_config.json` and add the standard config under `mcpServers` |
 | **Codex** | `codex mcp add fluttersdk ./bin/fsa mcp:serve` |
