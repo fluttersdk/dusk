@@ -982,11 +982,27 @@ class _AnimatedMoverState extends State<_AnimatedMover>
 /// Minimal [Element] stub used by the platformDispatcher.views-empty test
 /// where we only need a non-null reference to satisfy [RefEntry] and never
 /// actually render anything.
+///
+/// The defunct gate (Step 0 in `ensureActionableForViews`) calls
+/// `findRenderObject()` and throws when the result is null; we return a
+/// dummy [RenderBox] so the stub survives that check and reaches the
+/// empty-views early return.
 class _StubElement extends ComponentElement {
   _StubElement() : super(const _StubWidget());
 
   @override
   Widget build() => const SizedBox.shrink();
+
+  @override
+  RenderObject? findRenderObject() => _stubRenderObject;
+}
+
+/// Singleton render object handed out by [_StubElement.findRenderObject].
+final RenderObject _stubRenderObject = _StubRenderBox();
+
+class _StubRenderBox extends RenderBox {
+  @override
+  bool get attached => true;
 }
 
 class _StubWidget extends Widget {

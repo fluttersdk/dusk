@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/gestures.dart';
@@ -154,11 +155,21 @@ Future<void> ensureActionableForViews(
   if (!currentRect.overlaps(viewport)) {
     final RenderObject? renderObject = entry.element.renderObject;
     if (renderObject != null && renderObject.attached) {
-      renderObject.showOnScreen(duration: Duration.zero);
-      await WidgetsBinding.instance.endOfFrame;
-      final Rect? liveRect = _liveRectOf(entry.element);
-      if (liveRect != null) {
-        currentRect = liveRect;
+      // Only attempt scroll-into-view when a `Scrollable` ancestor exists —
+      // `showOnScreen` is a no-op without one, so awaiting a frame would
+      // hang in any environment that does not auto-pump (e.g. `flutter_test`
+      // running off a `FakeAsync` clock). Production callers always have a
+      // scrollable somewhere up the tree when the target sits below the
+      // fold; widget-test fixtures rarely do.
+      final bool hasScrollable =
+          Scrollable.maybeOf(entry.element as BuildContext) != null;
+      if (hasScrollable) {
+        renderObject.showOnScreen(duration: Duration.zero);
+        await _awaitFrameOrTimeout();
+        final Rect? liveRect = _liveRectOf(entry.element);
+        if (liveRect != null) {
+          currentRect = liveRect;
+        }
       }
     }
     if (!currentRect.overlaps(viewport)) {
@@ -178,7 +189,7 @@ Future<void> ensureActionableForViews(
   //    the original entry.rect — otherwise the deliberate scroll motion from
   //    step 3 would always trip this gate.
   if (checkStable) {
-    await WidgetsBinding.instance.endOfFrame;
+    await _awaitFrameOrTimeout();
     final Rect? liveRect = _liveRectOf(entry.element);
     if (liveRect != null) {
       final double delta = _maxSideDelta(currentRect, liveRect);
@@ -235,6 +246,26 @@ Future<void> ensureActionableForViews(
       }
     }
   }
+}
+
+/// Await the next `WidgetsBinding.endOfFrame` but fall through after
+/// [timeout] if no frame is scheduled.
+///
+/// `endOfFrame` is a [Future] that completes when the next frame finishes;
+/// it NEVER completes when nothing has scheduled a frame (Flutter does not
+/// poll a frame clock — it only renders on demand). In `flutter_test` runs,
+/// `showOnScreen` on a widget with no `Scrollable` ancestor is a no-op, so
+/// the gate's `await endOfFrame` would hang the test indefinitely. The
+/// timeout is large enough to cover a real production reflow (16ms at 60Hz
+/// + scheduler jitter + dart2js dispatch overhead) and small enough that
+/// no real user action waits more than ~one frame on the gate.
+Future<void> _awaitFrameOrTimeout({
+  Duration timeout = const Duration(milliseconds: 200),
+}) {
+  return WidgetsBinding.instance.endOfFrame.timeout(
+    timeout,
+    onTimeout: () {},
+  );
 }
 
 /// Recognises the framework-level RenderView wrappers that legitimately
