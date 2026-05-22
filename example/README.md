@@ -51,4 +51,4 @@ This example depends on the parent dusk package via `path: ..`. Source edits to 
 
 ## License
 
-[MIT](../LICENSE) — same license as the parent `fluttersdk_dusk` package.
+[MIT](../LICENSE); same license as the parent `fluttersdk_dusk` package.
