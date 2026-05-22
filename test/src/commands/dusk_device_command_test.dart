@@ -174,6 +174,7 @@ void main() {
             capturedUA = params;
             return {};
           },
+          ..._browserWindowHandlers(),
         },
       );
       StateFile.debugHomeOverride = tempDir.path;
@@ -231,6 +232,7 @@ void main() {
           methodOrder.add('Emulation.setUserAgentOverride');
           return {};
         },
+        ..._browserWindowHandlers(),
       },
     );
     StateFile.debugHomeOverride = tempDir.path;
@@ -284,6 +286,7 @@ void main() {
             methodOrder.add('Emulation.clearDeviceMetricsOverride');
             return {};
           },
+          ..._browserWindowHandlers(),
         },
       );
       StateFile.debugHomeOverride = tempDir.path;
@@ -313,4 +316,18 @@ void main() {
       expect(output.content, contains('reset'));
     },
   );
+}
+
+/// Returns Browser.* CDP handlers that the device command's
+/// `_resizeChromeWindow` step calls after every preset / reset apply.
+/// Without these, the FakeCdpServer returns `Method not found` and the
+/// command exits with code 1 even though the Emulation chain succeeded.
+Map<String, Future<Map<String, dynamic>> Function(Map<String, dynamic>)>
+    _browserWindowHandlers() {
+  return <String, Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{
+    'Browser.getWindowForTarget': (Map<String, dynamic> _) async =>
+        <String, dynamic>{'windowId': 1, 'bounds': <String, dynamic>{}},
+    'Browser.setWindowBounds': (Map<String, dynamic> _) async =>
+        <String, dynamic>{},
+  };
 }
