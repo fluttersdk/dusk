@@ -55,16 +55,44 @@ void main() {
       expect(_hasHeading(loadFile('README.md'), 2, 'Quick Start'), isTrue);
     });
 
-    test('contains "## CLI Commands" section', () {
-      expect(_hasHeading(loadFile('README.md'), 2, 'CLI Commands'), isTrue);
+    test(
+        'links to or carries CLI command surface (either inline ## CLI Commands '
+        'section OR a docs/getting-started link)', () {
+      // The README was trimmed in Wave 6 / SEO sweep: the 32-row CLI command
+      // reference moved to the docs site. We accept either the inline section
+      // OR a docs-site link to keep the package surface discoverable from the
+      // landing page.
+      final String raw = loadFile('README.md');
+      final bool hasInlineSection = _hasHeading(raw, 2, 'CLI Commands');
+      final bool linksToDocs =
+          raw.contains('fluttersdk.com/dusk/commands') ||
+              raw.contains('fluttersdk.com/dusk/getting-started');
+      expect(hasInlineSection || linksToDocs, isTrue,
+          reason:
+              'README must surface the CLI command catalog inline OR link to the docs commands catalog');
     });
 
-    test('contains "## MCP Tools" section', () {
-      expect(_hasHeading(loadFile('README.md'), 2, 'MCP Tools'), isTrue);
+    test(
+        'links to or carries MCP tool surface (either inline ## MCP Tools '
+        'section OR a docs/mcp link)', () {
+      final String raw = loadFile('README.md');
+      final bool hasInlineSection = _hasHeading(raw, 2, 'MCP Tools');
+      final bool linksToDocs = raw.contains('fluttersdk.com/dusk/mcp');
+      expect(hasInlineSection || linksToDocs, isTrue,
+          reason:
+              'README must surface the MCP tool catalog inline OR link to the docs MCP reference');
     });
 
-    test('contains "## Architecture" section', () {
-      expect(_hasHeading(loadFile('README.md'), 2, 'Architecture'), isTrue);
+    test(
+        'architecture content reachable from the README (either inline '
+        '## Architecture section OR a link to ARCHITECTURE.md / docs)', () {
+      final String raw = loadFile('README.md');
+      final bool hasInlineSection = _hasHeading(raw, 2, 'Architecture');
+      final bool linksOut = raw.contains('ARCHITECTURE.md') ||
+          raw.contains('fluttersdk.com/dusk/reference');
+      expect(hasInlineSection || linksOut, isTrue,
+          reason:
+              'README must surface architecture content inline OR link to ARCHITECTURE.md / docs');
     });
 
     test('contains "## AI Agent Integration" section', () {
