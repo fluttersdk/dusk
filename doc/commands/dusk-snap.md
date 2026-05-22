@@ -67,10 +67,10 @@ The VM Service handler propagates errors as `ServiceExtensionResponse.error(exte
 <a name="enricher-fragments"></a>
 ## Enricher fragments
 
-When `--includeEnrichers` is true, every `DuskSnapshotEnricher` registered via `DuskPlugin.registerEnricher` contributes indented lines under each ref. The two first-party enrichers:
+When `--includeEnrichers` is true, every `DuskSnapshotEnricher` appended to the `DuskPlugin.enrichers` live list contributes indented lines under each ref. The two first-party enrichers:
 
 - **MagicDuskIntegration** ships seven enrichers covering forms, routes, controllers, models, http, cache, and the policy gate.
-- **WindDuskIntegration** ships the six-field `WindClassNameEnricher` (breakpoint, brightness, platform, states, bgColor, textColor).
+- **Wind alpha-10** surfaces a six-field `wind:` block (breakpoint, brightness, platform, states, bgColor, textColor) through the neutral `fluttersdk_wind_diagnostics_contracts.WindDebugRegistry` bridge rather than via an enricher, so the data appears under each W-prefixed widget ref without any enricher registration.
 
 Each enricher is synchronous and stateless; the `Element` reference is never retained across calls.
 

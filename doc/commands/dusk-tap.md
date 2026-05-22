@@ -80,11 +80,7 @@ The message format is `Widget ref=<ref> is not actionable: <reason>` where `<rea
 <a name="actionability-gate"></a>
 ## Actionability gate
 
-Before synthesising the pointer event, the VM Service handler routes through `utils/actionability_gate.dart`. The gate verifies three preconditions in order:
-
-1. **Enabled** ; `SemanticsNode.flagsCollection.isEnabled == Tristate.isFalse` is the only failing state. `Tristate.none` and `Tristate.isTrue` pass.
-2. **Zero-area rect** ; `rect.width == 0 || rect.height == 0`.
-3. **Off-viewport** ; rect does not overlap the active `FlutterView` logical viewport (skipped gracefully when no view is attached).
+The actionability gate runs six preconditions in order: defunct (Step 0, preflight: render-object still attached), enabled (Tristate.isFalse fails), zero-rect (zero width or height), off-viewport (auto-`showOnScreen` first when a Scrollable ancestor exists), stable (2-frame rect drift ≤ 0.5px; opt out via `--no-checkStable`), and receives-events (hit-test path includes the target or descendant; opt out via `--no-checkReceivesEvents`). The full reference lives at [Reference: Actionability gate](../reference/actionability-gate.md).
 
 Two further checks layer on top when their CLI flags are enabled:
 

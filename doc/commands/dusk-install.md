@@ -64,7 +64,7 @@ The injector picks one of two anchor strings depending on what `lib/main.dart` a
 - **Magic-stack apps** (`lib/main.dart` contains `await Magic.init(`): `DuskPlugin.install()` is wired BEFORE `Magic.init(` so the driver is live during Magic boot. When `magic:` is also a pubspec dependency, `MagicDuskIntegration.install()` is also injected AFTER `Magic.init()` (the integration queries `Magic.find<X>()` for the form and nav enrichers, which only resolves once the container is ready).
 - **Vanilla apps** (no `Magic.init` anchor): `DuskPlugin.install()` is wired immediately before `runApp(`.
 
-When the consumer's pubspec lists `fluttersdk_wind:` as a top-level dependency, `WindDuskIntegration.install()` lands inside the same `kDebugMode` block as `DuskPlugin.install()`. The Wind enricher wiring is independent of the Magic detection: a magic-free app with `fluttersdk_wind` still gets the wind enricher.
+When the consumer's pubspec lists `fluttersdk_wind:` as a top-level dependency, `Wind.installDebugResolver()` lands inside the same `kDebugMode` block as `DuskPlugin.install()`. Wind alpha-10 no longer ships a dusk-specific integration class; dusk reads wind state through the neutral `WindDebugRegistry` bridge at snap time. The Wind enricher wiring is independent of the Magic detection: a magic-free app with `fluttersdk_wind` still gets the wind metadata block.
 
 The full sub-step list (from the source docblock):
 
@@ -124,7 +124,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (kDebugMode) {
     DuskPlugin.install();
-    WindDuskIntegration.install();
+    Wind.installDebugResolver();
   }
   await Magic.init(MyApp.new);
   if (kDebugMode) {
@@ -141,4 +141,4 @@ void main() async {
 - [Getting Started: Installation](../getting-started/installation.md): step-by-step walkthrough from `dart pub add` to first snapshot.
 - [dusk:doctor](dusk-doctor.md): verify the post-install wiring is healthy and the running session can be reached.
 - [Plugins: Magic integration](../plugins/magic-integration.md): full surface of `MagicDuskIntegration` and which enrichers it ships.
-- [Plugins: Wind integration](../plugins/wind-integration.md): the six-field className enricher contributed by `WindDuskIntegration`.
+- [Plugins: Wind integration](../plugins/wind-integration.md): the six-field `wind:` block surfaced through the neutral `WindDebugRegistry` bridge in wind alpha-10.

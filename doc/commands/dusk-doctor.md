@@ -78,7 +78,7 @@ Reads the compile-time `--dart-define=DUSK_DISABLE=<value>` constant. Non-empty 
 
 ### 3. Enricher list non-empty
 
-Reads the count of registered `DuskSnapshotEnricher` instances. Zero means the consumer wired `DuskPlugin.install()` but neither `MagicDuskIntegration` nor `WindDuskIntegration`; snapshots still work, just without context. WARN, never fail. Defaults to `0` in CLI context (the pure-Dart doctor cannot reach into Flutter without pulling `dart:ui`); the WARN row is the correct CLI-time outcome.
+Reads the count of registered `DuskSnapshotEnricher` instances. Zero means the consumer wired `DuskPlugin.install()` but did not install `MagicDuskIntegration` (and the Magic stack is not in use). Wind metadata flows through the neutral `WindDebugRegistry` bridge in wind alpha-10, so a wind-only app still shows a `wind:` block per ref even when this count is zero. WARN, never fail. Defaults to `0` in CLI context (the pure-Dart doctor cannot reach into Flutter without pulling `dart:ui`); the WARN row is the correct CLI-time outcome.
 
 ### 4. Semantics tree forced on (ERROR-class)
 
