@@ -824,4 +824,43 @@ void main() {
       );
     });
   });
+
+  // =========================================================================
+  // aiTestClearHandler error paths — covers the early-exit branches inside
+  // `aiTestClearHandler` (missing ref, unknown ref) so coverage on
+  // `ext_text_input.dart` lines 514-545 increases without needing a real
+  // EditableText widget setup.
+  // =========================================================================
+  group('aiTestClearHandler error paths', () {
+    test('missing ref returns missing_param error envelope', () async {
+      final response = await aiTestClearHandler(
+        'ext.dusk.clear',
+        const <String, String>{},
+      );
+      expect(response.result, isNull);
+      expect(response.errorDetail ?? '', contains('missing required param'));
+      expect(response.errorDetail ?? '', contains('ref'));
+    });
+
+    test('empty ref string returns missing_param error envelope', () async {
+      final response = await aiTestClearHandler(
+        'ext.dusk.clear',
+        const <String, String>{'ref': ''},
+      );
+      expect(response.result, isNull);
+      expect(response.errorDetail ?? '', contains('missing required param'));
+    });
+
+    test('unknown ref returns not-found error envelope', () async {
+      final response = await aiTestClearHandler(
+        'ext.dusk.clear',
+        const <String, String>{'ref': 'e9999'},
+      );
+      expect(response.result, isNull);
+      expect(
+        response.errorDetail ?? '',
+        contains('not found in registry'),
+      );
+    });
+  });
 }
