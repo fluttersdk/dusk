@@ -17,7 +17,7 @@ snapshot, and drive real user gestures from an AI agent or CLI session.
 `fluttersdk_dusk` is a Flutter E2E driver that gives an AI agent (or a CLI session)
 eyes and hands over a running Flutter app. It works by registering a set of VM
 Service extensions under the `ext.dusk.*` namespace during debug builds, then
-exposing those extensions as 24 MCP tools and 32 CLI commands. The agent snaps a
+exposing those extensions as 31 MCP tools and 32 CLI commands. The agent snaps a
 Semantics YAML to identify widget references, then drives gestures, text input,
 scrolling, and navigation against those references without any test instrumentation
 in the production widget tree.

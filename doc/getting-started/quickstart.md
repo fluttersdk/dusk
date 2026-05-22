@@ -112,8 +112,9 @@ the full snap-tap-screenshot loop working end-to-end.
   flags.
 - Set up the [MCP server](../mcp/setup) so Claude Code or Cursor can call dusk tools
   directly during a conversation.
-- Add [MagicDuskIntegration or WindDuskIntegration](../plugins/magic-integration) to
-  enrich snapshots with framework-specific metadata.
+- Add [MagicDuskIntegration](../plugins/magic-integration.md) (Magic stack) or call
+  `Wind.installDebugResolver()` (Wind alpha-10+; see [Wind integration](../plugins/wind-integration.md))
+  to enrich snapshots with framework-specific metadata.
 - Explore the [actionability gate reference](../reference/actionability-gate) to
   understand how dusk decides whether a widget is safe to interact with.
 

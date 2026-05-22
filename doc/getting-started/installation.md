@@ -56,10 +56,17 @@ flutter pub get
 <a name="wire-duskplugin"></a>
 ## Wire DuskPlugin
 
-Call `DuskPlugin.install()` inside a `kDebugMode` guard in your app's `main.dart`,
-after `WidgetsFlutterBinding.ensureInitialized()` and before `runApp()`. The guard
-is mandatory: release builds tree-shake the entire subsystem, so dusk never ships to
-end users.
+The recommended path is the CLI installer. From your project root, run:
+
+```bash
+dart run fluttersdk_dusk dusk:install
+```
+
+This patches your `lib/main.dart` automatically: it adds the `kDebugMode` import, wraps `DuskPlugin.install()` in a `kDebugMode` guard, injects `WidgetsFlutterBinding.ensureInitialized()` when missing, and detects Magic-stack apps so `MagicDuskIntegration.install()` lands AFTER `Magic.init(...)`. The command is idempotent; re-running it is safe. See [`dusk:install`](../commands/dusk-install.md) for the full sub-step list and the anchor strings the injector searches for.
+
+### Manual wiring (when you'd rather edit `main.dart` yourself)
+
+Skip the CLI installer and edit `lib/main.dart` directly. Call `DuskPlugin.install()` inside a `kDebugMode` guard, after `WidgetsFlutterBinding.ensureInitialized()` and before `runApp()`. The guard is mandatory: release builds tree-shake the entire subsystem, so dusk never ships to end users.
 
 ```dart
 import 'package:flutter/foundation.dart';
@@ -76,8 +83,7 @@ Future<void> main() async {
 }
 ```
 
-`DuskPlugin.install()` is idempotent: calling it more than once (for example during
-hot restart) is safe and registers each VM Service extension only once.
+`DuskPlugin.install()` is idempotent: calling it more than once (for example during hot restart) is safe and registers each VM Service extension only once.
 
 <a name="optional-integrations"></a>
 ## Optional integrations
@@ -89,13 +95,13 @@ either, both, or neither depending on your stack.
 | Integration | Package | Enrichment |
 |:------------|:--------|:-----------|
 | `MagicDuskIntegration.install()` | `magic` | MagicForm field values, validation state, named route per node. |
-| `WindDuskIntegration.install()` | `wind` | Resolved className fields: breakpoint, brightness, platform, states, bgColor, textColor. |
+| `Wind.installDebugResolver()` (in `package:fluttersdk_wind/fluttersdk_wind.dart`) | `fluttersdk_wind` >= alpha-10 | Wind state surfaces through the neutral `WindDebugRegistry` bridge; dusk emits the 6 core fields (breakpoint, brightness, platform, states, bgColor, textColor) automatically without enricher registration. |
 
 ```dart
 if (kDebugMode) {
   DuskPlugin.install();
   MagicDuskIntegration.install(); // magic-stack only
-  WindDuskIntegration.install();  // wind UI only
+  Wind.installDebugResolver();    // wind UI only (alpha-10+)
 }
 ```
 
@@ -105,7 +111,7 @@ See [Magic integration](../plugins/magic-integration) and
 <a name="wire-mcp-tools"></a>
 ## Wire MCP tools
 
-To expose dusk's 24 MCP tools to your AI client, run the artisan MCP installer
+To expose dusk's 31 MCP tools to your AI client, run the artisan MCP installer
 from your project root:
 
 ```bash
