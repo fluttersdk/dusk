@@ -118,7 +118,7 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[ai-test-v3] ext.dusk.wait_for: at least one of text, textGone, '
+          '[fluttersdk_dusk] ext.dusk.wait_for: at least one of text, textGone, '
           'or expression is required',
           DuskErrorEnvelope.missingParam('text|textGone|expression'),
         ),
@@ -156,8 +156,8 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
     return developer.ServiceExtensionResponse.result(jsonEncode(result));
   } catch (e, stackTrace) {
     developer.log(
-      '[ai-test-v3] ext.dusk.wait_for error: $e\n$stackTrace',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.wait_for error: $e\n$stackTrace',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
@@ -198,7 +198,7 @@ Future<developer.ServiceExtensionResponse> aiTestFindByTextHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[ai-test-v3] ext.dusk.find_by_text: missing required param "text"',
+          '[fluttersdk_dusk] ext.dusk.find_by_text: missing required param "text"',
           DuskErrorEnvelope.missingParam('text'),
         ),
       );
@@ -220,8 +220,8 @@ Future<developer.ServiceExtensionResponse> aiTestFindByTextHandler(
     );
   } catch (e, stackTrace) {
     developer.log(
-      '[ai-test-v3] ext.dusk.find_by_text error: $e\n$stackTrace',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.find_by_text error: $e\n$stackTrace',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
@@ -260,7 +260,7 @@ Future<developer.ServiceExtensionResponse> aiTestFindByLabelHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[ai-test-v3] ext.dusk.find_by_label: missing required param "label"',
+          '[fluttersdk_dusk] ext.dusk.find_by_label: missing required param "label"',
           DuskErrorEnvelope.missingParam('label'),
         ),
       );
@@ -283,8 +283,8 @@ Future<developer.ServiceExtensionResponse> aiTestFindByLabelHandler(
     );
   } catch (e, stackTrace) {
     developer.log(
-      '[ai-test-v3] ext.dusk.find_by_label error: $e\n$stackTrace',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.find_by_label error: $e\n$stackTrace',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
@@ -665,15 +665,15 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForNetworkIdleHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        '[ai-test-v3] ext.dusk.wait_for_network_idle: timeout after '
+        '[fluttersdk_dusk] ext.dusk.wait_for_network_idle: timeout after '
         '${timeoutMs}ms (maxPending=$maxPending, idleMs=$idleMs)',
         DuskErrorEnvelope.timeout(),
       ),
     );
   } catch (e, stackTrace) {
     developer.log(
-      '[ai-test-v3] ext.dusk.wait_for_network_idle error: $e\n$stackTrace',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.wait_for_network_idle error: $e\n$stackTrace',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,

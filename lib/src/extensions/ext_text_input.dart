@@ -139,7 +139,7 @@ Future<void> typeIntoElement({
   final EditableTextState? state = _resolveEditableTextState(element);
   if (state == null) {
     throw ArgumentError(
-      '[ai-test-v3] typeIntoElement: no EditableText found in or under '
+      '[fluttersdk_dusk] typeIntoElement: no EditableText found in or under '
       'element $element',
     );
   }
@@ -169,9 +169,9 @@ Future<void> typeIntoElement({
     injected = true;
   } catch (e) {
     developer.log(
-      '[ai-test-v3] ext.dusk.type: userUpdateTextEditingValue threw $e; '
+      '[fluttersdk_dusk] ext.dusk.type: userUpdateTextEditingValue threw $e; '
       'falling back to controller.value setter',
-      name: 'ai-test',
+      name: 'fluttersdk_dusk',
     );
   }
 
@@ -193,9 +193,9 @@ Future<void> typeIntoElement({
     //    handlePlatformMessage on the 'flutter/textinput' channel directly so
     //    the engine receives the update through the internal message path.
     developer.log(
-      '[ai-test-v3] ext.dusk.type: primary path unavailable, using '
+      '[fluttersdk_dusk] ext.dusk.type: primary path unavailable, using '
       'platform-message fallback',
-      name: 'ai-test',
+      name: 'fluttersdk_dusk',
     );
 
     final ByteData? encodedMessage = const JSONMessageCodec().encodeMessage(
@@ -244,7 +244,7 @@ Future<void> pressKey({
   final LogicalKeyboardKey? logicalKey = _kKeyMap[key];
   if (logicalKey == null) {
     throw ArgumentError(
-      '[ai-test-v3] ext.dusk.press_key: unknown key "$key". '
+      '[fluttersdk_dusk] ext.dusk.press_key: unknown key "$key". '
       'Supported keys: ${_kKeyMap.keys.join(', ')}',
     );
   }
@@ -300,7 +300,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[ai-test-v3] ext.dusk.type: missing required param "ref"',
+          '[fluttersdk_dusk] ext.dusk.type: missing required param "ref"',
           DuskErrorEnvelope.missingParam('ref'),
         ),
       );
@@ -352,7 +352,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[ai-test-v3] ext.dusk.type: ref "$ref" not found in registry',
+          '[fluttersdk_dusk] ext.dusk.type: ref "$ref" not found in registry',
           DuskErrorEnvelope.notFound(
             ref: ref,
             candidates: collectSnapshotCandidates(),
@@ -377,17 +377,17 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       await _appendSnapshotIfRequested(payload, params);
     } catch (e) {
       developer.log(
-        '[ai-test-v3] ext.dusk.type: post-dispatch snapshot build swallowed '
+        '[fluttersdk_dusk] ext.dusk.type: post-dispatch snapshot build swallowed '
         'for ref "$ref": $e',
-        name: 'ai-test',
+        name: 'fluttersdk_dusk',
       );
     }
 
     return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, stackTrace) {
     developer.log(
-      '[ai-test-v3] ext.dusk.type error: $e\n$stackTrace',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.type error: $e\n$stackTrace',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
@@ -420,7 +420,7 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[ai-test-v3] ext.dusk.press_key: missing required param "key"',
+          '[fluttersdk_dusk] ext.dusk.press_key: missing required param "key"',
           DuskErrorEnvelope.missingParam('key'),
         ),
       );
@@ -461,9 +461,9 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
         await _appendSnapshotIfRequested(payload, params);
       } catch (e) {
         developer.log(
-          '[ai-test-v3] ext.dusk.press_key: post-dispatch snapshot build '
+          '[fluttersdk_dusk] ext.dusk.press_key: post-dispatch snapshot build '
           'swallowed for key "$key": $e',
-          name: 'ai-test',
+          name: 'fluttersdk_dusk',
         );
       }
     }
@@ -471,8 +471,8 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
     return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, stackTrace) {
     developer.log(
-      '[ai-test-v3] ext.dusk.press_key error: $e\n$stackTrace',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.press_key error: $e\n$stackTrace',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,

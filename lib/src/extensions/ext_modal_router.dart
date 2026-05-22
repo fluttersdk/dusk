@@ -146,8 +146,8 @@ Future<developer.ServiceExtensionResponse> aiTestDismissModalsHandler(
     );
   } catch (e, st) {
     developer.log(
-      '[ai-test-v3] aiTestDismissModalsHandler error: $e\n$st',
-      name: 'ai-test',
+      '[fluttersdk_dusk] aiTestDismissModalsHandler error: $e\n$st',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,

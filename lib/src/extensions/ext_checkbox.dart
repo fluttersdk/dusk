@@ -145,9 +145,9 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
     await _injectTapAt(entry.rect.center);
   } catch (e, st) {
     developer.log(
-      '[ai-test-v3] ext.dusk.set_checkbox: injectTap failed for ref '
+      '[fluttersdk_dusk] ext.dusk.set_checkbox: injectTap failed for ref '
       '"$ref": $e\n$st',
-      name: 'ai-test',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,

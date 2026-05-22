@@ -95,8 +95,8 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
     );
   } catch (e, stackTrace) {
     developer.log(
-      '[ai-test-v3] ext.dusk.find error: $e\n$stackTrace',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.find error: $e\n$stackTrace',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,

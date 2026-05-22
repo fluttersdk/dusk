@@ -177,8 +177,8 @@ Future<developer.ServiceExtensionResponse> extDuskObserveHandler(
     }
   } catch (e, st) {
     developer.log(
-      '[ai-test-v3] ext.dusk.observe: unexpected error: $e\n$st',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.observe: unexpected error: $e\n$st',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,

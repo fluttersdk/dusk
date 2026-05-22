@@ -149,8 +149,8 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
     );
   } catch (e, stackTrace) {
     developer.log(
-      '[ai-test-v3] ext.dusk.screenshot error: $e\n$stackTrace',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.screenshot error: $e\n$stackTrace',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,

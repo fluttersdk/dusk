@@ -149,17 +149,17 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       await _appendSnapshotIfRequested(payload, params);
     } catch (e) {
       developer.log(
-        '[ai-test-v3] ext.dusk.scroll: post-dispatch snapshot build '
+        '[fluttersdk_dusk] ext.dusk.scroll: post-dispatch snapshot build '
         'swallowed: $e',
-        name: 'ai-test',
+        name: 'fluttersdk_dusk',
       );
     }
 
     return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, stackTrace) {
     developer.log(
-      '[ai-test-v3] ext.dusk.scroll error: $e\n$stackTrace',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.scroll error: $e\n$stackTrace',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
@@ -325,8 +325,8 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
     );
   } catch (e, stackTrace) {
     developer.log(
-      '[ai-test-v3] ext.dusk.select_option error: $e\n$stackTrace',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.select_option error: $e\n$stackTrace',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,

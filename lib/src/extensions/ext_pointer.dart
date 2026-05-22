@@ -299,9 +299,9 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     await _injectTap(entry.rect.center);
   } catch (e, st) {
     developer.log(
-      '[ai-test-v3] ext.dusk.tap: _injectTap failed for ref "$ref": '
+      '[fluttersdk_dusk] ext.dusk.tap: _injectTap failed for ref "$ref": '
       '$e\n$st',
-      name: 'ai-test',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
@@ -328,9 +328,9 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
       await WidgetsBinding.instance.endOfFrame;
     } catch (e) {
       developer.log(
-        '[ai-test-v3] ext.dusk.tap: post-dispatch noise swallowed for '
+        '[fluttersdk_dusk] ext.dusk.tap: post-dispatch noise swallowed for '
         'ref "$ref" (keyboard focus): $e',
-        name: 'ai-test',
+        name: 'fluttersdk_dusk',
       );
     }
   }
@@ -343,9 +343,9 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     await _appendSnapshotIfRequested(payload, params);
   } catch (e) {
     developer.log(
-      '[ai-test-v3] ext.dusk.tap: post-dispatch snapshot build swallowed '
+      '[fluttersdk_dusk] ext.dusk.tap: post-dispatch snapshot build swallowed '
       'for ref "$ref": $e',
-      name: 'ai-test',
+      name: 'fluttersdk_dusk',
     );
   }
 
@@ -454,17 +454,17 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
       await _appendSnapshotIfRequested(payload, params);
     } catch (e) {
       developer.log(
-        '[ai-test-v3] ext.dusk.hover: post-dispatch snapshot build '
+        '[fluttersdk_dusk] ext.dusk.hover: post-dispatch snapshot build '
         'swallowed for ref "$ref": $e',
-        name: 'ai-test',
+        name: 'fluttersdk_dusk',
       );
     }
 
     return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, st) {
     developer.log(
-      '[ai-test-v3] ext.dusk.hover: unexpected error: $e\n$st',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.hover: unexpected error: $e\n$st',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
@@ -674,17 +674,17 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       await _appendSnapshotIfRequested(payload, params);
     } catch (e) {
       developer.log(
-        '[ai-test-v3] ext.dusk.drag: post-dispatch snapshot build '
+        '[fluttersdk_dusk] ext.dusk.drag: post-dispatch snapshot build '
         'swallowed: $e',
-        name: 'ai-test',
+        name: 'fluttersdk_dusk',
       );
     }
 
     return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, st) {
     developer.log(
-      '[ai-test-v3] ext.dusk.drag: unexpected error: $e\n$st',
-      name: 'ai-test',
+      '[fluttersdk_dusk] ext.dusk.drag: unexpected error: $e\n$st',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
@@ -782,9 +782,9 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     await _injectTap(entry.rect.center);
   } catch (e, st) {
     developer.log(
-      '[ai-test-v3] ext.dusk.dblclick: first _injectTap failed for ref '
+      '[fluttersdk_dusk] ext.dusk.dblclick: first _injectTap failed for ref '
       '"$ref": $e\n$st',
-      name: 'ai-test',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
@@ -804,9 +804,9 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     await _injectTap(entry.rect.center);
   } catch (e, st) {
     developer.log(
-      '[ai-test-v3] ext.dusk.dblclick: second _injectTap failed for ref '
+      '[fluttersdk_dusk] ext.dusk.dblclick: second _injectTap failed for ref '
       '"$ref": $e\n$st',
-      name: 'ai-test',
+      name: 'fluttersdk_dusk',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
@@ -824,9 +824,9 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     await _appendSnapshotIfRequested(payload, params);
   } catch (e) {
     developer.log(
-      '[ai-test-v3] ext.dusk.dblclick: post-dispatch snapshot build '
+      '[fluttersdk_dusk] ext.dusk.dblclick: post-dispatch snapshot build '
       'swallowed for ref "$ref": $e',
-      name: 'ai-test',
+      name: 'fluttersdk_dusk',
     );
   }
 
