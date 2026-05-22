@@ -45,7 +45,7 @@ Choose the entry point that matches your workflow. The same `ext.dusk.*` extensi
 | **Dusk MCP** | Claude Code, Cursor, Windsurf, Codex, Goose, VS Code Copilot, Warp, Claude Desktop | `dart run fluttersdk_artisan mcp:install` (writes `.mcp.json`) |
 | **Dusk via IDE** | One-click MCP install in VS Code, Cursor, Goose | See [§ MCP install: 8 clients](#mcp-install-8-clients) for badges |
 
-Manual wiring, Magic-stack integration, and the full per-command flag reference live in the [Getting Started guide](https://fluttersdk.com/dusk/getting-started.md).
+Manual wiring, Magic-stack integration, and the full per-command flag reference live in the [Getting Started guide](https://fluttersdk.com/dusk/getting-started).
 
 ## Why Dusk?
 
@@ -100,12 +100,12 @@ Dusk is the first Flutter MCP server focused on **UI automation** (tap, snap, sc
 | Client | Install |
 |---|---|
 | **Claude Code** | `claude mcp add fluttersdk -- ./bin/fsa mcp:serve` |
-| **VS Code** | [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall) or `code --add-mcp '{"name":"fluttersdk","command":"./bin/fsa","args":["mcp:serve"]}'` |
-| **Cursor** | [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=fluttersdk) or Settings > MCP > Add new MCP Server |
-| **Windsurf** | Drop the standard config into `.codeium/windsurf/mcp_config.json` |
-| **Goose** | Advanced settings > Extensions > Add custom extension; or use the one-click [Install link](https://block.github.io/goose/extension?cmd=./bin/fsa&arg=mcp:serve&id=fluttersdk&name=Dusk) |
-| **Warp** | Settings > AI > Manage MCP Servers; or `/add-mcp` slash command with standard config |
-| **Claude Desktop** | Edit `claude_desktop_config.json` and add the standard config under `mcpServers` |
+| **VS Code** | `code --add-mcp '{"name":"fluttersdk","command":"./bin/fsa","args":["mcp:serve"]}'`, or drop the standard config into `.vscode/mcp.json` |
+| **Cursor** | Settings > MCP > Add new MCP Server, or drop the standard config into `~/.cursor/mcp.json` |
+| **Windsurf** | Drop the standard config into `~/.codeium/windsurf/mcp_config.json` |
+| **Goose** | Advanced settings > Extensions > Add custom extension; paste the standard config |
+| **Warp** | Settings > AI > Manage MCP Servers, or `/add-mcp` slash command with the standard config |
+| **Claude Desktop** | Edit `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`, Windows: `%APPDATA%\Claude\`) and add the standard config under `mcpServers` |
 | **Codex** | `codex mcp add fluttersdk ./bin/fsa mcp:serve` |
 
 ### Before / after
@@ -127,7 +127,7 @@ Dusk is the first Flutter MCP server focused on **UI automation** (tap, snap, sc
 [agent] artisan_stop                                # tear down
 ```
 
-Full per-tool input schemas + example calls in the [MCP tool reference](https://fluttersdk.com/dusk/mcp/tool-reference.md). For agents that read structured project context at attach time, the canonical entry point is [`llms.txt`](https://fluttersdk.com/dusk/llms.txt); it lists the 31 MCP tool names inline, plus the command surface, ref token grammar, and 6-step actionability vocabulary.
+Full per-tool input schemas + example calls in the [MCP tool reference](https://fluttersdk.com/dusk/mcp/tool-reference). For agents that read structured project context at attach time, the canonical entry point is [`llms.txt`](https://fluttersdk.com/dusk/llms.txt); it lists the 31 MCP tool names inline, plus the command surface, ref token grammar, and 6-step actionability vocabulary. The site serves the bare URLs to humans and the same paths with a `.md` suffix to LLM agents (e.g. `https://fluttersdk.com/dusk/getting-started.md`).
 
 ## Examples
 
