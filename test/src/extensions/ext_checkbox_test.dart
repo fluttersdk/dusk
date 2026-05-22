@@ -218,5 +218,97 @@ void main() {
         expect(response.errorDetail ?? '', contains('missing required param'));
       },
     );
+
+    // -------------------------------------------------------------------------
+    // (f) Missing ref param — empty/null ref returns missing_param error.
+    // -------------------------------------------------------------------------
+
+    test(
+      '(f) missing ref param returns missing_param error envelope',
+      () async {
+        final response = await aiTestSetCheckboxHandler(
+          'ext.dusk.set_checkbox',
+          const <String, String>{'value': 'true'},
+        );
+        expect(response.result, isNull);
+        expect(response.errorDetail ?? '', contains('missing required param'));
+        expect(response.errorDetail ?? '', contains('ref'));
+      },
+    );
+
+    test(
+      '(g) empty ref string returns missing_param error envelope',
+      () async {
+        final response = await aiTestSetCheckboxHandler(
+          'ext.dusk.set_checkbox',
+          const <String, String>{'ref': '', 'value': 'true'},
+        );
+        expect(response.result, isNull);
+        expect(response.errorDetail ?? '', contains('missing required param'));
+      },
+    );
+
+    test(
+      '(h) empty value string returns missing_param error envelope',
+      () async {
+        final response = await aiTestSetCheckboxHandler(
+          'ext.dusk.set_checkbox',
+          const <String, String>{'ref': 'e1', 'value': ''},
+        );
+        expect(response.result, isNull);
+        expect(response.errorDetail ?? '', contains('missing required param'));
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (i) Switch widget — exercises _checkboxValueFromElement's Switch branch
+    //     so the Switch-specific value extraction path runs.
+    // -------------------------------------------------------------------------
+
+    testWidgets(
+      '(i) set-true-on-false on a Switch widget toggles correctly',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        bool switchValue = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) => Scaffold(
+                body: Switch(
+                  value: switchValue,
+                  onChanged: (v) => setState(() => switchValue = v),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Switch));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final Rect rect = box.localToGlobal(Offset.zero) & box.size;
+        final String ref = RefRegistry.registerForTesting(
+          rect: rect,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestSetCheckboxHandler(
+          'ext.dusk.set_checkbox',
+          <String, String>{'ref': ref, 'value': 'true'},
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.result, isNotNull);
+        expect(switchValue, isTrue);
+      },
+    );
   });
 }
