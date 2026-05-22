@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://dusk.fluttersdk.com">Documentation</a> ·
+  <a href="https://fluttersdk.com/dusk">Documentation</a> ·
   <a href="https://pub.dev/packages/fluttersdk_dusk">pub.dev</a> ·
   <a href="https://github.com/fluttersdk/dusk/issues">Issues</a>
 </p>
@@ -115,7 +115,7 @@ dart run fluttersdk_artisan mcp:install
 
 `mcp:install` writes (or updates) the `mcpServers.fluttersdk` entry in `.mcp.json`. Reconnect the MCP client once after install (for Claude Code, `/mcp reconnect fluttersdk`) and every `dusk_*` tool surfaces alongside the artisan substrate tools.
 
-Read the full setup walkthrough at [MCP setup guide](https://dusk.fluttersdk.com/mcp/setup).
+Read the full setup walkthrough at [MCP setup guide](https://fluttersdk.com/dusk/mcp/setup).
 
 ## CLI Commands
 
@@ -156,7 +156,7 @@ Dusk ships 32 CLI commands registered by `DuskArtisanProvider.commands()`, dispa
 | `dusk:resize` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. |
 | `dusk:device` | Emulate a named device profile (iphone-x, pixel-5, ipad-pro-12.9, desktop-1440, etc.) via CDP. |
 
-Full per-command flag reference at [commands catalog](https://dusk.fluttersdk.com/commands).
+Full per-command flag reference at [commands catalog](https://fluttersdk.com/dusk/commands).
 
 ## MCP Tools
 
@@ -196,7 +196,7 @@ Dusk exposes 31 MCP tool descriptors through `DuskArtisanProvider.mcpTools()`. T
 | `dusk_resize_viewport` | `artisan:dusk:resize` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. |
 | `dusk_device_profile` | `artisan:dusk:device` | Emulate a named device profile (iphone-x, pixel-5, ipad-pro-12.9, etc.) via CDP. |
 
-Full MCP tool reference at [tool reference](https://dusk.fluttersdk.com/mcp/tool-reference).
+Full MCP tool reference at [tool reference](https://fluttersdk.com/dusk/mcp/tool-reference).
 
 ## VM Service extensions
 
@@ -249,34 +249,34 @@ A typical agent session looks like this:
 [agent] artisan_stop                                    // tear down
 ```
 
-For agents that read structured project context at attach time, the canonical entry point is [`llms.txt`](llms.txt) at the repo root (also published at `https://dusk.fluttersdk.com/llms.txt`). It enumerates the command surface, the MCP tool catalog, and the snapshot enricher contract in agent-readable form.
+For agents that read structured project context at attach time, the canonical entry point is [`llms.txt`](llms.txt) at the repo root (also published at `https://fluttersdk.com/dusk/llms.txt`). It enumerates the command surface, the MCP tool catalog, and the snapshot enricher contract in agent-readable form.
 
 Skill files and per-agent setup recipes: **[fluttersdk/ai](https://github.com/fluttersdk/ai)**.
 
 ## Documentation
 
-Full docs with live examples at **[dusk.fluttersdk.com](https://dusk.fluttersdk.com)**.
+Full docs with live examples at **[fluttersdk.com/dusk](https://fluttersdk.com/dusk)**.
 
 | Topic | |
 |:------|:-|
-| [Getting Started](https://dusk.fluttersdk.com/getting-started) | Overview, requirements, the snapshot model |
-| [Installation](https://dusk.fluttersdk.com/getting-started/installation) | `dart pub add fluttersdk_dusk` plus `dusk:install` walkthrough |
-| [Quickstart](https://dusk.fluttersdk.com/getting-started/quickstart) | The 3-step path from empty repo to first snapshot |
-| [Commands](https://dusk.fluttersdk.com/commands) | The 32 CLI commands grouped by concern |
-| [dusk:install](https://dusk.fluttersdk.com/commands/dusk-install) | Smart-merge install flow, Magic detection, idempotency rules |
-| [dusk:snap](https://dusk.fluttersdk.com/commands/dusk-snap) | Snapshot YAML shape, enricher fields, ref token semantics |
-| [dusk:tap](https://dusk.fluttersdk.com/commands/dusk-tap) | Tap synthesis, actionability gate failure modes |
-| [dusk:screenshot](https://dusk.fluttersdk.com/commands/dusk-screenshot) | PNG vs JPEG, quality tuning, RepaintBoundary mechanics |
-| [dusk:find](https://dusk.fluttersdk.com/commands/dusk-find) | Playwright-Locator handles, q-ref re-resolution, stale-handle errors |
-| [dusk:doctor](https://dusk.fluttersdk.com/commands/dusk-doctor) | Categorised checks (OK / WARN / ERROR), troubleshooting matrix |
-| [dusk:observe](https://dusk.fluttersdk.com/commands/dusk-observe) | Stagehand observe-once-act-many pattern, candidate list shape |
-| [MCP Overview](https://dusk.fluttersdk.com/mcp/overview) | Substrate + plugin tool layers, lifecycle, missing-telescope graceful path |
-| [MCP Setup](https://dusk.fluttersdk.com/mcp/setup) | Per-client install (Claude Code, Cursor, Continue) |
-| [MCP Tool Reference](https://dusk.fluttersdk.com/mcp/tool-reference) | Every tool, every input schema, every example call |
-| [Magic Integration](https://dusk.fluttersdk.com/plugins/magic-integration) | The 5 core magic enrichers, install order, framework-internals access |
-| [Wind Integration](https://dusk.fluttersdk.com/plugins/wind-integration) | The 6-field WindClassNameEnricher, breakpoint and states fields |
-| [Enricher Authoring](https://dusk.fluttersdk.com/plugins/enricher-authoring) | Writing your own DuskSnapshotEnricher, RefRegistry usage |
-| [Actionability Gate](https://dusk.fluttersdk.com/reference/actionability-gate) | The 5 preconditions, error message format, agent-side branching |
+| [Getting Started](https://fluttersdk.com/dusk/getting-started) | Overview, requirements, the snapshot model |
+| [Installation](https://fluttersdk.com/dusk/getting-started/installation) | `dart pub add fluttersdk_dusk` plus `dusk:install` walkthrough |
+| [Quickstart](https://fluttersdk.com/dusk/getting-started/quickstart) | The 3-step path from empty repo to first snapshot |
+| [Commands](https://fluttersdk.com/dusk/commands) | The 32 CLI commands grouped by concern |
+| [dusk:install](https://fluttersdk.com/dusk/commands/dusk-install) | Smart-merge install flow, Magic detection, idempotency rules |
+| [dusk:snap](https://fluttersdk.com/dusk/commands/dusk-snap) | Snapshot YAML shape, enricher fields, ref token semantics |
+| [dusk:tap](https://fluttersdk.com/dusk/commands/dusk-tap) | Tap synthesis, actionability gate failure modes |
+| [dusk:screenshot](https://fluttersdk.com/dusk/commands/dusk-screenshot) | PNG vs JPEG, quality tuning, RepaintBoundary mechanics |
+| [dusk:find](https://fluttersdk.com/dusk/commands/dusk-find) | Playwright-Locator handles, q-ref re-resolution, stale-handle errors |
+| [dusk:doctor](https://fluttersdk.com/dusk/commands/dusk-doctor) | Categorised checks (OK / WARN / ERROR), troubleshooting matrix |
+| [dusk:observe](https://fluttersdk.com/dusk/commands/dusk-observe) | Stagehand observe-once-act-many pattern, candidate list shape |
+| [MCP Overview](https://fluttersdk.com/dusk/mcp/overview) | Substrate + plugin tool layers, lifecycle, missing-telescope graceful path |
+| [MCP Setup](https://fluttersdk.com/dusk/mcp/setup) | Per-client install (Claude Code, Cursor, Continue) |
+| [MCP Tool Reference](https://fluttersdk.com/dusk/mcp/tool-reference) | Every tool, every input schema, every example call |
+| [Magic Integration](https://fluttersdk.com/dusk/plugins/magic-integration) | The 5 core magic enrichers, install order, framework-internals access |
+| [Wind Integration](https://fluttersdk.com/dusk/plugins/wind-integration) | The 6-field WindClassNameEnricher, breakpoint and states fields |
+| [Enricher Authoring](https://fluttersdk.com/dusk/plugins/enricher-authoring) | Writing your own DuskSnapshotEnricher, RefRegistry usage |
+| [Actionability Gate](https://fluttersdk.com/dusk/reference/actionability-gate) | The 5 preconditions, error message format, agent-side branching |
 
 ## Contributing
 
