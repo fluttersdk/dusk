@@ -33,9 +33,12 @@ post_install:
        (magicControllerEnricher, magicFormErrorsEnricher, magicGateResultEnricher,
         magicMiddlewareEnricher, magicAuthUserEnricher).
 
-    3. If you use Wind, ALSO call WindDuskIntegration.install()
-       AFTER Magic.init() to wire the Wind 6-field enricher
-       (breakpoint, brightness, platform, states, bgColor, textColor).
+    3. If you use Wind, call `Wind.installDebugResolver()` inside `kDebugMode` (main barrel import).
+       Wind alpha-10 no longer ships a `WindDuskIntegration`; dusk reads wind state through the
+       neutral `fluttersdk_wind_diagnostics_contracts.WindDebugRegistry` bridge inside
+       `ext_snapshot.dart` and `ext_observe.dart` ahead of the enricher loop. The 6 core fields
+       (breakpoint, brightness, platform, states, bgColor, textColor) still surface without any
+       enricher registration.
 
     4. Verify the CLI:
 
