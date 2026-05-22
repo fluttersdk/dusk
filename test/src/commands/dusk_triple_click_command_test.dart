@@ -39,8 +39,14 @@ void main() {
     test('configure declares --ref + gate + includeSnapshot flags', () {
       final parser = ArgParser();
       DuskTripleClickCommand().configure(parser);
-      expect(parser.options.keys,
-          containsAll(<String>['ref', 'includeSnapshot', 'checkStable', 'checkReceivesEvents']));
+      expect(
+          parser.options.keys,
+          containsAll(<String>[
+            'ref',
+            'includeSnapshot',
+            'checkStable',
+            'checkReceivesEvents'
+          ]));
     });
 
     test('handle forwards --ref + flags to ext.dusk.triple_click', () async {
@@ -64,9 +70,11 @@ void main() {
       expect(ctx.lastMethod, isNull);
     });
 
-    test('handle returns exit=1 with error when --ref is empty string', () async {
+    test('handle returns exit=1 with error when --ref is empty string',
+        () async {
       final output = BufferedOutput();
-      final ctx = _StubContext(input: MapInput(const {'ref': ''}), output: output);
+      final ctx =
+          _StubContext(input: MapInput(const {'ref': ''}), output: output);
       final exit = await DuskTripleClickCommand().handle(ctx);
       expect(exit, equals(1));
     });

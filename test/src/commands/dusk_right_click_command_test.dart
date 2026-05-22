@@ -39,8 +39,14 @@ void main() {
     test('configure declares --ref + gate + includeSnapshot flags', () {
       final parser = ArgParser();
       DuskRightClickCommand().configure(parser);
-      expect(parser.options.keys,
-          containsAll(<String>['ref', 'includeSnapshot', 'checkStable', 'checkReceivesEvents']));
+      expect(
+          parser.options.keys,
+          containsAll(<String>[
+            'ref',
+            'includeSnapshot',
+            'checkStable',
+            'checkReceivesEvents'
+          ]));
     });
 
     test('handle forwards --ref + flags to ext.dusk.right_click', () async {
@@ -56,14 +62,16 @@ void main() {
     });
 
     test('handle returns exit=1 when --ref is missing', () async {
-      final ctx = _StubContext(input: MapInput(const {}), output: BufferedOutput());
+      final ctx =
+          _StubContext(input: MapInput(const {}), output: BufferedOutput());
       final exit = await DuskRightClickCommand().handle(ctx);
       expect(exit, equals(1));
       expect(ctx.lastMethod, isNull);
     });
 
     test('handle returns exit=1 when --ref is empty', () async {
-      final ctx = _StubContext(input: MapInput(const {'ref': ''}), output: BufferedOutput());
+      final ctx = _StubContext(
+          input: MapInput(const {'ref': ''}), output: BufferedOutput());
       expect(await DuskRightClickCommand().handle(ctx), equals(1));
     });
 
@@ -81,7 +89,8 @@ void main() {
 
     test('handle emits "Right-clicked" success line by default', () async {
       final output = BufferedOutput();
-      final ctx = _StubContext(input: MapInput(const {'ref': 'e7'}), output: output);
+      final ctx =
+          _StubContext(input: MapInput(const {'ref': 'e7'}), output: output);
       await DuskRightClickCommand().handle(ctx);
       expect(output.content, contains('Right-clicked e7'));
     });

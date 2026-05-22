@@ -462,8 +462,7 @@ Future<void> main() async {
       // The line above keeps the seam non-null for downstream tests; the
       // primary purpose here is the next call which targets the LIB
       // production default that was loaded at class-load time.
-      final DateTime? captured =
-          DuskDoctorCommand.processStartTimeProbe(pid);
+      final DateTime? captured = DuskDoctorCommand.processStartTimeProbe(pid);
       expect(captured, isNotNull);
     });
 

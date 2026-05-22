@@ -39,7 +39,8 @@ void main() {
     test('configure declares --ref + --includeSnapshot', () {
       final parser = ArgParser();
       DuskFocusCommand().configure(parser);
-      expect(parser.options.keys, containsAll(<String>['ref', 'includeSnapshot']));
+      expect(
+          parser.options.keys, containsAll(<String>['ref', 'includeSnapshot']));
     });
 
     test('handle forwards --ref to ext.dusk.focus', () async {
@@ -54,13 +55,15 @@ void main() {
     });
 
     test('handle returns exit=1 when --ref is missing', () async {
-      final ctx = _StubContext(input: MapInput(const {}), output: BufferedOutput());
+      final ctx =
+          _StubContext(input: MapInput(const {}), output: BufferedOutput());
       expect(await DuskFocusCommand().handle(ctx), equals(1));
       expect(ctx.lastMethod, isNull);
     });
 
     test('handle returns exit=1 when --ref is empty string', () async {
-      final ctx = _StubContext(input: MapInput(const {'ref': ''}), output: BufferedOutput());
+      final ctx = _StubContext(
+          input: MapInput(const {'ref': ''}), output: BufferedOutput());
       expect(await DuskFocusCommand().handle(ctx), equals(1));
     });
 
@@ -78,7 +81,8 @@ void main() {
 
     test('handle emits "Focused" success by default', () async {
       final output = BufferedOutput();
-      final ctx = _StubContext(input: MapInput(const {'ref': 'e1'}), output: output);
+      final ctx =
+          _StubContext(input: MapInput(const {'ref': 'e1'}), output: output);
       await DuskFocusCommand().handle(ctx);
       expect(output.content, contains('Focused e1'));
     });
