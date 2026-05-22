@@ -1,5 +1,5 @@
 name: fluttersdk_dusk
-description: "Flutter E2E driver for LLM agents and CI. 32 CLI commands and 31 MCP tools drive a running app over VM Service extensions — no flutter_test harness needed."
+description: "Flutter E2E driver for LLM agents and CI. 32 CLI commands and 31 MCP tools drive a running app over VM Service extensions; no flutter_test harness needed."
 version: 0.0.1
 homepage: https://fluttersdk.com/dusk
 repository: https://github.com/fluttersdk/dusk
