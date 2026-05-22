@@ -32,7 +32,7 @@ jobs:
       - name: Run tests with coverage
         run: flutter test --coverage --exclude-tags=integration --timeout=30s
 
-      - name: Enforce 75% line coverage floor
+      - name: Enforce 80% line coverage floor
         run: |
           lcov_path="coverage/lcov.info"
           if [ ! -f "$lcov_path" ]; then
@@ -41,7 +41,7 @@ jobs:
           fi
           pct=$(awk -F: '/^LF:/{lf+=$2} /^LH:/{lh+=$2} END{ if (lf==0) exit 1; printf "%.2f", (lh/lf)*100 }' "$lcov_path")
           echo "Line coverage: ${pct}%"
-          awk -v p="$pct" 'BEGIN{ if (p+0 < 75.0) { print "FAIL: coverage below 75% floor"; exit 1 } else { print "PASS: coverage at or above 75% floor" } }'
+          awk -v p="$pct" 'BEGIN{ if (p+0 < 80.0) { print "FAIL: coverage below 80% floor"; exit 1 } else { print "PASS: coverage at or above 80% floor" } }'
 
       - name: Upload coverage
         uses: codecov/codecov-action@v6
