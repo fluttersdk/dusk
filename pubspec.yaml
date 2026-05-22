@@ -6,10 +6,14 @@ repository: https://github.com/fluttersdk/dusk
 issue_tracker: https://github.com/fluttersdk/dusk/issues
 documentation: https://dusk.fluttersdk.com
 
+# pub.dev search topics (max 5, lowercase + hyphens, regex ^[a-z][a-z0-9-]{0,31}$).
+# Order = priority. `mcp-server` + `e2e-testing` are the strongest signals for
+# LLM-agent-driven Flutter test tooling; `testing` + `automation` widen the funnel
+# for human discovery; `vm-service` captures Dart VM Service Protocol searches.
 topics:
-  - testing
   - mcp-server
   - e2e-testing
+  - testing
   - automation
   - vm-service
 
@@ -20,7 +24,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  fluttersdk_artisan: ^0.0.3
+  fluttersdk_artisan: ^0.0.4
   image: ^4.0.0
   meta: ^1.16.0
   fluttersdk_wind_diagnostics_contracts: ^1.0.0
@@ -33,5 +37,5 @@ executables:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ">=5.0.0 <7.0.0"
   yaml: ^3.1.0

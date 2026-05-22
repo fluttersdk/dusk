@@ -119,10 +119,10 @@ packages:
     dependency: transitive
     description:
       name: fluttersdk_artisan
-      sha256: "4ca3796e5e38a9a462071a2d0ba39b0cc2b4ef93b419c593df04f5b1659b6e4b"
+      sha256: "6080a9b1e1c688d87a1c130d922b154bbbd506903b2ea98d4b617d044a6e0ba5"
       url: "https://pub.dev"
     source: hosted
-    version: "0.0.3"
+    version: "0.0.4"
   fluttersdk_dusk:
     dependency: "direct main"
     description:
