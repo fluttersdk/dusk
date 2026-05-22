@@ -69,10 +69,13 @@ void main() {
 ```
 
 When you ship a reusable integration (rather than a one-off in `main`),
-follow the `MagicDuskIntegration` / `WindDuskIntegration` pattern: a
-private constructor, an `install()` static that guards against duplicate
-adds with a static bool, and a `resetForTesting()` static that removes the
-enricher and clears the guard.
+follow the `MagicDuskIntegration` pattern: a private constructor, an
+`install()` static that guards against duplicate adds with a static bool,
+and a `resetForTesting()` static that removes the enricher and clears the
+guard. Wind alpha-10 takes a different path (the neutral `WindDebugRegistry`
+bridge, read by dusk at snap time without an enricher); pick the enricher
+pattern when your data is per-element and the bridge pattern when your
+data is a global registry the consumer installs once.
 
 ## Worked example: Riverpod provider value enricher
 

@@ -1,40 +1,39 @@
 # Wind integration
 
-`WindDuskIntegration` registers a single `DuskSnapshotEnricher`
-(`windClassNameEnricher`) that appends Wind-specific styling metadata to
-every Dusk snapshot ref whose underlying widget is a W-prefixed widget
-(`WDiv`, `WText`, `WButton`, `WInput`, and 13 siblings). The enricher
-resolves the widget's `className` through `WindParser` at snapshot time so
-the captured values reflect the active breakpoint, brightness, platform,
-and pseudo-class states.
+Wind 1.0.0-alpha.10 removed `WindDuskIntegration` and all dusk-specific shim code from the wind package.
+Wind state now surfaces through the neutral `fluttersdk_wind_diagnostics_contracts.WindDebugRegistry` bridge,
+which both wind (prod dep) and dusk (prod dep) depend on directly without either depending on the other.
+Dusk reads `WindDebugRegistry.current?.resolve(element)` inside `ext_snapshot.dart` and `ext_observe.dart`
+ahead of the enricher loop, so no dusk-side install call is required for wind metadata to appear.
+The 6 core fields still appear under the `wind:` block of every W-prefixed widget's snapshot ref.
 
 ## Host integration
 
-Wire `WindDuskIntegration.install()` inside the host's `kDebugMode` branch,
-after `DuskPlugin.install()`:
+Call `Wind.installDebugResolver()` inside the host's `kDebugMode` branch, after `DuskPlugin.install()`.
+No additional dusk-side registration is required; dusk reads the resolver through the neutral contracts bridge
+at snap time.
 
 ```dart
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   if (kDebugMode) {
     DuskPlugin.install();
-    WindDuskIntegration.install();
+    Wind.installDebugResolver();
   }
   runApp(app);
 }
 ```
 
-`install()` is idempotent; repeat calls are no-ops after the first one
-mutates `DuskPlugin.enrichers`. Release builds tree-shake the entire
-branch.
+Both calls are idempotent. Release builds tree-shake the entire `kDebugMode` branch on dart2js (web) and
+dart2native (mobile and desktop AOT).
 
 ## The six core fields
 
-`windClassNameEnricher` emits a `wind:` YAML block under each W-widget
-ref. Six core fields are always evaluated; the first four (`breakpoint`,
-`brightness`, `platform`, `states`) are always present, the last two
-(`bgColor`, `textColor`) appear only when the resolved `WindStyle`
-carries a non-null `decoration.color` / `color`.
+Dusk emits a `wind:` YAML block under each W-widget ref by resolving the element through
+`WindDebugRegistry.current?.resolve(element)` before the enricher loop runs. Six core fields are always
+evaluated. The first four (`breakpoint`, `brightness`, `platform`, `states`) are always present; the last two
+(`bgColor`, `textColor`) appear only when the resolved `WindStyle` carries a non-null `decoration.color` /
+`color`.
 
 | Field | Source | Notes |
 |:------|:-------|:------|
@@ -45,19 +44,9 @@ carries a non-null `decoration.color` / `color`.
 | `bgColor` | `style.decoration?.color` | 6-char RGB hex (alpha dropped, uppercase). |
 | `textColor` | `style.color` | 6-char RGB hex (alpha dropped, uppercase). |
 
-In addition the enricher surfaces ~60 further `WindStyle` fields when they
-resolve to non-null / non-identity-default values: layout (`displayType`,
-`flexDirection`, `mainAxisAlignment`, ...), sizing (`width`, `height`,
-`constraints`, `aspectRatio`), spacing (`padding`, `margin`), typography
-(`fontSize`, `fontWeight`, `textAlign`, ...), borders + ring, effects
-(`opacity`, `transitionDuration`, `boxShadow`, ...), position, animation,
-overflow, SVG, and misc fields. Each value is capped at 60 characters
-(truncated with a trailing `…`) so the snapshot stays bounded.
-
 ## Example snapshot output
 
-A `WButton` rendered on web at the `md` breakpoint with a hover state
-active:
+A `WButton` rendered on web at the `md` breakpoint with a hover state active:
 
 ```yaml
 - ref: e7
@@ -79,27 +68,31 @@ active:
     fontWeight: 600
 ```
 
-The fields appear in deterministic order: the six core fields first
-(historical slots 1-6), then layout, sizing, spacing, typography, borders,
-effects, position, animation, overflow, SVG, misc, and provenance (opt-in)
-groups, in that order.
-
 ## Provenance opt-in
 
-For debugging which className prefix activated a given resolved value,
-toggle `WindDuskIntegration.enableProvenance(true)` before the next snap.
-Subsequent enricher invocations route through `WindParser.parse(...,
-trackProvenance: true)` and emit a final `resolvedVia:` line per ref
-listing the comma-separated prefix chain per property. Flip the toggle
-back to `false` to return to the production-cheap, cache-friendly path.
+<!-- TODO: confirm provenance API in wind 1.0.0-alpha.10+ -->
 
-The provenance toggle is module-static because the `DuskSnapshotEnricher`
-typedef is frozen at `String? Function(Element, RefRegistry)`; threading
-a third argument through the call would break the contract. See
-[enricher-authoring](enricher-authoring) for the frozen contract details.
+The provenance toggle now lives on the wind-side API. Pass `trackProvenance: true` to
+`Wind.installDebugResolver()` (or equivalent per the wind 1.0.0-alpha.10 API) to enable prefix-chain
+tracking. When enabled, a `resolvedVia:` line appears per ref listing the comma-separated prefix chain per
+property, showing which `className` prefix activated each resolved value. Disable provenance to return to the
+production-cheap, cache-friendly path.
+
+The `DuskSnapshotEnricher` typedef is frozen at `String? Function(Element, RefRegistry)`; threading a third
+argument through the call would break the contract. See [enricher-authoring](enricher-authoring) for the
+frozen contract details.
 
 ## Test-only reset
 
-`WindDuskIntegration.resetForTesting()` removes the enricher from
-`DuskPlugin.enrichers`, clears the `_installed` flag, and resets the
-provenance toggle to `false`. Production code never calls this.
+<!-- TODO: confirm exact reset API in wind 1.0.0-alpha.10+ -->
+
+The per-test reset helper was removed along with the integration class in wind 1.0.0-alpha.10.
+Tests that previously relied on it should reset via `WindDebugRegistry.resetForTesting()` on the contracts
+bridge instead. Production code never calls any reset method.
+
+## Cross-package coupling
+
+The `fluttersdk_wind_diagnostics_contracts` package is a hosted dependency for both `fluttersdk_dusk` and
+`wind`; the outer `pubspec.yaml` may need a `dependency_overrides` block pointing to the local path during
+local development until the upstream repository is published on pub.dev (see CLAUDE.local.md wind alpha-10
+migration section for the exact override snippet).
