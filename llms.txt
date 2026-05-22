@@ -2,6 +2,67 @@
 
 > E2E driver for Flutter apps targeting LLM agents and CI. 32 CLI commands and 31 MCP tools drive a running Flutter app over 28 `ext.dusk.*` VM Service extensions plus 3 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). Debug-only at the consumer call site; release builds tree-shake the entire subsystem.
 
+**MCP tools (31)**, see `doc/mcp/tool-reference.md` for full input schemas. The 28 `ext.dusk.*` and 3 `artisan:dusk:*` (substrate-routed) tools are listed below.
+
+*Snapshot / Screenshot*
+- `dusk_snap` (`ext.dusk.snap`): Capture Semantics tree YAML with stable `[ref=eN]` tokens.
+- `dusk_screenshot` (`ext.dusk.screenshot`): Capture base64-encoded JPEG/PNG frame.
+
+*Gestures (pointer actions)*
+- `dusk_tap` (`ext.dusk.tap`): Tap a widget (Down + 50ms hold + Up at ref center).
+- `dusk_hover` (`ext.dusk.hover`): Hover mouse cursor over a widget (PointerHoverEvent).
+- `dusk_drag` (`ext.dusk.drag`): Drag from one widget to another (Down + 5x Move + Up).
+- `dusk_dblclick` (`ext.dusk.dblclick`): Double-click a widget (two tap sequences ~100ms apart).
+- `dusk_right_click` (`ext.dusk.right_click`): Fire secondary (right) mouse button click.
+- `dusk_triple_click` (`ext.dusk.triple_click`): Fire three primary clicks (~100ms apart each).
+
+*Text Input*
+- `dusk_type` (`ext.dusk.type`): Type text into a TextField (calls userUpdateTextEditingValue).
+- `dusk_clear` (`ext.dusk.clear`): Clear TextEditingController backing a text field.
+
+*Scrolling*
+- `dusk_scroll` (`ext.dusk.scroll`): Scroll a Scrollable widget by direction + pixels.
+
+*Waits / Polling*
+- `dusk_wait_for` (`ext.dusk.wait_for`): Wait until text/textGone/expression condition met or timeout.
+- `dusk_wait_for_network_idle` (`ext.dusk.wait_for_network_idle`): Wait until in-flight HTTP count reaches 0 + idle window.
+
+*Navigation*
+- `dusk_navigate` (`ext.dusk.navigate`): Push a named route onto the active router.
+- `dusk_navigate_back` (`ext.dusk.navigate_back`): Pop the top route off navigator stack.
+- `dusk_get_routes` (`ext.dusk.get_routes`): Enumerate declared routes in the active router.
+- `dusk_dismiss_modals` (`ext.dusk.dismiss_modals`): Pop every modal route above first persistent route.
+
+*Find (Query Handles)*
+- `dusk_find` (`ext.dusk.find`): Find widget by text/semanticsLabel/key, return re-resolvable `q<N>` handle.
+
+*Diagnostics*
+- `dusk_console` (`ext.dusk.console`): Read recent log entries from telescope store.
+- `dusk_exceptions` (`ext.dusk.exceptions`): Read recent exception entries from telescope store.
+- `dusk_observe` (`ext.dusk.observe`): Return structured candidate list of every interactive widget on screen.
+
+*Keyboard / Input*
+- `dusk_press_key` (`ext.dusk.press_key`): Press hardware key with optional modifiers (control, shift, alt, meta).
+- `dusk_focus` (`ext.dusk.focus`): Request keyboard focus on widget identified by ref.
+- `dusk_blur` (`ext.dusk.blur`): Clear keyboard focus from current focus holder.
+
+*Form Controls*
+- `dusk_select_option` (`ext.dusk.select_option`): Select option in DropdownButton by ref + value.
+- `dusk_set_checkbox` (`ext.dusk.set_checkbox`): Set checked state of Checkbox or Switch widget.
+
+*Evaluate (MCP-only; no CLI mirror)*
+- `dusk_evaluate` (`ext.dusk.evaluate`): Evaluate Dart expression in running app isolate via Tinker bridge.
+
+*App Control*
+- `dusk_close_app` (`ext.dusk.close_app`): Request graceful shutdown via `SystemNavigator.pop()`.
+
+*Hot Reload (substrate-routed)*
+- `dusk_hot_reload_and_snap` (`artisan:dusk:hot_reload_and_snap`): Hot reload app, capture snapshot + screenshot + recent exceptions in one round-trip.
+
+*Viewport / Device Emulation (substrate-routed, CDP)*
+- `dusk_resize_viewport` (`artisan:dusk:resize`): Resize Flutter web viewport via Chrome DevTools Protocol.
+- `dusk_device_profile` (`artisan:dusk:device`): Emulate named device preset via CDP.
+
 ## Docs
 - [Installation](https://fluttersdk.com/dusk/getting-started/installation.md)
 - [Quickstart](https://fluttersdk.com/dusk/getting-started/quickstart.md)
