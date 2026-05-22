@@ -1,0 +1,37 @@
+# fluttersdk_dusk
+
+> E2E driver for Flutter apps targeting LLM agents and CI. 32 CLI commands and 31 MCP tools drive a running Flutter app over 28 `ext.dusk.*` VM Service extensions plus 3 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). Debug-only at the consumer call site; release builds tree-shake the entire subsystem.
+
+## Docs
+- [Installation](https://fluttersdk.com/dusk/getting-started/installation.md)
+- [Quickstart](https://fluttersdk.com/dusk/getting-started/quickstart.md)
+- [Commands index](https://fluttersdk.com/dusk/commands/index.md)
+- [dusk:snap](https://fluttersdk.com/dusk/commands/dusk-snap.md)
+- [dusk:tap](https://fluttersdk.com/dusk/commands/dusk-tap.md)
+- [dusk:find](https://fluttersdk.com/dusk/commands/dusk-find.md)
+- [dusk:observe](https://fluttersdk.com/dusk/commands/dusk-observe.md)
+- [dusk:screenshot](https://fluttersdk.com/dusk/commands/dusk-screenshot.md)
+- [dusk:doctor](https://fluttersdk.com/dusk/commands/dusk-doctor.md)
+- [dusk:install](https://fluttersdk.com/dusk/commands/dusk-install.md)
+- [Actionability gate](https://fluttersdk.com/dusk/reference/actionability-gate.md)
+
+## MCP
+- [MCP overview](https://fluttersdk.com/dusk/mcp/overview.md)
+- [MCP setup (.mcp.json wiring)](https://fluttersdk.com/dusk/mcp/setup.md)
+- [MCP tool reference (31 tools)](https://fluttersdk.com/dusk/mcp/tool-reference.md)
+
+## Plugins
+- [Magic integration](https://fluttersdk.com/dusk/plugins/magic-integration.md)
+- [Wind integration](https://fluttersdk.com/dusk/plugins/wind-integration.md)
+- [Authoring a snapshot enricher](https://fluttersdk.com/dusk/plugins/enricher-authoring.md)
+
+## Source
+- [GitHub](https://github.com/fluttersdk/dusk)
+- [pub.dev](https://pub.dev/packages/fluttersdk_dusk)
+- [CHANGELOG](https://github.com/fluttersdk/dusk/blob/master/CHANGELOG.md)
+- [ARCHITECTURE](https://github.com/fluttersdk/dusk/blob/master/ARCHITECTURE.md)
+
+## Optional
+- [README](https://github.com/fluttersdk/dusk/blob/master/README.md)
+- [LICENSE](https://github.com/fluttersdk/dusk/blob/master/LICENSE)
+- [Issues](https://github.com/fluttersdk/dusk/issues)
