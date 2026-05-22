@@ -83,7 +83,8 @@ void main() {
       // Resolve the child element (NOT the Focus widget itself) so the
       // handler's `Focus.maybeOf(entry.element)` walks UP and finds the
       // wrapping Focus ancestor.
-      final Element element = tester.element(find.byKey(const Key('focus-child')));
+      final Element element =
+          tester.element(find.byKey(const Key('focus-child')));
       final RenderBox box = element.findRenderObject()! as RenderBox;
       final Rect rect = box.localToGlobal(Offset.zero) & box.size;
       final String ref = RefRegistry.registerForTesting(
@@ -154,7 +155,8 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Material(
-            child: Focus(focusNode: node, child: const SizedBox(width: 50, height: 50)),
+            child: Focus(
+                focusNode: node, child: const SizedBox(width: 50, height: 50)),
           ),
         ),
       );

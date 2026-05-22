@@ -590,7 +590,9 @@ void main() {
     );
   });
 
-  group('extDuskObserveHandler — fluttersdk_wind_diagnostics_contracts registry', () {
+  group(
+      'extDuskObserveHandler — fluttersdk_wind_diagnostics_contracts registry',
+      () {
     setUp(() {
       RefRegistry.resetForTesting();
       DuskPlugin.enrichers.clear();
