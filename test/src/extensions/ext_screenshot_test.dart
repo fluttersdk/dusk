@@ -148,4 +148,101 @@ void main() {
       );
     });
   });
+
+  // =========================================================================
+  // End-to-end capture — covers the rasterise + encode path. `runAsync` is
+  // required because `toImage()` schedules native engine work that
+  // FakeAsync's clock cannot drive. We wrap a real `RepaintBoundary` over
+  // the pumped widget so the screenshot handler's repaint-boundary lookup
+  // resolves successfully.
+  // =========================================================================
+  group('screenshotHandler — end-to-end capture', () {
+    testWidgets('captures the root viewport as JPEG by default',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(200, 100);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const RepaintBoundary(
+          child: ColoredBox(
+            color: Color(0xFFFF0000),
+            child: SizedBox.expand(),
+          ),
+        ),
+      );
+
+      developer.ServiceExtensionResponse? response;
+      await tester.runAsync(() async {
+        response = await screenshotHandler(
+          'ext.dusk.screenshot',
+          const <String, String>{},
+        );
+      });
+
+      expect(_isError(response!), isFalse);
+      expect(response!.result, isNotNull);
+      expect(response!.result, contains('"format":"jpeg"'));
+      expect(response!.result, contains('"width"'));
+      expect(response!.result, contains('"height"'));
+      expect(response!.result, contains('"base64"'));
+    });
+
+    testWidgets('captures the root viewport as PNG when format=png',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(200, 100);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const RepaintBoundary(
+          child: ColoredBox(
+            color: Color(0xFF00FF00),
+            child: SizedBox.expand(),
+          ),
+        ),
+      );
+
+      developer.ServiceExtensionResponse? response;
+      await tester.runAsync(() async {
+        response = await screenshotHandler(
+          'ext.dusk.screenshot',
+          const <String, String>{'format': 'png'},
+        );
+      });
+
+      expect(_isError(response!), isFalse);
+      expect(response!.result, contains('"format":"png"'));
+    });
+
+    testWidgets('honours --quality flag on JPEG encode',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(200, 100);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const RepaintBoundary(
+          child: ColoredBox(
+            color: Color(0xFF0000FF),
+            child: SizedBox.expand(),
+          ),
+        ),
+      );
+
+      developer.ServiceExtensionResponse? response;
+      await tester.runAsync(() async {
+        response = await screenshotHandler(
+          'ext.dusk.screenshot',
+          const <String, String>{'format': 'jpeg', 'quality': '30'},
+        );
+      });
+
+      expect(_isError(response!), isFalse);
+      expect(response!.result, contains('"format":"jpeg"'));
+    });
+  });
 }
