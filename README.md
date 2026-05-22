@@ -83,6 +83,9 @@ End-to-end testing on Flutter has always been a stitched-together ritual. `flutt
 
 Dusk is the first Flutter MCP server focused on **UI automation** (tap, snap, screenshot, observe) rather than runtime telemetry. The 31 `dusk_*` tools surface to any MCP-compatible agent.
 
+> [!NOTE]
+> Configs reference `./bin/fsa`, the AOT-compiled artisan dispatcher (~110ms warm). Run `dart run fluttersdk_artisan install` once to scaffold `bin/dispatcher.dart` + the `./bin/fsa` wrapper. Skipping the scaffold? Replace `./bin/fsa` with `dart run fluttersdk_artisan` everywhere; same surface, ~3s slower per call.
+
 **Standard config** (any client that reads `.mcp.json` in the project root):
 
 ```jsonc
