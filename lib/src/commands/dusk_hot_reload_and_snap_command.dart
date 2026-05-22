@@ -247,8 +247,7 @@ Future<HotReloadResult> _defaultReload(ArtisanContext ctx) async {
       state['log'] as String? ??
       _defaultLogPath();
   final File logFile = logPath == null ? File('') : File(logPath);
-  final int baselineLogLength =
-      logFile.existsSync() ? logFile.lengthSync() : 0;
+  final int baselineLogLength = logFile.existsSync() ? logFile.lengthSync() : 0;
 
   try {
     // 1. Push `r\n` through `printf %s > fifo`. Dart's File.open() calls
