@@ -298,7 +298,7 @@ flutter test --coverage               # line coverage target 80%+
 dart pub publish --dry-run            # validate the publish archive
 ```
 
-Line coverage gate is 80% on `lib/` (the gate enforcement is deferred to a test-stabilization follow-up; 0.0.1 ships at ~79% with a CHANGELOG note). The `.pubignore` excludes `example/`, `example_magic/`, `build/`, `coverage/`, and editor scaffolding from the pub archive; extend it if you add new top-level directories that should not ship.
+Line coverage gate is 80% on `lib/`, enforced by CI (`Enforce 80% line coverage floor` step in `.github/workflows/ci.yml`); 0.0.1 ships at 80.08%. The `.pubignore` excludes platform shells under `example/`, `build/`, `coverage/`, and editor scaffolding from the pub archive; extend it if you add new top-level directories that should not ship.
 
 [Report a bug](https://github.com/fluttersdk/dusk/issues/new?template=bug_report.yml) · [Request a feature](https://github.com/fluttersdk/dusk/issues/new?template=feature_request.yml)
 

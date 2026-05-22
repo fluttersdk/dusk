@@ -29,12 +29,6 @@ example/analysis_options.yaml
 example/test/widget_test.dart
 
 # ---------------------------------------------------------------------------
-# example_magic/ is the Magic-stack reference app; preserved in GitHub
-# repo, NOT published to pub.dev.
-# ---------------------------------------------------------------------------
-example_magic/
-
-# ---------------------------------------------------------------------------
 # Build artifacts, generated docs, test output
 # ---------------------------------------------------------------------------
 build/

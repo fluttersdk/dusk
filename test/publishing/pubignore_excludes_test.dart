@@ -4,7 +4,7 @@
 /// `analysis_options.yaml`, `install.yaml`).
 ///
 /// Turned green by **Wave 3 / Step 7** (.pubignore adapted from
-/// `fluttersdk_artisan/.pubignore` with `example_magic/` added).
+/// `fluttersdk_artisan/.pubignore`).
 library;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -26,10 +26,6 @@ void main() {
     test('exists at the package root', () {
       expect(fileExists('.pubignore'), isTrue,
           reason: '.pubignore drives the publish tarball contents');
-    });
-
-    test('excludes example_magic/ (Magic-stack example never ships)', () {
-      expect(_pubignoreEntries(), contains('example_magic/'));
     });
 
     test(
