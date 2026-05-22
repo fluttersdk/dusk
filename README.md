@@ -136,7 +136,7 @@ cd dusk && flutter pub get
 flutter test && dart analyze
 ```
 
-The baseline is 787 tests green and 80.08% line coverage enforced by CI on every push to develop, main, and master. New behavior ships with a failing test first (red, green, refactor). `dart format lib/ test/ bin/` must produce no diff and `dart analyze` must report zero issues.
+CI enforces 80%+ line coverage on `lib/` on every push to develop, main, and master, with zero analyze issues and zero format drift on `lib/`, `test/`, and `bin/`. New behavior ships with a failing test first (red, green, refactor).
 
 Before opening a pull request, run the same checks CI runs:
 
