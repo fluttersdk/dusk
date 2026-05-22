@@ -47,6 +47,9 @@ Choose the entry point that matches your workflow. The same `ext.dusk.*` extensi
 
 Manual wiring, Magic-stack integration, and the full per-command flag reference live in the [Getting Started guide](https://fluttersdk.com/dusk/getting-started).
 
+> [!TIP]
+> **fastcli** is the AOT-compiled artisan dispatcher (~110ms warm) shipped as `./bin/fsa`. It is auto-scaffolded the first time you run `dart run fluttersdk_artisan install`. After that, every `./bin/fsa <cmd>` is the fast path. Skipping fastcli is fine: every command also runs as `dart run fluttersdk_dusk <cmd>` with the same surface, ~3s slower per call.
+
 ## Why Dusk?
 
 End-to-end testing on Flutter has always been a stitched-together ritual. `flutter_driver` ships a one-off socket protocol that does not survive hot restart. `integration_test` runs in-process against a simulated `WidgetTester`, but you write a test file, build, run, and wait. AI coding agents that want to drive the running app reach for ad hoc `flutter test` invocations, copy stack traces back into the prompt, and paste screenshots back, calling it a workflow.
@@ -84,7 +87,7 @@ End-to-end testing on Flutter has always been a stitched-together ritual. `flutt
 Dusk is the first Flutter MCP server focused on **UI automation** (tap, snap, screenshot, observe) rather than runtime telemetry. The 31 `dusk_*` tools surface to any MCP-compatible agent.
 
 > [!NOTE]
-> Configs reference `./bin/fsa`, the AOT-compiled artisan dispatcher (~110ms warm). Run `dart run fluttersdk_artisan install` once to scaffold `bin/dispatcher.dart` + the `./bin/fsa` wrapper. Skipping the scaffold? Replace `./bin/fsa` with `dart run fluttersdk_artisan` everywhere; same surface, ~3s slower per call.
+> Configs below use `./bin/fsa` (the fastcli wrapper, see top of README). If fastcli is not scaffolded yet, swap `./bin/fsa mcp:serve` for `dart run fluttersdk_dusk mcp:serve` in every client row.
 
 **Standard config** (any client that reads `.mcp.json` in the project root):
 
