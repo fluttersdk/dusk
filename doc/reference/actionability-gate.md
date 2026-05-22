@@ -19,10 +19,16 @@ scroll, wait, or abort.
 
 ## Precondition chain
 
-The gate evaluates five preconditions in this exact order. **The order is
+The gate evaluates six preconditions in evaluation order (Step 0 defunct preflight + Steps 1-5 ordered checks). **The order is
 FROZEN** per `CLAUDE.md` Off-limits: agents branch on the failure-reason
 substring, so adding, removing, or reordering checks is a breaking change.
 
+0. **Defunct (preflight)**; the entry's `Element` may have been deactivated by parent
+   rebuild, route pop, or list-item recycle since the snapshot minted the ref.
+   `findRenderObject()` returns null, or the framework throws on the inactive element.
+   This guard runs before the five ordered checks below. Failure reasons:
+   `defunct (element no longer attached to a render object)` or
+   `defunct (element no longer mounted)`. The agent's recovery is to re-snap.
 1. **Enabled**; the entry's `SemanticsNode` is non-null AND its
    `flagsCollection.isEnabled` is `Tristate.isFalse`. `Tristate.none` (no
    enabled flag set, e.g. plain `Text`) and `Tristate.isTrue` both pass. The
@@ -58,12 +64,6 @@ substring, so adding, removing, or reordering checks is a breaking change.
    hit-tests through a snapshot view that does not mirror the live element
    subtree). Opt out via `checkReceivesEvents: false`.
 
-Defunct entries (the snapshot minted a ref against an `Element` since
-deactivated by parent rebuild, route pop, or list-item recycle) trip an
-up-front guard before step 1 and surface as
-`defunct (element no longer attached to a render object)` or
-`defunct (element no longer mounted)`.
-
 ## Failure reason substrings
 
 The thrown message has the shape
@@ -72,6 +72,7 @@ against `$reason` to branch their recovery. **The substring list is FROZEN**:
 
 | Reason substring   | Trips when                                                                  | Suggested agent recovery                      |
 |--------------------|-----------------------------------------------------------------------------|-----------------------------------------------|
+| `defunct (...)`    | `findRenderObject()` returns null OR Element is in `_ElementLifecycle.defunct` lifecycle state | Re-snap; the widget was deactivated. |
 | `not enabled`      | `flagsCollection.isEnabled == Tristate.isFalse`                             | Re-snap; the widget may enable later.         |
 | `zero rect`        | `rect.width == 0 \|\| rect.height == 0`                                     | Re-snap or re-find; layout has shifted.       |
 | `off-viewport`     | rect does not overlap the viewport even after `showOnScreen` + one frame    | `dusk_scroll_to_ref` then retry.              |
