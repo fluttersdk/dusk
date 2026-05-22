@@ -8,18 +8,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Flutter SDK package. Version 0.0.1. Requires the Flutter runtime (widgets, foundation, dart:ui, gestures, services)
 for synthesised pointer / key events and the Semantics tree walk. Dart 3.4+ / Flutter 3.22+. Plugin of
-`fluttersdk_artisan`: contributes `DuskArtisanProvider` which surfaces **25 CLI commands** (`dusk:install`, `dusk:snap`,
-`dusk:tap`, `dusk:screenshot`, `dusk:type`, `dusk:scroll`, `dusk:wait`, `dusk:hover`, `dusk:drag`, `dusk:modal`,
-`dusk:doctor`, `dusk:navigate`, `dusk:navigate_back`, `dusk:get_routes`, `dusk:press_key`, `dusk:select_option`,
-`dusk:close_app`, `dusk:find`, `dusk:wait_for_network_idle`, `dusk:console`, `dusk:exceptions`, `dusk:dblclick`,
-`dusk:set_checkbox`, `dusk:observe`, `dusk:hot_reload_and_snap`) and **24 MCP tools** backed by `ext.dusk.*` VM Service
-extensions (23 of the 24 tools have a backing VM extension; `dusk_hot_reload_and_snap` is dispatched via the
-`artisan:` substrate routing prefix to a CLI command because hot-reload from inside the same isolate would deadlock).
-`dusk_evaluate` is intentionally MCP-only (magic_tinker owns the connected REPL surface).
+`fluttersdk_artisan` ^0.0.4: contributes `DuskArtisanProvider` which surfaces **32 CLI commands** (`dusk:install`,
+`dusk:doctor`, `dusk:snap`, `dusk:screenshot`, `dusk:tap`, `dusk:hover`, `dusk:dblclick`, `dusk:right_click`,
+`dusk:triple_click`, `dusk:drag`, `dusk:type`, `dusk:clear`, `dusk:focus`, `dusk:blur`, `dusk:press_key`,
+`dusk:set_checkbox`, `dusk:select_option`, `dusk:scroll`, `dusk:find`, `dusk:observe`, `dusk:wait`,
+`dusk:wait_for_network_idle`, `dusk:navigate`, `dusk:navigate_back`, `dusk:get_routes`, `dusk:modal`,
+`dusk:hot_reload_and_snap`, `dusk:close_app`, `dusk:resize`, `dusk:device`, `dusk:console`, `dusk:exceptions`)
+and **31 MCP tool descriptors**. 28 tools route through `ext.dusk.*` VM Service extensions; 3
+(`dusk_hot_reload_and_snap`, `dusk_resize_viewport`, `dusk_device_profile`) route through `artisan:dusk:*`
+substrate prefixes because the first needs out-of-isolate execution to avoid a hot-reload deadlock, and the
+other two drive the Chrome DevTools Protocol from a non-Flutter Dart context. `dusk_evaluate` is intentionally
+MCP-only (magic_tinker owns the connected REPL surface).
 
-Deps: `fluttersdk_artisan` (path), `meta: ^1.16.0`, `image: ^4.0.0`. Dev deps: `flutter_test`, `flutter_lints`. This
-package is debug-only at the consumer call site: the consumer wraps `DuskPlugin.install()` inside `if (kDebugMode)`
-so release builds tree-shake the entire subsystem.
+Deps: `fluttersdk_artisan: ^0.0.4` (pub.dev hosted), `image: ^4.0.0`, `meta: ^1.16.0`,
+`fluttersdk_wind_diagnostics_contracts: ^1.0.0` (neutral bridge so wind diagnostics flow without dragging wind in).
+Dev deps: `flutter_test`, `flutter_lints` (>=5.0.0 <7.0.0), `yaml: ^3.1.0`. This package is debug-only at the
+consumer call site: the consumer wraps `DuskPlugin.install()` inside `if (kDebugMode)` so release builds
+tree-shake the entire subsystem.
 
 The package ships its own Flutter-free CLI entry point (`bin/fluttersdk_dusk.dart` → `executables:
 fluttersdk_dusk`) so `dart run fluttersdk_dusk <cmd>` invocations work without dragging `dart:ui` into a pure-Dart
@@ -44,16 +49,17 @@ Single barrel: `lib/dusk.dart` re-exports the full public API. Subsystem layout 
 
 | Path | Purpose |
 |---|---|
-| `extensions/` | `registerDuskExtensions()` aggregator + per-concern VM Service handlers: `ext_snapshot.dart`, `ext_screenshot.dart`, `ext_pointer.dart` (tap / hover / drag), `ext_text_input.dart` (type / press_key / select_option), `ext_scroll.dart`, `ext_wait_find.dart`, `ext_modal_router.dart` (dismiss_modals / navigate / navigate_back / get_routes), `ext_evaluate.dart`, `ext_close_app.dart`, `ext_find.dart`. |
-| `commands/` | `DuskInstallCommand`, `DuskSnapCommand`, `DuskTapCommand`, `DuskScreenshotCommand`, `DuskTypeCommand`, `DuskScrollCommand`, `DuskWaitCommand`, `DuskHoverCommand`, `DuskDragCommand`, `DuskModalCommand`, `DuskDoctorCommand`, `DuskNavigateCommand`, `DuskNavigateBackCommand`, `DuskGetRoutesCommand`, `DuskPressKeyCommand`, `DuskSelectOptionCommand`, `DuskCloseAppCommand`, `DuskFindCommand` (18 ArtisanCommand subclasses, one file each). |
-| `utils/` | `actionability_gate.dart` (enabled + zero-rect + off-viewport precondition gate, shared by tap / hover / drag / type), `chrome_reaper.dart` (graceful Chromium subprocess teardown between dusk:* runs), `dusk_exceptions.dart` (`DuskActionabilityException` + `DuskStaleHandleException` typed exceptions; handlers serialize their `message` field as a free-form string via `ServiceExtensionResponse.error(extensionError, message)`). |
-| `console/` | YAML emitter for `dusk_snap` output: per-node `[ref=eN]` token + role + label + actions + bounds + enricher-contributed indented lines. |
-| `ref_registry.dart` | `e<N>` (snapshot-frozen) + `q<N>` (re-resolvable, `dusk_find`-minted) token system. Singleton; cleared on snap. |
-| `dusk_plugin.dart` | `DuskPlugin.install()` entry + `registerEnricher()` extension point. Idempotent. Wraps the app's widget root in a `RepaintBoundary` (no `GlobalKey`) so `ext.dusk.screenshot` finds it via render-tree walk. |
+| `extensions/` | `registerAllDuskExtensions()` aggregator + per-concern VM Service handlers (18 files): `ext_snapshot.dart` (semantics-tree YAML emitter with `[ref=eN]` tokens), `ext_screenshot.dart`, `ext_pointer.dart` (tap / hover / drag / dblclick / right_click / triple_click), `ext_text_input.dart` (type / clear / press_key), `ext_focus.dart` (focus / blur), `ext_checkbox.dart` (set_checkbox; Switch + Checkbox), `ext_scroll.dart` (with select_option), `ext_wait_find.dart` (wait_for + wait_for_network_idle), `ext_modal_router.dart` (dismiss_modals), `ext_navigation.dart` (navigate / navigate_back / get_routes), `ext_find.dart` (q-handle minter), `ext_observe.dart` (Stagehand candidate list), `ext_evaluate.dart` (MCP-only Dart expression eval), `ext_close_app.dart`, `ext_console.dart` (telescope log reader hook), `ext_exceptions.dart` (telescope exception reader hook), `register_dusk_extensions.dart`. |
+| `commands/` | 32 `ArtisanCommand` subclasses (one file each), wrapping the VM extensions plus three substrate-routed commands (`dusk:hot_reload_and_snap`, `dusk:resize`, `dusk:device`) that need out-of-isolate execution. |
+| `utils/` | `actionability_gate.dart` (5-precondition gate: defunct / enabled / zero-rect / off-viewport / not stable / receives-events; shared by tap / hover / drag / dblclick / right_click / triple_click / type), `error_envelope.dart` (typed `DuskErrorEnvelope` serialisation for agent-parseable failures), `chrome_reaper.dart` (graceful Chromium subprocess teardown between dusk:* runs), `dusk_exceptions.dart` (`DuskActionabilityException` + `DuskStaleHandleException` typed exceptions). |
+| `cdp/` | `cdp_client.dart` (minimal CDP JSON-RPC client over HTTP /json discovery + WebSocket dispatch), `chrome_finder.dart`, `device_presets.dart` (8 named presets: iphone-x, iphone-13, iphone-15-pro, pixel-5, pixel-8, ipad-pro-12.9, desktop-1440, desktop-1920). |
+| `ref_registry.dart` | `e<N>` (snapshot-frozen, deduped by `node.id` so the same widget keeps its token across snaps) + `q<N>` (re-resolvable, minted by `dusk_find`, re-walks the live tree on every action). |
+| `dusk_plugin.dart` | `DuskPlugin.install()` entry + `enrichers` list + `installNavigateAdapter()` hook. Idempotent. Wraps the app's widget root in a `RepaintBoundary` (no `GlobalKey`) so `ext.dusk.screenshot` finds it via render-tree walk. |
 | `dusk_snapshot_enricher.dart` | `DuskSnapshotEnricher` typedef (FROZEN — see Off-limits). |
-| `dusk_artisan_provider.dart` | `DuskArtisanProvider extends ArtisanServiceProvider`: 18 commands + 17 MCP tool descriptors. |
+| `dusk_navigate_adapter.dart` | Adapter contract for the consumer's router (used by `ext.dusk.navigate` to push named routes). |
+| `dusk_artisan_provider.dart` | `DuskArtisanProvider extends ArtisanServiceProvider`: 32 commands + 31 MCP tool descriptors. |
 | `bin/fluttersdk_dusk.dart` | Flutter-free CLI wrapper (no `dart:ui` import) — runs the provider's commands standalone via `dart run fluttersdk_dusk`. |
-| `lib/cli.dart` | Flutter-free codegen barrel with `FluttersdkDuskArtisanProvider` typedef alias; consumed by consumer-side `lib/app/_plugins.g.dart` auto-discovery. |
+| `lib/cli.dart` | Flutter-free codegen barrel with `FluttersdkDuskArtisanProvider` typedef alias; consumed by consumer-side `lib/app/_plugins.g.dart` auto-discovery (asserted in `fluttersdk_artisan`'s `install_command_test.dart`). |
 | `install.yaml` | V1 plugin manifest (empty publish list + post-install bootstrap message) required by `plugin:install fluttersdk_dusk`. |
 
 ### Public contracts
@@ -63,31 +69,38 @@ Single barrel: `lib/dusk.dart` re-exports the full public API. Subsystem layout 
 - `McpToolDescriptor`: const-constructible; shape owned by `fluttersdk_artisan`. Descriptions follow Claude Code
   canonical format: imperative opening sentence + context paragraph + `Usage:` bullet list.
 
-### VM Service surface
+### VM Service surface (24 ext.dusk.*)
 
-`ext.dusk.snap`, `ext.dusk.screenshot`, `ext.dusk.tap`, `ext.dusk.hover`, `ext.dusk.drag`, `ext.dusk.type`,
-`ext.dusk.scroll`, `ext.dusk.wait_for`, `ext.dusk.dismiss_modals`, `ext.dusk.press_key`, `ext.dusk.select_option`,
-`ext.dusk.navigate`, `ext.dusk.navigate_back`, `ext.dusk.get_routes`, `ext.dusk.evaluate`, `ext.dusk.close_app`,
-`ext.dusk.find`. Every registration goes through `registerExtensionIdempotent` (from `fluttersdk_artisan`) for
-hot-restart safety.
+`ext.dusk.snap`, `ext.dusk.screenshot`, `ext.dusk.tap`, `ext.dusk.hover`, `ext.dusk.drag`, `ext.dusk.dblclick`,
+`ext.dusk.right_click`, `ext.dusk.triple_click`, `ext.dusk.type`, `ext.dusk.clear`, `ext.dusk.focus`,
+`ext.dusk.blur`, `ext.dusk.press_key`, `ext.dusk.set_checkbox`, `ext.dusk.select_option`, `ext.dusk.scroll`,
+`ext.dusk.find`, `ext.dusk.observe`, `ext.dusk.wait_for`, `ext.dusk.wait_for_network_idle`, `ext.dusk.navigate`,
+`ext.dusk.navigate_back`, `ext.dusk.get_routes`, `ext.dusk.dismiss_modals`, `ext.dusk.evaluate`,
+`ext.dusk.close_app`, `ext.dusk.console`, `ext.dusk.exceptions`. Every registration goes through
+`registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety. Three additional MCP tools
+(`dusk_hot_reload_and_snap`, `dusk_resize_viewport`, `dusk_device_profile`) route through the artisan substrate
+prefix `artisan:dusk:*` instead of a VM extension because they need out-of-isolate execution.
 
 ### Actionability gate
 
-The four direct-action handlers (`tap`, `hover`, `drag`, `type`) resolve through `utils/actionability_gate.dart`
-BEFORE synthesising the pointer / key event. The gate verifies three preconditions in order: (1) **enabled**
+Seven action handlers (`tap`, `hover`, `drag`, `dblclick`, `right_click`, `triple_click`, `type`) resolve through
+`utils/actionability_gate.dart` BEFORE synthesising the pointer / key event. The gate verifies five preconditions
+in order: (0) **defunct** (`entry.element.findRenderObject()` returns non-null and is mounted), (1) **enabled**
 (`SemanticsNode.flagsCollection.isEnabled == Tristate.isFalse` is the only failing state; `Tristate.none` and
 `Tristate.isTrue` pass), (2) **zero-area rect** (`rect.width == 0 || rect.height == 0`), (3) **off-viewport**
-(rect does not overlap the active `FlutterView` logical viewport; skipped gracefully when no view is attached).
-Any failure throws `DuskActionabilityException` (`lib/src/utils/dusk_exceptions.dart`); the handler catches it
-and emits `ServiceExtensionResponse.error(extensionError, exception.message)` where the message is a free-form
-string of the form `"Widget ref=$ref is not actionable: $reason"` with `$reason` ∈
-{`"not enabled"`, `"zero rect"`, `"off-viewport (rect=..., viewport=...)"`}. The agent re-snaps or re-finds,
-never silently retries.
+(rect does not overlap the active `FlutterView` logical viewport; auto-scrolls via `showOnScreen` first if a
+`Scrollable` ancestor exists), (4) **not stable** (the live rect drifted more than 0.5px between two consecutive
+frames; opt-out via `--no-checkStable`), (5) **receives events** (the hit-test path at `rect.center` includes the
+target render object or a descendant; opt-out via `--no-checkReceivesEvents`). Any failure throws
+`DuskActionabilityException` (`lib/src/utils/dusk_exceptions.dart`); the handler catches it and emits
+`ServiceExtensionResponse.error(extensionError, exception.message)` where the message is a free-form string of
+the form `"Widget ref=$ref is not actionable: $reason"` with `$reason` ∈ {`"not enabled"`, `"zero rect"`,
+`"off-viewport (rect=..., viewport=...)"`, `"not stable (rect changed by Xpx)"`, `"obscured by other widget
+(top=...)"`, `"defunct (element no longer mounted)"`}. The agent re-snaps or re-finds, never silently retries.
 
-`scroll`, `select_option`, and `press_key` intentionally skip the gate (alpha-2): scroll operates on the parent
+`scroll`, `select_option`, and `press_key` intentionally skip the gate: scroll operates on the parent
 scrollable not the ref target, select_option dispatches through Material/Cupertino popup machinery that owns its
-own enabled check, and press_key targets the focused widget rather than a ref. Adding the gate to these handlers
-is a deferred-idea candidate; see CHANGELOG `### Known gaps`.
+own enabled check, and press_key targets the focused widget rather than a ref.
 
 ## Conventions
 
@@ -129,9 +142,10 @@ is a deferred-idea candidate; see CHANGELOG `### Known gaps`.
 - `install.yaml` manifest at the package root is required for `plugin:install fluttersdk_dusk`. Do not delete it;
   the V1 manifest carries the post-install bootstrap message + the `executables:` mapping anchor.
 - No new production dependencies beyond `fluttersdk_artisan`, `meta`, `image`, and `fluttersdk_wind_diagnostics_contracts`
-  (alpha-2 cycle addition; the neutral bridge to wind's runtime widget state). Example apps may add their own
-  demo deps (`magic` + `wind` for `example_magic`).
-- The actionability gate's three preconditions (enabled → zero-rect → off-viewport) are evaluated in that order
-  inside `actionability_gate.dart`. New preconditions added in V1.x append to the chain; do NOT reorder the
-  existing three (agents parse the `DuskActionabilityException` message reason substring for branching).
+  (alpha-2 cycle addition; the neutral bridge to wind's runtime widget state).
+- The actionability gate's five preconditions are evaluated in this exact order inside `actionability_gate.dart`:
+  (0) defunct → (1) enabled → (2) zero-rect → (3) off-viewport (with auto-`showOnScreen` when a `Scrollable`
+  ancestor exists) → (4) not stable (2-frame rect drift > 0.5px) → (5) receives-events (hit-test path contains
+  the target render object or a descendant). New preconditions added later append to the chain; do NOT reorder
+  the existing ones (agents parse the `DuskActionabilityException` message reason substring for branching).
 - `q<N>` and `e<N>` token spaces are disjoint. Never mint `e<N>` from `dusk_find` or `q<N>` from `dusk_snap`.

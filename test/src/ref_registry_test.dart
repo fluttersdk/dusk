@@ -9,14 +9,14 @@ void main() {
   setUp(RefRegistry.resetForTesting);
   tearDown(RefRegistry.resetForTesting);
 
-  Element _bareElement(WidgetTester tester) {
+  Element bareElement(WidgetTester tester) {
     return tester.element(find.byType(SizedBox));
   }
 
   group('register (no SemanticsNode)', () {
     testWidgets('mints a fresh e-ref each call', (tester) async {
       await tester.pumpWidget(const SizedBox.shrink());
-      final element = _bareElement(tester);
+      final element = bareElement(tester);
 
       final r1 = RefRegistry.registerForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
@@ -38,7 +38,7 @@ void main() {
 
     testWidgets('lookup returns the registered entry', (tester) async {
       await tester.pumpWidget(const SizedBox.shrink());
-      final element = _bareElement(tester);
+      final element = bareElement(tester);
 
       final r = RefRegistry.registerForTesting(
         rect: const Rect.fromLTWH(5, 5, 50, 50),
@@ -61,7 +61,7 @@ void main() {
   group('disposeGroup', () {
     testWidgets('removes entries whose groupId matches', (tester) async {
       await tester.pumpWidget(const SizedBox.shrink());
-      final element = _bareElement(tester);
+      final element = bareElement(tester);
 
       final keep = RefRegistry.registerForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
@@ -83,7 +83,7 @@ void main() {
 
     testWidgets('is a no-op when groupId matches nothing', (tester) async {
       await tester.pumpWidget(const SizedBox.shrink());
-      final element = _bareElement(tester);
+      final element = bareElement(tester);
 
       final r = RefRegistry.registerForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
@@ -99,7 +99,7 @@ void main() {
   group('refsForGroup', () {
     testWidgets('returns the refs scoped to a groupId', (tester) async {
       await tester.pumpWidget(const SizedBox.shrink());
-      final element = _bareElement(tester);
+      final element = bareElement(tester);
 
       RefRegistry.registerForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
@@ -150,7 +150,7 @@ void main() {
     testWidgets('clears every entry, query, and resets the counter',
         (tester) async {
       await tester.pumpWidget(const SizedBox.shrink());
-      final element = _bareElement(tester);
+      final element = bareElement(tester);
 
       final r = RefRegistry.registerForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
