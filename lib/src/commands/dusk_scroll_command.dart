@@ -30,6 +30,16 @@ class DuskScrollCommand extends ArtisanCommand {
       'dx',
       help: 'Horizontal delta in logical pixels (negative = left).',
     );
+    parser.addOption(
+      'direction',
+      allowed: ['up', 'down', 'left', 'right'],
+      help: 'Convenience scroll direction; paired with --pixels. '
+          'Translates to --dy / --dx under the hood.',
+    );
+    parser.addOption(
+      'pixels',
+      help: 'Magnitude of the --direction scroll in logical pixels.',
+    );
     parser.addFlag(
       'intoView',
       help: 'Scroll until the ref widget is visible.',
@@ -52,10 +62,34 @@ class DuskScrollCommand extends ArtisanCommand {
 
     final params = <String, dynamic>{'ref': ref};
 
-    final dy = ctx.input.option('dy') as String?;
+    // Resolve scroll delta: explicit --dy/--dx win; --direction/--pixels
+    // is the agent-friendly shorthand that maps onto a signed --dy or --dx
+    // depending on the chosen direction. Both forms may coexist; the
+    // direction/pixels pair only fires when --dy / --dx are absent.
+    String? dy = ctx.input.option('dy') as String?;
+    String? dx = ctx.input.option('dx') as String?;
+    if (dy == null && dx == null) {
+      final dir = ctx.input.option('direction') as String?;
+      final px = ctx.input.option('pixels') as String?;
+      if (dir != null && px != null) {
+        final magnitude = double.tryParse(px) ?? 0;
+        switch (dir) {
+          case 'down':
+            dy = magnitude.toString();
+            break;
+          case 'up':
+            dy = (-magnitude).toString();
+            break;
+          case 'right':
+            dx = magnitude.toString();
+            break;
+          case 'left':
+            dx = (-magnitude).toString();
+            break;
+        }
+      }
+    }
     if (dy != null) params['dy'] = dy;
-
-    final dx = ctx.input.option('dx') as String?;
     if (dx != null) params['dx'] = dx;
 
     final intoView = ctx.input.option('intoView');
