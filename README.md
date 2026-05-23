@@ -38,9 +38,9 @@
 
 ```bash
 flutter pub add fluttersdk_dusk
-dart run fluttersdk_dusk dusk:install                              # patches lib/main.dart (kDebugMode-gated, idempotent)
-dart run fluttersdk_artisan install \
-  && dart run fluttersdk_artisan plugin:install fluttersdk_dusk    # scaffolds ./bin/fsa + registers 32 dusk:* commands
+dart run fluttersdk_dusk dusk:install                          # patches lib/main.dart (kDebugMode-gated, idempotent)
+dart run fluttersdk_artisan install                            # scaffolds bin/dispatcher.dart + ./bin/fsa fastcli
+dart run fluttersdk_artisan plugin:install fluttersdk_dusk     # registers DuskArtisanProvider; 32 dusk:* commands surface
 ```
 
 After install, drive the app from a terminal with `dart run fluttersdk_dusk dusk:snap` (or `./bin/fsa dusk:snap` once fastcli is scaffolded), or wire MCP for Claude Code / Cursor / Windsurf via `dart run fluttersdk_artisan mcp:install`. Manual wiring, Magic-stack integration, and the full per-command flag reference live in the [Getting Started guide](https://fluttersdk.com/dusk/getting-started).
