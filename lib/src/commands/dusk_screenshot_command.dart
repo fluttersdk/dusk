@@ -36,7 +36,10 @@ class DuskScreenshotCommand extends ArtisanCommand {
     final quality =
         int.tryParse(ctx.input.option('quality') as String? ?? '70') ?? 70;
     if (output == null || output.isEmpty) {
-      ctx.output.error('Missing --output=<path>.');
+      ctx.output.error(
+        'Missing --output=<path>. Example: '
+        'dusk:screenshot --output=./shot.jpg --format=jpeg',
+      );
       return 1;
     }
     final result = await ctx.callExtension<Map<String, dynamic>>(
@@ -48,8 +51,11 @@ class DuskScreenshotCommand extends ArtisanCommand {
       ctx.output.error('Screenshot extension returned no base64: $result');
       return 1;
     }
-    await File(output).writeAsBytes(base64Decode(base64Str));
-    ctx.output.success('Wrote ${base64Str.length} base64 chars to $output');
+    final bytes = base64Decode(base64Str);
+    await File(output).writeAsBytes(bytes);
+    final kb = (bytes.length / 1024).toStringAsFixed(1);
+    ctx.output
+        .success('Wrote ${bytes.length} bytes ($kb KB, $format) to $output');
     return 0;
   }
 }
