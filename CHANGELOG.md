@@ -53,7 +53,11 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 - **`dusk:scroll --direction=<up|down|left|right> --pixels=<N>`** convenience flags that translate to signed `--dy` / `--dx` (Wave 5). Explicit `--dy` / `--dx` still win when both forms supplied.
 - **Surface deltas (live counts)**: **CLI commands**: 32 (`lib/src/commands/*_command.dart`); **MCP tool descriptors**: 31 (`dusk_artisan_provider.dart`); **VM Service extensions**: 28 `ext.dusk.*` + 3 `artisan:dusk:*` substrate-routed.
 
-### Fixed (pre-publish E2E pass, Wave 5)
+### Fixed (pre-publish macOS + web E2E pass, Wave 5)
+
+- **`dusk_resize_viewport` MCP arg parsing (GAP I)**: handler cast `ctx.input.option('width') as String?` which failed when MCP `tools/call` delivers `{"width":390}` as a native JSON int rather than a stringified arg. Resize command now defensively reads `int` / `double` / `bool` from either type via `_readInt` / `_readDouble` / `_readBool` helpers. CLI invocations still work unchanged (ArgParser-emitted strings).
+
+### Fixed
 
 - **`ext.dusk.focus` on TextField + EditableText (GAP C)**: handler walked UP from the snap-captured Semantics element looking for a `Focus` ancestor; for TextField the FocusNode sits BELOW the captured element (inside `EditableText` / `FocusableActionDetector`). Now falls back to a descendant walk that picks the first `EditableText.focusNode` or `Focus.focusNode` it finds. Reproducer: `dusk:focus --ref=<textbox-eN>` previously returned `no Focus ancestor`; now returns `focused: true`.
 - **`ext.dusk.scroll` with ref pointing at the Scrollable itself (GAP D)**: `Scrollable.maybeOf(context)` walks UP, so passing the ListView's own ref (e.g. from `dusk:find --key=my-list`) returned null. Handler now resolves in three stages: (1) target element IS a Scrollable, use its state; (2) Scrollable ancestor (legacy); (3) descendant Scrollable walk (when ref is a parent like a Scaffold wrapping a list).
@@ -78,6 +82,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 - **`dart-lang/webdev#2642` live regression**: "Hot restart broken when running DWDS without Chrome Debug Port". Integration smoke test (`test/integration/cdp_smoke_test.dart`) surfaces this if active. Mitigation lives in the user's pinned Flutter SDK; plan does not block on regression resolution.
 - **Flutter SDK >= 3.30.0** required for `--cdp-port` (per `flutter/flutter#170612`). Lower versions get an actionable error from both `artisan doctor` (advisory) and `artisan start --cdp-port` (fail-fast).
 - **GAP E (drag synthesis vs Flutter Draggable)**: `dusk:drag` returns success but Flutter's `DragTarget.onAcceptWithDetails` does not fire on synthesised events in some configurations (Pointer Down + 5x Move + Up sequence may not match Draggable's gesture recognizer expectations on certain platforms / dwell times). Verified via E2E showroom (2026-05-23). Tracked for a 0.0.2 follow-up; agents needing drag should fall back to a pair of `dusk:tap` + manual scroll for now.
+- **GAP G (advisory): receives-events check + q-refs on widgets with deep render subtrees**: when `dusk:find --key=<name-field>` resolves to a `TextField` (or any widget whose `findRenderObject()` returns a top-level RenderObject), the actionability gate's receives-events check sees a hit-test path topped by a deeper descendant (e.g. `RenderEditable`) and trips `obscured by other widget`. The `_isDescendantOf` walk does not catch this case consistently. Workarounds: (1) use the `e<N>` ref from a prior `dusk:snap` rather than a `q<N>` from `--key`; (2) pass `--no-checkReceivesEvents` on the action. Tracked for a 0.0.2 follow-up; deeper investigation needed in the gate's hit-test path traversal.
+- **GAP H (web): `dusk:screenshot` + `dusk:close_app` timeout on Chrome (DWDS)**: 10s timeout. macOS desktop works fine. The web path likely needs special handling for `RepaintBoundary.toImage()` under DWDS pixel pipeline + the platform-close semantics of `SystemNavigator.pop()` (which closes the tab, so the response can't return). Workaround for close: rely on `./bin/fsa stop` SIGTERM (works). Workaround for screenshot on web: use the browser DevTools snapshot. Tracked for a 0.0.2 follow-up.
 
 ### Backward compat
 
