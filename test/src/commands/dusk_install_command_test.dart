@@ -45,6 +45,11 @@ void main() {
 
     setUp(() {
       tempDir = Directory.systemTemp.createTempSync('dusk_install_test_');
+      // Tests target a temp-dir Flutter-project fixture; the Phase 2
+      // sub-process chain (`dart run fluttersdk_artisan install` +
+      // `plugin:install`) is out of scope here (covered separately by
+      // the E2E showroom smoke against `/tmp/dusk_e2e_v*`).
+      DuskInstallCommand.runChainedSetup = false;
     });
 
     tearDown(() {
@@ -53,6 +58,7 @@ void main() {
       // reset.
       DuskInstallCommand.mainDartPathResolver = () => 'lib/main.dart';
       DuskInstallCommand.pubspecPathResolver = () => 'pubspec.yaml';
+      DuskInstallCommand.runChainedSetup = true;
       tempDir.deleteSync(recursive: true);
     });
 
@@ -348,6 +354,264 @@ class MyApp extends StatelessWidget {
         final pubspecAfter =
             File('${tempDir.path}/pubspec.yaml').readAsStringSync();
         expect(pubspecAfter.contains('fluttersdk_artisan'), isFalse);
+      },
+    );
+
+    // ------------------------------------------------------------------
+    // Phase 2 chained artisan install + plugin:install (recorder fake)
+    // ------------------------------------------------------------------
+
+    test(
+      'chained Phase 2 invokes artisan install + plugin:install when '
+      'their idempotency markers are absent',
+      () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+        );
+        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+        DuskInstallCommand.pubspecPathResolver =
+            () => '${tempDir.path}/pubspec.yaml';
+        DuskInstallCommand.runChainedSetup = true;
+
+        // Recorder fake: capture every (executable, arguments) pair and
+        // return exit-0 stubs so the chain runs to completion without
+        // touching the real `dart` binary.
+        final calls = <List<String>>[];
+        DuskInstallCommand.processRunner = (
+          String executable,
+          List<String> arguments, {
+          String? workingDirectory,
+        }) async {
+          calls.add([executable, ...arguments]);
+          return ProcessResult(0, 0, '', '');
+        };
+
+        // Run from inside tempDir so the `File('bin/dispatcher.dart')` +
+        // `File('.artisan/installed/fluttersdk_dusk.json')` skip checks
+        // resolve against the test fixture.
+        final originalCwd = Directory.current;
+        Directory.current = tempDir;
+        try {
+          final code = await DuskInstallCommand().handle(
+            ArtisanContext.bare(
+              MapInput(const {}),
+              BufferedOutput(),
+            ),
+          );
+          expect(code, equals(0));
+        } finally {
+          Directory.current = originalCwd;
+          DuskInstallCommand.processRunner = Process.run;
+        }
+
+        // Both sub-process calls fired in order.
+        expect(calls, hasLength(2));
+        expect(
+            calls[0], equals(['dart', 'run', 'fluttersdk_artisan', 'install']));
+        expect(
+            calls[1],
+            equals([
+              'dart',
+              'run',
+              'fluttersdk_artisan',
+              'plugin:install',
+              'fluttersdk_dusk'
+            ]));
+      },
+    );
+
+    test(
+      'chained Phase 2 swallows sub-process non-zero exit + warns the user',
+      () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+        );
+        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+        DuskInstallCommand.pubspecPathResolver =
+            () => '${tempDir.path}/pubspec.yaml';
+        DuskInstallCommand.runChainedSetup = true;
+
+        // First call (artisan install) returns non-zero; the chain should
+        // print a warning and bail OUT of plugin:install (because the
+        // dispatcher scaffold failed, so there's nothing to register).
+        var callCount = 0;
+        DuskInstallCommand.processRunner = (
+          String executable,
+          List<String> arguments, {
+          String? workingDirectory,
+        }) async {
+          callCount += 1;
+          return ProcessResult(0, 1, '', 'scaffold failed');
+        };
+
+        final originalCwd = Directory.current;
+        Directory.current = tempDir;
+        int exit;
+        try {
+          exit = await DuskInstallCommand().handle(
+            ArtisanContext.bare(
+              MapInput(const {}),
+              BufferedOutput(),
+            ),
+          );
+        } finally {
+          Directory.current = originalCwd;
+          DuskInstallCommand.processRunner = Process.run;
+        }
+
+        // dusk:install MUST NOT propagate the sub-process exit code:
+        // the main.dart inject already landed, the chain is a best-effort
+        // optimization.
+        expect(exit, equals(0));
+        // Both calls fired (the second tried plugin:install despite the
+        // first warning; that's intentional — they're independent).
+        expect(callCount, equals(2));
+      },
+    );
+
+    test(
+      'chained Phase 2 swallows sub-process exception (Process.run throws)',
+      () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+        );
+        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+        DuskInstallCommand.pubspecPathResolver =
+            () => '${tempDir.path}/pubspec.yaml';
+        DuskInstallCommand.runChainedSetup = true;
+
+        DuskInstallCommand.processRunner = (
+          String executable,
+          List<String> arguments, {
+          String? workingDirectory,
+        }) async {
+          throw ProcessException(executable, arguments, 'fake fork failure');
+        };
+
+        final originalCwd = Directory.current;
+        Directory.current = tempDir;
+        int exit;
+        try {
+          exit = await DuskInstallCommand().handle(
+            ArtisanContext.bare(
+              MapInput(const {}),
+              BufferedOutput(),
+            ),
+          );
+        } finally {
+          Directory.current = originalCwd;
+          DuskInstallCommand.processRunner = Process.run;
+        }
+
+        // Same contract: main.dart wiring succeeded, sub-process chain
+        // failed silently, exit-0 still returned. Agent can read the
+        // warning lines from stdout and chain manually.
+        expect(exit, equals(0));
+      },
+    );
+
+    test(
+      'chained Phase 2 skips BOTH steps when both markers already exist',
+      () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+        );
+        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+        DuskInstallCommand.pubspecPathResolver =
+            () => '${tempDir.path}/pubspec.yaml';
+        DuskInstallCommand.runChainedSetup = true;
+
+        // Pre-seed BOTH markers so the chain has nothing to do.
+        Directory('${tempDir.path}/bin').createSync(recursive: true);
+        File('${tempDir.path}/bin/dispatcher.dart')
+            .writeAsStringSync('void main(){}');
+        Directory('${tempDir.path}/.artisan/installed')
+            .createSync(recursive: true);
+        File('${tempDir.path}/.artisan/installed/fluttersdk_dusk.json')
+            .writeAsStringSync('{"plugin":"fluttersdk_dusk"}');
+
+        var calls = 0;
+        DuskInstallCommand.processRunner = (
+          String executable,
+          List<String> arguments, {
+          String? workingDirectory,
+        }) async {
+          calls += 1;
+          return ProcessResult(0, 0, '', '');
+        };
+
+        final originalCwd = Directory.current;
+        Directory.current = tempDir;
+        try {
+          await DuskInstallCommand().handle(
+            ArtisanContext.bare(
+              MapInput(const {}),
+              BufferedOutput(),
+            ),
+          );
+        } finally {
+          Directory.current = originalCwd;
+          DuskInstallCommand.processRunner = Process.run;
+        }
+
+        // Idempotent re-run: zero sub-process calls when both markers exist.
+        expect(calls, equals(0));
+      },
+    );
+
+    test(
+      'chained Phase 2 skips artisan install when bin/dispatcher.dart '
+      'already exists (idempotent re-run)',
+      () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+        );
+        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+        DuskInstallCommand.pubspecPathResolver =
+            () => '${tempDir.path}/pubspec.yaml';
+        DuskInstallCommand.runChainedSetup = true;
+
+        // Pre-seed bin/dispatcher.dart (artisan install marker) so the
+        // chain skips its scaffold. Leave the plugin marker missing so
+        // plugin:install still fires.
+        Directory('${tempDir.path}/bin').createSync(recursive: true);
+        File('${tempDir.path}/bin/dispatcher.dart')
+            .writeAsStringSync('void main() {}');
+
+        final calls = <List<String>>[];
+        DuskInstallCommand.processRunner = (
+          String executable,
+          List<String> arguments, {
+          String? workingDirectory,
+        }) async {
+          calls.add([executable, ...arguments]);
+          return ProcessResult(0, 0, '', '');
+        };
+
+        final originalCwd = Directory.current;
+        Directory.current = tempDir;
+        try {
+          await DuskInstallCommand().handle(
+            ArtisanContext.bare(
+              MapInput(const {}),
+              BufferedOutput(),
+            ),
+          );
+        } finally {
+          Directory.current = originalCwd;
+          DuskInstallCommand.processRunner = Process.run;
+        }
+
+        // Only plugin:install fired; artisan install was skipped by the
+        // dispatcher.dart pre-existence guard.
+        expect(calls, hasLength(1));
+        expect(calls[0].sublist(0, 4),
+            equals(['dart', 'run', 'fluttersdk_artisan', 'plugin:install']));
       },
     );
   });

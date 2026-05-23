@@ -50,6 +50,26 @@ class DuskInstallCommand extends ArtisanCommand {
 
   static String _defaultPubspecPath() => 'pubspec.yaml';
 
+  /// Hook for tests to disable the chained `artisan install` +
+  /// `plugin:install` sub-process calls (Phase 2 of [handle]). The
+  /// chained calls require a real Flutter project layout + working
+  /// `dart` on PATH; widget tests pointed at a temp-dir fixture trip
+  /// over both, so they flip this off.
+  ///
+  /// Production callers always leave this `true` so a single
+  /// `dart run fluttersdk_dusk dusk:install` brings the consumer all the
+  /// way to a working `./bin/fsa <cmd>` + registered MCP surface without
+  /// further manual scaffolding.
+  static bool runChainedSetup = true;
+
+  /// Hook for tests to override the sub-process runner. Defaults to
+  /// `Process.run`. Tests substitute a recording fake.
+  static Future<ProcessResult> Function(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+  }) processRunner = Process.run;
+
   @override
   Future<int> handle(ArtisanContext ctx) async {
     final mainDartPath = mainDartPathResolver();
@@ -61,12 +81,96 @@ class DuskInstallCommand extends ArtisanCommand {
       );
       return 1;
     }
+
+    // Phase 1: patch lib/main.dart (always; this is the core inject).
     _injectRuntimeWiring(ctx, mainDartPath);
+
+    // Phase 2: scaffold fastcli + register dusk as an artisan plugin.
+    //          Best-effort: failures here are logged but do NOT fail
+    //          dusk:install, because `dart run fluttersdk_dusk <cmd>`
+    //          (the package's own Flutter-free wrapper) still works
+    //          without fastcli / plugin registration. The chain just
+    //          unlocks the faster `./bin/fsa <cmd>` path.
+    if (runChainedSetup) {
+      await _runChainedArtisanSetup(ctx);
+    }
+
     ctx.output.success(
       'dusk:install complete. Run `dart run fluttersdk_dusk <cmd>` to '
-      'invoke dusk commands.',
+      'invoke dusk commands (or `./bin/fsa <cmd>` once fastcli is ready).',
     );
     return 0;
+  }
+
+  /// Chains `dart run fluttersdk_artisan install` (scaffold fastcli) +
+  /// `dart run fluttersdk_artisan plugin:install fluttersdk_dusk`
+  /// (register provider) when their outputs are missing.
+  ///
+  /// Each step is idempotent on the artisan side; we still guard with a
+  /// file-existence check to keep dusk:install fast on re-runs (skip the
+  /// ~3-second `dart run` startup when the artifact is already there).
+  ///
+  /// All failures swallowed with a single user-visible warn line; the
+  /// consumer can run the artisan commands manually if interested.
+  static Future<void> _runChainedArtisanSetup(ArtisanContext ctx) async {
+    // 2a. Scaffold bin/dispatcher.dart + bin/fsa via artisan install.
+    final dispatcherDart = File('bin/dispatcher.dart');
+    if (!dispatcherDart.existsSync()) {
+      ctx.output.info('Scaffolding fastcli (artisan install)...');
+      try {
+        final result = await processRunner(
+          'dart',
+          const ['run', 'fluttersdk_artisan', 'install'],
+        );
+        if (result.exitCode != 0) {
+          ctx.output.warning(
+            'artisan install exited ${result.exitCode}; rerun manually '
+            'with `dart run fluttersdk_artisan install`. Stderr: '
+            '${result.stderr.toString().trim().split('\n').first}',
+          );
+        }
+      } catch (e) {
+        ctx.output.warning(
+          'artisan install chain skipped ($e). Run `dart run '
+          'fluttersdk_artisan install` manually when ready.',
+        );
+        return;
+      }
+    }
+
+    // 2b. Register dusk as an artisan plugin so its 32 commands surface
+    //     through ./bin/fsa <cmd> + the MCP server. Skip when the
+    //     `.artisan/installed/fluttersdk_dusk.json` marker is already
+    //     present (artisan's own idempotency record).
+    final pluginInstalled = File('.artisan/installed/fluttersdk_dusk.json');
+    if (!pluginInstalled.existsSync()) {
+      ctx.output.info('Registering dusk as an artisan plugin...');
+      try {
+        final result = await processRunner(
+          'dart',
+          const [
+            'run',
+            'fluttersdk_artisan',
+            'plugin:install',
+            'fluttersdk_dusk'
+          ],
+        );
+        if (result.exitCode != 0) {
+          ctx.output.warning(
+            'artisan plugin:install exited ${result.exitCode}; rerun '
+            'manually with `dart run fluttersdk_artisan plugin:install '
+            'fluttersdk_dusk`. Stderr: '
+            '${result.stderr.toString().trim().split('\n').first}',
+          );
+        }
+      } catch (e) {
+        ctx.output.warning(
+          'artisan plugin:install chain skipped ($e). Run `dart run '
+          'fluttersdk_artisan plugin:install fluttersdk_dusk` manually '
+          'when ready.',
+        );
+      }
+    }
   }
 
   /// Idempotent inject of dusk runtime wiring into `lib/main.dart`.
