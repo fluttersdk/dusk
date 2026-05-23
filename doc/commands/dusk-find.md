@@ -22,13 +22,14 @@ Mint a re-resolvable `q<N>` handle backed by one or more predicates (text, seman
 
 ```
 dart run fluttersdk_dusk dusk:find [--text=<value>]
+                                    [--contains=<substring>]
                                     [--semanticsLabel=<value>]
                                     [--key=<value>]
 ```
 
 `dusk:find` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI, calls `ext.dusk.find` with the supplied predicates, and prints the minted handle envelope as pretty-printed JSON.
 
-At least one of the three options must be non-empty; an empty params map returns exit code `1` with a CLI-side error before the VM Service call.
+At least one of the four options must be non-empty; an empty params map returns exit code `1` with a CLI-side error before the VM Service call.
 
 ---
 
@@ -37,13 +38,14 @@ At least one of the three options must be non-empty; an empty params map returns
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--text` | string | unset | Match the widget's visible text label (the Semantics `value` or rendered `Text` content). Most common predicate; mirrors Playwright's `getByText`. |
-| `--semanticsLabel` | string | unset | Match the widget's accessibility label (the explicit `Semantics(label: ...)` value set by the widget tree). Use when the visible text and the a11y label diverge. |
+| `--text` | string | unset | Exact match against the widget's visible text label (the Semantics `value` or rendered `Text` content). Most common predicate; mirrors Playwright's `getByText` with exact-match semantics. |
+| `--contains` | string | unset | Substring match against the visible text label or Semantics label (case-sensitive). Use when the label is dynamic (counters, timestamps, plurals) and exact `--text` is too brittle. |
+| `--semanticsLabel` | string | unset | Exact match against the widget's accessibility label (the explicit `Semantics(label: ...)` value set by the widget tree). Use when the visible text and the a11y label diverge. |
 | `--key` | string | unset | Match the widget's `ValueKey` identifier (the `Key('signin-button')` form). Most precise; survives label and copy changes. |
 
-The three predicates compose AND: a `dusk:find --text=Sign --key=signin-button` call returns the widget that matches both. Use a single predicate when the agent only needs one axis.
+The predicates compose AND: a `dusk:find --text=Sign --key=signin-button` call returns the widget that matches both. Use a single predicate when the agent only needs one axis.
 
-The CLI guards an empty params map (`Provide at least one of --text / --semanticsLabel / --key.`) so the VM Service handler never sees a zero-predicate call.
+The CLI guards an empty params map (`Provide at least one of --text / --contains / --semanticsLabel / --key.`) so the VM Service handler never sees a zero-predicate call.
 
 ---
 
@@ -134,7 +136,15 @@ dart run fluttersdk_dusk dusk:find --key="signin-submit"
 
 Survives copy changes and a11y-label changes. Pair with a widget-side `Key('signin-submit')` declaration.
 
-### 4. Compose two predicates to disambiguate
+### 4. Mint a handle by substring (dynamic label)
+
+```bash
+dart run fluttersdk_dusk dusk:find --contains="pushed the button"
+```
+
+Useful when the visible label is dynamic, e.g. `"You have pushed the button 5 times:"` (counter changes per tap). `--text` would only match the exact string at the moment of capture; `--contains` survives the counter advancing.
+
+### 5. Compose two predicates to disambiguate
 
 ```bash
 dart run fluttersdk_dusk dusk:find --text="Save" --key="monitor-form-save"

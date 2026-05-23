@@ -360,10 +360,11 @@ predicates still match.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `text` | string | no | Exact match against accessibility label first, then `Text.data`. |
+| `contains` | string | no | Substring match against accessibility label first, then `Text.data` (case-sensitive). Use when the visible label is dynamic (counters, timestamps, plurals). |
 | `semanticsLabel` | string | no | Exact match against `SemanticsNode.label` only (no Text fallback). |
 | `key` | string | no | Match against a widget `Key`. For `ValueKey`, pass the inner value's `toString()`. |
 
-At least one of the three must be supplied. When multiple are passed they form an
+At least one of the four must be supplied. When multiple are passed they form an
 intersection.
 
 ### Returns

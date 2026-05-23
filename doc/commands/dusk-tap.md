@@ -73,7 +73,7 @@ The two `check*` flags default to `true`. Disable them with the inverted form (`
 
 **Error envelope (actionability gate failure):**
 
-The message format is `Widget ref=<ref> is not actionable: <reason>` where `<reason>` is one of `not enabled`, `zero rect`, or `off-viewport (rect=..., viewport=...)`. The agent branches by substring-matching on `<reason>`.
+The message format is `Widget ref=<ref> is not actionable: <reason>` where `<reason>` is one of `defunct (...)`, `not enabled`, `zero rect`, `off-viewport (rect=..., viewport=...)`, `not stable (rect changed by Xpx)`, or `obscured by other widget (top=...)`. The agent branches by substring-matching on `<reason>`; the full vocabulary is documented under [Reference: Actionability gate](../reference/actionability-gate.md#failure-reason-substrings).
 
 ---
 
