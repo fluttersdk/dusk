@@ -232,6 +232,48 @@ void main() {
       );
 
       test(
+        '(d) aiTestPressKeyHandler accepts case-insensitive --key=TAB',
+        () async {
+          final response = await aiTestPressKeyHandler(
+            'ext.dusk.press_key',
+            {'key': 'TAB'},
+          );
+          final resultStr = response.result;
+          expect(resultStr, isNotNull,
+              reason: 'TAB (uppercase) should fold to Tab via _lookupKey');
+          final decoded = jsonDecode(resultStr!);
+          expect(decoded['ok'], equals(true));
+        },
+      );
+
+      test(
+        '(d) aiTestPressKeyHandler accepts case-insensitive --key=enter',
+        () async {
+          final response = await aiTestPressKeyHandler(
+            'ext.dusk.press_key',
+            {'key': 'enter'},
+          );
+          final resultStr = response.result;
+          expect(resultStr, isNotNull,
+              reason: 'enter (lowercase) should fold to Enter via _lookupKey');
+          final decoded = jsonDecode(resultStr!);
+          expect(decoded['ok'], equals(true));
+        },
+      );
+
+      test(
+        '(d) aiTestPressKeyHandler rejects unknown key (no case-folding match)',
+        () async {
+          final response = await aiTestPressKeyHandler(
+            'ext.dusk.press_key',
+            {'key': 'NoSuchKey'},
+          );
+          expect(response.result, isNull);
+          expect(response.errorDetail ?? '', contains('unknown key'));
+        },
+      );
+
+      test(
         '(d) aiTestPressKeyHandler success response echoes the key',
         () async {
           final response = await aiTestPressKeyHandler(

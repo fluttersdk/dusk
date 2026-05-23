@@ -93,6 +93,96 @@ void main() {
     );
 
     testWidgets(
+      '(b) contains predicate matches Text.data via substring',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: Text('You have pushed the button 5 times'),
+              ),
+            ),
+          ),
+        );
+
+        final response = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'contains': 'pushed the button'},
+        );
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['matched'], isTrue);
+        expect(decoded['ref'], startsWith('q'));
+      },
+    );
+
+    testWidgets(
+      '(b) contains predicate matches SemanticsNode.label via substring',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: Semantics(
+                  label: 'Sign in to your account now',
+                  button: true,
+                  container: true,
+                  child: const SizedBox(width: 100, height: 100),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final response = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'contains': 'Sign in'},
+        );
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['matched'], isTrue);
+        expect(decoded['ref'], startsWith('q'));
+      },
+    );
+
+    testWidgets(
+      '(b) contains predicate returns matched:false when no substring hits',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('Cancel'))),
+          ),
+        );
+
+        final response = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'contains': 'pushed the button'},
+        );
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['matched'], isFalse);
+        expect(decoded['ref'], isNull);
+      },
+    );
+
+    testWidgets(
       '(b) no match returns ref:null + matched:false (no q-token minted)',
       (WidgetTester tester) async {
         await tester.pumpWidget(

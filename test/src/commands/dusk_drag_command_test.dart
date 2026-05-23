@@ -87,5 +87,33 @@ void main() {
 
       expect(await DuskDragCommand().handle(ctx), equals(0));
     });
+
+    test('handle accepts --fromRef/--toRef aliases', () async {
+      final ctx = _StubContext(
+        input: MapInput(const {'fromRef': 'e4', 'toRef': 'e7'}),
+        output: BufferedOutput(),
+      );
+
+      final code = await DuskDragCommand().handle(ctx);
+
+      expect(code, equals(0));
+      expect(ctx.lastMethod, equals('ext.dusk.drag'));
+      expect(ctx.lastParams, containsPair('startRef', 'e4'));
+      expect(ctx.lastParams, containsPair('endRef', 'e7'));
+    });
+
+    test('handle prefers --fromRef over legacy --startRef when both supplied',
+        () async {
+      final ctx = _StubContext(
+        input:
+            MapInput(const {'fromRef': 'e9', 'startRef': 'e2', 'toRef': 'e10'}),
+        output: BufferedOutput(),
+      );
+
+      await DuskDragCommand().handle(ctx);
+
+      expect(ctx.lastParams, containsPair('startRef', 'e9'));
+      expect(ctx.lastParams, containsPair('endRef', 'e10'));
+    });
   });
 }
