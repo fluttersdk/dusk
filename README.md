@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/fluttersdk/magic/master/.github/magic-logo.svg" width="120" alt="Dusk Logo" />
+  <img src="https://raw.githubusercontent.com/fluttersdk/dusk/develop/.github/dusk-logo.svg" width="120" alt="Dusk Logo" />
 </p>
 
 <h1 align="center">Dusk</h1>
