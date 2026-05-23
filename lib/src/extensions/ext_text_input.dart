@@ -44,6 +44,20 @@ Future<void> _appendSnapshotIfRequested(
 // Logical key lookup table
 // ---------------------------------------------------------------------------
 
+/// Case-insensitive lookup over [_kKeyMap]. Agents may call
+/// `dusk:press_key --key=TAB` or `--key=enter`; the canonical map keys use
+/// PascalCase, so fall back to a lowercase comparison when the direct hit
+/// misses. Returns null when no entry matches under either case.
+LogicalKeyboardKey? _lookupKey(String input) {
+  final direct = _kKeyMap[input];
+  if (direct != null) return direct;
+  final lowered = input.toLowerCase();
+  for (final entry in _kKeyMap.entries) {
+    if (entry.key.toLowerCase() == lowered) return entry.value;
+  }
+  return null;
+}
+
 /// Maps agent-facing key name strings to Flutter [LogicalKeyboardKey] values.
 ///
 /// The lookup table covers the subset of keys that LLM agents commonly target
@@ -241,7 +255,7 @@ Future<void> pressKey({
   required String key,
   List<String> modifiers = const <String>[],
 }) async {
-  final LogicalKeyboardKey? logicalKey = _kKeyMap[key];
+  final LogicalKeyboardKey? logicalKey = _lookupKey(key);
   if (logicalKey == null) {
     throw ArgumentError(
       '[fluttersdk_dusk] ext.dusk.press_key: unknown key "$key". '
