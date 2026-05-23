@@ -40,7 +40,7 @@ Choose the entry point that matches your workflow. The same `ext.dusk.*` extensi
 
 | | Best for | Install |
 |---|---|---|
-| **Dusk in your app** | Hot-reload integration tests + agent-driven walkthroughs | `flutter pub add fluttersdk_dusk` then `dart run fluttersdk_dusk dusk:install` (the CLI patches `lib/main.dart` automatically, gated by `kDebugMode`; idempotent). |
+| **Dusk in your app** | Hot-reload integration tests + agent-driven walkthroughs | `flutter pub add fluttersdk_dusk` then `dart run fluttersdk_dusk dusk:install` (patches `lib/main.dart` automatically, kDebugMode-gated, idempotent). Then `dart run fluttersdk_artisan install && dart run fluttersdk_artisan plugin:install fluttersdk_dusk` to scaffold fastcli + register the 32 dusk:\* commands. |
 | **Dusk CLI** | Drive a running app from the terminal (CI + local QA) | `dart run fluttersdk_dusk dusk:snap` |
 | **Dusk MCP** | Claude Code, Cursor, Windsurf, Codex, Goose, VS Code Copilot, Warp, Claude Desktop | `dart run fluttersdk_artisan mcp:install` (writes `.mcp.json`) |
 | **Dusk via IDE** | One-click MCP install in VS Code, Cursor, Goose | See [§ MCP install: 8 clients](#mcp-install-8-clients) for badges |

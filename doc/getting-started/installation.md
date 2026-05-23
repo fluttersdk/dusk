@@ -108,11 +108,22 @@ if (kDebugMode) {
 See [Magic integration](../plugins/magic-integration) and
 [Wind integration](../plugins/wind-integration) for the full enricher field reference.
 
+<a name="register-with-artisan"></a>
+## Register with artisan
+
+Dusk surfaces its 32 CLI commands and 31 MCP tools through `fluttersdk_artisan`'s dispatcher. After `dusk:install` patches `lib/main.dart`, run two more commands once to (a) scaffold the local artisan CLI (`./bin/fsa`, fastcli) and (b) register dusk as an artisan plugin so the commands surface:
+
+```bash
+dart run fluttersdk_artisan install                    # writes bin/dispatcher.dart + bin/fsa (~110ms warm AOT)
+dart run fluttersdk_artisan plugin:install fluttersdk_dusk   # registers DuskArtisanProvider; auto-purges the AOT cache
+```
+
+`plugin:install` is idempotent. Re-run after upgrading `fluttersdk_dusk` to refresh the codegen barrels. After this step, `./bin/fsa list` shows all `dusk:*` commands and `./bin/fsa mcp:serve` exposes the 31 dusk_* tools.
+
 <a name="wire-mcp-tools"></a>
 ## Wire MCP tools
 
-To expose dusk's 31 MCP tools to your AI client, run the artisan MCP installer
-from your project root:
+With artisan registered, expose dusk's 31 MCP tools to your AI client by writing the `.mcp.json` entry:
 
 ```bash
 dart run fluttersdk_artisan mcp:install
