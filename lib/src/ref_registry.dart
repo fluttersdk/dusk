@@ -85,6 +85,7 @@ class DuskQuery {
   /// at least one non-null field.
   const DuskQuery({
     this.text,
+    this.containsText,
     this.semanticsLabel,
     this.keyValue,
   });
@@ -93,6 +94,12 @@ class DuskQuery {
   /// labelled widgets) or against a [Text.data] descendant when no semantic
   /// label is set.
   final String? text;
+
+  /// Substring match against [SemanticsNode.label] or [Text.data]: matches
+  /// the first node whose label / data CONTAINS the supplied substring
+  /// (case-sensitive). Use when the visible label is dynamic and `text`'s
+  /// exact-match is too brittle, e.g. counters, timestamps, plurals.
+  final String? containsText;
 
   /// Exact match against [SemanticsNode.label]. Distinct from [text] so
   /// agents can opt into label-only matching without [Text.data] fallback.

@@ -22,7 +22,12 @@ class DuskFindCommand extends ArtisanCommand {
   void configure(ArgParser parser) {
     parser.addOption(
       'text',
-      help: 'Match the widget\'s visible text label.',
+      help: 'Match the widget\'s visible text label (exact match).',
+    );
+    parser.addOption(
+      'contains',
+      help: 'Match the widget\'s visible text by substring (case-sensitive). '
+          'Use instead of --text when the visible label is dynamic.',
     );
     parser.addOption(
       'semanticsLabel',
@@ -38,9 +43,11 @@ class DuskFindCommand extends ArtisanCommand {
   Future<int> handle(ArtisanContext ctx) async {
     final params = <String, String>{};
     final text = ctx.input.option('text') as String?;
+    final contains = ctx.input.option('contains') as String?;
     final semanticsLabel = ctx.input.option('semanticsLabel') as String?;
     final keyValue = ctx.input.option('key') as String?;
     if (text != null && text.isNotEmpty) params['text'] = text;
+    if (contains != null && contains.isNotEmpty) params['contains'] = contains;
     if (semanticsLabel != null && semanticsLabel.isNotEmpty) {
       params['semanticsLabel'] = semanticsLabel;
     }
@@ -48,7 +55,7 @@ class DuskFindCommand extends ArtisanCommand {
 
     if (params.isEmpty) {
       ctx.output.error(
-        'Provide at least one of --text / --semanticsLabel / --key.',
+        'Provide at least one of --text / --contains / --semanticsLabel / --key.',
       );
       return 1;
     }

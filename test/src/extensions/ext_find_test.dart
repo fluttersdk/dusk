@@ -40,7 +40,7 @@ void main() {
         expect(response.result, isNull);
         expect(
           parseMessageFromErrorDetail(response.errorDetail ?? ''),
-          contains('at least one of "text", "semanticsLabel", or "key"'),
+          contains('at least one of "text", "contains", "semanticsLabel", or "key"'),
         );
       },
     );

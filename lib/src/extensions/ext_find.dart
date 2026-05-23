@@ -47,24 +47,29 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
 ) async {
   try {
     final String? text = _nonEmpty(params['text']);
+    final String? containsText = _nonEmpty(params['contains']);
     final String? semanticsLabel = _nonEmpty(params['semanticsLabel']);
     final String? keyValue = _nonEmpty(params['key']);
 
     // 1. At least one predicate is required. Surface as extensionError so
     //    the MCP tool can hand the message back verbatim to the agent.
-    if (text == null && semanticsLabel == null && keyValue == null) {
+    if (text == null &&
+        containsText == null &&
+        semanticsLabel == null &&
+        keyValue == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.find: at least one of "text", "semanticsLabel", or '
-          '"key" is required',
-          DuskErrorEnvelope.missingParam('text|semanticsLabel|key'),
+          'ext.dusk.find: at least one of "text", "contains", '
+          '"semanticsLabel", or "key" is required',
+          DuskErrorEnvelope.missingParam('text|contains|semanticsLabel|key'),
         ),
       );
     }
 
     final DuskQuery query = DuskQuery(
       text: text,
+      containsText: containsText,
       semanticsLabel: semanticsLabel,
       keyValue: keyValue,
     );
@@ -160,6 +165,20 @@ RefEntry? resolveQuery(DuskQuery query) {
     return _entryFromElement(element);
   }
 
+  // 4. containsText match: substring search across Semantics labels then
+  //    Text widget data. Same precedence as [query.text] so dynamic labels
+  //    still prefer the semantics-level hit.
+  if (query.containsText != null) {
+    final SemanticsNode? node =
+        _findSemanticsNodeByLabelContains(query.containsText!);
+    if (node != null) {
+      return _entryFromSemanticsNode(node);
+    }
+    final Element? element = _findElementByTextContains(query.containsText!);
+    if (element == null) return null;
+    return _entryFromElement(element);
+  }
+
   return null;
 }
 
@@ -216,6 +235,57 @@ Element? _findElementByTextData(String needle) {
   }
 
   WidgetsBinding.instance.rootElement?.visitChildElements(visit);
+  return found;
+}
+
+/// Walks the Element tree and returns the first element whose widget is a
+/// [Text] whose `data` CONTAINS [needle] as a substring.
+Element? _findElementByTextContains(String needle) {
+  Element? found;
+
+  void visit(Element element) {
+    if (found != null) return;
+    if (element.widget is Text) {
+      final String? data = (element.widget as Text).data;
+      if (data != null && data.contains(needle)) {
+        found = element;
+        return;
+      }
+    }
+    element.visitChildElements(visit);
+  }
+
+  WidgetsBinding.instance.rootElement?.visitChildElements(visit);
+  return found;
+}
+
+/// Substring variant of [_findSemanticsNodeByLabel] — matches the first
+/// node whose [SemanticsNode.label] contains [needle] as a substring.
+SemanticsNode? _findSemanticsNodeByLabelContains(String needle) {
+  SemanticsNode? found;
+
+  void visit(SemanticsNode node) {
+    if (found != null) return;
+    if (node.label.contains(needle)) {
+      found = node;
+      return;
+    }
+    node.visitChildren((SemanticsNode child) {
+      visit(child);
+      return found == null;
+    });
+  }
+
+  void visitOwner(PipelineOwner owner) {
+    if (found != null) return;
+    final SemanticsNode? root = owner.semanticsOwner?.rootSemanticsNode;
+    if (root != null) visit(root);
+    owner.visitChildren((PipelineOwner child) {
+      if (found == null) visitOwner(child);
+    });
+  }
+
+  visitOwner(RendererBinding.instance.rootPipelineOwner);
   return found;
 }
 
