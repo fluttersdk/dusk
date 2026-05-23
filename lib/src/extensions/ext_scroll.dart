@@ -114,10 +114,27 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
         finalOffset = scrollable?.position.pixels ?? 0.0;
       }
     } else {
-      // Scroll by delta — animate to new offset in the target or root scrollable.
-      final ScrollableState? scrollable = targetContext != null
-          ? Scrollable.maybeOf(targetContext)
-          : _findRootScrollable();
+      // Scroll by delta — resolve the Scrollable in 3 stages so passing the
+      // Scrollable's own ref (e.g. find --key=my-list returning the ListView
+      // itself) works alongside the original "ref points at a descendant"
+      // contract:
+      // 1. Target element IS a Scrollable — use its state directly.
+      // 2. Target has a Scrollable ancestor — Scrollable.maybeOf (legacy).
+      // 3. Target wraps a Scrollable descendant — walk down to first one.
+      ScrollableState? scrollable;
+      if (targetContext != null) {
+        final Element targetElement = targetContext as Element;
+        if (targetElement.widget is Scrollable) {
+          final State state = (targetElement as StatefulElement).state;
+          if (state is ScrollableState && state.position.hasPixels) {
+            scrollable = state;
+          }
+        }
+        scrollable ??= Scrollable.maybeOf(targetContext);
+        scrollable ??= _findScrollableDescendant(targetElement);
+      } else {
+        scrollable = _findRootScrollable();
+      }
 
       if (scrollable == null) {
         return developer.ServiceExtensionResponse.error(
@@ -228,6 +245,29 @@ RefEntry? _resolveQueryToEntry(String qRef) {
   final DuskQuery? query = RefRegistry.lookupQuery(qRef);
   if (query == null) return null;
   return resolveQuery(query);
+}
+
+/// Walks descendants of [element] depth-first and returns the first
+/// [ScrollableState] whose position has attached pixels. Used as a fallback
+/// when the caller passes a ref to a parent widget (e.g. a Scaffold or
+/// Container wrapping a ListView) so the scroll resolves to the contained
+/// Scrollable instead of erroring out.
+ScrollableState? _findScrollableDescendant(Element element) {
+  ScrollableState? found;
+  void visitor(Element child) {
+    if (found != null) return;
+    if (child.widget is Scrollable) {
+      final State state = (child as StatefulElement).state;
+      if (state is ScrollableState && state.position.hasPixels) {
+        found = state;
+        return;
+      }
+    }
+    child.visitChildElements(visitor);
+  }
+
+  element.visitChildElements(visitor);
+  return found;
 }
 
 /// Finds the first [ScrollableState] reachable from the widget tree root.
