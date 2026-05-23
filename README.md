@@ -34,18 +34,16 @@
 > [!NOTE]
 > Requires Dart SDK >= 3.4.0 and Flutter >= 3.22.0. dusk is debug-only: production builds tree-shake the entire driver across web, desktop, and mobile.
 
-## Pick your path
+## Installation
 
-Choose the entry point that matches your workflow. The same `ext.dusk.*` extensions back every column.
+```bash
+flutter pub add fluttersdk_dusk
+dart run fluttersdk_dusk dusk:install                              # patches lib/main.dart (kDebugMode-gated, idempotent)
+dart run fluttersdk_artisan install \
+  && dart run fluttersdk_artisan plugin:install fluttersdk_dusk    # scaffolds ./bin/fsa + registers 32 dusk:* commands
+```
 
-| | Best for | Install |
-|---|---|---|
-| **Dusk in your app** | Hot-reload integration tests + agent-driven walkthroughs | `flutter pub add fluttersdk_dusk` then `dart run fluttersdk_dusk dusk:install` (patches `lib/main.dart` automatically, kDebugMode-gated, idempotent). Then `dart run fluttersdk_artisan install && dart run fluttersdk_artisan plugin:install fluttersdk_dusk` to scaffold fastcli + register the 32 dusk:\* commands. |
-| **Dusk CLI** | Drive a running app from the terminal (CI + local QA) | `dart run fluttersdk_dusk dusk:snap` |
-| **Dusk MCP** | Claude Code, Cursor, Windsurf, Codex, Goose, VS Code Copilot, Warp, Claude Desktop | `dart run fluttersdk_artisan mcp:install` (writes `.mcp.json`) |
-| **Dusk via IDE** | One-click MCP install in VS Code, Cursor, Goose | See [§ MCP install: 8 clients](#mcp-install-8-clients) for badges |
-
-Manual wiring, Magic-stack integration, and the full per-command flag reference live in the [Getting Started guide](https://fluttersdk.com/dusk/getting-started).
+After install, drive the app from a terminal with `dart run fluttersdk_dusk dusk:snap` (or `./bin/fsa dusk:snap` once fastcli is scaffolded), or wire MCP for Claude Code / Cursor / Windsurf via `dart run fluttersdk_artisan mcp:install`. Manual wiring, Magic-stack integration, and the full per-command flag reference live in the [Getting Started guide](https://fluttersdk.com/dusk/getting-started).
 
 > [!TIP]
 > **fastcli** is the AOT-compiled artisan dispatcher (~110ms warm) shipped as `./bin/fsa`. It is auto-scaffolded the first time you run `dart run fluttersdk_artisan install`. After that, every `./bin/fsa <cmd>` is the fast path. Skipping fastcli is fine: every command also runs as `dart run fluttersdk_dusk <cmd>` with the same surface, ~3s slower per call.
