@@ -66,12 +66,20 @@ Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
         ),
       );
     }
-    final FocusNode? node = Focus.maybeOf(entry.element);
+    // Resolve the FocusNode in 3 stages so TextField (whose internal Focus
+    // lives BELOW the captured Semantics element) is reachable:
+    // 1. Ancestor Focus — Focus.maybeOf walks UP from entry.element.
+    // 2. Descendant EditableText — TextField wraps an EditableText whose
+    //    focusNode is the actual editing-focus target; common case.
+    // 3. Descendant Focus widget — generic fall-back for non-text focus
+    //    targets whose Focus sits below the snap-captured element.
+    FocusNode? node = Focus.maybeOf(entry.element);
+    node ??= _findDescendantFocusNode(entry.element);
     if (node == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.focus: no Focus ancestor for ref "$ref"',
+          'ext.dusk.focus: no Focus ancestor or descendant for ref "$ref"',
           DuskErrorEnvelope.unexpected(),
         ),
       );
@@ -128,6 +136,32 @@ Future<developer.ServiceExtensionResponse> aiTestBlurHandler(
       wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
+}
+
+/// Walks descendants of [element] looking for a focus target. Returns the
+/// first `EditableText.focusNode` (TextField / text-input case) or the first
+/// `Focus.focusNode` encountered, whichever comes first in depth-first order.
+/// Returns null when no candidate is found.
+FocusNode? _findDescendantFocusNode(Element element) {
+  FocusNode? found;
+  void visitor(Element child) {
+    if (found != null) return;
+    final Widget widget = child.widget;
+    if (widget is EditableText) {
+      found = widget.focusNode;
+      return;
+    }
+    if (widget is Focus) {
+      // Prefer the widget's own focusNode; fall back to the inherited
+      // Focus.of for cases where Focus delegates to a parent FocusScope.
+      found = widget.focusNode ?? Focus.maybeOf(child);
+      if (found != null) return;
+    }
+    child.visitChildElements(visitor);
+  }
+
+  element.visitChildElements(visitor);
+  return found;
 }
 
 void registerFocusExtensions() {
