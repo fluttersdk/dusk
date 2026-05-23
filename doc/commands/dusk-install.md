@@ -1,8 +1,18 @@
 # dusk:install
 
-One-shot bootstrap for `fluttersdk_dusk`. Injects three lines into the consumer's `lib/main.dart` so the E2E driver is live whenever the app boots in debug mode. The command is idempotent: every helper checks for the snippet's presence before inserting, so re-running `dusk:install` is a safe no-op.
+One-shot bootstrap for `fluttersdk_dusk`. Runs in two phases, both idempotent:
 
-Unlike `fluttersdk_artisan install`, `dusk:install` does NOT scaffold a `bin/artisan.dart` dispatcher or a `_plugins.g.dart` codegen barrel. `fluttersdk_dusk` ships its own Flutter-free CLI wrapper at `bin/fluttersdk_dusk.dart`, so the consumer keeps invoking `dart run fluttersdk_dusk <cmd>` directly. A vanilla Flutter app's only delta after `dusk:install` is the three injected lines in `lib/main.dart`.
+1. **Patch `lib/main.dart`** — inject the imports, `WidgetsFlutterBinding.ensureInitialized()`, and a `kDebugMode`-gated `DuskPlugin.install()` block before `runApp(`. Magic-stack apps additionally wire `MagicDuskIntegration.install()` after `Magic.init(`.
+2. **Chain fastcli setup** — best-effort `dart run fluttersdk_artisan install` (scaffolds `bin/dispatcher.dart` + `./bin/fsa` AOT wrapper) + `dart run fluttersdk_artisan plugin:install fluttersdk_dusk` (registers `DuskArtisanProvider`). Both sub-process calls are skipped when their idempotency markers already exist (`bin/dispatcher.dart` for the scaffold, `.artisan/installed/fluttersdk_dusk.json` for the plugin record). Failures are swallowed with a warning; the Phase 1 patch always succeeds on its own, so the consumer can still drive dusk via `dart run fluttersdk_dusk <cmd>` even when the chain skipped.
+
+Together, the two phases mean a fresh consumer needs only:
+
+```bash
+flutter pub add fluttersdk_dusk
+dart run fluttersdk_dusk dusk:install
+```
+
+After the second command, `./bin/fsa list` surfaces all 32 `dusk:*` commands and `./bin/fsa mcp:serve` exposes the 31 MCP tools.
 
 ---
 

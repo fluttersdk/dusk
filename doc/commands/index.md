@@ -101,7 +101,7 @@ The one-shot bootstrap. Injects three lines into the consumer's `lib/main.dart` 
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:install`](dusk-install.md) | Wire DuskPlugin.install() into the consumer's lib/main.dart (idempotent; minimal, no bin/artisan.dart scaffold). | none | none |
+| [`dusk:install`](dusk-install.md) | Wire DuskPlugin.install() into lib/main.dart AND chain artisan install + plugin:install so ./bin/fsa surfaces all 32 dusk:* commands (idempotent on re-run; Phase 2 chain is best-effort). | none | none |
 
 ## CDP
 

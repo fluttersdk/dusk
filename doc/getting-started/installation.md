@@ -109,16 +109,18 @@ See [Magic integration](../plugins/magic-integration) and
 [Wind integration](../plugins/wind-integration) for the full enricher field reference.
 
 <a name="register-with-artisan"></a>
-## Register with artisan
+## Register with artisan (automatic)
 
-Dusk surfaces its 32 CLI commands and 31 MCP tools through `fluttersdk_artisan`'s dispatcher. After `dusk:install` patches `lib/main.dart`, run two more commands once to (a) scaffold the local artisan CLI (`./bin/fsa`, fastcli) and (b) register dusk as an artisan plugin so the commands surface:
+`dusk:install` already handles this for you as Phase 2 of its run. Right after the `lib/main.dart` patch lands, it chains `dart run fluttersdk_artisan install` (scaffolds `bin/dispatcher.dart` + `./bin/fsa` fastcli, ~110ms warm AOT) followed by `dart run fluttersdk_artisan plugin:install fluttersdk_dusk` (registers `DuskArtisanProvider` and auto-purges the AOT bundle cache). Both sub-process calls skip when their idempotency markers already exist (`bin/dispatcher.dart` and `.artisan/installed/fluttersdk_dusk.json` respectively), so re-running `dusk:install` is a fast no-op.
+
+If the chained calls fail (no `dart` on PATH, partial pub-cache, restricted sandbox), `dusk:install` falls through with a warning and exits 0; the `lib/main.dart` patch already landed, so `dart run fluttersdk_dusk <cmd>` still works. You can finish the setup manually:
 
 ```bash
-dart run fluttersdk_artisan install                    # writes bin/dispatcher.dart + bin/fsa (~110ms warm AOT)
-dart run fluttersdk_artisan plugin:install fluttersdk_dusk   # registers DuskArtisanProvider; auto-purges the AOT cache
+dart run fluttersdk_artisan install                          # only if Phase 2 was skipped
+dart run fluttersdk_artisan plugin:install fluttersdk_dusk   # idempotent; refreshes barrels on re-run
 ```
 
-`plugin:install` is idempotent. Re-run after upgrading `fluttersdk_dusk` to refresh the codegen barrels. After this step, `./bin/fsa list` shows all `dusk:*` commands and `./bin/fsa mcp:serve` exposes the 31 dusk_* tools.
+After Phase 2 lands, `./bin/fsa list` shows all `dusk:*` commands and `./bin/fsa mcp:serve` exposes the 31 dusk_* tools.
 
 <a name="wire-mcp-tools"></a>
 ## Wire MCP tools

@@ -24,6 +24,12 @@ post_install:
   message: |
     fluttersdk_dusk plugin:installed. Bootstrap workflow:
 
+    0. Recommended path — `dart run fluttersdk_dusk dusk:install` handles every
+       step below automatically (Phase 1 patches lib/main.dart, Phase 2 chains
+       artisan install + plugin:install when needed). If you arrived here by
+       running `plugin:install` directly, skip ahead to step 1 and patch
+       main.dart by hand.
+
     1. In your consumer's lib/main.dart, gated under `if (kDebugMode)`:
 
          DuskPlugin.install();                         // before runApp() (or before Magic.init() for the Magic stack)
@@ -42,8 +48,8 @@ post_install:
 
     4. Verify the CLI:
 
-         dart run artisan list             # consumer wrapper: lists artisan + plugin commands incl. dusk:*
-         dart run fluttersdk_dusk list    # dusk's own wrapper: same surface, namespaced entry point
+         ./bin/fsa list                    # fastcli wrapper (~110ms warm AOT; scaffolded by dusk:install)
+         dart run fluttersdk_dusk list     # dusk's Flutter-free wrapper: same surface, ~3s startup
 
     5. Verify the MCP surface:
 
