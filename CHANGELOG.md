@@ -12,40 +12,9 @@ _No unreleased changes yet._
 
 ---
 
-## [0.0.2] - 2026-05-23
+## [0.0.1] - 2026-05-23
 
-### Added
-
-- **`ext.dusk.find` substring predicate** + `dusk:find --contains=<substring>` CLI flag. Existing `--text=<exact>` semantics unchanged; agents now have a brittle / dynamic-label fallback. `DuskQuery.containsText` field is the carrier; matching walks Semantics labels first, then `Text.data`, mirroring the `text` path.
-- **`dusk:drag --fromRef=<eN> --toRef=<eN>`** flag aliases parallel to the `--ref` shape used by `dusk:tap` / `dusk:hover`. Legacy `--startRef` / `--endRef` flags retained for back-compat.
-- **`dusk:scroll --direction=<up|down|left|right> --pixels=<N>`** convenience flags that translate to signed `--dy` / `--dx`. Explicit `--dy` / `--dx` still win when both forms supplied.
-
-### Changed
-
-- **artisan dependency constraint** bumped from `^0.0.4` to `^0.0.5`. Consumers upgrading from dusk 0.0.1 must `rm -rf .artisan/cli-bundle .artisan/build.stamp && ./bin/fsa list` once OR re-run `dart run fluttersdk_artisan make:fast-cli --force` to pick up the new fsa shim with `_plugins.g.dart` mtime staleness detection (artisan 0.0.5 issue #9 GAP A).
-- **`dusk:screenshot` success message** now reports decoded byte count + KB + format, e.g. `Wrote 239456 bytes (233.8 KB, jpeg) to ./shot.jpg`. Previously the line referenced the base64 character count which misled agents parsing for byte size.
-- **`dusk:screenshot` missing-output error** now suggests the canonical invocation `dusk:screenshot --output=./shot.jpg --format=jpeg`.
-
-### Fixed
-
-- **`ext.dusk.focus` on TextField + EditableText (GAP C)**: handler walked UP from the snap-captured Semantics element looking for a `Focus` ancestor; for TextField the FocusNode sits BELOW the captured element (inside `EditableText` / `FocusableActionDetector`). Now falls back to a descendant walk that picks the first `EditableText.focusNode` or `Focus.focusNode` it finds. Reproducer: `dusk:focus --ref=<textbox-eN>` previously returned `no Focus ancestor`; now returns `focused: true`.
-- **`ext.dusk.scroll` with ref pointing at the Scrollable itself (GAP D)**: `Scrollable.maybeOf(context)` walks UP, so passing the ListView's own ref (e.g. from `dusk:find --key=my-list`) returned null. Handler now resolves in three stages: (1) target element IS a Scrollable, use its state; (2) Scrollable ancestor (legacy); (3) descendant Scrollable walk (when ref is a parent like a Scaffold wrapping a list).
-- **`dusk:press_key --key=` case-sensitivity (NIT 5)**: agents calling `--key=TAB` or `--key=enter` hit `unknown key` even though the supported set covered the intent. Lookup now does a case-insensitive fallback over `_kKeyMap.keys` when the direct hit misses; canonical PascalCase keys (`Tab`, `Enter`, `ArrowUp`) remain documented.
-
-### Docs
-
-- **Pick your path + installation.md** now document the full 3-step install flow: `flutter pub add fluttersdk_dusk` + `dart run fluttersdk_dusk dusk:install` + `dart run fluttersdk_artisan install && dart run fluttersdk_artisan plugin:install fluttersdk_dusk`. Previously the third step (plugin:install) was missing, leaving consumers with `./bin/fsa list` showing 0 dusk:\* commands (GAP B).
-- **Installation.md** carries a new `## Register with artisan` section between Optional Integrations and Wire MCP tools, explaining the fastcli scaffold + plugin registration.
-
-### Known follow-ups
-
-- **GAP E (drag synthesis vs Flutter Draggable)**: `dusk:drag` returns success but Flutter's `DragTarget.onAcceptWithDetails` does not fire on synthesised events in some configurations. Pointer Down + 5x Move + Up sequence may need a press-and-hold initiation OR longer dwell time to satisfy `Draggable`'s gesture recognizer. Tracking for a 0.0.3 follow-up plan; please file reproducers if you hit this.
-
----
-
-## [0.0.1] - 2026-05-22
-
-Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapshot, tap, type, drag, scroll, screenshot, wait, find via VM Service extensions (`ext.dusk.*`). Framework-agnostic (vanilla Flutter friendly); Magic / Wind integrations ship inside those packages via `DuskPlugin.enrichers` extension point. Plugin of `fluttersdk_artisan` ^0.0.4 (hosted-only; no path overrides). Wind diagnostics flow through the neutral `fluttersdk_wind_diagnostics_contracts` bridge (`WindDebugRegistry`) rather than through the enricher list, so wind alpha-10 needs no dusk-side install wiring.
+Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapshot, tap, type, drag, scroll, screenshot, wait, find via VM Service extensions (`ext.dusk.*`). Framework-agnostic (vanilla Flutter friendly); Magic / Wind integrations ship inside those packages via `DuskPlugin.enrichers` extension point. Plugin of `fluttersdk_artisan` ^0.0.5 (hosted-only; no path overrides). Wind diagnostics flow through the neutral `fluttersdk_wind_diagnostics_contracts` bridge (`WindDebugRegistry`) rather than through the enricher list, so wind alpha-10 needs no dusk-side install wiring.
 
 ### Added
 
@@ -79,11 +48,23 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 - **4 utility tools** (Wave 3): `dusk_console` (telescope log reader, function-pointer indirection via `recentLogsReader`), `dusk_exceptions` (telescope exception reader via `recentExceptionsReader`), `dusk_dblclick` (two synthesised taps with 100ms inter-tap delay, shared 6-step actionability gate + snapshot embed), `dusk_set_checkbox` (idempotent `Checkbox` / `Switch` toggle via element walk; no-op when current value matches target).
 - **`ext.dusk.observe`** (Wave 4): Stagehand-style observe-once-act-many pattern. Walks every active `PipelineOwner` semantics tree, filters interactive nodes (buttons / textfields / links / checkboxes / dropdowns via `_roleFor` / `_isInteractive`), mints a re-resolvable `q<N>` ref per candidate (Playwright Locator pattern; never `e<N>`), and returns a structured JSON list `{candidates: [...], count: N}`. Each candidate carries `ref`, `role`, `label`, `value`, `bounds`, `isEnabled`, `isVisible`, plus enricher-projected fields. Params: `intent` (caller hint, echoed only), `limit` (default 50), `roles` (comma-separated filter), `includeEnrichers`.
 - **`dusk:hot_reload_and_snap`** (Wave 4): CLI-side orchestration via `VmServiceClient.reloadSources` (in-isolate handler cannot reload its own isolate; deadlock avoidance). Sequence: reload -> wait -> snap -> screenshot -> exceptions -> bundle. Success envelope `{reloaded, durationMs, snapshot, screenshot, recentExceptions}`; compile-error envelope skips snap/screenshot but still gathers exceptions. Screenshot failure surfaces as partial-result `screenshotError` rather than aborting the round-trip. MCP descriptor uses the `artisan:` substrate routing prefix (`extensionMethod: 'artisan:dusk:hot_reload_and_snap'`).
+- **`ext.dusk.find` substring predicate** + `dusk:find --contains=<substring>` CLI flag (Wave 5; pre-publish E2E pass). Existing `--text=<exact>` semantics unchanged; agents now have a brittle / dynamic-label fallback. `DuskQuery.containsText` field is the carrier; matching walks Semantics labels first, then `Text.data`, mirroring the `text` path.
+- **`dusk:drag --fromRef=<eN> --toRef=<eN>`** flag aliases parallel to the `--ref` shape used by `dusk:tap` / `dusk:hover` (Wave 5). Legacy `--startRef` / `--endRef` flags retained for back-compat.
+- **`dusk:scroll --direction=<up|down|left|right> --pixels=<N>`** convenience flags that translate to signed `--dy` / `--dx` (Wave 5). Explicit `--dy` / `--dx` still win when both forms supplied.
 - **Surface deltas (live counts)**: **CLI commands**: 32 (`lib/src/commands/*_command.dart`); **MCP tool descriptors**: 31 (`dusk_artisan_provider.dart`); **VM Service extensions**: 28 `ext.dusk.*` + 3 `artisan:dusk:*` substrate-routed.
+
+### Fixed (pre-publish E2E pass, Wave 5)
+
+- **`ext.dusk.focus` on TextField + EditableText (GAP C)**: handler walked UP from the snap-captured Semantics element looking for a `Focus` ancestor; for TextField the FocusNode sits BELOW the captured element (inside `EditableText` / `FocusableActionDetector`). Now falls back to a descendant walk that picks the first `EditableText.focusNode` or `Focus.focusNode` it finds. Reproducer: `dusk:focus --ref=<textbox-eN>` previously returned `no Focus ancestor`; now returns `focused: true`.
+- **`ext.dusk.scroll` with ref pointing at the Scrollable itself (GAP D)**: `Scrollable.maybeOf(context)` walks UP, so passing the ListView's own ref (e.g. from `dusk:find --key=my-list`) returned null. Handler now resolves in three stages: (1) target element IS a Scrollable, use its state; (2) Scrollable ancestor (legacy); (3) descendant Scrollable walk (when ref is a parent like a Scaffold wrapping a list).
+- **`dusk:press_key --key=` case-sensitivity (NIT 5)**: agents calling `--key=TAB` or `--key=enter` hit `unknown key` even though the supported set covered the intent. Lookup now does a case-insensitive fallback over `_kKeyMap.keys` when the direct hit misses; canonical PascalCase keys (`Tab`, `Enter`, `ArrowUp`) remain documented.
+- **`dusk:screenshot` success message** now reports decoded byte count + KB + format, e.g. `Wrote 239456 bytes (233.8 KB, jpeg) to ./shot.jpg` (NIT 1). Previously the line referenced the base64 character count which misled agents parsing for byte size.
+- **`dusk:screenshot` missing-output error** now suggests the canonical invocation `dusk:screenshot --output=./shot.jpg --format=jpeg` (NIT 8).
+- **README + installation.md** document the full 3-step install flow: `flutter pub add fluttersdk_dusk` + `dart run fluttersdk_dusk dusk:install` + `dart run fluttersdk_artisan install && dart run fluttersdk_artisan plugin:install fluttersdk_dusk` (GAP B). Previously the `plugin:install` step was missing, leaving consumers with `./bin/fsa list` showing 0 dusk:\* commands. `installation.md` carries a new `## Register with artisan` section explaining the fastcli scaffold + plugin registration.
 
 ### Test coverage
 
-- **610 total tests** executed (as of 2026-05-21 baseline: 517 passing, 93 pre-existing failures accepted per Risks Accepted below). Scope covers handler entry points (params + error paths + happy paths where reachable under `flutter_test`), 32 CLI commands (name / boot / description / configure / handle / missing-arg validation), `DuskArtisanProvider.commands()` / `mcpTools()` shape, `DuskPlugin.install()` idempotency + `DUSK_DISABLE` env-var kill switch, `RefRegistry` mint / lookup / disposeGroup / disposeAll / refsForGroup / registerQuery / lookupQuery, actionability gate (6-step: defunct / enabled / zero-rect / off-viewport / not-stable / obscured), `encodeToJpeg` PNG-to-JPEG roundtrip + quality boundaries (1, 100, error), modal-route classification, dispatcher contract, CDP client + device presets + resize/device commands, Wave 3 structured error envelopes, Wave 4 observe + hot-reload-and-snap.
+- **678 tests passing** (2026-05-23 pre-publish, `flutter test --exclude-tags=integration --timeout=30s`). Scope covers handler entry points (params + error paths + happy paths where reachable under `flutter_test`), 32 CLI commands (name / boot / description / configure / handle / missing-arg validation), `DuskArtisanProvider.commands()` / `mcpTools()` shape, `DuskPlugin.install()` idempotency + `DUSK_DISABLE` env-var kill switch, `RefRegistry` mint / lookup / disposeGroup / disposeAll / refsForGroup / registerQuery / lookupQuery, actionability gate (6-step: defunct / enabled / zero-rect / off-viewport / not-stable / obscured), `encodeToJpeg` PNG-to-JPEG roundtrip + quality boundaries (1, 100, error), modal-route classification, dispatcher contract, CDP client + device presets + resize/device commands, Wave 3 structured error envelopes, Wave 4 observe + hot-reload-and-snap, Wave 5 find-contains substring + descendant focus walk + Scrollable-own-ref scroll. Pre-publish E2E pass against a fresh vanilla Flutter consumer (`/tmp/dusk_e2e`) verified 27 of 32 CLI commands + MCP `initialize` + `tools/list` (41 tools = 31 dusk_* + 10 artisan_*) + `tools/call dusk_snap` (identical to CLI) + `tools/call dusk_evaluate` (actual evaluation via artisan 0.0.5 substrate routing).
 - Coverage: **dusk ~79%** line coverage via `flutter test --coverage`. The remaining gap covers engine-dependent paths that hang the `flutter_test` fake-clock harness: handler `endOfFrame` waits, `Future.delayed` poll loops in `wait_for`, real `toImage()` rasterisation in `screenshot` success paths, and private `_defaultProcessStartTime` / `_parsePsLstart` doctor seam defaults. End-to-end coverage for those paths is captured by the example/ playground sweep.
 
 ### Known gaps
@@ -96,7 +77,7 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 - **`dart-lang/webdev#2642` live regression**: "Hot restart broken when running DWDS without Chrome Debug Port". Integration smoke test (`test/integration/cdp_smoke_test.dart`) surfaces this if active. Mitigation lives in the user's pinned Flutter SDK; plan does not block on regression resolution.
 - **Flutter SDK >= 3.30.0** required for `--cdp-port` (per `flutter/flutter#170612`). Lower versions get an actionable error from both `artisan doctor` (advisory) and `artisan start --cdp-port` (fail-fast).
-- **93 pre-existing test failures** (baseline as of 2026-05-21): timeout regressions in `ext_pointer_test.dart` and related handler tests under the `flutter_test` fake-clock harness. These failures are accepted for the 0.0.1 release; a dedicated test-stabilization follow-up plan will address them. See `.ac/plans/fluttersdk-dusk-publish-0-0-1/` for the full Phase 2 BLOCKER note and the post-deliver test-stabilization tracking.
+- **GAP E (drag synthesis vs Flutter Draggable)**: `dusk:drag` returns success but Flutter's `DragTarget.onAcceptWithDetails` does not fire on synthesised events in some configurations (Pointer Down + 5x Move + Up sequence may not match Draggable's gesture recognizer expectations on certain platforms / dwell times). Verified via E2E showroom (2026-05-23). Tracked for a 0.0.2 follow-up; agents needing drag should fall back to a pair of `dusk:tap` + manual scroll for now.
 
 ### Backward compat
 
