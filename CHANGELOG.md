@@ -12,6 +12,37 @@ _No unreleased changes yet._
 
 ---
 
+## [0.0.2] - 2026-05-23
+
+### Added
+
+- **`ext.dusk.find` substring predicate** + `dusk:find --contains=<substring>` CLI flag. Existing `--text=<exact>` semantics unchanged; agents now have a brittle / dynamic-label fallback. `DuskQuery.containsText` field is the carrier; matching walks Semantics labels first, then `Text.data`, mirroring the `text` path.
+- **`dusk:drag --fromRef=<eN> --toRef=<eN>`** flag aliases parallel to the `--ref` shape used by `dusk:tap` / `dusk:hover`. Legacy `--startRef` / `--endRef` flags retained for back-compat.
+- **`dusk:scroll --direction=<up|down|left|right> --pixels=<N>`** convenience flags that translate to signed `--dy` / `--dx`. Explicit `--dy` / `--dx` still win when both forms supplied.
+
+### Changed
+
+- **artisan dependency constraint** bumped from `^0.0.4` to `^0.0.5`. Consumers upgrading from dusk 0.0.1 must `rm -rf .artisan/cli-bundle .artisan/build.stamp && ./bin/fsa list` once OR re-run `dart run fluttersdk_artisan make:fast-cli --force` to pick up the new fsa shim with `_plugins.g.dart` mtime staleness detection (artisan 0.0.5 issue #9 GAP A).
+- **`dusk:screenshot` success message** now reports decoded byte count + KB + format, e.g. `Wrote 239456 bytes (233.8 KB, jpeg) to ./shot.jpg`. Previously the line referenced the base64 character count which misled agents parsing for byte size.
+- **`dusk:screenshot` missing-output error** now suggests the canonical invocation `dusk:screenshot --output=./shot.jpg --format=jpeg`.
+
+### Fixed
+
+- **`ext.dusk.focus` on TextField + EditableText (GAP C)**: handler walked UP from the snap-captured Semantics element looking for a `Focus` ancestor; for TextField the FocusNode sits BELOW the captured element (inside `EditableText` / `FocusableActionDetector`). Now falls back to a descendant walk that picks the first `EditableText.focusNode` or `Focus.focusNode` it finds. Reproducer: `dusk:focus --ref=<textbox-eN>` previously returned `no Focus ancestor`; now returns `focused: true`.
+- **`ext.dusk.scroll` with ref pointing at the Scrollable itself (GAP D)**: `Scrollable.maybeOf(context)` walks UP, so passing the ListView's own ref (e.g. from `dusk:find --key=my-list`) returned null. Handler now resolves in three stages: (1) target element IS a Scrollable, use its state; (2) Scrollable ancestor (legacy); (3) descendant Scrollable walk (when ref is a parent like a Scaffold wrapping a list).
+- **`dusk:press_key --key=` case-sensitivity (NIT 5)**: agents calling `--key=TAB` or `--key=enter` hit `unknown key` even though the supported set covered the intent. Lookup now does a case-insensitive fallback over `_kKeyMap.keys` when the direct hit misses; canonical PascalCase keys (`Tab`, `Enter`, `ArrowUp`) remain documented.
+
+### Docs
+
+- **Pick your path + installation.md** now document the full 3-step install flow: `flutter pub add fluttersdk_dusk` + `dart run fluttersdk_dusk dusk:install` + `dart run fluttersdk_artisan install && dart run fluttersdk_artisan plugin:install fluttersdk_dusk`. Previously the third step (plugin:install) was missing, leaving consumers with `./bin/fsa list` showing 0 dusk:\* commands (GAP B).
+- **Installation.md** carries a new `## Register with artisan` section between Optional Integrations and Wire MCP tools, explaining the fastcli scaffold + plugin registration.
+
+### Known follow-ups
+
+- **GAP E (drag synthesis vs Flutter Draggable)**: `dusk:drag` returns success but Flutter's `DragTarget.onAcceptWithDetails` does not fire on synthesised events in some configurations. Pointer Down + 5x Move + Up sequence may need a press-and-hold initiation OR longer dwell time to satisfy `Draggable`'s gesture recognizer. Tracking for a 0.0.3 follow-up plan; please file reproducers if you hit this.
+
+---
+
 ## [0.0.1] - 2026-05-22
 
 Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapshot, tap, type, drag, scroll, screenshot, wait, find via VM Service extensions (`ext.dusk.*`). Framework-agnostic (vanilla Flutter friendly); Magic / Wind integrations ship inside those packages via `DuskPlugin.enrichers` extension point. Plugin of `fluttersdk_artisan` ^0.0.4 (hosted-only; no path overrides). Wind diagnostics flow through the neutral `fluttersdk_wind_diagnostics_contracts` bridge (`WindDebugRegistry`) rather than through the enricher list, so wind alpha-10 needs no dusk-side install wiring.
