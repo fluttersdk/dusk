@@ -103,14 +103,16 @@ final class DuskResizeCommand extends ArtisanCommand {
 
       // 4. Normal resize path: parse flags, send setDeviceMetricsOverride and
       //    optionally setTouchEmulationEnabled.
-      final int width =
-          int.tryParse(ctx.input.option('width') as String? ?? '') ?? 0;
-      final int height =
-          int.tryParse(ctx.input.option('height') as String? ?? '') ?? 0;
-      final double dpr =
-          double.tryParse(ctx.input.option('dpr') as String? ?? '1.0') ?? 1.0;
-      final bool mobile = (ctx.input.option('mobile') as bool?) ?? false;
-      final bool touch = (ctx.input.option('touch') as bool?) ?? false;
+      //
+      // CLI passes options as strings via ArgParser, but MCP `tools/call`
+      // dispatches typed JSON (`width: 390` as int, `mobile: true` as bool).
+      // Accept both via runtime type sniffing so the same command surface
+      // works from both surfaces without per-route casts at the boundary.
+      final int width = _readInt(ctx.input.option('width'));
+      final int height = _readInt(ctx.input.option('height'));
+      final double dpr = _readDouble(ctx.input.option('dpr'), fallback: 1.0);
+      final bool mobile = _readBool(ctx.input.option('mobile'));
+      final bool touch = _readBool(ctx.input.option('touch'));
 
       await client.send(
         'Emulation.setDeviceMetricsOverride',
@@ -141,5 +143,31 @@ final class DuskResizeCommand extends ArtisanCommand {
       // 5. Always close the CDP connection regardless of success or failure.
       await client.close();
     }
+  }
+
+  /// Reads an `int` from a value that may arrive as an `int` (MCP `tools/call`
+  /// JSON), a numeric `String` (ArgParser CLI), or `null` / empty.
+  int _readInt(Object? raw, {int fallback = 0}) {
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    if (raw is String) return int.tryParse(raw) ?? fallback;
+    return fallback;
+  }
+
+  /// Reads a `double` from a value that may arrive as a `num` (MCP) or a
+  /// numeric `String` (CLI).
+  double _readDouble(Object? raw, {double fallback = 1.0}) {
+    if (raw is double) return raw;
+    if (raw is num) return raw.toDouble();
+    if (raw is String) return double.tryParse(raw) ?? fallback;
+    return fallback;
+  }
+
+  /// Reads a `bool` from a value that may arrive as `bool` (MCP / ArgParser
+  /// flag) or `String` (legacy stringified flag).
+  bool _readBool(Object? raw) {
+    if (raw is bool) return raw;
+    if (raw is String) return raw.toLowerCase() == 'true' || raw == '1';
+    return false;
   }
 }
