@@ -47,10 +47,6 @@ Follow the `llmstxt.org` spec: H1 = `# fluttersdk_dusk`, single blockquote summa
 
 When this package ships a skill under `skills/fluttersdk-dusk/`, follow the same shape as `references/fluttersdk_telescope/skills/fluttersdk-telescope/`: `SKILL.md` at the root with frontmatter (`name`, `description`, `version`), plus `references/` subdir for tables-of-many-options that would inflate `SKILL.md` beyond ~200 lines. Update both the `SKILL.md` and the matching reference file on every surface change.
 
-### `.github/copilot-instructions.md` and `.github/instructions/**`
-
-Shorter mirror of `CLAUDE.md` for GitHub Copilot. Keep `.github/copilot-instructions.md` in sync with the Golden Rules and Commands sections of `CLAUDE.md`. `.github/instructions/extensions.instructions.md` and `tests.instructions.md` are path-scoped equivalents of `.claude/rules/extensions.md` and `.claude/rules/tests.md`; when the `.claude/rules/*.md` version changes, propagate the substantive rule changes (not the markdown structure) into the `.github/instructions/*` version too.
-
 ## Commit messages
 
 Conventional Commits style: `feat(extensions): add ext.dusk.long_press handler`, `fix(actionability): off-viewport rect check ignored RTL viewports`, `docs(readme): bump VM Service surface count to 29`, `chore(ci): bump coverage floor to 85%`. Scopes: `extensions`, `commands`, `cdp`, `plugin`, `provider`, `tests`, `readme`, `architecture`, `changelog`, `docs`, `ci`, `pubspec`.
