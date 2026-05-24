@@ -23,12 +23,6 @@
   <a href="https://github.com/fluttersdk/dusk/issues">Issues</a>
 </p>
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/fluttersdk/dusk/main/screenshots/demo.gif" width="640" alt="Dusk demo: snap, tap, screenshot in one round-trip" />
-</p>
-
-<!-- TODO(v0.0.2-followup): record screenshots/demo.gif (320px wide, 8s, ~2MB). Sequence: dusk:snap (YAML appears) -> dusk:tap --ref=e7 (counter increments) -> dusk:screenshot (PNG saves). Capture tool: Kap (macOS) / ScreenToGif (Windows). Per dart.dev/tools/pub/pubspec#screenshots GIFs are supported in pubspec screenshots: too (since the 2023 fix); add there once the asset exists. -->
-
 ---
 
 > [!NOTE]
