@@ -47,7 +47,7 @@ Three named routes (`/`, `/details`, `/settings`) cover navigation tools; nothin
 
 ## Path dependency note
 
-This example depends on the parent dusk package via `path: ..`. Source edits to the parent require nothing more than `dart run fluttersdk_dusk hot-restart` (or pressing `R` in flutter run) to surface. Downstream consumers that install from pub.dev use the hosted `^0.0.1` constraint instead. `fluttersdk_artisan` and `fluttersdk_wind_diagnostics_contracts` arrive transitively from pub.dev, so the consumer pubspec stays single-line.
+This example depends on the parent dusk package via `path: ..`. Source edits to the parent require nothing more than `dart run fluttersdk_dusk hot-restart` (or pressing `R` in flutter run) to surface. Downstream consumers that install from pub.dev use the hosted `^0.0.2` constraint instead. `fluttersdk_artisan` and `fluttersdk_wind_diagnostics_contracts` arrive transitively from pub.dev, so the consumer pubspec stays single-line.
 
 ## License
 
