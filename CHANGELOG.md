@@ -12,6 +12,19 @@ _No unreleased changes yet._
 
 ---
 
+## [0.0.2] - 2026-05-24
+
+### Added
+
+- **`skills/fluttersdk-dusk/` LLM-agent skill bundle.** Ships an Anthropic-shape skill that teaches an LLM agent (Claude Code or any MCP client) how to drive a Flutter app where `fluttersdk_dusk` is installed. Mirrors the `fluttersdk_telescope` skill layout. Five files: `SKILL.md` (frontmatter + 6 core laws + 3 agent loops + tool families + install snippet), `references/mcp-tools.md` (per-tool input schema / return shape / when-to-use / pitfalls across all 31 `dusk_*` tools), `references/cli-commands.md` (CLI mirror via `./bin/fsa dusk:*`, pipeline patterns, exit codes), `references/actionability-and-refs.md` (6-step gate detail + `e<N>` / `q<N>` ref recovery matrix), `references/workflows.md` (8 concrete agent playbooks: form fill, scroll-to-tap, modal flow, navigation verify, hot-reload-after-edit, pull-to-refresh, log tail, before/after diff). Frontmatter front-loads `TRIGGER when:` / `DO NOT TRIGGER when:` vocabulary so the model auto-loads the skill on any `dusk_*` MCP call, `dusk:*` CLI invocation, or E2E-driver task on a running Flutter app.
+
+### Docs
+
+- **README demo.gif placeholder removed.** The `<p align="center"><img src=".../screenshots/demo.gif"></p>` block plus its `TODO(v0.0.2-followup)` recording-instructions comment are dropped until the actual asset ships. The hero logo, badges, and below-the-fold content are unchanged.
+- **example showroom em-dash sweep.** `example/lib/main.dart` section headers and inline comments are normalised to commas / colons / parentheses, aligning the example with the global no-em-dash rule applied across the rest of the repo.
+
+---
+
 ## [0.0.1] - 2026-05-23
 
 Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapshot, tap, type, drag, scroll, screenshot, wait, find via VM Service extensions (`ext.dusk.*`). Framework-agnostic (vanilla Flutter friendly); Magic / Wind integrations ship inside those packages via `DuskPlugin.enrichers` extension point. Plugin of `fluttersdk_artisan` ^0.0.5 (hosted-only; no path overrides). Wind diagnostics flow through the neutral `fluttersdk_wind_diagnostics_contracts` bridge (`WindDebugRegistry`) rather than through the enricher list, so wind alpha-10 needs no dusk-side install wiring.
