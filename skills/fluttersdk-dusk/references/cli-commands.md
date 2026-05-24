@@ -33,20 +33,40 @@ rebuild: `rm -rf .artisan/cli-bundle .artisan/build.stamp && ./bin/fsa list`.
 | `--timeoutMs=<ms>` | 5000 | Hard timeout for waits |
 | `--format=<jpeg\|png>` | jpeg | Screenshot encoding |
 
-Snake_case option names map 1:1 to MCP `inputSchema` properties.
+CLI option names match MCP `inputSchema` property names verbatim
+(camelCase: `--checkStable`, `--includeSnapshot`, `--timeoutMs`,
+`--startRef`, etc.). The CLI does no key translation between the two
+surfaces.
 
 ## Output
 
-- stdout: JSON payload (success) or human-readable success message
-  (`install`, `doctor`, `device --list`)
-- stderr: error message including the actionability reason substring
-- Exit code: 0 on success, 1 on any failure
+stdout shape depends on the command:
 
-For pipeline use, `jq` and `yq` work directly on stdout:
+- **JSON payload** on read / query verbs: `dusk:snap`, `dusk:observe`,
+  `dusk:find`, `dusk:get_routes`, `dusk:console`, `dusk:exceptions`,
+  `dusk:wait`, `dusk:wait_for_network_idle`, `dusk:hot_reload_and_snap`.
+  These mirror the MCP response shape and are safe to pipe through `jq`.
+- **One-line human summary** on side-effect verbs by default:
+  `dusk:tap`, `dusk:hover`, `dusk:drag`, `dusk:type`, `dusk:clear`,
+  `dusk:press_key`, `dusk:scroll`, `dusk:focus`, `dusk:blur`,
+  `dusk:dblclick`, `dusk:right_click`, `dusk:triple_click`,
+  `dusk:set_checkbox`, `dusk:select_option`, `dusk:navigate`,
+  `dusk:navigate_back`, `dusk:modal`, `dusk:close_app`. Pass
+  `--includeSnapshot` to receive JSON containing the post-action
+  snapshot.
+- **Bytes to disk** for `dusk:screenshot` (always requires `-o <path>`;
+  prints `Wrote N bytes (K KB, format) to <path>`).
+- **Categorised report** for `dusk:install` and `dusk:doctor`.
+
+stderr carries error messages, including the actionability reason
+substring on gate failures. Exit code: 0 on success, 1 on any failure.
+
+For pipeline use, prefer the JSON-emitting verbs:
 
 ```bash
 ./bin/fsa dusk:snap | jq -r '.snapshot' > snap.yaml
 ./bin/fsa dusk:observe --roles=button --limit=10 | jq '.candidates[].label'
+./bin/fsa dusk:tap --ref=e7 --includeSnapshot | jq '.snapshot'  # force JSON
 ```
 
 ## Commands by family

@@ -57,18 +57,32 @@ navigate first.
 
 ## Open, fill, and close a modal
 
+Refs in the call sequence below are illustrative; the agent reads the
+actual `q<N>` numbers from each preceding tool's response. Numbers are
+NOT meaningful tokens to copy; only the `q` / `e` prefix and the
+integer minted by the tool are.
+
 ```
-1. dusk_tap { ref: "q_openModalButton" }
-2. dusk_wait_for { text: "Confirm action" }                  # wait for modal title
-3. dusk_observe { intent: "modal contents", limit: 20 }
-   → q-handles for the modal's fields and buttons
+1. dusk_find { text: "Open settings" }
+   → { ref: "q1" }                                          # the trigger button
 
-4. dusk_type { ref: "q_reasonField", text: "no longer needed" }
-5. dusk_tap  { ref: "q_confirmButton" }
+2. dusk_tap { ref: "q1" }
+3. dusk_wait_for { text: "Confirm action" }                 # wait for modal title
 
-6. dusk_wait_for { textGone: "Confirm action" }              # wait for dismissal
-7. dusk_wait_for_network_idle
-8. dusk_snap
+4. dusk_observe { intent: "modal contents", limit: 20 }
+   → candidates: [
+       { ref: "q2", role: "textbox", label: "Reason" },
+       { ref: "q3", role: "button",  label: "Confirm" },
+       { ref: "q4", role: "button",  label: "Cancel"  },
+       ...
+     ]
+
+5. dusk_type { ref: "q2", text: "no longer needed" }
+6. dusk_tap  { ref: "q3" }                                  # the Confirm candidate
+
+7. dusk_wait_for { textGone: "Confirm action" }             # wait for dismissal
+8. dusk_wait_for_network_idle
+9. dusk_snap
 ```
 
 If the modal does not dismiss (validation kept it open), step 6 times

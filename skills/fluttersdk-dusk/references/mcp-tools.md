@@ -20,14 +20,21 @@ Every tool returns a JSON object via `ServiceExtensionResponse.result` on
 success. Failures return a `DuskErrorEnvelope`: at minimum `{ message }`,
 often with `{ reason, ref, method }` for agent branching.
 
-Prerequisites for every tool except install/doctor:
+Prerequisites for every `dusk_*` MCP tool:
 
 1. The app is running (`./bin/fsa start --device=<dev>`).
-2. `DuskPlugin.install()` ran inside `kDebugMode` (handled by `dusk:install`).
-3. The MCP server is wired in `.mcp.json` (handled by `mcp:install`).
+2. `DuskPlugin.install()` ran inside `kDebugMode` (handled by the
+   one-time `dusk:install` CLI command).
+3. The MCP server is wired in `.mcp.json` (handled by the one-time
+   `mcp:install` CLI command).
 
-If a tool returns "VM Service URI absent" or "CDP not enabled", check
-`./bin/fsa dusk:doctor` and confirm the app is running.
+Note that `dusk:install` and `dusk:doctor` are CLI commands run from a
+shell during setup, not MCP tools surfaced to the agent. If an MCP tool
+returns "VM Service URI absent", the app is not running or dusk is not
+attached; if a substrate-routed CDP tool (`dusk_resize_viewport`,
+`dusk_device_profile`) returns "CDP not enabled", Chrome was launched
+without `--cdp-port`. From the shell, `./bin/fsa dusk:doctor` runs the
+preflight checks.
 
 ---
 

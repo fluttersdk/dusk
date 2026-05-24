@@ -1,11 +1,11 @@
 ---
 name: fluttersdk-dusk
 description: "fluttersdk_dusk: E2E driver for Flutter apps that lets an LLM agent see (snap, observe, screenshot) and act (tap, type, drag, scroll, navigate) on a running Flutter app via 31 MCP tools (`dusk_*`) and 32 matching CLI commands (`./bin/fsa dusk:*`). Snapshots emit a YAML Semantics tree with stable `[ref=eN]` tokens; `dusk_find` and `dusk_observe` mint re-resolvable `q<N>` query handles. Every gesture passes a 6-step actionability gate with substring-parseable failure reasons (`not enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured by`, `defunct`). TRIGGER when: any `dusk_*` MCP tool call, any `dusk:*` CLI command, `./bin/fsa` invocation, the user asks the agent to drive / inspect / test / debug a running Flutter app, the user mentions snap / observe / actionability / ref / eN / qN, or the conversation touches end-to-end testing of a Flutter UI. DO NOT TRIGGER when: only authoring `flutter_test` widget tests, only reading telescope ring buffers without driving the UI (use fluttersdk-telescope), or only modifying Dart source without running it."
-version: 0.0.1
+version: 0.0.2
 when_to_use: "Any task where the agent drives or inspects a running Flutter app via dusk: calling `dusk_*` MCP tools in a loop (snap, tap, type, screenshot, hot_reload_and_snap), invoking `./bin/fsa dusk:<verb>` from a shell, recovering from an actionability failure, choosing between `e<N>` and `q<N>` ref tokens, waiting for text or network idle, navigating routes, or filling a form."
 ---
 
-<!-- fluttersdk_dusk v0.0.1 | Skill updated: 2026-05-24 -->
+<!-- fluttersdk_dusk v0.0.2 | Skill updated: 2026-05-24 -->
 
 # fluttersdk_dusk
 
@@ -23,11 +23,14 @@ and verify with `./bin/fsa dusk:doctor`.
 ## 1. Core Laws
 
 1. **Two ref token spaces.** `e<N>` (snapshot-frozen, minted by `dusk_snap`)
-   are valid until the next snap or any UI mutation that unmounts the node.
-   `q<N>` (re-resolvable, minted by `dusk_find` / `dusk_observe`) store a
-   predicate and re-walk the live tree on every action. Use `e<N>` right
-   after a fresh snap when the UI is static. Reach for `q<N>` whenever the
-   action might retry, the UI animates, or the agent will hold the ref
+   are deduped by `SemanticsNode.id`: the same widget across consecutive
+   snaps returns the same `e<N>` and the ref stays valid as long as the
+   node remains mounted. They become defunct when the node unmounts
+   (navigation, conditional render, list rebuild). `q<N>` (re-resolvable,
+   minted by `dusk_find` / `dusk_observe`) store a predicate and re-walk
+   the live tree on every action. Use `e<N>` right after the snap that
+   minted them when the UI is static. Reach for `q<N>` whenever the
+   action might retry, the UI animates, or the agent holds the ref
    across a navigation. Never mix the spaces (no `e<N>` from find, no
    `q<N>` from snap).
 
@@ -75,16 +78,19 @@ and verify with `./bin/fsa dusk:doctor`.
    exception lists are empty. Treat them as wired before relying on
    them; check with one `dusk_console` call.
 
-6. **CLI and MCP are the same surface.** Every MCP tool has a matching
-   CLI command with identical params: `dusk_tap { ref: "e7" }` and
-   `./bin/fsa dusk:tap --ref=e7` reach the same handler. Use MCP when
-   the agent is wired through an MCP client; use the CLI from Bash when
-   chaining shell logic or capturing output to a file. The one exception:
-   `dusk_evaluate` is MCP-only (no CLI mirror; `magic_tinker` owns the
-   evaluate REPL).
-
-7. **No em-dash, no en-dash anywhere.** Use comma, colon, semicolon,
-   period, or parentheses.
+6. **CLI and MCP reach the same handler with the same parameters.**
+   `dusk_tap { ref: "e7" }` and `./bin/fsa dusk:tap --ref=e7` invoke the
+   same code path. Use MCP when the agent is wired through an MCP
+   client; use the CLI from Bash when chaining shell logic or capturing
+   output to a file. Two practical differences worth knowing:
+   (a) MCP responses are always JSON; the CLI prints JSON on connected
+   commands (snap, observe, find, console, exceptions, etc.) and
+   human-readable success lines on a few side-effect commands
+   (`dusk:screenshot` writes bytes to disk and prints a one-line summary;
+   `dusk:install` / `dusk:doctor` print categorised reports). When the
+   agent pipes CLI output through `jq`, prefer connected verbs that
+   return pure JSON. (b) `dusk_evaluate` is MCP-only (no CLI mirror);
+   `magic_tinker` owns the evaluate REPL via `./bin/fsa tinker --eval`.
 
 ## 2. Tool surface (31 MCP tools, 32 CLI commands)
 
@@ -177,9 +183,11 @@ multi-step flow against the same target.
 
 ## 5. Quick install + doctor (when dusk is missing)
 
-If `./bin/fsa dusk:snap` returns "CDP not enabled" or "VM Service URI
-absent", dusk is not installed or the app is not running. The agent
-should:
+If `./bin/fsa dusk:snap` returns "VM Service URI absent" (or any
+connected command fails to attach), the app is not running or dusk is
+not installed. Separately, `dusk:resize` / `dusk:device` (web-only CDP
+tools) return "CDP not enabled" when Chrome was launched without a
+debug port. The agent should:
 
 ```bash
 # From the Flutter app root:
