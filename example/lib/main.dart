@@ -1,4 +1,4 @@
-// Dusk showroom — exercises every public dusk command surface. Each
+// Dusk showroom: exercises every public dusk command surface. Each
 // interactive widget on `/` is reachable via `dusk:snap` and acts as a
 // target for the gesture and input handlers. Three named routes cover
 // `dusk:navigate` and `dusk:navigate_back`; a dialog and bottom sheet
@@ -135,7 +135,7 @@ class _ShowroomHomeState extends State<ShowroomHome> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _section('Text input — type / clear / focus / blur / press_key'),
+            _section('Text input: type / clear / focus / blur / press_key'),
             TextField(
               key: const Key('name-field'),
               controller: _nameCtrl,
@@ -149,7 +149,7 @@ class _ShowroomHomeState extends State<ShowroomHome> {
             Text('Last key: $_lastKey', key: const Key('last-key-label')),
             const SizedBox(height: 24),
 
-            _section('Selection — set_checkbox / select_option'),
+            _section('Selection: set_checkbox / select_option'),
             DropdownButton<String>(
               key: const Key('mode-dropdown'),
               value: _dropdown,
@@ -174,7 +174,9 @@ class _ShowroomHomeState extends State<ShowroomHome> {
             ),
             const SizedBox(height: 24),
 
-            _section('Clicks — tap / dblclick / triple_click / right_click / hover'),
+            _section(
+              'Clicks: tap / dblclick / triple_click / right_click / hover',
+            ),
             ElevatedButton(
               key: const Key('inc-counter'),
               onPressed: () => setState(() => _counter++),
@@ -182,7 +184,7 @@ class _ShowroomHomeState extends State<ShowroomHome> {
             ),
             const SizedBox(height: 24),
 
-            _section('Drag — drag'),
+            _section('Drag: drag'),
             Row(
               children: [
                 Draggable<String>(
@@ -225,7 +227,7 @@ class _ShowroomHomeState extends State<ShowroomHome> {
             ),
             const SizedBox(height: 24),
 
-            _section('Modals — modal'),
+            _section('Modals: modal'),
             ElevatedButton(
               key: const Key('open-dialog'),
               onPressed: _openDialog,
@@ -238,7 +240,7 @@ class _ShowroomHomeState extends State<ShowroomHome> {
             ),
             const SizedBox(height: 24),
 
-            _section('Navigation — navigate / navigate_back / get_routes'),
+            _section('Navigation: navigate / navigate_back / get_routes'),
             ElevatedButton(
               key: const Key('go-details'),
               onPressed: () => Navigator.of(context).pushNamed('/details'),
@@ -246,7 +248,9 @@ class _ShowroomHomeState extends State<ShowroomHome> {
             ),
             const SizedBox(height: 24),
 
-            _section('Diagnostics — console / exceptions / wait_for_network_idle'),
+            _section(
+              'Diagnostics: console / exceptions / wait_for_network_idle',
+            ),
             ElevatedButton(
               key: const Key('emit-log'),
               onPressed: () => developer.log(
@@ -267,12 +271,9 @@ class _ShowroomHomeState extends State<ShowroomHome> {
             ),
             const SizedBox(height: 24),
 
-            _section('Long list — scroll'),
+            _section('Long list: scroll'),
             for (var i = 0; i < 30; i++)
-              ListTile(
-                key: Key('row-$i'),
-                title: Text('Row $i'),
-              ),
+              ListTile(key: Key('row-$i'), title: Text('Row $i')),
           ],
         ),
       ),
@@ -280,12 +281,12 @@ class _ShowroomHomeState extends State<ShowroomHome> {
   }
 
   Widget _section(String title) => Padding(
-        padding: const EdgeInsets.only(top: 4, bottom: 6),
-        child: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-        ),
-      );
+    padding: const EdgeInsets.only(top: 4, bottom: 6),
+    child: Text(
+      title,
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+    ),
+  );
 }
 
 class DetailsPage extends StatelessWidget {
