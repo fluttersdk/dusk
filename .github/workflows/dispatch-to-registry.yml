@@ -53,11 +53,11 @@ jobs:
               id: app-token
               uses: tibdex/github-app-token@v2.1.0
               with:
-                app_id: ${{ secrets.REGISTRY_BOT_APP_ID }}
-                private_key: ${{ secrets.REGISTRY_BOT_PRIVATE_KEY }}
-                installation_retrieval_mode: repository
-                installation_retrieval_payload: fluttersdk/ai
-                repositories: '["ai"]'
+                  app_id: ${{ secrets.REGISTRY_BOT_APP_ID }}
+                  private_key: ${{ secrets.REGISTRY_BOT_PRIVATE_KEY }}
+                  installation_retrieval_mode: repository
+                  installation_retrieval_payload: fluttersdk/ai
+                  repositories: '["ai"]'
 
             - name: Fire repository_dispatch to fluttersdk/ai
               uses: peter-evans/repository-dispatch@v4
