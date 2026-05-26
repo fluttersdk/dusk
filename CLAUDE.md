@@ -29,15 +29,14 @@ Two CLI surfaces. `bin/fluttersdk_dusk.dart` is the Flutter-free wrapper (`dart 
 2. **Coverage at or above 80%.** CI enforces via lcov parse in `.github/workflows/ci.yml:42-44`. Verify locally after behavioral changes: `awk -F: '/^LF:/{lf+=$2} /^LH:/{lh+=$2} END{ if (lf==0) exit 1; printf "%.2f%%\n", (lh/lf)*100 }' coverage/lcov.info`. Drops below 80% block the change.
 3. **CHANGELOG always under `[Unreleased]`.** Every behavioral or interface change lands a bullet under `## [Unreleased]` in `CHANGELOG.md`. Keep-a-Changelog 1.1.0 ordering: Added, Changed, Deprecated, Removed, Fixed, Security. Promote to a dated section on tag push.
 4. **Green gate plus TDD.** `dart format lib/ test/ bin/` zero diff, `dart analyze lib/ test/ bin/` zero issues, `flutter test --exclude-tags=integration` all green. Red-green-refactor for behavioral changes: failing test first that fails for the right reason, then implementation that turns it green.
-5. **Branching: topic branch from `master`, PR into `develop`, release `develop -> master`.** Cut every task branch from `master`, push the work, open a PR into `develop`. `develop` accumulates merged work between releases. When `develop` is release-ready, open a `develop -> master` PR with the version bump and publish from `master`. Never PR a topic branch directly into `master`. See the Branching section below for the full flow.
+5. **GitHub Flow.** One long-lived branch: `master` (released, what pub.dev resolves). Cut every task branch from `master`, push the work, open a PR back into `master`. Releases ship by bumping `pubspec.yaml`, promoting `## [Unreleased]` in `CHANGELOG.md`, merging the bump PR, then tagging the commit on `master`. No `develop` accumulator. See the Branching section below for the full flow.
 
 ## Branching
 
-- Two long-lived branches: `master` (released, what pub.dev resolves) and `develop` (next-release accumulator). Direct pushes to either are blocked; everything lands via PR.
-- Task branches: cut from `master` (so the base reflects the last released state, not half-baked develop). Use short kebab-case names like `feat/snap-ref-dedup`, `fix/race-on-restart`, `docs/skills-section-7`. PR the topic branch into `develop`.
-- Release: when `develop` is release-ready, open a `develop -> master` PR titled `release: X.Y.Z`. Bump `pubspec.yaml` `version:`, promote `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` with the footer link, then merge and publish.
-- After the release merges, fast-forward `develop` to `master` so the next task branches cut from a clean base: `git checkout develop && git merge --ff-only origin/master && git push origin develop`.
-- External contributors fork the repo and PR against `develop` using the same shape.
+- One long-lived branch: `master`. Direct pushes blocked; everything lands via PR. Matches the flutter, dart-lang/sdk, dart-lang/pub, and Anthropic-ecosystem convention.
+- Task branches: cut from `master`, short kebab-case names (`feat/snap-ref-dedup`, `fix/race-on-restart`, `docs/skills-section-7`). One topic per branch, PR back into `master`. Squash or merge per the PR's commit shape.
+- Release: open a `release: X.Y.Z` PR from a topic branch that bumps `pubspec.yaml` `version:` and promotes `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` with the footer link. Merge, then `git tag X.Y.Z && git push origin X.Y.Z`. The tag triggers `.github/workflows/publish.yml` to push to pub.dev.
+- External contributors fork the repo and PR against `master` using the same shape.
 
 ## Architecture
 
