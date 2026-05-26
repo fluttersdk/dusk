@@ -33,21 +33,10 @@ Two CLI surfaces. `bin/fluttersdk_dusk.dart` is the Flutter-free wrapper (`dart 
 
 ## Branching
 
-Two long-lived branches, period:
-
-- `master`: tagged, released, what pub.dev resolves. Direct pushes blocked; merges land only via a `develop -> master` PR.
-- `develop`: the integration branch and the working surface. Every commit lands here first.
-
-Flow for any change (docs, code, skill, CHANGELOG):
-
-1. `git checkout develop && git fetch origin && git merge --ff-only origin/develop`. Start clean.
-2. Commit the change on `develop`. Split into atomic commits as the Conventional Commits style demands (one logical change per commit). Push with `git push origin develop`.
-3. When `develop` is release-ready, open a `develop -> master` PR. Title mirrors the version bump (`release: 0.0.3`). Body lists the bullets that were collected under `## [Unreleased]` in `CHANGELOG.md`.
-4. After the `develop -> master` PR merges, fast-forward `develop` to `master` immediately so the two branches stay in sync between releases: `git checkout develop && git merge --ff-only origin/master && git push origin develop`.
-
-Why no topic branches: PRs against `develop` create review friction without isolation benefit (CI runs the same gates either way, and a single integration branch keeps the linear history that `git log --oneline` actually reads cleanly). Hotfixes follow the same path: land on `develop`, then promote via a `develop -> master` PR; if `master` needs an out-of-band patch, tag it from `develop` and fast-forward `master` to that tag rather than branching.
-
-External contributors fork the repo and open PRs against `develop`. The fork-PR shape is the only place where a non-`develop` branch name is acceptable, and only on the contributor's fork.
+- Two long-lived branches: `master` (released, what pub.dev resolves) and `develop` (working). No `feat/*`, `fix/*`, `chore/*` topic branches.
+- Commit directly on `develop`. Releases ship via a single `develop -> master` PR titled `release: X.Y.Z`; body mirrors the `## [Unreleased]` block from `CHANGELOG.md`.
+- After the release PR merges, fast-forward `develop` to `master`: `git checkout develop && git merge --ff-only origin/master && git push origin develop`.
+- External contributors fork and PR against `develop`; the fork is the only place a non-`develop` branch name lives.
 
 ## Architecture
 
