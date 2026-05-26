@@ -414,7 +414,7 @@ autocomplete, variable history), use `artisan_tinker` via
 `./bin/fsa tinker` instead.
 
 **Pitfall.** No multi-statement input. Wrap in an immediately-invoked
-closure if needed: `(() { final c = MyService.instance; return c.value; })()`.
+closure if needed: `(() { final c = MyService.instance; return c.state.toString(); })()`.
 
 ---
 

@@ -90,7 +90,8 @@ and verify with `./bin/fsa dusk:doctor`.
    `dusk:install` / `dusk:doctor` print categorised reports). When the
    agent pipes CLI output through `jq`, prefer connected verbs that
    return pure JSON. (b) `dusk_evaluate` is MCP-only (no CLI mirror);
-   `magic_tinker` owns the evaluate REPL via `./bin/fsa tinker --eval`.
+   `artisan_tinker` (absorbed into `fluttersdk_artisan` 0.0.5) owns the
+   evaluate REPL via `./bin/fsa tinker --eval`.
 
 ## 2. Tool surface (31 MCP tools, 32 CLI commands)
 
