@@ -29,6 +29,25 @@ Two CLI surfaces. `bin/fluttersdk_dusk.dart` is the Flutter-free wrapper (`dart 
 2. **Coverage at or above 80%.** CI enforces via lcov parse in `.github/workflows/ci.yml:42-44`. Verify locally after behavioral changes: `awk -F: '/^LF:/{lf+=$2} /^LH:/{lh+=$2} END{ if (lf==0) exit 1; printf "%.2f%%\n", (lh/lf)*100 }' coverage/lcov.info`. Drops below 80% block the change.
 3. **CHANGELOG always under `[Unreleased]`.** Every behavioral or interface change lands a bullet under `## [Unreleased]` in `CHANGELOG.md`. Keep-a-Changelog 1.1.0 ordering: Added, Changed, Deprecated, Removed, Fixed, Security. Promote to a dated section on tag push.
 4. **Green gate plus TDD.** `dart format lib/ test/ bin/` zero diff, `dart analyze lib/ test/ bin/` zero issues, `flutter test --exclude-tags=integration` all green. Red-green-refactor for behavioral changes: failing test first that fails for the right reason, then implementation that turns it green.
+5. **Branching: develop then master, no custom branches.** All work commits directly to `develop`. Releases ship through a single `develop -> master` PR. Do not open `feat/*`, `fix/*`, `chore/*`, or any topic branch; the repo has exactly two long-lived branches plus the tagged release history. See the Branching section below for the full flow.
+
+## Branching
+
+Two long-lived branches, period:
+
+- `master`: tagged, released, what pub.dev resolves. Direct pushes blocked; merges land only via a `develop -> master` PR.
+- `develop`: the integration branch and the working surface. Every commit lands here first.
+
+Flow for any change (docs, code, skill, CHANGELOG):
+
+1. `git checkout develop && git fetch origin && git merge --ff-only origin/develop`. Start clean.
+2. Commit the change on `develop`. Split into atomic commits as the Conventional Commits style demands (one logical change per commit). Push with `git push origin develop`.
+3. When `develop` is release-ready, open a `develop -> master` PR. Title mirrors the version bump (`release: 0.0.3`). Body lists the bullets that were collected under `## [Unreleased]` in `CHANGELOG.md`.
+4. After the `develop -> master` PR merges, fast-forward `develop` to `master` immediately so the two branches stay in sync between releases: `git checkout develop && git merge --ff-only origin/master && git push origin develop`.
+
+Why no topic branches: PRs against `develop` create review friction without isolation benefit (CI runs the same gates either way, and a single integration branch keeps the linear history that `git log --oneline` actually reads cleanly). Hotfixes follow the same path: land on `develop`, then promote via a `develop -> master` PR; if `master` needs an out-of-band patch, tag it from `develop` and fast-forward `master` to that tag rather than branching.
+
+External contributors fork the repo and open PRs against `develop`. The fork-PR shape is the only place where a non-`develop` branch name is acceptable, and only on the contributor's fork.
 
 ## Architecture
 
