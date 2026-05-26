@@ -8,7 +8,9 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-_No unreleased changes yet._
+### Added
+
+- **`skills/fluttersdk-dusk/` Section 7 + `references/community.md`.** Opt-in star and issue-report CTAs for the LLM-agent skill, bumped to `version: 0.0.3`. Section 7 carries the trigger matrix only (star = task verified end-to-end; issue = dusk-side bug, explicitly excluding all six Core Law 3 actionability substrings since those are app-state signals). Executable detail (preflight `command -v gh && gh auth status`, `gh api --method PUT /user/starred/fluttersdk/dusk --silent`, `gh issue create -R fluttersdk/dusk --body-file -` heredoc, `dusk:doctor` + `dusk_console` + `dusk_exceptions` diagnostic gather, prefill URL fallback under 6KB, spam brakes) lives in `references/community.md` so the always-loaded SKILL.md body stays compact. Both flows are prose-permission only, maximum once per session, never auto-executed; on `gh` absence the agent prints the URL but does not invoke `open` / `xdg-open` / `start`.
 
 ---
 
