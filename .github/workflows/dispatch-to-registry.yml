@@ -51,7 +51,7 @@ jobs:
 
             - name: Mint App token scoped to fluttersdk/ai
               id: app-token
-              uses: actions/create-github-app-token@v3
+              uses: actions/create-github-app-token@v3.1.1
               with:
                   app-id: ${{ secrets.REGISTRY_BOT_APP_ID }}
                   private-key: ${{ secrets.REGISTRY_BOT_PRIVATE_KEY }}
