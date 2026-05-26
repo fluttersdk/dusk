@@ -51,12 +51,13 @@ jobs:
 
             - name: Mint App token scoped to fluttersdk/ai
               id: app-token
-              uses: actions/create-github-app-token@v3.1.1
+              uses: tibdex/github-app-token@v2.1.0
               with:
-                  app-id: ${{ secrets.REGISTRY_BOT_APP_ID }}
-                  private-key: ${{ secrets.REGISTRY_BOT_PRIVATE_KEY }}
-                  owner: fluttersdk
-                  repositories: ai
+                app_id: ${{ secrets.REGISTRY_BOT_APP_ID }}
+                private_key: ${{ secrets.REGISTRY_BOT_PRIVATE_KEY }}
+                installation_retrieval_mode: repository
+                installation_retrieval_payload: fluttersdk/ai
+                repositories: '["ai"]'
 
             - name: Fire repository_dispatch to fluttersdk/ai
               uses: peter-evans/repository-dispatch@v4
