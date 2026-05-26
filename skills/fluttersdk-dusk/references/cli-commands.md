@@ -238,7 +238,7 @@ diff /tmp/snap-before.yaml /tmp/snap-after.yaml
 ## MCP-only: there is no CLI for evaluate
 
 `dusk_evaluate` has no CLI mirror. From a shell, use `./bin/fsa tinker`
-(the connected Dart REPL shipped with `fluttersdk_artisan`):
+(the dusk-aware connected Dart REPL):
 
 ```bash
 ./bin/fsa tinker --eval="MyService.instance.state.toString()"

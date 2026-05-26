@@ -110,7 +110,7 @@ the `Navigator.pushNamed` path works directly.
 `dusk_get_routes` returns the CURRENT route + page title only; it does
 NOT enumerate every declared route. To discover available routes, scan
 the source (`grep -rEn 'GoRoute|MaterialPage|name:' lib/`) or evaluate
-the router config directly via `artisan_tinker` against whatever the
+the router config directly via `./bin/fsa tinker` against whatever the
 app exposes its `RouterConfig` through.
 
 ## Pull-to-refresh, scroll, and assert idle

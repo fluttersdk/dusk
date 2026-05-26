@@ -8,9 +8,28 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+_No unreleased changes yet._
+
+---
+
+## [0.0.3] - 2026-05-26
+
 ### Added
 
-- **`skills/fluttersdk-dusk/` Section 7 + `references/community.md`.** Opt-in star and issue-report CTAs for the LLM-agent skill, bumped to `version: 0.0.3`. Section 7 carries the trigger matrix only (star = task verified end-to-end; issue = dusk-side bug, explicitly excluding all six Core Law 3 actionability substrings since those are app-state signals). Executable detail (preflight `command -v gh && gh auth status`, `gh api --method PUT /user/starred/fluttersdk/dusk --silent`, `gh issue create -R fluttersdk/dusk --body-file -` heredoc, `dusk:doctor` + `dusk_console` + `dusk_exceptions` diagnostic gather, prefill URL fallback under 6KB, spam brakes) lives in `references/community.md` so the always-loaded SKILL.md body stays compact. Both flows are prose-permission only, maximum once per session, never auto-executed; on `gh` absence the agent prints the URL but does not invoke `open` / `xdg-open` / `start`.
+- **`skills/fluttersdk-dusk/` Section 7 + `references/community.md`.** Opt-in star and issue-report CTAs for the LLM-agent skill, bumped to skill `version: 0.0.3`. Section 7 carries the trigger matrix only (star = task verified end-to-end; issue = dusk-side bug, explicitly excluding all six Core Law 3 actionability substrings since those are app-state signals). Executable detail (preflight `command -v gh && gh auth status`, `gh api --method PUT /user/starred/fluttersdk/dusk --silent`, `gh issue create -R fluttersdk/dusk --body-file -` heredoc, `dusk:doctor` + `dusk_console` + `dusk_exceptions` diagnostic gather, prefill URL fallback under 6KB, spam brakes) lives in `references/community.md` so the always-loaded SKILL.md body stays compact. Both flows are prose-permission only, maximum once per session, never auto-executed; on `gh` absence the agent prints the URL but does not invoke `open` / `xdg-open` / `start`.
+
+### Changed
+
+- **Skill bundle decontaminated from consumer-specific identifiers.** `dusk_evaluate` examples in `references/mcp-tools.md`, `references/cli-commands.md`, and `references/workflows.md` now use generic placeholders (`MyService.instance.state`, `MyService.instance.state.toString()`) instead of consumer-private symbols (`Magic.find<MonitorController>()`, `Magic.find<MagicApplication>()`). Route-discovery hint switched from `grep -r 'MagicRoute.page'` to portable `grep -rEn 'GoRoute|MaterialPage|name:' lib/`.
+- **Tinker REPL guidance unified on the concrete command `./bin/fsa tinker`** across the published skill bundle. Package-name attribution (`magic_tinker`, `artisan_tinker`) dropped from `SKILL.md`, `references/mcp-tools.md`, `references/workflows.md`, `references/cli-commands.md` since users only ever need the command they run. Code-side `magic_tinker` references in `lib/src/dusk_artisan_provider.dart`, `lib/src/extensions/ext_evaluate.dart`, `ARCHITECTURE.md`, and `doc/mcp/tool-reference.md` are unchanged and tracked for a separate follow-up.
+
+### Fixed
+
+- **Three Copilot review findings on closed PR #5.** `references/mcp-tools.md` IIFE closure now returns `state.toString()` so the placeholder API stays consistent with the surrounding `MyService.instance.state` examples. `references/workflows.md` route-discovery grep uses portable `grep -rEn` extended-regex syntax instead of the BSD-incompatible basic-regex `\|` alternation. `skills/fluttersdk-dusk/SKILL.md` stale REPL attribution rewritten.
+
+### Docs
+
+- **CLAUDE.md adopts GitHub Flow** (Golden Rule 5 + Branching section). One long-lived branch (`master`); task branches cut from `master`, PR back into `master`; releases bump `pubspec.yaml` + promote `[Unreleased]` then tag (`git tag X.Y.Z && git push origin X.Y.Z` triggers `publish.yml`). Matches flutter/flutter, dart-lang/sdk, dart-lang/pub, and the modern OSS ecosystem (react, vscode, rust, node, kubernetes, go, angular). The repo's `develop` branch is retired after this release PR merges.
 
 ---
 
@@ -104,3 +123,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 ### Backward compat
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
+
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.3...HEAD
+[0.0.3]: https://github.com/fluttersdk/dusk/compare/0.0.2...0.0.3
+[0.0.2]: https://github.com/fluttersdk/dusk/compare/0.0.1...0.0.2
+[0.0.1]: https://github.com/fluttersdk/dusk/releases/tag/0.0.1
