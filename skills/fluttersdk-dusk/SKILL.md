@@ -83,15 +83,22 @@ and verify with `./bin/fsa dusk:doctor`.
    same code path. Use MCP when the agent is wired through an MCP
    client; use the CLI from Bash when chaining shell logic or capturing
    output to a file. Two practical differences worth knowing:
-   (a) MCP responses are always JSON; the CLI prints JSON on connected
-   commands (snap, observe, find, console, exceptions, etc.) and
-   human-readable success lines on a few side-effect commands
-   (`dusk:screenshot` writes bytes to disk and prints a one-line summary;
-   `dusk:install` / `dusk:doctor` print categorised reports). When the
-   agent pipes CLI output through `jq`, prefer connected verbs that
-   return pure JSON. (b) `dusk_evaluate` is MCP-only (no CLI mirror);
-   the dusk-aware Dart REPL lives behind `./bin/fsa tinker` (one-shot
-   form: `./bin/fsa tinker --eval="<expression>"`).
+   (a) MCP responses are always JSON. The CLI splits by verb: read /
+   query verbs return JSON (`dusk:snap`, `dusk:observe`, `dusk:find`,
+   `dusk:get_routes`, `dusk:console`, `dusk:exceptions`, `dusk:wait`,
+   `dusk:wait_for_network_idle`, `dusk:hot_reload_and_snap`); the 18
+   side-effect verbs (`dusk:tap`, `dusk:hover`, `dusk:drag`, `dusk:type`,
+   `dusk:clear`, `dusk:press_key`, `dusk:scroll`, `dusk:focus`,
+   `dusk:blur`, `dusk:dblclick`, `dusk:right_click`, `dusk:triple_click`,
+   `dusk:set_checkbox`, `dusk:select_option`, `dusk:navigate`,
+   `dusk:navigate_back`, `dusk:modal`, `dusk:close_app`) print a
+   one-line success summary by default and only emit JSON when
+   `--includeSnapshot` is passed. `dusk:screenshot` writes bytes to disk
+   and prints `Wrote N bytes...`; `dusk:install` / `dusk:doctor` print
+   categorised reports. Pipe through `jq` only on the JSON-returning
+   shapes. (b) `dusk_evaluate` is MCP-only (no CLI mirror); the
+   dusk-aware Dart REPL lives behind `./bin/fsa tinker` (one-shot form:
+   `./bin/fsa tinker --eval="<expression>"`).
 
 ## 2. Tool surface (31 MCP tools, 32 CLI commands)
 

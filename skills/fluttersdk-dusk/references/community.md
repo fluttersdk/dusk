@@ -28,9 +28,9 @@ path and use the URL fallback below. Do not invoke `gh auth login`,
      /user/starred/fluttersdk/dusk --silent
    ```
 
-   Treat exit 0 as success (HTTP 204 new star, 304 already starred; `gh`
-   collapses both to exit 0 with `--silent`). Respond once:
-   `"Starred. Thanks for the support."`
+   Treat exit 0 as success. GitHub's `PUT /user/starred/{owner}/{repo}`
+   is idempotent and returns HTTP 204 whether the star was new or
+   already set. Respond once: `"Starred. Thanks for the support."`
 
 3. **Yes + `gh` missing or unauthenticated:** print the URL, do not open
    it:

@@ -23,9 +23,8 @@ _No unreleased changes yet._
 - **Skill bundle decontaminated from consumer-specific identifiers.** `dusk_evaluate` examples in `references/mcp-tools.md`, `references/cli-commands.md`, and `references/workflows.md` now use generic placeholders (`MyService.instance.state`, `MyService.instance.state.toString()`) instead of consumer-private symbols (`Magic.find<MonitorController>()`, `Magic.find<MagicApplication>()`). Route-discovery hint switched from `grep -r 'MagicRoute.page'` to portable `grep -rEn 'GoRoute|MaterialPage|name:' lib/`.
 - **Tinker REPL guidance unified on the concrete command `./bin/fsa tinker`** across the published skill bundle. Package-name attribution (`magic_tinker`, `artisan_tinker`) dropped from `SKILL.md`, `references/mcp-tools.md`, `references/workflows.md`, `references/cli-commands.md` since users only ever need the command they run. Code-side `magic_tinker` references in `lib/src/dusk_artisan_provider.dart`, `lib/src/extensions/ext_evaluate.dart`, `ARCHITECTURE.md`, and `doc/mcp/tool-reference.md` are unchanged and tracked for a separate follow-up.
 
-### Fixed
-
 - **Three Copilot review findings on closed PR #5.** `references/mcp-tools.md` IIFE closure now returns `state.toString()` so the placeholder API stays consistent with the surrounding `MyService.instance.state` examples. `references/workflows.md` route-discovery grep uses portable `grep -rEn` extended-regex syntax instead of the BSD-incompatible basic-regex `\|` alternation. `skills/fluttersdk-dusk/SKILL.md` stale REPL attribution rewritten.
+- **Two Copilot review findings on PR #6.** `skills/fluttersdk-dusk/SKILL.md` CLI output description rewritten to match `references/cli-commands.md` truth: 9 read / query verbs emit JSON, the 18 side-effect verbs print a one-line success summary by default and only emit JSON when `--includeSnapshot` is passed. `references/community.md` star-flow note drops the spurious HTTP 304 reference; GitHub's `PUT /user/starred/{owner}/{repo}` is idempotent and returns 204 whether the star was new or already set.
 
 ### Docs
 
