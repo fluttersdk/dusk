@@ -238,10 +238,10 @@ diff /tmp/snap-before.yaml /tmp/snap-after.yaml
 ## MCP-only: there is no CLI for evaluate
 
 `dusk_evaluate` has no CLI mirror. From a shell, use `./bin/fsa tinker`
-(the connected REPL from `magic_tinker`):
+(the dusk-aware connected Dart REPL):
 
 ```bash
-./bin/fsa tinker --eval="Magic.find<MonitorController>().rxState.value"
+./bin/fsa tinker --eval="MyService.instance.state.toString()"
 ```
 
 Or open the interactive REPL: `./bin/fsa tinker`.

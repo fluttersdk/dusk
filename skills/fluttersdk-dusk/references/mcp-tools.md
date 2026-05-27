@@ -408,13 +408,12 @@ Evaluates in the running app isolate via the VM Service `evaluate`
 RPC. Returns `{ expression, result: "<stringified result>" }`.
 
 **Use it.** When state lives behind a singleton the agent cannot reach
-through snap (e.g. `Magic.find<MonitorController>().rxState.value`,
-`Cache.get('current_team')`). For richer REPL needs (multi-line,
-autocomplete, variable history), use `magic_tinker` via
-`./bin/fsa tinker` instead.
+through snap (e.g. `MyService.instance.state`,
+`SharedPreferences.getInstance()`). For richer REPL needs (multi-line,
+autocomplete, variable history), use `./bin/fsa tinker` instead.
 
 **Pitfall.** No multi-statement input. Wrap in an immediately-invoked
-closure if needed: `(() { final c = Magic.find<X>(); return c.value; })()`.
+closure if needed: `(() { final c = MyService.instance; return c.state.toString(); })()`.
 
 ---
 

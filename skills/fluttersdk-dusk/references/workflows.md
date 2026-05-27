@@ -109,8 +109,9 @@ the `Navigator.pushNamed` path works directly.
 
 `dusk_get_routes` returns the CURRENT route + page title only; it does
 NOT enumerate every declared route. To discover available routes, scan
-the source (`grep -r 'MagicRoute.page' lib/routes/`) or inspect the
-tree (`Magic.find<MagicApplication>().routerConfig`).
+the source (`grep -rEn 'GoRoute|MaterialPage|name:' lib/`) or evaluate
+the router config directly via `./bin/fsa tinker` against whatever the
+app exposes its `RouterConfig` through.
 
 ## Pull-to-refresh, scroll, and assert idle
 
@@ -263,4 +264,4 @@ SemanticsNode; re-find rather than retry.
 | "Fill 5 fields fast" | `dusk_observe { roles: "textbox" }` → 5 × `dusk_type` against `q<N>` from the candidates |
 | "Find a row in a long list" | `dusk_find { contains: "..." }` → `dusk_scroll { ref: <q>, intoView: true }` → `dusk_tap` |
 | "Set device and re-test" | `dusk_device_profile { preset: "iphone-15-pro" }` → `dusk_snap` |
-| "Inspect controller state when YAML is not enough" | `dusk_evaluate { expression: "Magic.find<X>().rxState.value" }` |
+| "Inspect singleton state when YAML is not enough" | `dusk_evaluate { expression: "MyService.instance.state.toString()" }` (replace with the host app's singleton accessor) |
