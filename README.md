@@ -68,9 +68,22 @@ End-to-end testing on Flutter has always been a stitched-together ritual. `flutt
 | 🖥️ | **CDP Device Emulation** | `dusk_resize_viewport` and `dusk_device_profile` (iphone-x, pixel-5, desktop-1440, plus 5 more) drive Chrome DevTools Protocol |
 | 🎨 | **Snapshot Enricher Plug-in** | `DuskPlugin.enrichers.add()` lets `magic` and `wind` add framework-specific YAML fragments via a frozen `String? Function(Element, RefRegistry)` contract |
 | 🔒 | **Debug-Only Tree-Shake** | Consumer wraps `DuskPlugin.install()` in `kDebugMode`; release builds tree-shake the entire driver across web, desktop, and mobile |
+| 📡 | **AI-first Distribution** | Canonical `fluttersdk-dusk` skill at [`skills/fluttersdk-dusk/`](skills/fluttersdk-dusk/) and hosted docs MCP at `mcp.fluttersdk.com`, distributed to 8+ agents (Claude Code, Cursor, OpenCode, Gemini CLI, VS Code Copilot, Codex CLI, Cline, Roo Code) via [fluttersdk/ai](https://github.com/fluttersdk/ai). First end-to-end driver in the Flutter ecosystem to ship its own LLM-agent skill bundle + docs MCP. |
 
 > [!IMPORTANT]
 > `DuskPlugin.install()` must be wrapped in `if (kDebugMode) { ... }` at the call site in `lib/main.dart`. Release builds tree-shake the entire driver across web (dart2js), desktop (dart2native), and mobile (AOT), but only when the guard exists. Without the guard, dusk ships into release binaries.
+
+## AI Coding Assistants
+
+Dusk ships AI-first. The skill at [`skills/fluttersdk-dusk/SKILL.md`](skills/fluttersdk-dusk/SKILL.md) teaches your agent the 6 core laws, the `e<N>` / `q<N>` ref grammar, the 6-step actionability vocabulary, the 31 MCP tool surface, and the agent-workflow playbooks. The same skill is distributed through [**fluttersdk/ai**](https://github.com/fluttersdk/ai) for Claude Code, Cursor, OpenCode, Gemini CLI, VS Code Copilot, Codex CLI, Cline, and Roo Code, one command:
+
+```bash
+npx skills add fluttersdk/ai --skill fluttersdk-dusk
+```
+
+The hosted MCP server at `mcp.fluttersdk.com` exposes a `search-docs` tool over Streamable HTTP (no auth) for agents that need to query the dusk docs corpus directly. For stdio-only clients, the `npx @fluttersdk/mcp` bridge proxies stdio to the upstream HTTP server. The LLM-readable inventory lives at [`llms.txt`](llms.txt). Full multi-client wire-up and the OpenCode registry URL live in the [fluttersdk/ai README](https://github.com/fluttersdk/ai).
+
+This is independent of dusk's own runtime MCP server (`./bin/fsa mcp:serve`, covered in the next section): the docs MCP teaches the agent ABOUT dusk; the runtime MCP gives the agent eyes and hands on a running Flutter app.
 
 ## MCP install: 8 clients
 

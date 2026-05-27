@@ -8,9 +8,23 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+_No unreleased changes yet._
+
+---
+
+## [0.0.4] - 2026-05-27
+
+### Added
+
+- **`README.md` `## AI Coding Assistants` section + `llms.txt` `## AI & Tooling` section + `📡 AI-first Distribution` feature-table row.** Aligns dusk's surface with the cross-package fluttersdk pattern (already shipped on `fluttersdk_wind`): the canonical `fluttersdk-dusk` skill at `skills/fluttersdk-dusk/` is distributed through [fluttersdk/ai](https://github.com/fluttersdk/ai) to 8 agents (Claude Code, Cursor, OpenCode, Gemini CLI, VS Code Copilot, Codex CLI, Cline, Roo Code) via `npx skills add fluttersdk/ai --skill fluttersdk-dusk`. The hosted docs MCP at `mcp.fluttersdk.com` exposes a `search-docs` tool over Streamable HTTP for direct docs-corpus queries, with an `npx @fluttersdk/mcp` stdio bridge for clients without HTTP MCP transport. The README copy is explicit that this is independent of dusk's own runtime MCP (`./bin/fsa mcp:serve`): the docs MCP teaches the agent ABOUT dusk; the runtime MCP gives the agent eyes and hands on a running Flutter app.
+
+### Changed
+
+- **Hero logo (`.github/dusk-logo.svg`) realigned to the FluttersDK violet palette.** The previous logo had drifted toward indigo (`#3730A3`, `#4338CA`, `#6366F1`, `#818CF8`) which is not in the `fluttersdk_magic` palette the sibling packages share. The new logo keeps the same 4-layer 3D chevron geometry (family identity across `magic`, `wind`, `dusk`) and locks the gradient stack to magic's exact violet range (`#4C1D95` deep to `#DDD6FE` highlight). The dusk-specific differentiator (magic uses tilted orbit rings) is now three gentle horizon-haze arcs across the lower portion plus five small twilight-star sparkles in the upper sky, evoking dusk's literal motif (horizon line + first stars of evening) instead of magic's planetary motion.
+
 ### Fixed
 
-- **README + CI workflow stale `develop` references.** `README.md` hero logo URL, CI badge `?branch=`, and contributor-section CI sentence pointed at the retired `develop` branch (404 after the GitHub Flow migration in 0.0.3). All three now point at `master`. `.github/workflows/ci.yml` push + pull_request triggers reduced from `[main, master, develop]` to `[master]` (single long-lived branch per the new flow; `main` was never used, `develop` is retired). Pub.dev's frozen 0.0.3 archive still carries the broken logo URL; a 0.0.4 docs-only release ships the fix to pub.dev.
+- **README + CI workflow stale `develop` references.** `README.md` hero logo URL, CI badge `?branch=`, and contributor-section CI sentence pointed at the retired `develop` branch (404 after the GitHub Flow migration in 0.0.3). All three now point at `master`. `.github/workflows/ci.yml` push + pull_request triggers reduced from `[main, master, develop]` to `[master]` (single long-lived branch per the new flow; `main` was never used, `develop` is retired). Pub.dev's frozen 0.0.3 archive still carries the broken logo URL; this 0.0.4 docs-only release ships the fix to pub.dev.
 
 ---
 
@@ -125,7 +139,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.3...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.4...HEAD
+[0.0.4]: https://github.com/fluttersdk/dusk/compare/0.0.3...0.0.4
 [0.0.3]: https://github.com/fluttersdk/dusk/compare/0.0.2...0.0.3
 [0.0.2]: https://github.com/fluttersdk/dusk/compare/0.0.1...0.0.2
 [0.0.1]: https://github.com/fluttersdk/dusk/releases/tag/0.0.1
