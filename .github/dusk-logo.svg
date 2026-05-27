@@ -1,10 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <!-- FlutterSDK Dusk: derived from magic palette (#4C1D95 to #DDD6FE violet stack) -->
-    <!-- Chevron stack mirrors fluttersdk_magic for family identity; magic's orbit rings -->
-    <!-- swapped for dusk-specific horizon haze + twilight stars. No indigo bleed. -->
+    <!-- FlutterSDK Dusk: line geometry mirrors fluttersdk_magic verbatim (chevron stack + orbit rings); only gradient IDs are renamed (d* not m*) to avoid ID collision when both logos render in the same page. -->
 
-    <!-- Layer 1 - Core (lightest violet, closest to viewer) -->
     <linearGradient id="d1-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#7C3AED"/>
       <stop offset="100%" stop-color="#A78BFA"/>
@@ -13,8 +10,6 @@
       <stop offset="0%" stop-color="#6D28D9"/>
       <stop offset="100%" stop-color="#7C3AED"/>
     </linearGradient>
-
-    <!-- Layer 2 (violet glow) -->
     <linearGradient id="d2-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#A78BFA"/>
       <stop offset="100%" stop-color="#C4B5FD"/>
@@ -23,8 +18,6 @@
       <stop offset="0%" stop-color="#7C3AED"/>
       <stop offset="100%" stop-color="#A78BFA"/>
     </linearGradient>
-
-    <!-- Layer 3 (deeper violet) -->
     <linearGradient id="d3-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#6D28D9"/>
       <stop offset="100%" stop-color="#7C3AED"/>
@@ -33,8 +26,6 @@
       <stop offset="0%" stop-color="#5B21B6"/>
       <stop offset="100%" stop-color="#6D28D9"/>
     </linearGradient>
-
-    <!-- Layer 4 - Outer (deepest violet, farthest back) -->
     <linearGradient id="d4-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#5B21B6"/>
       <stop offset="100%" stop-color="#6D28D9"/>
@@ -44,51 +35,51 @@
       <stop offset="100%" stop-color="#5B21B6"/>
     </linearGradient>
 
-    <!-- Horizon haze: gentle near-horizontal sweeps, fades at both ends -->
-    <linearGradient id="horizon-1" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#DDD6FE" stop-opacity="0"/>
-      <stop offset="50%" stop-color="#DDD6FE" stop-opacity="0.65"/>
-      <stop offset="100%" stop-color="#DDD6FE" stop-opacity="0"/>
+    <!-- Orbit stroke gradients -->
+    <linearGradient id="d-orbit-1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C4B5FD" stop-opacity="0.7"/>
+      <stop offset="50%" stop-color="#DDD6FE" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#A78BFA" stop-opacity="0.15"/>
     </linearGradient>
-    <linearGradient id="horizon-2" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#C4B5FD" stop-opacity="0"/>
-      <stop offset="50%" stop-color="#C4B5FD" stop-opacity="0.5"/>
-      <stop offset="100%" stop-color="#C4B5FD" stop-opacity="0"/>
+    <linearGradient id="d-orbit-2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#A78BFA" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#C4B5FD" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#7C3AED" stop-opacity="0.1"/>
     </linearGradient>
-    <linearGradient id="horizon-3" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#A78BFA" stop-opacity="0"/>
+    <linearGradient id="d-orbit-3" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#DDD6FE" stop-opacity="0.5"/>
       <stop offset="50%" stop-color="#A78BFA" stop-opacity="0.35"/>
-      <stop offset="100%" stop-color="#A78BFA" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#7C3AED" stop-opacity="0.08"/>
     </linearGradient>
   </defs>
 
-  <!-- HORIZON HAZE: three gently curved twilight bands behind the chevrons -->
-  <path d="M20 175 Q256 165 492 178" stroke="url(#horizon-1)" stroke-width="3" fill="none" stroke-linecap="round"/>
-  <path d="M20 245 Q256 232 492 250" stroke="url(#horizon-2)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  <path d="M20 315 Q256 302 492 320" stroke="url(#horizon-3)" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- ORBIT RINGS: Behind chevrons (drawn first) -->
 
-  <!-- TWILIGHT STARS: first stars of dusk, scattered in the upper sky -->
-  <circle cx="58" cy="78" r="3" fill="#DDD6FE" opacity="0.9"/>
-  <circle cx="128" cy="48" r="2.2" fill="#C4B5FD" opacity="0.8"/>
-  <circle cx="384" cy="38" r="1.8" fill="#DDD6FE" opacity="0.7"/>
-  <circle cx="432" cy="72" r="2.5" fill="#DDD6FE" opacity="0.85"/>
-  <circle cx="472" cy="128" r="2" fill="#C4B5FD" opacity="0.75"/>
+  <!-- Orbit 1 - wide horizontal ellipse, tilted slightly -->
+  <g transform="rotate(-12, 265, 245)">
+    <ellipse cx="265" cy="245" rx="248" ry="100" fill="none"
+             stroke="url(#d-orbit-1)" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
 
-  <!-- 3D Chevrons: identical path geometry to fluttersdk_magic for family identity -->
+  <!-- Orbit 2 - narrower, tilted opposite -->
+  <g transform="rotate(25, 265, 245)">
+    <ellipse cx="265" cy="245" rx="240" ry="75" fill="none"
+             stroke="url(#d-orbit-2)" stroke-width="2.8" stroke-linecap="round"/>
+  </g>
 
-  <!-- Layer 4 - Outer (back) -->
+  <!-- Orbit 3 - steepest tilt -->
+  <g transform="rotate(60, 265, 245)">
+    <ellipse cx="265" cy="245" rx="230" ry="60" fill="none"
+             stroke="url(#d-orbit-3)" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- 3D Chevrons (on top of orbits) -->
   <path d="M280 56 L456 232 L280 320 L368 232 L280 144 Z" fill="url(#d4-light)"/>
   <path d="M280 320 L456 232 L280 408 Z" fill="url(#d4-dark)"/>
-
-  <!-- Layer 3 -->
   <path d="M216 88 L392 264 L216 352 L304 264 L216 176 Z" fill="url(#d3-light)"/>
   <path d="M216 352 L392 264 L216 440 Z" fill="url(#d3-dark)"/>
-
-  <!-- Layer 2 -->
   <path d="M152 120 L328 296 L152 384 L240 296 L152 208 Z" fill="url(#d2-light)"/>
   <path d="M152 384 L328 296 L152 472 Z" fill="url(#d2-dark)"/>
-
-  <!-- Layer 1 - Core (front) -->
   <path d="M88 40 L264 216 L88 304 L176 216 L88 128 Z" fill="url(#d1-light)"/>
   <path d="M88 304 L264 216 L88 392 Z" fill="url(#d1-dark)"/>
 </svg>

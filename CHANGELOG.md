@@ -20,7 +20,7 @@ _No unreleased changes yet._
 
 ### Changed
 
-- **Hero logo (`.github/dusk-logo.svg`) realigned to the FluttersDK violet palette.** The previous logo had drifted toward indigo (`#3730A3`, `#4338CA`, `#6366F1`, `#818CF8`) which is not in the `fluttersdk_magic` palette the sibling packages share. The new logo keeps the same 4-layer 3D chevron geometry (family identity across `magic`, `wind`, `dusk`) and locks the gradient stack to magic's exact violet range (`#4C1D95` deep to `#DDD6FE` highlight). The dusk-specific differentiator (magic uses tilted orbit rings) is now three gentle horizon-haze arcs across the lower portion plus five small twilight-star sparkles in the upper sky, evoking dusk's literal motif (horizon line + first stars of evening) instead of magic's planetary motion.
+- **Hero logo (`.github/dusk-logo.svg`) realigned to `fluttersdk_magic` 1:1.** The previous logo had drifted toward indigo (`#3730A3`, `#4338CA`, `#6366F1`, `#818CF8`) which is not in the magic palette the sibling packages share, and its custom wavy shimmer accents diverged from the family line work. The new SVG is a verbatim copy of `magic-logo.svg`: same 4-layer 3D chevron geometry, same three tilted orbit rings (rotated -12°, 25°, 60° around the same center), same `rx` / `ry` / `stroke-width` / `stop-opacity` tokens, same 7-color violet palette (`#4C1D95` through `#DDD6FE`). The only change is the gradient ID prefix (`m*` -> `d*`, plus `orbit-N` -> `d-orbit-N`) so both logos can render on the same page without DOM-level ID collisions. Verification: `diff <(grep colors dusk) <(grep colors magic)` is empty (set-equal); the same diff over `rotate()` transforms, ellipse params, chevron paths, and stroke / opacity tokens is also empty.
 
 ### Fixed
 
