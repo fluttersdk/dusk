@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/fluttersdk/dusk/develop/.github/dusk-logo.svg" width="120" alt="Dusk Logo" />
+  <img src="https://raw.githubusercontent.com/fluttersdk/dusk/master/.github/dusk-logo.svg" width="120" alt="Dusk Logo" />
 </p>
 
 <h1 align="center">Dusk</h1>
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/fluttersdk/dusk/actions"><img src="https://img.shields.io/github/actions/workflow/status/fluttersdk/dusk/ci.yml?branch=develop&label=CI" alt="CI"></a>
+  <a href="https://github.com/fluttersdk/dusk/actions"><img src="https://img.shields.io/github/actions/workflow/status/fluttersdk/dusk/ci.yml?branch=master&label=CI" alt="CI"></a>
   <a href="https://pub.dev/packages/fluttersdk_dusk"><img src="https://img.shields.io/pub/v/fluttersdk_dusk.svg" alt="pub package"></a>
   <a href="https://pub.dev/packages/fluttersdk_dusk/score"><img src="https://img.shields.io/pub/points/fluttersdk_dusk" alt="pub points"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
@@ -146,7 +146,7 @@ cd dusk && flutter pub get
 flutter test && dart analyze
 ```
 
-CI enforces 80%+ line coverage on `lib/` on every push to develop, main, and master, with zero analyze issues and zero format drift on `lib/`, `test/`, and `bin/`. New behavior ships with a failing test first (red, green, refactor).
+CI enforces 80%+ line coverage on `lib/` on every push to `master` and every PR back into it, with zero analyze issues and zero format drift on `lib/`, `test/`, and `bin/`. New behavior ships with a failing test first (red, green, refactor).
 
 Before opening a pull request, run the same checks CI runs:
 

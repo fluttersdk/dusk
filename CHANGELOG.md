@@ -8,7 +8,9 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-_No unreleased changes yet._
+### Fixed
+
+- **README + CI workflow stale `develop` references.** `README.md` hero logo URL, CI badge `?branch=`, and contributor-section CI sentence pointed at the retired `develop` branch (404 after the GitHub Flow migration in 0.0.3). All three now point at `master`. `.github/workflows/ci.yml` push + pull_request triggers reduced from `[main, master, develop]` to `[master]` (single long-lived branch per the new flow; `main` was never used, `develop` is retired). Pub.dev's frozen 0.0.3 archive still carries the broken logo URL; a 0.0.4 docs-only release ships the fix to pub.dev.
 
 ---
 
