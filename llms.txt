@@ -86,6 +86,12 @@
 - [Wind integration](https://fluttersdk.com/dusk/plugins/wind-integration.md)
 - [Authoring a snapshot enricher](https://fluttersdk.com/dusk/plugins/enricher-authoring.md)
 
+## AI & Tooling
+- [fluttersdk/ai](https://github.com/fluttersdk/ai): canonical distribution channel. One-command install via `npx skills add fluttersdk/ai --skill fluttersdk-dusk` covers Claude Code, Cursor, OpenCode, Gemini CLI, VS Code Copilot, Codex CLI, Cline, Roo Code.
+- [Dusk skill source](https://github.com/fluttersdk/dusk/tree/master/skills/fluttersdk-dusk): canonical `SKILL.md` + references (`mcp-tools.md`, `cli-commands.md`, `actionability-and-refs.md`, `workflows.md`, `community.md`); `fluttersdk/ai` mirrors this directory.
+- [Hosted docs MCP server](https://mcp.fluttersdk.com): Streamable HTTP, single `search-docs` tool over the dusk docs corpus, no auth required.
+- [Stdio MCP bridge](https://www.npmjs.com/package/@fluttersdk/mcp): `npx @fluttersdk/mcp` for clients without HTTP MCP transport.
+
 ## Source
 - [GitHub](https://github.com/fluttersdk/dusk)
 - [pub.dev](https://pub.dev/packages/fluttersdk_dusk)
