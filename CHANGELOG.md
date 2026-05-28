@@ -8,14 +8,21 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+_No unreleased changes yet._
+
+---
+
+## [0.0.5] - 2026-05-28
+
 ### Changed
 
+- **`fluttersdk_artisan` constraint bumped from `^0.0.5` to `^0.0.6`** (Dart pre-1.0 caret rule: `^0.0.6` resolves to `>=0.0.6 <0.0.7`). Consumers now pull in artisan 0.0.6 which ships the substrate `mcp:install --invocation=<exec>` flag this release depends on for the fallback behavior below.
 - **`mcp:install` fallback when `bin/fsa` is absent now writes `dart run fluttersdk_dusk mcp:serve`.** The dusk wrapper auto-injects `--invocation=fluttersdk_dusk` when forwarding `mcp:install` to the substrate, so the substrate's `.mcp.json` writer picks the plugin-aware payload instead of the legacy `dart run :dispatcher mcp:serve` fallback. No change in behavior when fastcli is present; the `./bin/fsa mcp:serve` payload is unchanged.
 - **Renamed every dart run fluttersdk_artisan reference inside the dusk package to dart run fluttersdk_dusk (33 docs/code occurrences).** The dusk wrapper proxies the full artisan command surface; the package-local invocation is now canonical inside dusk's own docs, error messages, dartdocs, and chained subprocess calls. Substrate package:fluttersdk_artisan/ Dart imports unchanged.
 
 ### Fixed
 
-- **`bin/fluttersdk_dusk.dart` now forces `collectMcpTools: true` when dispatching `mcp:serve`**, so `dart run fluttersdk_dusk mcp:serve` surfaces all 31 dusk_* MCP tools even without the fastcli scaffold. Previously returned 0 plugin tools (only the 10 substrate tools).
+- **`bin/fluttersdk_dusk.dart` now forces `collectMcpTools: true` when dispatching `mcp:serve`**, so `dart run fluttersdk_dusk mcp:serve` surfaces all 31 dusk_* MCP tools even without the fastcli scaffold. Previously returned 0 plugin tools (only the 10 substrate tools). Verified end-to-end on a fresh `flutter create` consumer with path-linked dusk + artisan 0.0.6 against a running Flutter app on Chrome (real counter increments visible via `dusk:tap` + subsequent `dusk:snap`).
 
 ---
 
@@ -146,7 +153,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.4...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.5...HEAD
+[0.0.5]: https://github.com/fluttersdk/dusk/compare/0.0.4...0.0.5
 [0.0.4]: https://github.com/fluttersdk/dusk/compare/0.0.3...0.0.4
 [0.0.3]: https://github.com/fluttersdk/dusk/compare/0.0.2...0.0.3
 [0.0.2]: https://github.com/fluttersdk/dusk/compare/0.0.1...0.0.2
