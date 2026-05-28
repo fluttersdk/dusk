@@ -39,6 +39,13 @@ Consumer registers DuskArtisanProvider (auto-wired by `dusk:install` via _plugin
 artisan mcp:serve   →   31 dusk_* tools surface to MCP clients (Claude Code, Cursor, Windsurf, Copilot, ...)
 ```
 
+### Plugin wrapper interceptions (`bin/fluttersdk_dusk.dart`)
+
+The Flutter-free CLI wrapper applies two interceptions before delegating to `runArtisan`:
+
+- `mcp:install` detected: injects `--invocation=fluttersdk_dusk` into the forwarded args (idempotent; user-supplied `--invocation` wins). This surfaces the plugin executable name to the substrate's `.mcp.json` writer so the fastcli-absent fallback writes `dart run fluttersdk_dusk mcp:serve` instead of the generic `:dispatcher` shape.
+- `mcp:serve` detected: forces `collectMcpTools: true` and `delegateToConsumer: false`, mirroring `fluttersdk_artisan/bin/mcp.dart`. Without this, `dart run fluttersdk_dusk mcp:serve` would boot with 0 plugin tools.
+
 ## CLI commands
 
 The 32 commands registered by `DuskArtisanProvider.commands()`:

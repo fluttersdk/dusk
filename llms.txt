@@ -78,7 +78,7 @@
 
 ## MCP
 - [MCP overview](https://fluttersdk.com/dusk/mcp/overview.md)
-- [MCP setup (.mcp.json wiring)](https://fluttersdk.com/dusk/mcp/setup.md)
+- [MCP setup (.mcp.json wiring)](https://fluttersdk.com/dusk/mcp/setup.md): when fastcli is absent, `mcp:install` auto-selects `dart run fluttersdk_dusk mcp:serve` as the plugin-aware fallback (no manual edit needed).
 - [MCP tool reference (31 tools)](https://fluttersdk.com/dusk/mcp/tool-reference.md)
 
 ## Plugins

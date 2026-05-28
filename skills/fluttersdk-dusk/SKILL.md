@@ -200,7 +200,7 @@ debug port. The agent should:
 ```bash
 # From the Flutter app root:
 dart run fluttersdk_dusk dusk:install        # patches main.dart, scaffolds ./bin/fsa
-dart run fluttersdk_artisan mcp:install      # writes .mcp.json
+dart run fluttersdk_dusk mcp:install      # writes .mcp.json
 ./bin/fsa start --device=chrome              # or macos / linux / windows / <device-id>
 ./bin/fsa dusk:doctor                        # 5 checks; only semanticsEnabled is hard fail
 ./bin/fsa dusk:snap                          # confirm the agent can reach the app

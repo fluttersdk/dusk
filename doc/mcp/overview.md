@@ -22,10 +22,9 @@ sees a single unified catalog.
 
 ## Substrate MCP server, dusk tool descriptors
 
-The substrate MCP server lives inside `fluttersdk_artisan`. The binary `dart run
-fluttersdk_artisan:mcp` speaks stdio JSON-RPC, reads `~/.artisan/state.json` to find the
+The substrate MCP server is surfaced through the dusk wrapper binary. Running `dart run fluttersdk_dusk mcp:serve` speaks stdio JSON-RPC, reads `~/.artisan/state.json` to find the
 running Flutter app's VM Service URI, and collects every registered provider's
-`mcpTools()` list at boot. `DuskArtisanProvider.mcpTools()` returns 31 `McpToolDescriptor`
+`mcpTools()` list at boot (the wrapper forces `collectMcpTools: true` so all 31 dusk_* tools surface without needing a scaffolded fastcli binary). `DuskArtisanProvider.mcpTools()` returns 31 `McpToolDescriptor`
 instances; the substrate server registers each as a regular MCP tool and dispatches calls
 through the descriptor's declared `extensionMethod`. No additional server process is
 launched for dusk; one MCP endpoint, one server, plugin-extensible.
@@ -33,7 +32,7 @@ launched for dusk; one MCP endpoint, one server, plugin-extensible.
 This means every `.mcp.json` snippet that wires the substrate MCP server already gives the
 AI client access to the dusk tools. There is no separate `fluttersdk_dusk:mcp` binary to
 add, no second `cwd` to configure. See [setup.md](setup.md) for the per-client install
-matrix.
+matrix. Running `dart run fluttersdk_dusk mcp:serve` directly (without scaffolded fastcli) now surfaces the same 31 tools via the wrapper's automatic `collectMcpTools: true` flag.
 
 ---
 

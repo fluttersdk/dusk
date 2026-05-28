@@ -111,16 +111,18 @@ See [Magic integration](../plugins/magic-integration) and
 <a name="register-with-artisan"></a>
 ## Register with artisan (automatic)
 
-`dusk:install` already handles this for you as Phase 2 of its run. Right after the `lib/main.dart` patch lands, it chains `dart run fluttersdk_artisan install` (scaffolds `bin/dispatcher.dart` + `./bin/fsa` fastcli, ~110ms warm AOT) followed by `dart run fluttersdk_artisan plugin:install fluttersdk_dusk` (registers `DuskArtisanProvider` and auto-purges the AOT bundle cache). Both sub-process calls skip when their idempotency markers already exist (`bin/dispatcher.dart` and `.artisan/installed/fluttersdk_dusk.json` respectively), so re-running `dusk:install` is a fast no-op.
+`dusk:install` already handles this for you as Phase 2 of its run. Right after the `lib/main.dart` patch lands, it chains `dart run fluttersdk_dusk install` (scaffolds `bin/dispatcher.dart` + `./bin/fsa` fastcli, ~110ms warm AOT) followed by `dart run fluttersdk_dusk plugin:install fluttersdk_dusk` (registers `DuskArtisanProvider` and auto-purges the AOT bundle cache). Both sub-process calls skip when their idempotency markers already exist (`bin/dispatcher.dart` and `.artisan/installed/fluttersdk_dusk.json` respectively), so re-running `dusk:install` is a fast no-op.
 
 If the chained calls fail (no `dart` on PATH, partial pub-cache, restricted sandbox), `dusk:install` falls through with a warning and exits 0; the `lib/main.dart` patch already landed, so `dart run fluttersdk_dusk <cmd>` still works. You can finish the setup manually:
 
 ```bash
-dart run fluttersdk_artisan install                          # only if Phase 2 was skipped
-dart run fluttersdk_artisan plugin:install fluttersdk_dusk   # idempotent; refreshes barrels on re-run
+dart run fluttersdk_dusk install                          # only if Phase 2 was skipped
+dart run fluttersdk_dusk plugin:install fluttersdk_dusk   # idempotent; refreshes barrels on re-run
 ```
 
 After Phase 2 lands, `./bin/fsa list` shows all `dusk:*` commands and `./bin/fsa mcp:serve` exposes the 31 dusk_* tools.
+
+The optional `mcp:install` step in the next section writes the plugin-aware `.mcp.json` payload by default. When fastcli (`./bin/fsa`) is present, the entry uses `./bin/fsa mcp:serve`; when it is absent, the wrapper's `--invocation=fluttersdk_dusk` pass-through causes `mcp:install` to write `dart run fluttersdk_dusk mcp:serve` instead. Either way, no manual `.mcp.json` edit is needed.
 
 <a name="wire-mcp-tools"></a>
 ## Wire MCP tools
@@ -128,19 +130,17 @@ After Phase 2 lands, `./bin/fsa list` shows all `dusk:*` commands and `./bin/fsa
 With artisan registered, expose dusk's 31 MCP tools to your AI client by writing the `.mcp.json` entry:
 
 ```bash
-dart run fluttersdk_artisan mcp:install
+dart run fluttersdk_dusk mcp:install
 ```
 
-This writes (or updates) a `.mcp.json` file at the project root wiring
-`dart run fluttersdk_artisan mcp:serve` as the MCP server entry point. Claude Code,
+This writes (or updates) a `.mcp.json` file at the project root. Claude Code,
 Cursor, and Windsurf all pick up `.mcp.json` automatically from the working directory.
+The payload depends on your scaffold state:
 
-If your project uses the `./bin/fsa` AOT binary (shipped by the artisan scaffold),
-the MCP server is available without the `dart run` startup overhead:
+- **fastcli present** (`./bin/fsa` exists, POSIX): writes `./bin/fsa mcp:serve` — fastest startup (~50ms warm AOT).
+- **fastcli absent**: the wrapper injects `--invocation=fluttersdk_dusk` automatically, so the entry writes `dart run fluttersdk_dusk mcp:serve` (~3s startup, no scaffold required).
 
-```bash
-./bin/fsa mcp:serve
-```
+See [Fallback invocations](../mcp/setup.md#fallback-invocations) for the full precedence table.
 
 <a name="verify-installation"></a>
 ## Verify installation
@@ -154,7 +154,7 @@ flutter run -d chrome
 Then, in a separate terminal, capture the first Semantics snapshot:
 
 ```bash
-dart run fluttersdk_artisan dusk:snap
+dart run fluttersdk_dusk dusk:snap
 ```
 
 A successful snap prints a YAML block beginning with `snapshot:` followed by one or

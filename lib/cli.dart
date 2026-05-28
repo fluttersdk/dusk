@@ -3,7 +3,7 @@
 /// Imported by the consumer's `lib/app/_plugins.g.dart` codegen (which runs
 /// under `dart run` on the pure Dart VM, not under `flutter run`). Re-exports
 /// the artisan provider class plus the codegen-convention alias so
-/// `dart run artisan list` and `dart run fluttersdk_artisan:mcp` can wire
+/// `dart run artisan list` and `dart run fluttersdk_dusk mcp:serve` can wire
 /// dusk without dragging the Flutter runtime into the consumer wrapper.
 ///
 /// Runtime / widget code keeps using `package:fluttersdk_dusk/dusk.dart`

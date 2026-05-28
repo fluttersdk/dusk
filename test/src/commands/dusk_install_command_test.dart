@@ -46,7 +46,7 @@ void main() {
     setUp(() {
       tempDir = Directory.systemTemp.createTempSync('dusk_install_test_');
       // Tests target a temp-dir Flutter-project fixture; the Phase 2
-      // sub-process chain (`dart run fluttersdk_artisan install` +
+      // sub-process chain (`dart run fluttersdk_dusk install` +
       // `plugin:install`) is out of scope here (covered separately by
       // the E2E showroom smoke against `/tmp/dusk_e2e_v*`).
       DuskInstallCommand.runChainedSetup = false;
@@ -407,14 +407,13 @@ class MyApp extends StatelessWidget {
 
         // Both sub-process calls fired in order.
         expect(calls, hasLength(2));
-        expect(
-            calls[0], equals(['dart', 'run', 'fluttersdk_artisan', 'install']));
+        expect(calls[0], equals(['dart', 'run', 'fluttersdk_dusk', 'install']));
         expect(
             calls[1],
             equals([
               'dart',
               'run',
-              'fluttersdk_artisan',
+              'fluttersdk_dusk',
               'plugin:install',
               'fluttersdk_dusk'
             ]));
@@ -611,7 +610,7 @@ class MyApp extends StatelessWidget {
         // dispatcher.dart pre-existence guard.
         expect(calls, hasLength(1));
         expect(calls[0].sublist(0, 4),
-            equals(['dart', 'run', 'fluttersdk_artisan', 'plugin:install']));
+            equals(['dart', 'run', 'fluttersdk_dusk', 'plugin:install']));
       },
     );
   });

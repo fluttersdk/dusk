@@ -4,7 +4,7 @@
 # consumer's lib/app/_plugins.g.dart codegen barrel (via the artisan manifest
 # installer's _registerArtisanProvider step) so the 32 dusk CLI commands + 31
 # dusk_* MCP tools (28 ext.dusk.* + 3 artisan:dusk:* substrate-routed) surface
-# in the consumer's `dart run artisan` and `dart run fluttersdk_artisan:mcp`
+# in the consumer's `dart run artisan` and `dart run fluttersdk_dusk mcp:serve`
 # outputs.
 #
 # No stub files are published: dusk captures via VM Service extensions
@@ -53,7 +53,7 @@ post_install:
 
     5. Verify the MCP surface:
 
-         dart run fluttersdk_artisan mcp:install    # add fluttersdk MCP server entry to .mcp.json
+         dart run fluttersdk_dusk mcp:install    # add fluttersdk MCP server entry to .mcp.json
          # then restart Claude Code; /mcp will list 31 dusk_* tools
          # (dusk_blur, dusk_clear, dusk_close_app, dusk_console, dusk_dblclick,
          #  dusk_device_profile, dusk_dismiss_modals, dusk_drag, dusk_evaluate,

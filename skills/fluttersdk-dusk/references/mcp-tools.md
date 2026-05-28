@@ -8,7 +8,7 @@ the same session.
 ## How calls work
 
 The MCP client forwards `tools/call` to the artisan server
-(`dart run fluttersdk_artisan:mcp`). The server dispatches to one of:
+(`dart run fluttersdk_dusk mcp:serve`). The server dispatches to one of:
 
 - An `ext.dusk.*` VM Service extension running inside the Flutter isolate
   (28 tools).
