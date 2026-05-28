@@ -102,8 +102,8 @@ class DuskInstallCommand extends ArtisanCommand {
     return 0;
   }
 
-  /// Chains `dart run fluttersdk_artisan install` (scaffold fastcli) +
-  /// `dart run fluttersdk_artisan plugin:install fluttersdk_dusk`
+  /// Chains `dart run fluttersdk_dusk install` (scaffold fastcli) +
+  /// `dart run fluttersdk_dusk plugin:install fluttersdk_dusk`
   /// (register provider) when their outputs are missing.
   ///
   /// Each step is idempotent on the artisan side; we still guard with a
@@ -120,19 +120,19 @@ class DuskInstallCommand extends ArtisanCommand {
       try {
         final result = await processRunner(
           'dart',
-          const ['run', 'fluttersdk_artisan', 'install'],
+          const ['run', 'fluttersdk_dusk', 'install'],
         );
         if (result.exitCode != 0) {
           ctx.output.warning(
             'artisan install exited ${result.exitCode}; rerun manually '
-            'with `dart run fluttersdk_artisan install`. Stderr: '
+            'with `dart run fluttersdk_dusk install`. Stderr: '
             '${result.stderr.toString().trim().split('\n').first}',
           );
         }
       } catch (e) {
         ctx.output.warning(
           'artisan install chain skipped ($e). Run `dart run '
-          'fluttersdk_artisan install` manually when ready.',
+          'fluttersdk_dusk install` manually when ready.',
         );
         return;
       }
@@ -150,7 +150,7 @@ class DuskInstallCommand extends ArtisanCommand {
           'dart',
           const [
             'run',
-            'fluttersdk_artisan',
+            'fluttersdk_dusk',
             'plugin:install',
             'fluttersdk_dusk'
           ],
@@ -158,7 +158,7 @@ class DuskInstallCommand extends ArtisanCommand {
         if (result.exitCode != 0) {
           ctx.output.warning(
             'artisan plugin:install exited ${result.exitCode}; rerun '
-            'manually with `dart run fluttersdk_artisan plugin:install '
+            'manually with `dart run fluttersdk_dusk plugin:install '
             'fluttersdk_dusk`. Stderr: '
             '${result.stderr.toString().trim().split('\n').first}',
           );
@@ -166,7 +166,7 @@ class DuskInstallCommand extends ArtisanCommand {
       } catch (e) {
         ctx.output.warning(
           'artisan plugin:install chain skipped ($e). Run `dart run '
-          'fluttersdk_artisan plugin:install fluttersdk_dusk` manually '
+          'fluttersdk_dusk plugin:install fluttersdk_dusk` manually '
           'when ready.',
         );
       }

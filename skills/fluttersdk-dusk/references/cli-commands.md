@@ -17,7 +17,7 @@ For interactive agent loops, MCP is faster (no process spawn per call).
 |---|---|---|
 | `./bin/fsa <cmd>` | ~110ms warm AOT | Default; what `dusk:install` scaffolds |
 | `dart run fluttersdk_dusk <cmd>` | ~3s cold | When `./bin/fsa` is missing |
-| `dart run fluttersdk_artisan <cmd>` | ~3s cold | Substrate-level commands without dusk |
+| `dart run fluttersdk_dusk <cmd>` | ~3s cold | Substrate-level commands without dusk |
 
 `./bin/fsa` auto-rebuilds when stale (4-condition check); manual force
 rebuild: `rm -rf .artisan/cli-bundle .artisan/build.stamp && ./bin/fsa list`.

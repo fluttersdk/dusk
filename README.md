@@ -35,7 +35,7 @@ flutter pub add fluttersdk_dusk
 dart run fluttersdk_dusk dusk:install      # patches lib/main.dart + scaffolds ./bin/fsa + registers dusk plugin
 ```
 
-That's it. After the second command, all 32 `dusk:*` commands surface through `./bin/fsa <cmd>` (~110ms warm) or `dart run fluttersdk_dusk <cmd>` (works the same, ~3s startup), and the MCP server is one `dart run fluttersdk_artisan mcp:install` away. See [MCP install: 8 clients](#mcp-install-8-clients) for the per-client wiring. Manual wiring, Magic-stack integration, and the full per-command flag reference live in the [Getting Started guide](https://fluttersdk.com/dusk/getting-started).
+That's it. After the second command, all 32 `dusk:*` commands surface through `./bin/fsa <cmd>` (~110ms warm) or `dart run fluttersdk_dusk <cmd>` (works the same, ~3s startup), and the MCP server is one `dart run fluttersdk_dusk mcp:install` away. When fastcli (`./bin/fsa`) is absent, `mcp:install` writes `dart run fluttersdk_dusk mcp:serve` into `.mcp.json` automatically; no manual edit required. See [MCP install: 8 clients](#mcp-install-8-clients) for the per-client wiring. Manual wiring, Magic-stack integration, and the full per-command flag reference live in the [Getting Started guide](https://fluttersdk.com/dusk/getting-started).
 
 > [!TIP]
 > **fastcli** is the AOT-compiled artisan dispatcher (~110ms warm) shipped as `./bin/fsa`. `dusk:install` scaffolds it for you automatically (best-effort; falls through to a warning when `dart` is not on PATH). After that, every `./bin/fsa <cmd>` is the fast path. The CLI also runs as `dart run fluttersdk_dusk <cmd>` with the same surface, ~3s slower per call.

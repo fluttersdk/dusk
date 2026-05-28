@@ -23,7 +23,7 @@ Leave the browser window open and open a second terminal in the same directory. 
 `dusk:snap` to walk the live Semantics tree and emit a YAML snapshot:
 
 ```bash
-dart run fluttersdk_artisan dusk:snap
+dart run fluttersdk_dusk dusk:snap
 ```
 
 The command connects to the running app via the VM Service, walks every visible
@@ -56,7 +56,7 @@ Locate the ref token for the target widget in the snapshot output above. The cou
 increment button is `e1`. Pass that token to `dusk:tap`:
 
 ```bash
-dart run fluttersdk_artisan dusk:tap --ref=e1
+dart run fluttersdk_dusk dusk:tap --ref=e1
 ```
 
 The extension looks up `e1` in the frozen snapshot registry, checks the actionability
@@ -87,7 +87,7 @@ Capture a PNG of the current viewport to verify the app state visually or to sav
 baseline image:
 
 ```bash
-dart run fluttersdk_artisan dusk:screenshot --output=counter_after_tap.png
+dart run fluttersdk_dusk dusk:screenshot --output=counter_after_tap.png
 ```
 
 The extension walks the render tree to find the `RepaintBoundary` that

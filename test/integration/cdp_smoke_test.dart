@@ -66,11 +66,11 @@ void main() {
     List<String> args, {
     Duration timeout = const Duration(seconds: 60),
   }) {
-    // `dart run fluttersdk_artisan <args>` is the consumer-facing entry. The
+    // `dart run fluttersdk_dusk <args>` is the consumer-facing entry. The
     // smoke test runs against the dusk package's own pubspec, which depends on
     // fluttersdk_artisan via path. Process inherits stdout / stderr so the
     // test log captures the full artisan trace on failure.
-    return Process.run('dart', <String>['run', 'fluttersdk_artisan', ...args])
+    return Process.run('dart', <String>['run', 'fluttersdk_dusk', ...args])
         .timeout(timeout);
   }
 
