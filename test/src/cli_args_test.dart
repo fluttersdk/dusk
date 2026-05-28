@@ -4,7 +4,8 @@ import 'package:fluttersdk_dusk/src/cli_args.dart';
 
 void main() {
   group('injectInvocationForMcpInstall()', () {
-    test('returns args unchanged when first non-flag arg is not mcp:install', () {
+    test('returns args unchanged when first non-flag arg is not mcp:install',
+        () {
       final result = injectInvocationForMcpInstall(
         ['list'],
         'fluttersdk_dusk',
@@ -12,7 +13,8 @@ void main() {
       expect(result, equals(['list']));
     });
 
-    test('appends --invocation flag when first non-flag arg is mcp:install', () {
+    test('appends --invocation flag when first non-flag arg is mcp:install',
+        () {
       final result = injectInvocationForMcpInstall(
         ['mcp:install'],
         'fluttersdk_dusk',

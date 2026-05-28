@@ -407,8 +407,7 @@ class MyApp extends StatelessWidget {
 
         // Both sub-process calls fired in order.
         expect(calls, hasLength(2));
-        expect(
-            calls[0], equals(['dart', 'run', 'fluttersdk_dusk', 'install']));
+        expect(calls[0], equals(['dart', 'run', 'fluttersdk_dusk', 'install']));
         expect(
             calls[1],
             equals([

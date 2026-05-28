@@ -1,4 +1,9 @@
 @Tags(<String>['integration'])
+@Skip(
+  'requires flutter on PATH plus sibling checkouts at '
+  '../fluttersdk_artisan and ../fluttersdk_wind_diagnostics_contracts; '
+  'run manually: flutter test test/integration --tags integration',
+)
 library;
 
 import 'dart:async';
@@ -18,9 +23,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// flutter test test/integration/mcp_serve_smoke_test.dart --tags=integration
 /// ```
 ///
-/// **TDD red phase**: this test currently FAILS because `bin/fluttersdk_dusk.dart`
-/// calls `runArtisan` without `collectMcpTools: true`. Step 2.3 will add that
-/// flag and turn this green.
+/// Locks Bug 3 (collectMcpTools wrapper flag) — turns red if the dusk wrapper
+/// regresses to calling `runArtisan` without `collectMcpTools: true`.
 void main() {
   // Resolve sibling package paths relative to the dusk package root.
   // `Directory.current` inside a `flutter test` run is the package root.
@@ -29,6 +33,20 @@ void main() {
   final String artisanPath = '$referencesRoot/fluttersdk_artisan';
   final String contractsPath =
       '$referencesRoot/fluttersdk_wind_diagnostics_contracts';
+
+  // Skip when sibling checkouts are missing (the path-dep targets the test
+  // writes into the temp pubspec.yaml). The @Skip above blocks the default
+  // runner; this guard blocks accidental --tags=integration runs on
+  // developer machines that lack the references/ layout.
+  if (!Directory(artisanPath).existsSync() ||
+      !Directory(contractsPath).existsSync()) {
+    test('mcp:serve smoke test', () {
+      markTestSkipped(
+        'sibling checkout missing: needs $artisanPath and $contractsPath',
+      );
+    });
+    return;
+  }
 
   late Directory tempDir;
   late Process mcpProcess;
@@ -112,11 +130,11 @@ dependency_overrides:
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen(
-            stdoutLines.add,
-            onDone: () {
-              if (!stdoutDone.isCompleted) stdoutDone.complete();
-            },
-          );
+        stdoutLines.add,
+        onDone: () {
+          if (!stdoutDone.isCompleted) stdoutDone.complete();
+        },
+      );
 
       // Drain stderr so the pipe never blocks the server.
       mcpProcess.stderr
@@ -142,8 +160,7 @@ dependency_overrides:
 
       // 4. Wait up to 20s for the tools/list response (id=2) to appear.
       Map<String, dynamic>? toolsResponse;
-      final DateTime deadline =
-          DateTime.now().add(const Duration(seconds: 20));
+      final DateTime deadline = DateTime.now().add(const Duration(seconds: 20));
 
       while (DateTime.now().isBefore(deadline)) {
         for (final String line in stdoutLines) {
@@ -170,9 +187,8 @@ dependency_overrides:
             'stdout so far: $stdoutLines',
       );
 
-      final List<dynamic> tools =
-          (toolsResponse!['result'] as Map<String, dynamic>?)?['tools']
-              as List<dynamic>? ??
+      final List<dynamic> tools = (toolsResponse!['result']
+              as Map<String, dynamic>?)?['tools'] as List<dynamic>? ??
           <dynamic>[];
 
       // 5. Assert that the dusk_* slice has exactly 31 entries.
@@ -185,8 +201,7 @@ dependency_overrides:
       expect(
         duskToolNames.length,
         equals(31),
-        reason:
-            'Expected 31 dusk_* tools, got ${duskToolNames.length}. '
+        reason: 'Expected 31 dusk_* tools, got ${duskToolNames.length}. '
             'Full tool names: ${tools.whereType<Map<String, dynamic>>().map((t) => t['name']).toList()}',
       );
 

@@ -148,12 +148,7 @@ class DuskInstallCommand extends ArtisanCommand {
       try {
         final result = await processRunner(
           'dart',
-          const [
-            'run',
-            'fluttersdk_dusk',
-            'plugin:install',
-            'fluttersdk_dusk'
-          ],
+          const ['run', 'fluttersdk_dusk', 'plugin:install', 'fluttersdk_dusk'],
         );
         if (result.exitCode != 0) {
           ctx.output.warning(
