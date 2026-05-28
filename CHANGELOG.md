@@ -22,11 +22,7 @@ _No unreleased changes yet._
 
 ### Fixed
 
-- **`bin/fluttersdk_dusk.dart` now forces `collectMcpTools: true` when dispatching `mcp:serve`**, so `dart run fluttersdk_dusk mcp:serve` surfaces all 31 dusk_* MCP tools even without the fastcli scaffold. Previously returned 0 plugin tools (only the 10 substrate tools).
-
-### Verified
-
-- End-to-end smoke on a fresh `flutter create` consumer + path-linked dusk + path-linked artisan 0.0.6: bootstrap (`install` + `plugin:install` + `dusk:install`), `mcp:install` with both fastcli-present and fastcli-absent paths, `mcp:serve` initialization (41 tools = 31 dusk_* + 10 substrate via `tools/list`), `mcp:serve` `tools/call` for `dusk_snap` against a running Flutter app on Chrome, `dusk:tap` / `dusk:dblclick` (real counter increments visible via subsequent `dusk:snap`), `dusk:get_routes` / `dusk:observe` / `dusk:screenshot` / `dusk:find` / `dusk:hover` / `dusk:wait` / `dusk:console` / `dusk:exceptions` / `dusk:doctor` / `dusk:device --list` — all green. No Bug 2 regression: `.fromSeed` and `.center` Dart 3.x static-access dot-shorthand survive `dusk:install` patching unchanged.
+- **`bin/fluttersdk_dusk.dart` now forces `collectMcpTools: true` when dispatching `mcp:serve`**, so `dart run fluttersdk_dusk mcp:serve` surfaces all 31 dusk_* MCP tools even without the fastcli scaffold. Previously returned 0 plugin tools (only the 10 substrate tools). Verified end-to-end on a fresh `flutter create` consumer with path-linked dusk + artisan 0.0.6 against a running Flutter app on Chrome (real counter increments visible via `dusk:tap` + subsequent `dusk:snap`).
 
 ---
 
