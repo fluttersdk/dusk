@@ -8,6 +8,12 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+_No unreleased changes yet._
+
+---
+
+## [0.0.6] - 2026-06-09
+
 ### Added
 
 - **`dusk:screenshot` web CDP fallback via `Page.captureScreenshot`.** When `~/.artisan/state.json` carries a `cdpPort` (a web target), the CLI command sends `Page.enable` + `Page.captureScreenshot` (`format`, `quality`, `fromSurface: true`) over the Chrome DevTools Protocol and writes the decoded bytes directly, bypassing the in-isolate `ext.dusk.screenshot` extension that hangs under CanvasKit+DWDS (issue #13). Native targets (no `cdpPort`) keep using `ext.dusk.screenshot`. The command captures the full app frame. This CDP fallback is CLI-only; the `dusk_screenshot` MCP tool still dispatches `ext.dusk.screenshot` in-isolate, so web agents should use the CLI for screenshots. Region (`ref`/`rect`) capture remains deferred.
@@ -161,7 +167,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.5...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.6...HEAD
+[0.0.6]: https://github.com/fluttersdk/dusk/compare/0.0.5...0.0.6
 [0.0.5]: https://github.com/fluttersdk/dusk/compare/0.0.4...0.0.5
 [0.0.4]: https://github.com/fluttersdk/dusk/compare/0.0.3...0.0.4
 [0.0.3]: https://github.com/fluttersdk/dusk/compare/0.0.2...0.0.3
