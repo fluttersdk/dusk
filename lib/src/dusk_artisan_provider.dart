@@ -207,37 +207,37 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '\n'
               'Renders the current frame to a JPEG or PNG and returns the '
               'image bytes inline so the model can see the UI directly. '
-              'On web targets where artisan was started with `--cdp-port`, '
-              'a full-viewport capture routes through CDP '
-              '`Page.captureScreenshot` instead of the in-isolate '
-              '`ext.dusk.screenshot` extension (which can hang under '
-              'CanvasKit+DWDS). Native targets always use the in-isolate '
-              'path. Limitation: `ref` / `rect` region capture on web '
-              'falls through to the extension and may time out under '
-              'CanvasKit; for region capture on web, use dusk_snap + '
-              'manual crop instead.\n'
+              'This MCP tool always dispatches the in-isolate '
+              '`ext.dusk.screenshot` extension.\n'
+              '\n'
+              'Web limitation: the in-isolate path can hang under '
+              'CanvasKit+DWDS (the toImage() future never completes). For '
+              'reliable web screenshots, run the CLI command '
+              '`dusk:screenshot --output=<path>` instead: when artisan was '
+              'started with `--cdp-port` and no `--ref`/`--rect` is supplied, '
+              'the CLI falls back to CDP `Page.captureScreenshot` for '
+              'full-viewport capture. That CDP fallback is CLI-only; it does '
+              'not apply to this MCP tool.\n'
               '\n'
               'Usage:\n'
-              '- No required params; defaults to PNG at high quality.\n'
-              '- Pass `format: "jpeg"` for smaller payload (quality '
-              'configurable via `quality: <0-100>`).\n'
-              '- Captures the WHOLE app surface on web (CDP path); for '
-              'region screenshots on native use dusk_snap to locate a '
-              'widget first.',
+              '- No required params; defaults to JPEG at quality 70.\n'
+              '- Pass `format: "png"` for a lossless (larger) payload.\n'
+              '- Captures the WHOLE app surface; for region screenshots use '
+              'dusk_snap to locate a widget first.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{
               'format': <String, dynamic>{
                 'type': 'string',
                 'enum': <String>['jpeg', 'png'],
-                'description': 'Image format. `png` (default) is lossless '
-                    'but larger; `jpeg` is smaller (good for quick visual '
-                    'checks where pixel-perfect detail is not needed).',
+                'description': 'Image format. `jpeg` (default) is smaller '
+                    '(good for quick visual checks); `png` is lossless but '
+                    'larger (use when pixel-perfect detail matters).',
               },
               'quality': <String, dynamic>{
                 'type': 'integer',
                 'description': 'JPEG quality 0-100 (higher is better). '
-                    'Default 80. Ignored when format is `png`.',
+                    'Default 70. Ignored when format is `png`.',
               },
             },
           },

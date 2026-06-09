@@ -675,29 +675,29 @@ Error: actionability gate failure, or stale-handle.
 
 ## dusk_screenshot
 
-Dispatch: `ext.dusk.screenshot` (native and web region); CDP `Page.captureScreenshot` (web full-viewport when `cdpPort` is set)
+Dispatch: `ext.dusk.screenshot` (in-isolate, all targets). The CDP `Page.captureScreenshot` web fallback is implemented in the CLI command `dusk:screenshot --output=<path>`, NOT in this MCP tool.
 
-Capture a screenshot of the running Flutter app as a base64-encoded image. On web targets
-where artisan was started with `--cdp-port` and neither `ref` nor `rect` is supplied, the
-command routes through CDP `Page.captureScreenshot` (bypassing the in-isolate extension
-which hangs under CanvasKit+DWDS). Native targets always use the in-isolate path.
+Capture a screenshot of the running Flutter app as a base64-encoded image. This MCP tool
+always dispatches the in-isolate `ext.dusk.screenshot` extension.
 
-**Limitation:** `ref` / `rect` region capture on web falls through to the in-isolate
-extension and may time out under CanvasKit. For region capture on web, capture the full
-viewport via CDP and crop client-side.
+**Web limitation:** the in-isolate path can hang under CanvasKit+DWDS (the `toImage()`
+future never completes). For reliable web screenshots, use the CLI command
+`dusk:screenshot --output=<path>`: when artisan was started with `--cdp-port` and no
+`--ref`/`--rect` is supplied, the CLI falls back to CDP `Page.captureScreenshot` for
+full-viewport capture. That fallback is CLI-only and does not apply to this MCP tool.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `format` | string | no | `jpeg` or `png`. Default `png` (lossless). |
-| `quality` | integer | no | JPEG quality 0-100 (higher is better). Default `80`. Ignored when format is `png`. |
+| `format` | string | no | `jpeg` or `png`. Default `jpeg`. |
+| `quality` | integer | no | JPEG quality 0-100 (higher is better). Default `70`. Ignored when format is `png`. |
 
 ### Returns
 
-Success: `{ format: "<png|jpeg>", bytes: "<base64>" }`. Captures the WHOLE app surface on
-the web CDP path; the in-isolate path captures the `RepaintBoundary` wrapped around the
-app root by `DuskPlugin.install()`.
+Success: `{ format: "<jpeg|png>", base64: "<base64>", width: <int>, height: <int> }`. The
+in-isolate path captures the app-root viewport (the `RepaintBoundary` the host wraps the
+app in under `kDebugMode`).
 
 ### Example call
 

@@ -6,7 +6,7 @@
 
 *Snapshot / Screenshot*
 - `dusk_snap` (`ext.dusk.snap`): Capture Semantics tree YAML with stable `[ref=eN]` tokens. Nodes inside a currently-overflowing ancestor carry an `overflow: true` sub-line.
-- `dusk_screenshot` (`ext.dusk.screenshot` on native; CDP `Page.captureScreenshot` on web when `cdpPort` is set and no `ref`/`rect`): Capture base64-encoded JPEG/PNG frame.
+- `dusk_screenshot` (`ext.dusk.screenshot`, in-isolate): Capture base64-encoded JPEG/PNG frame. Can hang on web under CanvasKit+DWDS; for reliable web screenshots use the CLI `dusk:screenshot --output=<path>`, which falls back to CDP `Page.captureScreenshot` when artisan was started with `--cdp-port` (CLI-only, not this MCP tool).
 
 *Gestures (pointer actions)*
 - `dusk_tap` (`ext.dusk.tap`): Tap a widget (Down + 50ms hold + Up at ref center).
