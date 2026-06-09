@@ -59,14 +59,14 @@ class DuskScreenshotCommand extends ArtisanCommand {
     //    is skipped — ref/rect on web intentionally falls through to the VM
     //    extension (documented limitation for v1).
     final Map<String, dynamic>? state = await StateFile.read();
-    final Object? cdpPort = state?['cdpPort'];
+    final int? cdpPort = _readCdpPort(state?['cdpPort']);
     final Object? ref = ctx.input.option('ref');
     final Object? rect = ctx.input.option('rect');
     final bool hasRefOrRect = (ref != null && ref.toString().isNotEmpty) ||
         (rect != null && rect.toString().isNotEmpty);
 
     if (cdpPort != null && !hasRefOrRect) {
-      return _handleCdpPath(ctx, cdpPort as int, output, format, quality);
+      return _handleCdpPath(ctx, cdpPort, output, format, quality);
     }
 
     // 2. Native path: call the VM Service extension and decode the base64
@@ -115,8 +115,17 @@ class DuskScreenshotCommand extends ArtisanCommand {
         },
       );
 
-      // 4. Decode and write bytes.
-      final List<int> bytes = base64Decode(result['data'] as String);
+      // 4. Validate the payload, then decode and write bytes. A malformed CDP
+      //    response (missing `data`, error shape) returns a clear error rather
+      //    than throwing an uncaught cast exception.
+      final Object? data = result['data'];
+      if (data is! String) {
+        ctx.output.error(
+          'CDP Page.captureScreenshot returned no image data: $result',
+        );
+        return 1;
+      }
+      final List<int> bytes = base64Decode(data);
       await File(output).writeAsBytes(bytes);
       final String kb = (bytes.length / 1024).toStringAsFixed(1);
       ctx.output.success(
@@ -130,6 +139,17 @@ class DuskScreenshotCommand extends ArtisanCommand {
       // 5. Always close the CDP connection regardless of success or failure.
       await client.close();
     }
+  }
+
+  /// Reads `cdpPort` from the state map, tolerating `int`, `num`, or numeric
+  /// `String` shapes. Returns null when absent or unparseable, so a corrupt or
+  /// cross-version state file falls back to the native VM-extension path
+  /// instead of throwing on a force-cast.
+  int? _readCdpPort(Object? raw) {
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    if (raw is String) return int.tryParse(raw);
+    return null;
   }
 
   /// Calls the VM Service extension `ext.dusk.screenshot` and writes the

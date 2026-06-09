@@ -402,6 +402,71 @@ void main() {
           expect(ctx.lastMethod, equals('ext.dusk.screenshot'));
         },
       );
+
+      // -----------------------------------------------------------------------
+      // (g) Non-numeric cdpPort (corrupt / cross-version state) → native path,
+      //     not a force-cast crash.
+      // -----------------------------------------------------------------------
+      test(
+        'falls through to ext.dusk.screenshot when cdpPort is not numeric',
+        () async {
+          await _writeState(tempDir, {'cdpPort': 'not-a-port'});
+          StateFile.debugHomeOverride = tempDir.path;
+
+          const fakeBase64 = 'aGVsbG8=';
+          final ctx = _StubContext(
+            input: MapInput({
+              'output': '${tempDir.path}/shot.png',
+              'format': 'png',
+              'quality': '90',
+            }),
+            output: BufferedOutput(),
+            response: const {'base64': fakeBase64},
+          );
+
+          final exit = await DuskScreenshotCommand().handle(ctx);
+
+          expect(exit, equals(0));
+          expect(ctx.lastMethod, equals('ext.dusk.screenshot'));
+        },
+      );
+
+      // -----------------------------------------------------------------------
+      // (h) CDP response missing `data` → exit 1 with a clear error, not an
+      //     uncaught cast exception.
+      // -----------------------------------------------------------------------
+      test(
+        'exits 1 with error message when CDP returns no data',
+        () async {
+          final server = await FakeCdpServer.start(
+            handlers: {
+              'Page.enable': (Map<String, dynamic> _) async =>
+                  <String, dynamic>{},
+              'Page.captureScreenshot': (Map<String, dynamic> _) async =>
+                  <String, dynamic>{},
+            },
+          );
+          addTearDown(server.stop);
+
+          await _writeState(tempDir, {'cdpPort': server.port});
+          StateFile.debugHomeOverride = tempDir.path;
+
+          final output = BufferedOutput();
+          final ctx = _StubContext(
+            input: MapInput({
+              'output': '${tempDir.path}/shot.png',
+              'format': 'png',
+              'quality': '90',
+            }),
+            output: output,
+          );
+
+          final exit = await DuskScreenshotCommand().handle(ctx);
+
+          expect(exit, equals(1));
+          expect(output.content, contains('no image data'));
+        },
+      );
     });
   });
 }
