@@ -15,7 +15,8 @@ lib/
     ├── commands/                # 32 ArtisanCommand subclasses (one file each)
     ├── utils/                   # actionability_gate (6-step: defunct/enabled/zero-rect/off-viewport/stable/receives-events), error_envelope, chrome_reaper, dusk_exceptions
     ├── cdp/                     # cdp_client + chrome_finder + 8 device_presets
-    ├── dusk_plugin.dart         # DuskPlugin.install() entry, enricher list, navigate adapter
+    ├── dusk_plugin.dart         # DuskPlugin.install() entry, enricher list, navigate adapter, installErrorCapture call
+    ├── dusk_error_capture.dart  # Non-fatal FlutterError ring buffer (cap 50, dedup); installErrorCapture / uninstallErrorCapture / recentCapturedExceptions
     ├── ref_registry.dart        # e<N> + q<N> dual token system; live re-resolution for q-refs
     ├── dusk_snapshot_enricher.dart  # FROZEN typedef: String? Function(Element, RefRegistry)
     └── dusk_artisan_provider.dart   # 32 commands + 31 MCP tool descriptors
@@ -33,6 +34,8 @@ Wrap app root in RepaintBoundary (no GlobalKey; render-tree walk finds it for sc
 WidgetsBinding.instance.ensureSemantics()                # force semantics on
     ↓
 registerAllDuskExtensions()                              # 28 ext.dusk.* via registerExtensionIdempotent (across 16 aggregator register functions)
+    ↓
+installErrorCapture()                                    # chains FlutterError.onError; records non-fatal errors (incl. overflow) into bounded ring buffer; prior handler preserved
     ↓
 Consumer registers DuskArtisanProvider (auto-wired by `dusk:install` via _plugins.g.dart)
     ↓
@@ -131,6 +134,8 @@ These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:
 `device_presets.dart` carries 8 named presets (iphone-x, iphone-13, iphone-15-pro, pixel-5, pixel-8, ipad-pro-12.9, desktop-1440, desktop-1920). Each preset is width × height × DPR × mobile flag × touch flag × userAgent.
 
 `dusk:device` runs a 3-call CDP chain: `Emulation.setDeviceMetricsOverride` → optional `Emulation.setTouchEmulationEnabled` → `Emulation.setUserAgentOverride`, plus `Browser.getWindowForTarget` + `Browser.setWindowBounds` to resize the OS window (Emulation only changes the page view).
+
+`dusk:screenshot` on web (full-viewport, no `--ref`/`--rect`) sends `Page.enable` + `Page.captureScreenshot` (`format`, `quality`, `fromSurface: true`) via CDP, bypassing the in-isolate `ext.dusk.screenshot` extension that hangs under CanvasKit+DWDS. Native targets and web region calls (`--ref` or `--rect` supplied) use the in-isolate path unchanged.
 
 `FakeCdpServer` in `test/src/cdp/fake_cdp_server.dart` is the in-process mock for unit tests.
 
