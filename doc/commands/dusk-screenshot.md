@@ -1,8 +1,10 @@
 # dusk:screenshot
 
-Capture a screenshot of the running Flutter app to a file. The VM Service handler walks the render tree to find the `RepaintBoundary` that `DuskPlugin.install()` wrapped around the app root, calls `toImage`, and returns a base64-encoded PNG or JPEG. The CLI decodes the base64 and writes the bytes to the path supplied by `--output`.
+Capture a screenshot of the running Flutter app to a file. On web targets where artisan was started with `--cdp-port`, the command routes through Chrome DevTools Protocol `Page.captureScreenshot` for a full-viewport capture (bypassing the in-isolate `ext.dusk.screenshot` extension, which hangs under CanvasKit+DWDS, issue #13). On native targets the VM Service handler walks the render tree to find the `RepaintBoundary` that `DuskPlugin.install()` wrapped around the app root, calls `toImage`, and returns a base64-encoded PNG or JPEG. The CLI decodes the payload and writes the bytes to the path supplied by `--output`.
 
 JPEG is the default for size: a typical Flutter web screen renders in ~30 KB at quality 70. Switch to PNG when the agent needs lossless pixels for a diff comparison.
+
+> **Web limitation:** `--ref` and `--rect` region capture on web is not supported via CDP in v1. Passing either flag on a web target falls through to `ext.dusk.screenshot`, which may time out under CanvasKit. For region capture on web, capture the full viewport via CDP and crop client-side.
 
 ---
 
@@ -12,6 +14,7 @@ JPEG is the default for size: a typical Flutter web screen renders in ~30 KB at 
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [Format and quality](#format-and-quality)
+- [CDP path vs. in-isolate path](#cdp-vs-extension)
 - [Examples](#examples)
 - [See also](#see-also)
 
@@ -26,7 +29,7 @@ dart run fluttersdk_dusk dusk:screenshot --output=<path>
                                           [--quality=<1-100>]
 ```
 
-`dusk:screenshot` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI, calls `ext.dusk.screenshot`, decodes the base64 payload, and writes the resulting bytes to the supplied output path.
+`dusk:screenshot` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI. When `cdpPort` is set in state and neither `--ref` nor `--rect` is supplied, the command uses CDP `Page.captureScreenshot`; otherwise it calls `ext.dusk.screenshot`, decodes the base64 payload, and writes the resulting bytes to the supplied output path.
 
 ---
 
@@ -72,10 +75,23 @@ The CLI calls `base64Decode(base64Str)` and writes the resulting bytes to `outpu
 <a name="format-and-quality"></a>
 ## Format and quality
 
-- **jpeg** (default): the VM Service handler encodes via the `image` package's JPEG encoder at the supplied quality. Quality 70 is a Playwright-aligned default; bump to 90 for visual-regression diffs, drop to 40 for quick sanity checks.
+- **jpeg** (default): on native targets the VM Service handler encodes via the `image` package's JPEG encoder at the supplied quality; on web (CDP path) the `format` + `quality` params are forwarded directly to `Page.captureScreenshot`. Quality 70 is a Playwright-aligned default; bump to 90 for visual-regression diffs, drop to 40 for quick sanity checks.
 - **png**: lossless, larger files (typically 5x JPEG at quality 70). The `--quality` value is ignored.
 
 The handler never resizes the screenshot; the captured image matches the running viewport's pixel dimensions (logical size times DPR). To capture at a controlled viewport, run `dusk:resize` or `dusk:device` first.
+
+---
+
+<a name="cdp-vs-extension"></a>
+## CDP path vs. in-isolate path
+
+| Condition | Path taken |
+|---|---|
+| No `cdpPort` in state (native target) | `ext.dusk.screenshot` (in-isolate, always) |
+| `cdpPort` set, no `--ref` or `--rect` (web full-viewport) | CDP `Page.captureScreenshot` |
+| `cdpPort` set, `--ref` or `--rect` supplied (web region) | `ext.dusk.screenshot` (fallthrough; may time out under CanvasKit) |
+
+The CDP path sends `Page.enable` first (required by Chrome before `Page.captureScreenshot`), then `Page.captureScreenshot` with `fromSurface: true`. The resulting dimensions reflect the active `Emulation.setDeviceMetricsOverride` set by `dusk:resize` or `dusk:device`.
 
 ---
 

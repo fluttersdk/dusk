@@ -5,8 +5,8 @@
 **MCP tools (31)**, see `doc/mcp/tool-reference.md` for full input schemas. The 28 `ext.dusk.*` and 3 `artisan:dusk:*` (substrate-routed) tools are listed below.
 
 *Snapshot / Screenshot*
-- `dusk_snap` (`ext.dusk.snap`): Capture Semantics tree YAML with stable `[ref=eN]` tokens.
-- `dusk_screenshot` (`ext.dusk.screenshot`): Capture base64-encoded JPEG/PNG frame.
+- `dusk_snap` (`ext.dusk.snap`): Capture Semantics tree YAML with stable `[ref=eN]` tokens. Nodes inside a currently-overflowing ancestor carry an `overflow: true` sub-line.
+- `dusk_screenshot` (`ext.dusk.screenshot` on native; CDP `Page.captureScreenshot` on web when `cdpPort` is set and no `ref`/`rect`): Capture base64-encoded JPEG/PNG frame.
 
 *Gestures (pointer actions)*
 - `dusk_tap` (`ext.dusk.tap`): Tap a widget (Down + 50ms hold + Up at ref center).
@@ -38,7 +38,7 @@
 
 *Diagnostics*
 - `dusk_console` (`ext.dusk.console`): Read recent log entries from telescope store.
-- `dusk_exceptions` (`ext.dusk.exceptions`): Read recent exception entries from telescope store.
+- `dusk_exceptions` (`ext.dusk.exceptions`): Read recent exception entries. Returns merged union of in-package non-fatal `FlutterError` capture buffer (incl. overflow tagged `type: "overflow"`) and telescope reader; deduped, newest-first.
 - `dusk_observe` (`ext.dusk.observe`): Return structured candidate list of every interactive widget on screen.
 
 *Keyboard / Input*

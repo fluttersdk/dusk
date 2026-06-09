@@ -4,6 +4,8 @@ Capture the Semantics tree of the running Flutter app as YAML, tagging every int
 
 The `eN` namespace is snapshot-frozen: every fresh `dusk:snap` clears the registry and mints new tokens. For long-lived handles that survive rebuilds, use `dusk:find` (which mints `qN` tokens) or `dusk:observe`.
 
+Interactive nodes inside a currently-overflowing render ancestor carry an additive `overflow: true` sub-line in the YAML output. This is a live current-state check (`RenderFlex.toStringShort()` appends ` OVERFLOWING` while the constraint is violated); it is not a historical record. For the full non-fatal error history including overflow details, use `dusk:exceptions`.
+
 ---
 
 ## Table of contents
@@ -73,6 +75,15 @@ When `--includeEnrichers` is true, every `DuskSnapshotEnricher` appended to the 
 - **Wind alpha-10** surfaces a six-field `wind:` block (breakpoint, brightness, platform, states, bgColor, textColor) through the neutral `fluttersdk_wind_diagnostics_contracts.WindDebugRegistry` bridge rather than via an enricher, so the data appears under each W-prefixed widget ref without any enricher registration.
 
 Each enricher is synchronous and stateless; the `Element` reference is never retained across calls.
+
+### Overflow annotation
+
+The `overflow: true` sub-line is emitted by the snapshot dispatcher itself (not via an enricher) when the resolved `RenderObject.toStringShort()` contains the Flutter debug suffix ` OVERFLOWING`. It appears for any interactive node whose nearest render ancestor is currently violating its constraints, regardless of whether enrichers are enabled. Example output:
+
+```yaml
+[ref=e5] role=button label="Submit" rect=(0,0,320,48) actions=[tap]
+  overflow: true
+```
 
 ---
 

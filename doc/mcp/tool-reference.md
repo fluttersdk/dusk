@@ -324,8 +324,13 @@ Response:
 
 Dispatch: `ext.dusk.exceptions`
 
-Read recent exception entries from the telescope exception watcher. Missing-telescope
-graceful: returns an empty list when telescope is not wired.
+Read recent exceptions recorded by the running app, including non-fatal `FlutterError`s.
+Returns the merged union of two sources: the in-package non-fatal `FlutterError.onError`
+capture buffer (installed by `DuskPlugin.install()`) and the telescope exception watcher
+(when `fluttersdk_telescope` is present). Entries are deduped by
+`(type, message, stackHead)`, sorted newest-first, and clipped to `limit`. RenderFlex
+overflow errors appear with `type: "overflow"`. Missing-telescope graceful: the in-package
+buffer ensures non-fatal errors are visible even without telescope.
 
 ### Input schema
 
@@ -335,8 +340,9 @@ graceful: returns an empty list when telescope is not wired.
 
 ### Returns
 
-Success: `{ entries: [ { type, message, stackHead, time }, ... ] }`. `stackHead` is the
-first 3 lines of the stack trace.
+Success: `{ exceptions: [ { type, message, stackHead, library, fatal, time }, ... ],
+count: <int> }`. `stackHead` is the first 3 lines of the stack trace. `fatal` is always
+`false` for in-package captured entries.
 
 ### Example call
 
@@ -669,10 +675,16 @@ Error: actionability gate failure, or stale-handle.
 
 ## dusk_screenshot
 
-Dispatch: `ext.dusk.screenshot`
+Dispatch: `ext.dusk.screenshot` (native and web region); CDP `Page.captureScreenshot` (web full-viewport when `cdpPort` is set)
 
-Capture a screenshot of the running Flutter app as a base64-encoded image. Renders the
-current frame to JPEG or PNG.
+Capture a screenshot of the running Flutter app as a base64-encoded image. On web targets
+where artisan was started with `--cdp-port` and neither `ref` nor `rect` is supplied, the
+command routes through CDP `Page.captureScreenshot` (bypassing the in-isolate extension
+which hangs under CanvasKit+DWDS). Native targets always use the in-isolate path.
+
+**Limitation:** `ref` / `rect` region capture on web falls through to the in-isolate
+extension and may time out under CanvasKit. For region capture on web, capture the full
+viewport via CDP and crop client-side.
 
 ### Input schema
 
@@ -683,7 +695,9 @@ current frame to JPEG or PNG.
 
 ### Returns
 
-Success: `{ format: "<png|jpeg>", bytes: "<base64>" }`. Captures the WHOLE app surface.
+Success: `{ format: "<png|jpeg>", bytes: "<base64>" }`. Captures the WHOLE app surface on
+the web CDP path; the in-isolate path captures the `RepaintBoundary` wrapped around the
+app root by `DuskPlugin.install()`.
 
 ### Example call
 
@@ -785,6 +799,10 @@ Capture a YAML snapshot of the running Flutter app's Semantics tree with stable
 `[ref=eN]` tokens. Call this FIRST, then pass the returned ref tokens to subsequent
 action calls.
 
+Interactive nodes inside a currently-overflowing render ancestor carry an additive
+`overflow: true` sub-line (live `RenderFlex.toStringShort()` check). This is a
+current-state signal; call `dusk_exceptions` for the full non-fatal error history.
+
 ### Input schema
 
 | Parameter | Type | Required | Description |
@@ -794,7 +812,8 @@ action calls.
 ### Returns
 
 Success: a YAML document where each node is annotated with a `[ref=e<N>]` token, its role,
-label, actions, bounds, and any enricher-contributed indented lines.
+label, actions, bounds, optional `overflow: true` sub-line, and any enricher-contributed
+indented lines.
 
 ### Example call
 
