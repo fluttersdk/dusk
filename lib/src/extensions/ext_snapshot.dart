@@ -191,6 +191,18 @@ void _emitNode({
       }
       buffer.writeln(' [ref=$token]');
 
+      // Live overflow check: walk the render-object parent chain to find the
+      // nearest ancestor (or self) that is currently overflowing.
+      // RenderFlex and shifted-box render objects append ' OVERFLOWING' to
+      // toStringShort() only while _hasOverflow is true and only in
+      // !kReleaseMode. Checking ancestors catches the common case where the
+      // interactive widget (button/link) lives inside an overflowing flex row.
+      // No retained state; graceful for render types that do not expose the
+      // suffix (they are simply not flagged).
+      if (_isInsideOverflowingAncestor(renderObject)) {
+        buffer.writeln('${_indent(depth + 1)}overflow: true');
+      }
+
       // Enricher loop. Each registered enricher may emit one or more YAML
       // lines indented under the ref entry. Magic + Wind register here.
       // Default off (Playwright parity): callers opt in via
@@ -303,3 +315,20 @@ String _indent(int depth) => '  ' * depth;
 
 String _escape(String input) =>
     input.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+
+/// Returns true if [renderObject] or any of its render-parent ancestors is
+/// currently overflowing.
+///
+/// RenderFlex and shifted-box objects append ' OVERFLOWING' to
+/// [RenderObject.toStringShort] in debug / profile mode only while
+/// `_hasOverflow` is true. Walking ancestors is necessary because the
+/// interactive widget (e.g. a button) is typically a child of the
+/// overflowing flex container, not the flex itself.
+bool _isInsideOverflowingAncestor(RenderObject renderObject) {
+  RenderObject? current = renderObject;
+  while (current != null) {
+    if (current.toStringShort().contains(' OVERFLOWING')) return true;
+    current = current.parent;
+  }
+  return false;
+}

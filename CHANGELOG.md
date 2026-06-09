@@ -8,7 +8,15 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-_No unreleased changes yet._
+### Added
+
+- **`dusk:screenshot` web CDP fallback via `Page.captureScreenshot`.** When `~/.artisan/state.json` carries a `cdpPort` (a web target), the CLI command sends `Page.enable` + `Page.captureScreenshot` (`format`, `quality`, `fromSurface: true`) over the Chrome DevTools Protocol and writes the decoded bytes directly, bypassing the in-isolate `ext.dusk.screenshot` extension that hangs under CanvasKit+DWDS (issue #13). Native targets (no `cdpPort`) keep using `ext.dusk.screenshot`. The command captures the full app frame. This CDP fallback is CLI-only; the `dusk_screenshot` MCP tool still dispatches `ext.dusk.screenshot` in-isolate, so web agents should use the CLI for screenshots. Region (`ref`/`rect`) capture remains deferred.
+- **Non-fatal `FlutterError` capture surfaced by `dusk:exceptions`.** `DuskPlugin.install()` now chains a `FlutterError.onError` handler that records every non-fatal error (including RenderFlex overflow, tagged `type: "overflow"`) into a bounded in-package ring buffer (cap 50, dedup by `message + stackHead`, newest-first). `ext.dusk.exceptions` merges this buffer with the existing telescope reader output, so overflow and other non-fatal rendering errors appear in `dusk:exceptions` results even when `fluttersdk_telescope` is absent (issue #14).
+- **Per-ref `overflow:` annotation in `dusk:snap` output.** Interactive nodes inside a currently-overflowing render ancestor now carry an additive `overflow: true` sub-line in the snapshot YAML. The check is a live `renderObject.toStringShort().contains(' OVERFLOWING')` call (the Flutter debug-mode convention from `RenderFlex.toStringShort`); no retained state, no Expando. Non-overflowing layouts produce no annotation. The annotation silently drops if a future Flutter version renames the suffix; `dusk:exceptions` remains the authoritative overflow signal.
+
+### Changed
+
+- **`fluttersdk_artisan` constraint bumped from `^0.0.6` to `^0.0.7`** (Dart pre-1.0 caret rule: `^0.0.7` resolves to `>=0.0.7 <0.0.8`). Consumers now pull in artisan 0.0.7 which hardens `start --cdp-port` with busy-port fast-fail and Chrome/FIFO/profile cleanup (issue #25). All dusk-consumed artisan surfaces (CommandBoot, ArtisanCommand, ArtisanContext.callExtension, McpToolDescriptor, registerExtensionIdempotent, StateFile.read/write) are signature-identical to 0.0.6; the bump is non-breaking.
 
 ---
 

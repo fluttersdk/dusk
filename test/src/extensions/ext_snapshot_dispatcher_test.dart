@@ -458,4 +458,117 @@ void main() {
       expect(RefRegistry.refsForGroup('any'), isEmpty);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // (e) Live per-ref overflow annotation — ext_snapshot.dart Step 4
+  //
+  // duskSnapBuild walks rootPipelineOwner + child owners, so in the test
+  // harness the widget tree IS visible (the child-owner walk fix is already
+  // in place). We narrow the viewport so a Row with an oversized child
+  // overflows, which causes RenderFlex.toStringShort() to append
+  // ' OVERFLOWING'. The snapshot must contain an `overflow: true` line
+  // immediately beneath the ref entry for that node, at depth+1 indent.
+  //
+  // A non-overflowing layout in the same viewport must produce no such line.
+  // -------------------------------------------------------------------------
+
+  group('(e) per-ref overflow annotation', () {
+    testWidgets(
+      'overflowing Row interactive node gets overflow: true annotation',
+      (WidgetTester tester) async {
+        // 1. Narrow viewport so an unconstrained Row child overflows.
+        tester.view.physicalSize = const Size(100, 200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // 2. Suppress the layout overflow FlutterError so the test harness
+        //    does not fail on the expected overflow. The overflow IS the
+        //    condition under test; we still need it in the render tree.
+        final void Function(FlutterErrorDetails)? previous =
+            FlutterError.onError;
+        FlutterError.onError = (FlutterErrorDetails details) {
+          // Re-throw only non-overflow errors; swallow the expected overflow.
+          if (details.exceptionAsString().contains('overflowed by')) return;
+          previous?.call(details);
+        };
+        addTearDown(() => FlutterError.onError = previous);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: () {},
+                    child: const SizedBox(
+                      width: 500,
+                      child: Text('Wide'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        // 3. Pump a second frame so the overflow flag propagates through layout.
+        await tester.pump();
+
+        // 4. Capture snapshot — overflow annotation must appear regardless of
+        //    includeEnrichers because it is a live-state check, not an enricher.
+        final Map<String, dynamic> payload = await tester.runAsync(
+          () => duskSnapBuild(),
+        ) as Map<String, dynamic>;
+
+        final String snapshot = payload['snapshot'] as String;
+        expect(
+          snapshot,
+          contains('overflow: true'),
+          reason: 'overflowing RenderFlex must annotate the ref node with '
+              'overflow: true',
+        );
+      },
+    );
+
+    testWidgets(
+      'non-overflowing layout produces no overflow annotation',
+      (WidgetTester tester) async {
+        // 1. Wide viewport so the Row fits comfortably.
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: () {},
+                    child: const Text('Fits'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        await tester.pump();
+
+        final Map<String, dynamic> payload = await tester.runAsync(
+          () => duskSnapBuild(),
+        ) as Map<String, dynamic>;
+
+        final String snapshot = payload['snapshot'] as String;
+        expect(
+          snapshot,
+          isNot(contains('overflow: true')),
+          reason:
+              'non-overflowing layout must not produce an overflow annotation',
+        );
+      },
+    );
+  });
 }
