@@ -682,9 +682,9 @@ always dispatches the in-isolate `ext.dusk.screenshot` extension.
 
 **Web limitation:** the in-isolate path can hang under CanvasKit+DWDS (the `toImage()`
 future never completes). For reliable web screenshots, use the CLI command
-`dusk:screenshot --output=<path>`: when artisan was started with `--cdp-port` and no
-`--ref`/`--rect` is supplied, the CLI falls back to CDP `Page.captureScreenshot` for
-full-viewport capture. That fallback is CLI-only and does not apply to this MCP tool.
+`dusk:screenshot --output=<path>`: when artisan was started with `--cdp-port`, the CLI
+falls back to CDP `Page.captureScreenshot` for a full-viewport capture. That fallback is
+CLI-only and does not apply to this MCP tool.
 
 ### Input schema
 

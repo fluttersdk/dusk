@@ -135,7 +135,7 @@ These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:
 
 `dusk:device` runs a 3-call CDP chain: `Emulation.setDeviceMetricsOverride` → optional `Emulation.setTouchEmulationEnabled` → `Emulation.setUserAgentOverride`, plus `Browser.getWindowForTarget` + `Browser.setWindowBounds` to resize the OS window (Emulation only changes the page view).
 
-`dusk:screenshot` on web (full-viewport, no `--ref`/`--rect`) sends `Page.enable` + `Page.captureScreenshot` (`format`, `quality`, `fromSurface: true`) via CDP, bypassing the in-isolate `ext.dusk.screenshot` extension that hangs under CanvasKit+DWDS. Native targets and web region calls (`--ref` or `--rect` supplied) use the in-isolate path unchanged.
+`dusk:screenshot` on web sends `Page.enable` + `Page.captureScreenshot` (`format`, `quality`, `fromSurface: true`) via CDP, bypassing the in-isolate `ext.dusk.screenshot` extension that hangs under CanvasKit+DWDS. Native targets use the in-isolate path. The command captures the full app frame; region capture is not exposed by the CLI command or the `dusk_screenshot` MCP tool (both dispatch full-frame). This CDP fallback is CLI-only; the `dusk_screenshot` MCP tool dispatches `ext.dusk.screenshot` in-isolate.
 
 `FakeCdpServer` in `test/src/cdp/fake_cdp_server.dart` is the in-process mock for unit tests.
 
