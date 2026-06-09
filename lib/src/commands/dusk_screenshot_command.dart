@@ -8,12 +8,11 @@ import '../cdp/cdp_client.dart';
 /// `artisan dusk:screenshot --output=<path>` — capture a PNG/JPEG screenshot
 /// of the running app and write it to disk.
 ///
-/// On Flutter web targets (when `cdpPort` is present in state and neither
-/// `--ref` nor `--rect` is supplied), the command routes through Chrome
-/// DevTools Protocol `Page.captureScreenshot` to bypass the CanvasKit/DWDS
-/// limitation that causes `RenderRepaintBoundary.toImage()` to hang (issue
-/// #13). All other cases (native, or web with ref/rect) use the VM Service
-/// extension `ext.dusk.screenshot`.
+/// Captures the full app frame. On Flutter web targets (when `cdpPort` is
+/// present in state) the command routes through Chrome DevTools Protocol
+/// `Page.captureScreenshot` to bypass the CanvasKit/DWDS limitation that
+/// causes `RenderRepaintBoundary.toImage()` to hang (issue #13). Native
+/// targets use the VM Service extension `ext.dusk.screenshot`.
 class DuskScreenshotCommand extends ArtisanCommand {
   @override
   String get name => 'dusk:screenshot';
@@ -53,19 +52,14 @@ class DuskScreenshotCommand extends ArtisanCommand {
       return 1;
     }
 
-    // 1. Read StateFile to determine whether a CDP port is available.
-    //    Defensively read ref/rect even though configure() does not declare them
-    //    (MCP tools/call may supply them). If either is present, the CDP path
-    //    is skipped — ref/rect on web intentionally falls through to the VM
-    //    extension (documented limitation for v1).
+    // 1. Read StateFile to determine whether a CDP port is available. A
+    //    present cdpPort means a web target where the in-isolate toImage()
+    //    path hangs under CanvasKit+DWDS; capture the full viewport over CDP
+    //    instead. This command always captures the full frame.
     final Map<String, dynamic>? state = await StateFile.read();
     final int? cdpPort = _readCdpPort(state?['cdpPort']);
-    final Object? ref = ctx.input.option('ref');
-    final Object? rect = ctx.input.option('rect');
-    final bool hasRefOrRect = (ref != null && ref.toString().isNotEmpty) ||
-        (rect != null && rect.toString().isNotEmpty);
 
-    if (cdpPort != null && !hasRefOrRect) {
+    if (cdpPort != null) {
       return _handleCdpPath(ctx, cdpPort, output, format, quality);
     }
 

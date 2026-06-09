@@ -345,66 +345,7 @@ void main() {
       );
 
       // -----------------------------------------------------------------------
-      // (e) ref supplied on web → falls through to ext.dusk.screenshot path.
-      // -----------------------------------------------------------------------
-      test(
-        'falls through to ext.dusk.screenshot when ref is supplied on web',
-        () async {
-          await _writeState(tempDir, {'cdpPort': 9999});
-          StateFile.debugHomeOverride = tempDir.path;
-
-          const fakeBase64 = 'aGVsbG8=';
-          final outPath = '${tempDir.path}/snap.png';
-          final ctx = _StubContext(
-            input: MapInput({
-              'output': outPath,
-              'format': 'png',
-              'quality': '90',
-              'ref': 'e1',
-            }),
-            output: BufferedOutput(),
-            response: const {'base64': fakeBase64},
-          );
-
-          final exit = await DuskScreenshotCommand().handle(ctx);
-
-          expect(exit, equals(0));
-          // Extension was called, not CDP.
-          expect(ctx.lastMethod, equals('ext.dusk.screenshot'));
-        },
-      );
-
-      // -----------------------------------------------------------------------
-      // (f) rect supplied on web → falls through to ext.dusk.screenshot path.
-      // -----------------------------------------------------------------------
-      test(
-        'falls through to ext.dusk.screenshot when rect is supplied on web',
-        () async {
-          await _writeState(tempDir, {'cdpPort': 9999});
-          StateFile.debugHomeOverride = tempDir.path;
-
-          const fakeBase64 = 'aGVsbG8=';
-          final outPath = '${tempDir.path}/snap.png';
-          final ctx = _StubContext(
-            input: MapInput({
-              'output': outPath,
-              'format': 'png',
-              'quality': '90',
-              'rect': '0,0,100,100',
-            }),
-            output: BufferedOutput(),
-            response: const {'base64': fakeBase64},
-          );
-
-          final exit = await DuskScreenshotCommand().handle(ctx);
-
-          expect(exit, equals(0));
-          expect(ctx.lastMethod, equals('ext.dusk.screenshot'));
-        },
-      );
-
-      // -----------------------------------------------------------------------
-      // (g) Non-numeric cdpPort (corrupt / cross-version state) → native path,
+      // (e) Non-numeric cdpPort (corrupt / cross-version state) → native path,
       //     not a force-cast crash.
       // -----------------------------------------------------------------------
       test(
@@ -432,7 +373,7 @@ void main() {
       );
 
       // -----------------------------------------------------------------------
-      // (h) CDP response missing `data` → exit 1 with a clear error, not an
+      // (f) CDP response missing `data` → exit 1 with a clear error, not an
       //     uncaught cast exception.
       // -----------------------------------------------------------------------
       test(
