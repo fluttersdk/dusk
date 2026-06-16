@@ -2,13 +2,17 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
-/// `artisan dusk:tap --ref=<eN>` — synthesize a tap on the element.
-class DuskTapCommand extends ArtisanCommand {
+/// `artisan dusk:fill --ref=<eN|qN> --text=<value>`: focus, clear, type, and
+/// settle a text field in one call (replaces the manual focus + clear + type +
+/// settle + stale-retry dance). Routes through `ext.dusk.fill`, which composes
+/// the gated focus / clear / type handlers and retries once on a stale handle.
+class DuskFillCommand extends ArtisanCommand {
   @override
-  String get name => 'dusk:tap';
+  String get name => 'dusk:fill';
 
   @override
-  String get description => 'Tap a widget by ref token (from prior dusk:snap).';
+  String get description =>
+      'Focus, clear, and type into a text field by ref (one-call fill).';
 
   @override
   CommandBoot get boot => CommandBoot.connected;
@@ -17,12 +21,17 @@ class DuskTapCommand extends ArtisanCommand {
   void configure(ArgParser parser) {
     parser.addOption(
       'ref',
-      help: 'Snapshot ref token (e.g. e1).',
+      help: 'Text-field ref token (e.g. e5 or q3) from a prior dusk:snap.',
+      mandatory: true,
+    );
+    parser.addOption(
+      'text',
+      help: 'Value to set. Pass an empty string to clear the field.',
       mandatory: true,
     );
     parser.addFlag(
       'includeSnapshot',
-      help: 'Embed the post-tap snapshot YAML in the response.',
+      help: 'Embed the post-fill snapshot YAML in the response.',
       defaultsTo: false,
     );
     parser.addFlag(
@@ -35,12 +44,6 @@ class DuskTapCommand extends ArtisanCommand {
       help: 'Run the Receives-Events (front-most hit-test) actionability gate.',
       defaultsTo: true,
     );
-    parser.addFlag(
-      'verify',
-      help: 'Capture a target-scoped before/after signal and add a `changed` '
-          'field reporting whether the tap produced an observable effect.',
-      defaultsTo: false,
-    );
   }
 
   @override
@@ -48,8 +51,13 @@ class DuskTapCommand extends ArtisanCommand {
     final ref = ctx.input.option('ref') as String?;
     if (ref == null || ref.isEmpty) {
       ctx.output.error(
-        'Missing --ref=<eN>. Run dusk:snap first to obtain refs.',
+        'Missing --ref=<eN|qN>. Run dusk:snap first to obtain refs.',
       );
+      return 1;
+    }
+    final text = ctx.input.option('text') as String?;
+    if (text == null) {
+      ctx.output.error('Missing --text=<value>.');
       return 1;
     }
     final includeSnapshot =
@@ -57,22 +65,21 @@ class DuskTapCommand extends ArtisanCommand {
     final checkStable = (ctx.input.option('checkStable') as bool?) ?? true;
     final checkReceivesEvents =
         (ctx.input.option('checkReceivesEvents') as bool?) ?? true;
-    final verify = (ctx.input.option('verify') as bool?) ?? false;
     final params = <String, String>{
       'ref': ref,
+      'text': text,
       'includeSnapshot': includeSnapshot.toString(),
       'checkStable': checkStable.toString(),
       'checkReceivesEvents': checkReceivesEvents.toString(),
-      'verify': verify.toString(),
     };
     final response = await ctx.callExtension<Map<String, dynamic>>(
-      'ext.dusk.tap',
+      'ext.dusk.fill',
       params,
     );
-    if (includeSnapshot || verify) {
+    if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Tapped $ref');
+      ctx.output.success('Filled $ref');
     }
     return 0;
   }

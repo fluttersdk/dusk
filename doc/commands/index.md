@@ -1,6 +1,6 @@
 # Commands
 
-Catalog of every user-facing command shipped by `fluttersdk_dusk`. Thirty-two commands, grouped by intent.
+Catalog of every user-facing command shipped by `fluttersdk_dusk`. Thirty-four commands, grouped by intent.
 
 Every command is invoked as `dart run fluttersdk_dusk <name>` (Flutter-free wrapper at `bin/fluttersdk_dusk.dart`), or via the consumer-side artisan dispatcher (`./bin/fsa <name>` / `dart run artisan <name>`) once the project has run `dusk:install`. Commands are auto-discovered through `DuskArtisanProvider`; nothing wires by hand.
 
@@ -60,6 +60,7 @@ Keyboard-shaped actions. `dusk:type` emits a character sequence; `dusk:press_key
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
 | `dusk:type` | Type text into a focused widget by ref token. | connected | ext.dusk.type |
+| [`dusk:fill`](dusk-fill.md) | Focus, clear, type, and settle a text field by ref in one call (retries once on a stale handle). | connected | ext.dusk.fill |
 | `dusk:press_key` | Synthesise a hardware-key event on the currently focused widget. | connected | ext.dusk.press_key |
 | `dusk:clear` | Empty the text content of the focused widget by ref. | connected | ext.dusk.clear |
 | `dusk:select_option` | Select an option in a DropdownButton or PopupMenuButton by ref token. | connected | ext.dusk.select_option |
@@ -77,6 +78,7 @@ Route-table manipulation against the active `Navigator`. `dusk:modal` dismisses 
 | `dusk:navigate_back` | Pop the topmost route off the active Navigator (mirrors browser back). | connected | ext.dusk.navigate_back |
 | `dusk:get_routes` | Print the active Navigator's route table + current location as JSON. | connected | ext.dusk.get_routes |
 | `dusk:modal` | Dismiss all open modals, bottom sheets, and dialogs in the running app. | connected | ext.dusk.dismiss_modals |
+| [`dusk:reset_overlays`](dusk-reset-overlays.md) | Reset to a clean screen: dismiss modals + Escape + Cancel-tap fallback (idempotent). | connected | ext.dusk.reset_overlays |
 | `dusk:close_app` | Gracefully close the running app via SystemNavigator.pop(). | connected | ext.dusk.close_app |
 
 ## Find
@@ -101,7 +103,7 @@ The one-shot bootstrap. Injects three lines into the consumer's `lib/main.dart` 
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:install`](dusk-install.md) | Wire DuskPlugin.install() into lib/main.dart AND chain artisan install + plugin:install so ./bin/fsa surfaces all 32 dusk:* commands (idempotent on re-run; Phase 2 chain is best-effort). | none | none |
+| [`dusk:install`](dusk-install.md) | Wire DuskPlugin.install() into lib/main.dart AND chain artisan install + plugin:install so ./bin/fsa surfaces all 34 dusk:* commands (idempotent on re-run; Phase 2 chain is best-effort). | none | none |
 
 ## CDP
 
@@ -133,12 +135,26 @@ Keyboard-focus shaping. `dusk:focus` requests focus on a ref; `dusk:blur` releas
 
 ## Console and exceptions
 
-Telescope-backed readers. The running app must have `fluttersdk_telescope` wired for these to return entries; otherwise they emit an empty buffer.
+Diagnostics readers backed by dusk's own in-package capture plus an optional telescope augmentation.
+
+`dusk:console` reads from dusk's in-package `debugPrint` ring buffer (populated by `installLogCapture()`,
+wired by `DuskPlugin.install()`). This buffer captures every call that routes through the `debugPrint` global
+callback (`debugPrint(...)`, `print(...)`, and any Flutter framework path that calls `debugPrint`). It does NOT
+capture direct `dart:developer` `log()` calls that bypass `debugPrint`; those require `fluttersdk_telescope`'s
+`LogWatcher`. When telescope is wired the two sources are merged and deduped; telescope also adds `package:logging`
+(`Logger.root.onRecord`) and any other watcher it ships.
+
+`dusk:exceptions` is similar: dusk's own `FlutterError.onError` capture (non-fatal errors including overflow)
+is always present; telescope augments when wired.
+
+The `--since=<iso8601>` flag on `dusk:exceptions` (and the matching `since` param on `dusk_exceptions` MCP)
+lets agents compute true before/after deltas: record the time before an action, then call
+`dusk:exceptions --since=<time>` afterwards to see only exceptions raised by that action.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `dusk:console` | Read recent log entries from the running app's telescope store. | connected | ext.telescope.logs |
-| `dusk:exceptions` | Read recent exception entries from the running app's telescope store. | connected | ext.telescope.exceptions |
+| `dusk:console` | Read recent log entries (in-package debugPrint capture; augmented by telescope when wired). | connected | ext.dusk.console |
+| `dusk:exceptions [--limit=<n>] [--since=<iso8601>]` | Read recent exception entries (in-package FlutterError capture + telescope when wired). Optionally filter to entries strictly after `--since`. | connected | ext.dusk.exceptions |
 
 ## Observe
 
@@ -160,4 +176,4 @@ The single-round-trip composite that hot-reloads the running app and then captur
 
 Two of thirty-two commands run with `CommandBoot.none` (`dusk:install`, `dusk:doctor`). Every other command is `CommandBoot.connected`: it dials the VM Service URI in `~/.artisan/state.json` and fails fast when the running app cannot be reached.
 
-Seven commands earn their own pages: [dusk:install](dusk-install.md), [dusk:snap](dusk-snap.md), [dusk:tap](dusk-tap.md), [dusk:screenshot](dusk-screenshot.md), [dusk:find](dusk-find.md), [dusk:doctor](dusk-doctor.md), [dusk:observe](dusk-observe.md). Slug rule: the URL replaces the `:` separator with `-`. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.
+Nine commands earn their own pages: [dusk:install](dusk-install.md), [dusk:snap](dusk-snap.md), [dusk:tap](dusk-tap.md), [dusk:fill](dusk-fill.md), [dusk:reset_overlays](dusk-reset-overlays.md), [dusk:screenshot](dusk-screenshot.md), [dusk:find](dusk-find.md), [dusk:doctor](dusk-doctor.md), [dusk:observe](dusk-observe.md). Slug rule: the URL replaces the `:` separator with `-`. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.

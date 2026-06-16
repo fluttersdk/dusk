@@ -159,6 +159,7 @@ void _emitNode({
   required String groupId,
   required Map<RenderObject, Element> elementByRenderObject,
   required bool includeEnrichers,
+  RenderObject? enclosingTextboxRenderObject,
 }) {
   if (maxDepth != null && depth > maxDepth) return;
 
@@ -168,11 +169,44 @@ void _emitNode({
   final String? role = _roleFor(data);
   final bool interactive = _isInteractive(data);
 
+  // The render object threaded into the children walk for the next textbox
+  // containment check. Defaults to the value received from the parent; an
+  // emitted (non-collapsed) textbox replaces it with its own render object.
+  RenderObject? childEnclosingTextbox = enclosingTextboxRenderObject;
+
   int childDepth = depth;
   if (interactive && role != null) {
     final RenderObject? renderObject = _renderObjectFor(node);
     final Element? element =
         renderObject == null ? null : elementByRenderObject[renderObject];
+
+    // D2 collapse: a `textbox` node whose render object is a DESCENDANT of an
+    // ancestor textbox's render object is a duplicate (e.g. wind's
+    // `Semantics(textField:true) > MergeSemantics > TextField`, where
+    // RenderEditable owns its own textField node that MergeSemantics cannot
+    // absorb). Suppress the inner ref so existing scripts keep resolving the
+    // single outer typeable node; descend into children without emitting a
+    // line. Containment, never label/value equality (that false-collapses
+    // shared-label siblings whose render objects are unrelated).
+    if (role == 'textbox' &&
+        renderObject != null &&
+        enclosingTextboxRenderObject != null &&
+        _isRenderDescendantOf(renderObject, enclosingTextboxRenderObject)) {
+      node.visitChildren((SemanticsNode child) {
+        _emitNode(
+          node: child,
+          depth: depth,
+          maxDepth: maxDepth,
+          buffer: buffer,
+          groupId: groupId,
+          elementByRenderObject: elementByRenderObject,
+          includeEnrichers: includeEnrichers,
+          enclosingTextboxRenderObject: enclosingTextboxRenderObject,
+        );
+        return true;
+      });
+      return;
+    }
 
     if (renderObject != null && element != null) {
       final Rect rect = _globalRectFor(renderObject);
@@ -190,6 +224,15 @@ void _emitNode({
         buffer.write(': "${_escape(value)}"');
       }
       buffer.writeln(' [ref=$token]');
+
+      // D2: the surviving textbox is the one `dusk:type` resolves. Annotate it
+      // so agents target the typeable node directly. Additive sub-line; no
+      // change to the node-line format. This node's render object becomes the
+      // containment anchor for any nested (duplicate) textbox below it.
+      if (role == 'textbox') {
+        buffer.writeln('${_indent(depth + 1)}typeable: true');
+        childEnclosingTextbox = renderObject;
+      }
 
       // Live overflow check: walk the render-object parent chain to find the
       // nearest ancestor (or self) that is currently overflowing.
@@ -257,9 +300,30 @@ void _emitNode({
       groupId: groupId,
       elementByRenderObject: elementByRenderObject,
       includeEnrichers: includeEnrichers,
+      enclosingTextboxRenderObject: childEnclosingTextbox,
     );
     return true;
   });
+}
+
+/// Returns true if [renderObject] is a strict render-tree descendant of
+/// [ancestor].
+///
+/// Walks the render-object parent chain from [renderObject] upward (the same
+/// `current.parent` shape used by [_isInsideOverflowingAncestor]) and reports
+/// containment. Used by the D2 textbox collapse: an inner textbox node whose
+/// render object lives beneath an outer textbox's render object is a duplicate
+/// (e.g. RenderEditable under a `Semantics(textField:true)` wrapper) and is
+/// suppressed in favour of the single outer typeable node. Containment is
+/// strict (a node is never its own ancestor) so two sibling fields sharing a
+/// label never collapse: neither render object is beneath the other.
+bool _isRenderDescendantOf(RenderObject renderObject, RenderObject ancestor) {
+  RenderObject? current = renderObject.parent;
+  while (current != null) {
+    if (identical(current, ancestor)) return true;
+    current = current.parent;
+  }
+  return false;
 }
 
 String? _roleFor(SemanticsData data) {

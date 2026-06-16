@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
 import 'dusk_error_capture.dart';
+import 'dusk_log_capture.dart';
 import 'dusk_navigate_adapter.dart';
 import 'dusk_snapshot_enricher.dart';
 import 'extensions/register_dusk_extensions.dart';
@@ -86,6 +87,10 @@ class DuskPlugin {
     // Capture non-fatal FlutterErrors (incl. overflow) so ext.dusk.exceptions
     // surfaces them without telescope. Chains the prior handler.
     installErrorCapture();
+
+    // Capture debugPrint output so ext.dusk.console surfaces logs even when
+    // telescope is absent. Chains the prior debugPrint callback.
+    installLogCapture();
 
     developer.log(
       '[fluttersdk_dusk] installed (kDebugMode=$kDebugMode, isWeb=$kIsWeb)',

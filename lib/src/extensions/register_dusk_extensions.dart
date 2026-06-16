@@ -3,6 +3,7 @@ import 'ext_close_app.dart';
 import 'ext_console.dart';
 import 'ext_evaluate.dart';
 import 'ext_exceptions.dart';
+import 'ext_fill.dart';
 import 'ext_find.dart';
 import 'ext_focus.dart';
 import 'ext_modal_router.dart';
@@ -63,4 +64,7 @@ void registerAllDuskExtensions() {
   registerCheckboxExtensions();
   registerObserveExtensions();
   registerFocusExtensions();
+  // D7: ext.dusk.fill (focus + clear + type + settle + stale-retry).
+  // ext.dusk.reset_overlays registers inside registerModalRouterExtension.
+  registerFillExtension();
 }

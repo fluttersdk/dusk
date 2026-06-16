@@ -1,7 +1,7 @@
 # Dusk MCP Tool Reference
 
 Per-tool input schema, return shape, and example payload for every `dusk_*` MCP tool
-contributed by `DuskArtisanProvider`. 31 tools total: 28 dispatch through `ext.dusk.*` VM
+contributed by `DuskArtisanProvider`. 33 tools total: 30 dispatch through `ext.dusk.*` VM
 Service extensions and 3 (`dusk_hot_reload_and_snap`, `dusk_resize_viewport`,
 `dusk_device_profile`) route through the `artisan:dusk:*` substrate path to a CLI command
 because the orchestration cannot run inside the target isolate.
@@ -23,6 +23,7 @@ request; the substrate MCP server wraps the response as `CallToolResult` text co
 - [`dusk_drag`](#dusk_drag)
 - [`dusk_evaluate`](#dusk_evaluate)
 - [`dusk_exceptions`](#dusk_exceptions)
+- [`dusk_fill`](#dusk_fill)
 - [`dusk_find`](#dusk_find)
 - [`dusk_focus`](#dusk_focus)
 - [`dusk_get_routes`](#dusk_get_routes)
@@ -32,6 +33,7 @@ request; the substrate MCP server wraps the response as `CallToolResult` text co
 - [`dusk_navigate_back`](#dusk_navigate_back)
 - [`dusk_observe`](#dusk_observe)
 - [`dusk_press_key`](#dusk_press_key)
+- [`dusk_reset_overlays`](#dusk_reset_overlays)
 - [`dusk_resize_viewport`](#dusk_resize_viewport)
 - [`dusk_right_click`](#dusk_right_click)
 - [`dusk_screenshot`](#dusk_screenshot)
@@ -337,6 +339,7 @@ buffer ensures non-fatal errors are visible even without telescope.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `limit` | integer | no | Maximum number of entries to return. Default `20`. |
+| `since` | string | no | ISO8601 timestamp. When set, only exceptions whose `time` is strictly after this value are returned. Omit to return the full cumulative list. Unparseable values are silently ignored. |
 
 ### Returns
 
@@ -347,7 +350,37 @@ count: <int> }`. `stackHead` is the first 3 lines of the stack trace. `fatal` is
 ### Example call
 
 ```json
-{ "name": "dusk_exceptions", "arguments": { "limit": 5 } }
+{ "name": "dusk_exceptions", "arguments": { "limit": 5, "since": "2024-01-01T10:00:00.000Z" } }
+```
+
+---
+
+## dusk_fill
+
+Dispatch: `ext.dusk.fill`
+
+Fill a text field by ref in one call: focus, clear, type, settle. Composes the gated
+`ext.dusk.focus`, `ext.dusk.clear`, and `ext.dusk.type` handlers (so the actionability
+gate, IME focus, and `onChanged`/validator firing all run) and retries the whole sequence
+once when the ref goes stale mid-fill. Replaces the manual focus + clear + type dance.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `ref` | string | yes | Text-field ref token (`e<N>` or `q<N>`) from a prior `dusk_snap` / `dusk_find`. |
+| `text` | string | yes | Value to set. Replaces existing content. Pass `""` to clear. |
+| `includeSnapshot` | boolean | no | Embed the post-fill snapshot (default `true`). |
+
+### Returns
+
+Success: `{ ref, text, filled: true }` plus an optional `snapshot` (YAML). On a permanently
+stale handle (after the single retry) the response is a typed `stale` error envelope.
+
+### Example call
+
+```json
+{ "name": "dusk_fill", "arguments": { "ref": "e7", "text": "alice@example.com" } }
 ```
 
 ---
@@ -609,6 +642,34 @@ Success: `{ key: "<label>", modifiers: [...] }`.
 
 ---
 
+## dusk_reset_overlays
+
+Dispatch: `ext.dusk.reset_overlays`
+
+Reset the app to a clean screen via three escalating, idempotent layers: (1) pop every
+`PopupRoute` (dialogs, bottom sheets, popups) without touching the page stack; (2) an
+`Escape` key press for overlays driven by the dismiss shortcut; (3) a
+Cancel/Dismiss/Close/OK/Done labelled tap for modal barriers that need an explicit
+affordance. Each layer is a no-op when the prior already cleared the overlays, so the call
+is safe to issue speculatively between flows.
+
+### Input schema
+
+No parameters.
+
+### Returns
+
+Success: `{ popped: <int>, escaped: <bool>, dismissTapped: <bool> }`. On a clean tree all
+three indicate no work was done, confirming idempotency.
+
+### Example call
+
+```json
+{ "name": "dusk_reset_overlays", "arguments": {} }
+```
+
+---
+
 ## dusk_resize_viewport
 
 Dispatch: `artisan:dusk:resize`
@@ -803,6 +864,14 @@ Interactive nodes inside a currently-overflowing render ancestor carry an additi
 `overflow: true` sub-line (live `RenderFlex.toStringShort()` check). This is a
 current-state signal; call `dusk_exceptions` for the full non-fatal error history.
 
+Text fields collapse to a single ref. A field that produces two nested `textbox`
+Semantics nodes (an outer wrapper plus the `RenderEditable` leaf that always owns its
+own node) emits one ref for the outer node, tagged with an additive `typeable: true`
+sub-line; the inner duplicate is suppressed when its render object is a render-tree
+descendant of the outer node's render object. Collapse is by render-object containment
+only, so two sibling fields sharing a label stay two distinct refs. Target the node
+carrying `typeable: true` when calling `dusk_type`.
+
 ### Input schema
 
 | Parameter | Type | Required | Description |
@@ -812,8 +881,8 @@ current-state signal; call `dusk_exceptions` for the full non-fatal error histor
 ### Returns
 
 Success: a YAML document where each node is annotated with a `[ref=e<N>]` token, its role,
-label, actions, bounds, optional `overflow: true` sub-line, and any enricher-contributed
-indented lines.
+label, actions, bounds, optional `overflow: true` and `typeable: true` sub-lines, and any
+enricher-contributed indented lines.
 
 ### Example call
 
@@ -828,18 +897,29 @@ indented lines.
 Dispatch: `ext.dusk.tap`
 
 Tap a widget by ref. Synthesizes a pointer Down + 50ms hold + Up sequence at the widget's
-center. Triggers `GestureDetector.onTap`, `InkWell.onTap`, button `onPressed`. For
+LIVE center. Triggers `GestureDetector.onTap`, `InkWell.onTap`, button `onPressed`. For
 `TextField` widgets the tap also requests keyboard focus.
+
+The pointer dispatches at the target's live rect, re-resolved immediately after the
+actionability gate passes (it falls back to the cached snapshot rect only for slivers /
+detached render objects). A button whose host rebuilt it into a shifted slot between
+`dusk_snap` and `dusk_tap` is still hit correctly.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
+| `verify` | boolean | no | Capture a target-scoped before/after signal (route + semantics-subtree hash) and add a `changed` boolean to the response reporting whether the tap had an observable effect. Default `false`, which keeps the response shape unchanged. |
+| `until` | string | no | After the tap settles, poll the live element tree for a `Text` equal to this value (up to `untilTimeoutMs`) and add an `untilMatched` boolean. Confirms a navigation / state change in one call. Default off, which keeps the response shape unchanged. |
+| `untilTimeoutMs` | integer | no | Poll ceiling for `until`, in milliseconds. Default `3000`. |
 
 ### Returns
 
-Success: `{ ref: "<ref>" }`.
+Success: `{ ref: "<ref>" }`. With `verify: true` the response also carries
+`changed: true|false` (true when the target's route or semantics subtree changed, false
+when nothing observable did). With `until` set the response carries
+`untilMatched: true|false` (true when the expected text appeared within the window).
 
 Error: actionability gate failure (`"not enabled"` / `"zero rect"` / `"off-viewport"`) or
 stale-handle.
@@ -847,7 +927,7 @@ stale-handle.
 ### Example call
 
 ```json
-{ "name": "dusk_tap", "arguments": { "ref": "e5" } }
+{ "name": "dusk_tap", "arguments": { "ref": "e5", "verify": true } }
 ```
 
 ---

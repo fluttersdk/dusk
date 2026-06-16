@@ -64,6 +64,29 @@ substring, so adding, removing, or reordering checks is a breaking change.
    hit-tests through a snapshot view that does not mirror the live element
    subtree). Opt out via `checkReceivesEvents: false`.
 
+## Live-rect dispatch (post-gate, pre-dispatch)
+
+After the gate passes and BEFORE the pointer is synthesised, every pointer verb
+(`tap`, `hover`, `drag` start + end endpoints, `dblclick`, `right_click`,
+`triple_click`) re-resolves the target's CURRENT bounding rect via
+`dispatchRectOf(entry)` and dispatches at that live center, falling back to the
+cached `entry.rect.center` only when the live rect is `null` (a sliver, a
+detached / unsized render object, or a synthetic test entry). `dispatchRectOf`
+reuses the same `_liveRectOf(entry.element)` helper the stable check (step 4)
+measures, guarded by the `renderObject.attached` precondition Flutter's
+`localToGlobal` asserts.
+
+This is purely additive to the FROZEN gate: it runs after the gate passes and
+before dispatch, so it touches neither the evaluation order nor any
+failure-reason substring. It fixes the false-success class where a host rebuilt
+the target into a shifted slot between snapshot and action: the `Element` /
+`RenderObject` identity (and thus `SemanticsNode.id`) is retained across a
+same-type-and-key rebuild, so the live rect is valid and the pointer lands on
+the moved target instead of its stale gate-time position. A residual TOCTOU
+window remains between the live-rect re-resolve and the dispatch itself (the
+smallest achievable without a frame lock); the opt-in `verify` flag on
+`ext.dusk.tap` lets an agent confirm the tap produced an observable effect.
+
 ## Failure reason substrings
 
 The thrown message has the shape

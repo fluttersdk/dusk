@@ -25,9 +25,13 @@ dart run fluttersdk_dusk dusk:tap --ref=<eN|qN>
                                    [--includeSnapshot]
                                    [--[no-]checkStable]
                                    [--[no-]checkReceivesEvents]
+                                   [--verify]
+                                   [--until=<text>]
 ```
 
-`dusk:tap` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI, calls `ext.dusk.tap`, and prints either a one-line success or the post-tap snapshot JSON depending on `--includeSnapshot`.
+`dusk:tap` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI, calls `ext.dusk.tap`, and prints either a one-line success or the post-tap JSON depending on `--includeSnapshot` / `--verify`.
+
+The pointer is dispatched at the target's LIVE center: the handler re-resolves the element's current bounding rect immediately after the actionability gate passes (falling back to the cached snapshot rect only for slivers / detached render objects), so a tap still lands on a button whose host rebuilt it into a shifted slot between `dusk:snap` and `dusk:tap`.
 
 ---
 
@@ -40,6 +44,8 @@ dart run fluttersdk_dusk dusk:tap --ref=<eN|qN>
 | `--includeSnapshot` | flag | `false` | no | Embed the post-tap snapshot YAML in the response. Useful when the tap is expected to trigger a navigation or modal and the next agent step needs the fresh tree. |
 | `--checkStable` | flag | `true` | no | Run the Stable (2-frame rect-unchanged) actionability gate. Disable when targeting an animating widget that intentionally rebuilds across frames. |
 | `--checkReceivesEvents` | flag | `true` | no | Run the Receives-Events (front-most hit-test) actionability gate. Disable when targeting a widget that is intentionally occluded by an overlay you also want to interact with. |
+| `--verify` | flag | `false` | no | Capture a target-scoped before/after signal (the nearest enclosing route name plus a hash of the target element's own semantics subtree) and add a `changed` boolean to the response reporting whether the tap produced an observable effect on the target. Off by default, which keeps the response shape unchanged. Enabling `--verify` always prints the JSON envelope (so the `changed` field is visible) regardless of `--includeSnapshot`. |
+| `--until` | string | (none) | no | After the tap settles, poll the live element tree (same loop as `dusk:wait`) for a `Text` whose data equals this value, up to the `until` timeout (default 3000ms), and add an `untilMatched` boolean to the response reporting whether it appeared. Use to confirm a navigation / state change in one call instead of a separate `dusk:wait`. Off by default, which keeps the response shape unchanged. |
 
 The two `check*` flags default to `true`. Disable them with the inverted form (`--no-checkStable`, `--no-checkReceivesEvents`) when the target genuinely should not be subject to that precondition.
 
@@ -70,6 +76,17 @@ The two `check*` flags default to `true`. Disable them with the inverted form (`
   "ref": "e2"
 }
 ```
+
+**Success envelope (`--verify` on):**
+
+```json
+{
+  "ref": "e2",
+  "changed": true
+}
+```
+
+`changed` is `true` when the target's route or semantics subtree differed after the tap, `false` when nothing observable changed (a false-success signal the agent can branch on). The `changed` field is omitted entirely when `--verify` is off.
 
 **Error envelope (actionability gate failure):**
 
@@ -127,6 +144,34 @@ dart run fluttersdk_dusk dusk:tap --ref=e5 --no-checkStable
 ```
 
 Skips the 2-frame stable check for an animating loader / shimmer / spinner that the agent legitimately wants to interact with.
+
+### 4. Tap and verify the tap had an observable effect
+
+```bash
+dart run fluttersdk_dusk dusk:tap --ref=e2 --verify
+```
+
+Expected output (illustrative):
+
+```json
+{"ref":"e2","changed":true}
+```
+
+`changed:false` flags a tap that the gate accepted but that produced no observable effect on the target (the classic false-success: a button that looks tappable but whose `onTap` never fired). Use it as a post-condition assertion in agent-driven flows.
+
+### 5. Tap and wait for the expected text to appear
+
+```bash
+dart run fluttersdk_dusk dusk:tap --ref=e2 --until="Welcome back"
+```
+
+Expected output (illustrative):
+
+```json
+{"ref":"e2","untilMatched":true}
+```
+
+After the tap, the handler polls the element tree for a `Text("Welcome back")` up to 3000ms. `untilMatched:false` means the text never appeared within the window (the tap did not produce the expected navigation / state change). This folds a `dusk:wait --text=...` into the tap call so the agent confirms the outcome in one round trip.
 
 ---
 
