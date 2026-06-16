@@ -63,7 +63,7 @@ build step, no `flutter drive` orchestration needed.
 |:-----------|:----------------|:------|
 | Dart       | `>= 3.4.0`      | Records, sealed classes, class modifiers. |
 | Flutter    | `>= 3.22.0`     | `RepaintBoundary` render-tree walk and Semantics APIs used internally. |
-| fluttersdk_artisan | `^0.0.3` | Provides the MCP server, CLI framework, and `registerExtensionIdempotent`. |
+| fluttersdk_artisan | `^0.0.8` | Provides the MCP server, CLI framework, and `registerExtensionIdempotent`. |
 
 `fluttersdk_dusk` requires Flutter. It cannot run on a pure-Dart environment because
 it synthesizes pointer events against a live widget tree and walks the Semantics tree
