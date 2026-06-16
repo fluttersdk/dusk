@@ -158,7 +158,7 @@ class MyApp extends StatelessWidget {
       () async {
         final mainDartPath = _seedProject(
           tempDir,
-          pubspecDeps: const {'magic': 'any'},
+          pubspecDeps: const {'magic': 'any', 'magic_devtools': 'any'},
           mainDartContents: '''
 import 'package:flutter/material.dart';
 import 'package:magic/magic.dart';
@@ -197,10 +197,10 @@ Future<void> main() async {
           reason: 'MagicDuskIntegration.install() must land AFTER Magic.init()',
         );
         expect(
-          result.contains("import 'package:magic/dusk_integration.dart';"),
+          result.contains("import 'package:magic_devtools/dusk.dart';"),
           isTrue,
-          reason: 'magic-stack inject must reference the new dusk_integration '
-              'sub-barrel, not the legacy magic.dart main barrel',
+          reason: 'must reference the magic_devtools dusk barrel, not the '
+              'removed package:magic sub-barrel',
         );
       },
     );

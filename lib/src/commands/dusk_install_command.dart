@@ -16,7 +16,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 /// Two anchor modes:
 ///   - Magic-stack apps (`lib/main.dart` contains `await Magic.init(`):
 ///     wire `DuskPlugin.install()` BEFORE `Magic.init` so the driver is
-///     live during Magic boot. When `magic:` is also a pubspec dep, ALSO
+///     live during Magic boot. When `magic_devtools:` is also a pubspec dep, ALSO
 ///     inject `MagicDuskIntegration.install()` AFTER `Magic.init` (the
 ///     integration queries `Magic.find<X>()` for the form / nav
 ///     enrichers, which only resolves once the container is ready).
@@ -45,7 +45,7 @@ class DuskInstallCommand extends ArtisanCommand {
   static String _defaultMainDartPath() => 'lib/main.dart';
 
   /// Hook for tests to override the resolved `pubspec.yaml` path used
-  /// for `magic:` dependency detection.
+  /// for `magic_devtools:` dependency detection.
   static String Function() pubspecPathResolver = _defaultPubspecPath;
 
   static String _defaultPubspecPath() => 'pubspec.yaml';
@@ -177,7 +177,7 @@ class DuskInstallCommand extends ArtisanCommand {
   ///      the canonical install anchor: `await Magic.init(` on
   ///      Magic-stack apps (so dusk is wired before Magic boot side
   ///      effects), otherwise `runApp(` for vanilla Flutter apps.
-  ///   3. When pubspec has `magic:` AND main.dart has `await Magic.init(`,
+  ///   3. When pubspec has `magic_devtools:` AND main.dart has `await Magic.init(`,
   ///      inject `MagicDuskIntegration.install()` AFTER that call (the
   ///      integration queries `Magic.find<X>()` for the form / nav
   ///      enrichers, so it must run after the container is ready).
@@ -234,12 +234,12 @@ class DuskInstallCommand extends ArtisanCommand {
     }
 
     // 3. Magic-side coordinated wiring when the consumer pulls in magic.
-    //    Detect via pubspec.yaml; skip silently when magic is not a dep
+    //    Detect via pubspec.yaml; skip silently when magic_devtools is not a dep
     //    or when main.dart has no Magic.init() anchor (vanilla app).
-    if (_hasMagicDep()) {
+    if (_hasMagicDevtoolsDep()) {
       MainDartEditor.addImport(
         mainDartPath,
-        "import 'package:magic/dusk_integration.dart';",
+        "import 'package:magic_devtools/dusk.dart';",
       );
       try {
         MainDartEditor.injectAfterMagicInit(
@@ -255,11 +255,12 @@ class DuskInstallCommand extends ArtisanCommand {
     }
   }
 
-  /// Returns true when the consumer's pubspec.yaml lists `magic:` as a
-  /// top-level dependency (2-space indent under `dependencies:`).
-  static bool _hasMagicDep() {
+  /// Returns true when the consumer's pubspec.yaml lists `magic_devtools:`
+  /// (the package that ships MagicDuskIntegration) as a dependency or
+  /// dev_dependency (2-space indent).
+  static bool _hasMagicDevtoolsDep() {
     final pubspec = File(pubspecPathResolver());
     if (!pubspec.existsSync()) return false;
-    return RegExp(r'\n  magic:').hasMatch(pubspec.readAsStringSync());
+    return RegExp(r'\n  magic_devtools:').hasMatch(pubspec.readAsStringSync());
   }
 }

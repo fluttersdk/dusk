@@ -6,6 +6,14 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **`dusk:install` now injects `import 'package:magic_devtools/dusk.dart';` and gates on the `magic_devtools` dependency** instead of the removed `package:magic/dusk_integration.dart`. The `MagicDuskIntegration` class was extracted from the `magic` core into the new `magic_devtools` package; the injected class name (`MagicDuskIntegration.install()`) is unchanged. Consumers that follow magic's install.yaml (which adds `magic_devtools` to dev_dependencies before running `dusk:install`) get the integration wired automatically; magic-only consumers without `magic_devtools` in pubspec.yaml are unaffected. Coordinated with the magic_devtools extraction.
+
+---
+
 ## [0.0.7] - 2026-06-17
 
 ### Added
