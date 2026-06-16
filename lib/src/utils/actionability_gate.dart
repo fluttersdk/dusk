@@ -280,6 +280,26 @@ bool _isRootRenderView(HitTestTarget target) {
       name.endsWith('RenderView');
 }
 
+/// Re-resolves the live global-coordinate bounding rect of [entry]'s element,
+/// for pointer dispatch immediately after the actionability gate passes.
+///
+/// Reuses [_liveRectOf] so the dispatch point matches the same live geometry
+/// the gate's stable check (step 4) measured: a widget whose host rebuilt it
+/// into a shifted slot between snapshot and action (footer submit buttons in
+/// an `AnimatedBuilder`, the last tab in a scrollable tab bar) keeps the same
+/// `Element` / `RenderObject` identity (Flutter retains both across a
+/// same-type-and-key rebuild), so the live rect is valid and current.
+///
+/// Returns `null` when the render object is detached, missing, unsized, or
+/// not a [RenderBox] (e.g. a sliver). Callers fall back to the cached
+/// [RefEntry.rect] center in that case; the guard mirrors the
+/// `renderObject.attached` precondition Flutter's `localToGlobal` asserts.
+///
+/// This helper is purely additive to the FROZEN actionability gate: it runs
+/// AFTER the gate passes and BEFORE pointer dispatch, never touching the gate
+/// order or any failure-reason substring.
+Rect? dispatchRectOf(RefEntry entry) => _liveRectOf(entry.element);
+
 /// Re-resolves the global-coordinate bounding rect of [element] from its
 /// live [RenderBox]. Returns `null` when the element is detached, the
 /// render object is missing, or the render object is not a [RenderBox]

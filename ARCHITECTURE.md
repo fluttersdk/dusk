@@ -12,14 +12,14 @@ lib/
 ├── cli.dart                     # Flutter-free codegen barrel (FluttersdkDuskArtisanProvider typedef)
 └── src/
     ├── extensions/              # 17 files: 16 ext_*.dart (snapshot/pointer/text_input/screenshot/scroll/wait_find/modal_router/navigation/evaluate/close_app/find/console/exceptions/checkbox/observe/focus) + register_dusk_extensions.dart aggregator
-    ├── commands/                # 32 ArtisanCommand subclasses (one file each)
+    ├── commands/                # 34 ArtisanCommand subclasses (one file each)
     ├── utils/                   # actionability_gate (6-step: defunct/enabled/zero-rect/off-viewport/stable/receives-events), error_envelope, chrome_reaper, dusk_exceptions
     ├── cdp/                     # cdp_client + chrome_finder + 8 device_presets
     ├── dusk_plugin.dart         # DuskPlugin.install() entry, enricher list, navigate adapter, installErrorCapture call
     ├── dusk_error_capture.dart  # Non-fatal FlutterError ring buffer (cap 50, dedup); installErrorCapture / uninstallErrorCapture / recentCapturedExceptions
     ├── ref_registry.dart        # e<N> + q<N> dual token system; live re-resolution for q-refs
     ├── dusk_snapshot_enricher.dart  # FROZEN typedef: String? Function(Element, RefRegistry)
-    └── dusk_artisan_provider.dart   # 32 commands + 31 MCP tool descriptors
+    └── dusk_artisan_provider.dart   # 34 commands + 33 MCP tool descriptors
 bin/fluttersdk_dusk.dart           # Flutter-free CLI entry (no dart:ui import)
 install.yaml                       # V1 plugin manifest, zero stubs, post_install bootstrap
 ```
@@ -33,13 +33,13 @@ Wrap app root in RepaintBoundary (no GlobalKey; render-tree walk finds it for sc
     ↓
 WidgetsBinding.instance.ensureSemantics()                # force semantics on
     ↓
-registerAllDuskExtensions()                              # 28 ext.dusk.* via registerExtensionIdempotent (across 16 aggregator register functions)
+registerAllDuskExtensions()                              # 30 ext.dusk.* via registerExtensionIdempotent (across 16 aggregator register functions)
     ↓
 installErrorCapture()                                    # chains FlutterError.onError; records non-fatal errors (incl. overflow) into bounded ring buffer; prior handler preserved
     ↓
 Consumer registers DuskArtisanProvider (auto-wired by `dusk:install` via _plugins.g.dart)
     ↓
-artisan mcp:serve   →   31 dusk_* tools surface to MCP clients (Claude Code, Cursor, Windsurf, Copilot, ...)
+artisan mcp:serve   →   33 dusk_* tools surface to MCP clients (Claude Code, Cursor, Windsurf, Copilot, ...)
 ```
 
 ### Plugin wrapper interceptions (`bin/fluttersdk_dusk.dart`)
@@ -51,7 +51,7 @@ The Flutter-free CLI wrapper applies two interceptions before delegating to `run
 
 ## CLI commands
 
-The 32 commands registered by `DuskArtisanProvider.commands()`:
+The 34 commands registered by `DuskArtisanProvider.commands()`:
 
 ```
 dusk:install           dusk:doctor              dusk:close_app
@@ -59,11 +59,12 @@ dusk:snap              dusk:screenshot          dusk:hot_reload_and_snap
 dusk:tap               dusk:dblclick            dusk:right_click
 dusk:triple_click      dusk:hover               dusk:drag
 dusk:scroll            dusk:type                dusk:clear
-dusk:focus             dusk:blur                dusk:press_key
-dusk:set_checkbox      dusk:select_option       dusk:find
-dusk:observe           dusk:wait                dusk:wait_for_network_idle
-dusk:navigate          dusk:navigate_back       dusk:get_routes
-dusk:modal             dusk:resize              dusk:device
+dusk:fill              dusk:focus               dusk:blur
+dusk:press_key         dusk:set_checkbox        dusk:select_option
+dusk:find              dusk:observe             dusk:wait
+dusk:wait_for_network_idle                      dusk:navigate
+dusk:navigate_back     dusk:get_routes          dusk:modal
+dusk:reset_overlays    dusk:resize              dusk:device
 dusk:console           dusk:exceptions
 ```
 
@@ -71,23 +72,23 @@ Each command file declares `name`, `description`, `boot` (`none` or `connected`)
 
 ## MCP tools
 
-The 31 `McpToolDescriptor` entries in `dusk_artisan_provider.dart:123-1435`. 28 route through `ext.dusk.*` VM Service extensions; 3 route through `artisan:dusk:*` substrate prefixes (`dusk_hot_reload_and_snap`, `dusk_resize_viewport`, `dusk_device_profile`) since they need out-of-isolate execution (in-isolate hot-reload would deadlock; CDP needs a non-Flutter Dart context).
+The 33 `McpToolDescriptor` entries in `dusk_artisan_provider.dart:mcpTools()`. 30 route through `ext.dusk.*` VM Service extensions; 3 route through `artisan:dusk:*` substrate prefixes (`dusk_hot_reload_and_snap`, `dusk_resize_viewport`, `dusk_device_profile`) since they need out-of-isolate execution (in-isolate hot-reload would deadlock; CDP needs a non-Flutter Dart context).
 
 `dusk_evaluate` is MCP-only (no CLI mirror) so `magic_tinker` owns the connected REPL surface.
 
-## VM Service extension surface (28 ext.dusk.*)
+## VM Service extension surface (30 ext.dusk.*)
 
 ```
 ext.dusk.snap                  ext.dusk.screenshot          ext.dusk.tap
 ext.dusk.hover                 ext.dusk.drag                ext.dusk.type
-ext.dusk.scroll                ext.dusk.wait_for            ext.dusk.wait_for_network_idle
-ext.dusk.dismiss_modals        ext.dusk.press_key           ext.dusk.select_option
-ext.dusk.navigate              ext.dusk.navigate_back       ext.dusk.get_routes
-ext.dusk.evaluate              ext.dusk.close_app           ext.dusk.find
-ext.dusk.focus                 ext.dusk.blur                ext.dusk.clear
-ext.dusk.right_click           ext.dusk.dblclick            ext.dusk.triple_click
-ext.dusk.set_checkbox          ext.dusk.console             ext.dusk.exceptions
-ext.dusk.observe
+ext.dusk.fill                  ext.dusk.scroll              ext.dusk.wait_for
+ext.dusk.wait_for_network_idle ext.dusk.dismiss_modals      ext.dusk.reset_overlays
+ext.dusk.press_key             ext.dusk.select_option       ext.dusk.navigate
+ext.dusk.navigate_back         ext.dusk.get_routes          ext.dusk.evaluate
+ext.dusk.close_app             ext.dusk.find                ext.dusk.focus
+ext.dusk.blur                  ext.dusk.clear               ext.dusk.right_click
+ext.dusk.dblclick              ext.dusk.triple_click        ext.dusk.set_checkbox
+ext.dusk.console               ext.dusk.exceptions          ext.dusk.observe
 ```
 
 Every registration routes through `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety.
@@ -121,7 +122,7 @@ These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:
 
 ## RefRegistry token systems
 
-**`e<N>` (snapshot-frozen)**: minted at `dusk:snap` time. Stores element + rect + groupId + optional SemanticsNode/RenderObject. `node.id` dedup; the same widget across snapshots reuses the same `eN`. Element unmount triggers a `defunct` gate failure.
+**`e<N>` (snapshot-frozen)**: minted at `dusk:snap` time. Stores element + rect + groupId + optional SemanticsNode/RenderObject. `node.id` dedup; the same widget across snapshots reuses the same `eN`. Element unmount triggers a `defunct` gate failure. Nested duplicate `textbox` nodes (e.g. an outer `Semantics(textField:true)` wrapper around a `RenderEditable` leaf that owns its own node) collapse during the walk: a `textbox` whose render object is a render-tree descendant of an enclosing `textbox`'s render object is suppressed, so only the outer typeable node mints an `eN`. The surviving line carries `typeable: true`. Collapse is by render-object containment only; sibling fields sharing a label stay distinct.
 
 **`q<N>` (re-resolvable)**: minted at `dusk:find` time. Stores a predicate (`text` / `semanticsLabel` / `keyValue`) and re-walks the live tree on every action. Playwright Locator pattern. UI changes trigger a `DuskStaleHandleException`.
 

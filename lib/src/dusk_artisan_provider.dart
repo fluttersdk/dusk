@@ -12,6 +12,7 @@ import 'commands/dusk_triple_click_command.dart';
 import 'commands/dusk_doctor_command.dart';
 import 'commands/dusk_drag_command.dart';
 import 'commands/dusk_exceptions_command.dart';
+import 'commands/dusk_fill_command.dart';
 import 'commands/dusk_find_command.dart';
 import 'commands/dusk_get_routes_command.dart';
 import 'commands/dusk_hot_reload_and_snap_command.dart';
@@ -22,6 +23,7 @@ import 'commands/dusk_navigate_back_command.dart';
 import 'commands/dusk_navigate_command.dart';
 import 'commands/dusk_observe_command.dart';
 import 'commands/dusk_press_key_command.dart';
+import 'commands/dusk_reset_overlays_command.dart';
 import 'commands/dusk_resize_command.dart';
 import 'commands/dusk_screenshot_command.dart';
 import 'commands/dusk_scroll_command.dart';
@@ -117,6 +119,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         // Wave 4 Step 6+7 (CDP): device emulation commands.
         DuskResizeCommand(),
         DuskDeviceCommand(),
+        // D7: harness workarounds promoted to first-class commands.
+        // dusk:fill = focus + clear + type + settle + stale-retry in one call.
+        // dusk:reset_overlays = dismiss + Escape + Cancel-tap fallback.
+        DuskFillCommand(),
+        DuskResetOverlaysCommand(),
       ];
 
   @override
@@ -183,7 +190,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '- Returns the ref of the tapped widget on success; errors '
               'when the ref is unknown or stale (re-snap to refresh).\n'
               '- For drag use dusk_drag; for typing use dusk_type after '
-              'dusk_tap to focus the field.',
+              'dusk_tap to focus the field.\n'
+              '- Set verify=true to confirm the tap produced an observable '
+              'effect: the response gains a `changed` boolean (true when the '
+              "target's route or semantics subtree changed, false when "
+              'nothing did).',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{
@@ -191,6 +202,26 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'type': 'string',
                 'description': 'Widget ref token from a prior dusk_snap '
                     'call. Shape: `e<N>` (e.g. `e5`, `e23`).',
+              },
+              'verify': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'When true, capture a target-scoped before/'
+                    'after signal (route + semantics-subtree hash) and add a '
+                    '`changed` boolean to the response reporting whether the '
+                    'tap had an observable effect. Defaults to false, which '
+                    'keeps the response shape unchanged.',
+              },
+              'until': <String, dynamic>{
+                'type': 'string',
+                'description': 'After the tap settles, poll the live element '
+                    'tree for a Text whose data equals this value and add an '
+                    '`untilMatched` boolean to the response. Omit to keep the '
+                    'response shape unchanged.',
+              },
+              'untilTimeoutMs': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Timeout in milliseconds for the `until` poll '
+                    '(default 3000). Ignored when `until` is omitted.',
               },
             },
             'required': <String>['ref'],
@@ -912,13 +943,16 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'Usage:\n'
               '- No required params; defaults to the 20 most recent exceptions.\n'
               '- Pass `limit: <n>` to cap the returned count.\n'
+              '- Pass `since: "<iso8601>"` to return only exceptions strictly '
+              'after that timestamp (e.g. capture the time before an action, '
+              'then call with `since` to see only new exceptions).\n'
               '- Each entry contains `type`, `message`, `stackHead` (first '
               '3 lines of the stack trace), `library`, `fatal`, and `time`.\n'
               '- Useful for asserting that an action did not trigger an '
               'unexpected exception, or for diagnosing overflow errors '
               'flagged in a prior dusk_snap `overflow: true` annotation.\n'
               '\n'
-              'Example: `{ "limit": 5 }`',
+              'Example: `{ "limit": 5, "since": "2024-01-01T10:00:00.000Z" }`',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{
@@ -926,6 +960,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'type': 'integer',
                 'description': 'Maximum number of exception entries to '
                     'return. Default 20.',
+              },
+              'since': <String, dynamic>{
+                'type': 'string',
+                'description': 'ISO8601 timestamp. When set, only exceptions '
+                    'whose `time` is strictly after this value are returned. '
+                    'Omit to return the full cumulative list. Unparseable '
+                    'values are silently ignored (treated as absent).',
               },
             },
           },
@@ -1448,6 +1489,85 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             },
           },
           extensionMethod: 'artisan:dusk:device',
+        ),
+        // -------------------------------------------------------------------
+        // 27. Fill (D7): focus + clear + type + settle + stale-retry in one
+        // call. Composes the gated focus / clear / type handlers.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_fill',
+          description: 'Fill a text field by ref: focus, clear, type, settle '
+              'in one call.\n'
+              '\n'
+              'Replaces the manual focus + clear + type + wait dance every '
+              'agent otherwise re-discovers. Composes the gated focus, clear, '
+              'and type handlers (so the actionability gate, IME focus, and '
+              '`onChanged`/validator firing all run) and retries the whole '
+              'sequence once when the ref goes stale mid-fill. Use after a '
+              'dusk_snap (or dusk_find for a re-resolvable q-handle) to enter '
+              'text without three separate round-trips.\n'
+              '\n'
+              'Usage:\n'
+              '- Pass `ref` of the target TextField (`e<N>` or `q<N>`) and '
+              '`text` to set. Pass `text: ""` to clear the field.\n'
+              '- Prefer a q-handle (dusk_find) when the field may rebuild '
+              'between snapshot and fill; the stale-retry then re-resolves '
+              'cleanly on the second pass.\n'
+              '- Returns `{ref, text, filled: true}` plus an optional '
+              'post-fill snapshot.\n'
+              '\n'
+              'Example: `{ "ref": "e7", "text": "alice@example.com" }`',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'ref': <String, dynamic>{
+                'type': 'string',
+                'description': 'Text-field ref token (`e<N>` or `q<N>`) from '
+                    'a prior dusk_snap / dusk_find.',
+              },
+              'text': <String, dynamic>{
+                'type': 'string',
+                'description': 'Value to set. Replaces existing content. Pass '
+                    'an empty string to clear the field.',
+              },
+              'includeSnapshot': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Embed the post-fill snapshot (default true).',
+              },
+            },
+            'required': <String>['ref', 'text'],
+          },
+          extensionMethod: 'ext.dusk.fill',
+        ),
+        // -------------------------------------------------------------------
+        // 28. Reset overlays (D7): dismiss + Escape + Cancel-tap fallback.
+        // Idempotent; promotes the manual overlay-reset dance.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_reset_overlays',
+          description: 'Reset the app to a clean screen: dismiss every modal, '
+              'press Escape, then tap a Cancel/Dismiss affordance.\n'
+              '\n'
+              'Three escalating layers run in order, each a no-op when the '
+              'prior already cleared the overlays: (1) pop every PopupRoute '
+              '(dialogs, bottom sheets, popups) without touching the page '
+              'stack; (2) an Escape key press for overlays driven by the '
+              'dismiss shortcut; (3) a Cancel/Dismiss/Close/OK/Done labelled '
+              'tap for modal barriers that need an explicit affordance. '
+              'Idempotent: safe to call speculatively between flows.\n'
+              '\n'
+              'Usage:\n'
+              '- No parameters.\n'
+              '- Returns `{popped: N, escaped: bool, dismissTapped: bool}` so '
+              'you can see which layer cleared the screen.\n'
+              '- Prefer this over dusk_dismiss_modals when an overlay is not '
+              'a PopupRoute (custom OverlayEntry, dropdown menu, barrier '
+              'dialog).',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{},
+          },
+          extensionMethod: 'ext.dusk.reset_overlays',
         ),
       ];
 }

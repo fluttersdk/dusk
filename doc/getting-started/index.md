@@ -11,13 +11,16 @@ snapshot, and drive real user gestures from an AI agent or CLI session.
   app with snap, tap, and screenshot.
 - [**MCP setup**](../mcp/setup): Register the dusk MCP tools in Claude Code, Cursor,
   Windsurf, or any MCP-compliant client.
+- [**Driving real apps: gotchas for agents**](driving-real-apps-gotchas): the
+  recurring traps in real-app E2E sessions (stale refs, nested text fields,
+  cumulative exceptions, stuck overlays) and the workaround each one has built in.
 
 ## What is fluttersdk_dusk?
 
 `fluttersdk_dusk` is a Flutter E2E driver that gives an AI agent (or a CLI session)
 eyes and hands over a running Flutter app. It works by registering a set of VM
 Service extensions under the `ext.dusk.*` namespace during debug builds, then
-exposing those extensions as 31 MCP tools and 32 CLI commands. The agent snaps a
+exposing those extensions as 33 MCP tools and 34 CLI commands. The agent snaps a
 Semantics YAML to identify widget references, then drives gestures, text input,
 scrolling, and navigation against those references without any test instrumentation
 in the production widget tree.

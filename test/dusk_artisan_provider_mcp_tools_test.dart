@@ -13,8 +13,8 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 32 commands', () {
-      expect(cmds, hasLength(32));
+    test('returns exactly 34 commands', () {
+      expect(cmds, hasLength(34));
     });
 
     test(
@@ -60,6 +60,9 @@ void main() {
           'DuskObserveCommand',
           // Step 4.2.
           'DuskHotReloadAndSnapCommand',
+          // D7: harness workarounds promoted to first-class commands.
+          'DuskFillCommand',
+          'DuskResetOverlaysCommand',
         ]),
       );
     });
@@ -76,8 +79,8 @@ void main() {
     // Length
     // -------------------------------------------------------------------------
 
-    test('returns exactly 31 descriptors', () {
-      expect(tools, hasLength(31));
+    test('returns exactly 33 descriptors', () {
+      expect(tools, hasLength(33));
     });
 
     // -------------------------------------------------------------------------
@@ -123,6 +126,9 @@ void main() {
           // Wave 4 CDP tools.
           'dusk_resize_viewport',
           'dusk_device_profile',
+          // D7: harness workarounds promoted to first-class tools.
+          'dusk_fill',
+          'dusk_reset_overlays',
         ]),
       );
     });
@@ -196,6 +202,20 @@ void main() {
         byName['dusk_device_profile'],
         equals('artisan:dusk:device'),
       );
+      // D7.
+      expect(byName['dusk_fill'], equals('ext.dusk.fill'));
+      expect(byName['dusk_reset_overlays'], equals('ext.dusk.reset_overlays'));
+    });
+
+    test('dusk_fill declares ref and text as required', () {
+      final fill = tools.firstWhere((t) => t.name == 'dusk_fill');
+      final required = fill.inputSchema['required'] as List<dynamic>;
+      expect(required, containsAll(<String>['ref', 'text']));
+    });
+
+    test('dusk_reset_overlays does not declare required params', () {
+      final reset = tools.firstWhere((t) => t.name == 'dusk_reset_overlays');
+      expect(reset.inputSchema.containsKey('required'), isFalse);
     });
 
     test('no two descriptors share an extensionMethod (no overlap, no gap)',

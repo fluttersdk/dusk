@@ -2,7 +2,7 @@
 
 `fluttersdk_dusk` does not ship its own MCP server. It plugs into the substrate MCP server
 hosted by [`fluttersdk_artisan`](https://fluttersdk.com/artisan/mcp/overview) by exporting an
-`ArtisanServiceProvider` (`DuskArtisanProvider`) that contributes 31 MCP tool descriptors.
+`ArtisanServiceProvider` (`DuskArtisanProvider`) that contributes 33 MCP tool descriptors.
 When the consumer registers the provider in `bin/artisan.dart` (or via the auto-discovered
 `lib/app/_plugins.g.dart` barrel), the substrate MCP server picks up the dusk tools at
 `initialize` time and surfaces them alongside its own 10 substrate tools, so the AI client
@@ -11,7 +11,7 @@ sees a single unified catalog.
 <a name="toc"></a>
 
 - [Substrate MCP server, dusk tool descriptors](#substrate-and-descriptors)
-- [The 31 dusk tools](#tool-catalog)
+- [The 33 dusk tools](#tool-catalog)
 - [Dispatch surfaces: `ext.dusk.*` vs. `artisan:dusk:*`](#dispatch-surfaces)
 - [Lifecycle: state file, lazy reconnect, snap-act loop](#lifecycle)
 - [Related](#related)
@@ -24,7 +24,7 @@ sees a single unified catalog.
 
 The substrate MCP server is surfaced through the dusk wrapper binary. Running `dart run fluttersdk_dusk mcp:serve` speaks stdio JSON-RPC, reads `~/.artisan/state.json` to find the
 running Flutter app's VM Service URI, and collects every registered provider's
-`mcpTools()` list at boot (the wrapper forces `collectMcpTools: true` so all 31 dusk_* tools surface without needing a scaffolded fastcli binary). `DuskArtisanProvider.mcpTools()` returns 31 `McpToolDescriptor`
+`mcpTools()` list at boot (the wrapper forces `collectMcpTools: true` so all 33 dusk_* tools surface without needing a scaffolded fastcli binary). `DuskArtisanProvider.mcpTools()` returns 33 `McpToolDescriptor`
 instances; the substrate server registers each as a regular MCP tool and dispatches calls
 through the descriptor's declared `extensionMethod`. No additional server process is
 launched for dusk; one MCP endpoint, one server, plugin-extensible.
@@ -32,15 +32,15 @@ launched for dusk; one MCP endpoint, one server, plugin-extensible.
 This means every `.mcp.json` snippet that wires the substrate MCP server already gives the
 AI client access to the dusk tools. There is no separate `fluttersdk_dusk:mcp` binary to
 add, no second `cwd` to configure. See [setup.md](setup.md) for the per-client install
-matrix. Running `dart run fluttersdk_dusk mcp:serve` directly (without scaffolded fastcli) now surfaces the same 31 tools via the wrapper's automatic `collectMcpTools: true` flag.
+matrix. Running `dart run fluttersdk_dusk mcp:serve` directly (without scaffolded fastcli) now surfaces the same 33 tools via the wrapper's automatic `collectMcpTools: true` flag.
 
 ---
 
 <a name="tool-catalog"></a>
 
-## The 31 dusk tools
+## The 33 dusk tools
 
-`DuskArtisanProvider.mcpTools()` returns the following 31 descriptors. The list is sorted
+`DuskArtisanProvider.mcpTools()` returns the following 33 descriptors. The list is sorted
 alphabetically; each link jumps to the per-tool entry in [tool-reference.md](tool-reference.md).
 
 | Tool | Purpose |
@@ -55,6 +55,7 @@ alphabetically; each link jumps to the per-tool entry in [tool-reference.md](too
 | [`dusk_drag`](tool-reference.md#dusk_drag) | Drag from one widget to another by ref. |
 | [`dusk_evaluate`](tool-reference.md#dusk_evaluate) | Evaluate a Dart expression in the running isolate. |
 | [`dusk_exceptions`](tool-reference.md#dusk_exceptions) | Read recent exceptions from the telescope store. |
+| [`dusk_fill`](tool-reference.md#dusk_fill) | Focus + clear + type + settle a text field in one call (stale-retry). |
 | [`dusk_find`](tool-reference.md#dusk_find) | Mint a re-resolvable `q<N>` handle by text / label / key. |
 | [`dusk_focus`](tool-reference.md#dusk_focus) | Request keyboard focus on a widget by ref. |
 | [`dusk_get_routes`](tool-reference.md#dusk_get_routes) | List route paths declared by the running router. |
@@ -64,6 +65,7 @@ alphabetically; each link jumps to the per-tool entry in [tool-reference.md](too
 | [`dusk_navigate_back`](tool-reference.md#dusk_navigate_back) | Pop the top route off the navigator stack. |
 | [`dusk_observe`](tool-reference.md#dusk_observe) | Structured candidate list of interactive widgets (Stagehand pattern). |
 | [`dusk_press_key`](tool-reference.md#dusk_press_key) | Press a hardware key with optional modifiers. |
+| [`dusk_reset_overlays`](tool-reference.md#dusk_reset_overlays) | Reset overlays: dismiss modals + Escape + Cancel-tap fallback (idempotent). |
 | [`dusk_resize_viewport`](tool-reference.md#dusk_resize_viewport) | Resize the web viewport via CDP. |
 | [`dusk_right_click`](tool-reference.md#dusk_right_click) | Fire a right (secondary mouse) click. |
 | [`dusk_screenshot`](tool-reference.md#dusk_screenshot) | Capture a screenshot of the running app. |
@@ -89,7 +91,7 @@ Renames break agent prompts and pinned consumer scripts.
 The substrate MCP server inspects each descriptor's `extensionMethod` field to choose a
 dispatch path. Dusk uses two:
 
-- **`ext.dusk.*` (28 tools).** The default path. The MCP server calls
+- **`ext.dusk.*` (30 tools).** The default path. The MCP server calls
   `VmServiceClient.callServiceExtension(method, args)` against the running Flutter app's VM
   Service. The handler runs inside the app isolate and returns a `ServiceExtensionResponse`.
   This is the standard pattern; every action / inspection tool uses it.

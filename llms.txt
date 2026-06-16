@@ -1,15 +1,15 @@
 # fluttersdk_dusk
 
-> E2E driver for Flutter apps targeting LLM agents and CI. 32 CLI commands and 31 MCP tools drive a running Flutter app over 28 `ext.dusk.*` VM Service extensions plus 3 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). Debug-only at the consumer call site; release builds tree-shake the entire subsystem.
+> E2E driver for Flutter apps targeting LLM agents and CI. 34 CLI commands and 33 MCP tools drive a running Flutter app over 30 `ext.dusk.*` VM Service extensions plus 3 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). Debug-only at the consumer call site; release builds tree-shake the entire subsystem.
 
-**MCP tools (31)**, see `doc/mcp/tool-reference.md` for full input schemas. The 28 `ext.dusk.*` and 3 `artisan:dusk:*` (substrate-routed) tools are listed below.
+**MCP tools (33)**, see `doc/mcp/tool-reference.md` for full input schemas. The 30 `ext.dusk.*` and 3 `artisan:dusk:*` (substrate-routed) tools are listed below.
 
 *Snapshot / Screenshot*
-- `dusk_snap` (`ext.dusk.snap`): Capture Semantics tree YAML with stable `[ref=eN]` tokens. Nodes inside a currently-overflowing ancestor carry an `overflow: true` sub-line.
+- `dusk_snap` (`ext.dusk.snap`): Capture Semantics tree YAML with stable `[ref=eN]` tokens. Nodes inside a currently-overflowing ancestor carry an `overflow: true` sub-line. Nested `textbox` nodes collapse by render-object containment to a single ref tagged `typeable: true` (the node `dusk_type` resolves); sibling fields sharing a label stay distinct.
 - `dusk_screenshot` (`ext.dusk.screenshot`, in-isolate): Capture base64-encoded JPEG/PNG frame. Can hang on web under CanvasKit+DWDS; for reliable web screenshots use the CLI `dusk:screenshot --output=<path>`, which falls back to CDP `Page.captureScreenshot` when artisan was started with `--cdp-port` (CLI-only, not this MCP tool).
 
 *Gestures (pointer actions)*
-- `dusk_tap` (`ext.dusk.tap`): Tap a widget (Down + 50ms hold + Up at ref center).
+- `dusk_tap` (`ext.dusk.tap`): Tap a widget (Down + 50ms hold + Up at the LIVE ref center, re-resolved post-gate). Opt-in `verify:true` adds a `changed` boolean reporting whether the tap had an observable effect. Opt-in `until:"<text>"` polls (up to `untilTimeoutMs`, default 3000) for that text post-tap and adds an `untilMatched` boolean.
 - `dusk_hover` (`ext.dusk.hover`): Hover mouse cursor over a widget (PointerHoverEvent).
 - `dusk_drag` (`ext.dusk.drag`): Drag from one widget to another (Down + 5x Move + Up).
 - `dusk_dblclick` (`ext.dusk.dblclick`): Double-click a widget (two tap sequences ~100ms apart).
@@ -19,6 +19,7 @@
 *Text Input*
 - `dusk_type` (`ext.dusk.type`): Type text into a TextField (calls userUpdateTextEditingValue).
 - `dusk_clear` (`ext.dusk.clear`): Clear TextEditingController backing a text field.
+- `dusk_fill` (`ext.dusk.fill`): Focus + clear + type + settle a text field in one call; composes the gated focus/clear/type handlers and retries once on a stale handle. Replaces the manual fill dance.
 
 *Scrolling*
 - `dusk_scroll` (`ext.dusk.scroll`): Scroll a Scrollable widget by direction + pixels.
@@ -31,14 +32,15 @@
 - `dusk_navigate` (`ext.dusk.navigate`): Push a named route onto the active router.
 - `dusk_navigate_back` (`ext.dusk.navigate_back`): Pop the top route off navigator stack.
 - `dusk_get_routes` (`ext.dusk.get_routes`): Enumerate declared routes in the active router.
-- `dusk_dismiss_modals` (`ext.dusk.dismiss_modals`): Pop every modal route above first persistent route.
+- `dusk_dismiss_modals` (`ext.dusk.dismiss_modals`): Pop every PopupRoute (dialog, bottom sheet, popup menu) across all NavigatorState instances; returns additive `popped` count.
+- `dusk_reset_overlays` (`ext.dusk.reset_overlays`): Return to a clean screen via 3 idempotent layers: dismiss all PopupRoutes, press Escape, then tap a Cancel/Dismiss/Close/OK/Done affordance. Returns `{popped, escaped, dismissTapped}`.
 
 *Find (Query Handles)*
 - `dusk_find` (`ext.dusk.find`): Find widget by text/semanticsLabel/key, return re-resolvable `q<N>` handle.
 
 *Diagnostics*
-- `dusk_console` (`ext.dusk.console`): Read recent log entries from telescope store.
-- `dusk_exceptions` (`ext.dusk.exceptions`): Read recent exception entries. Returns merged union of in-package non-fatal `FlutterError` capture buffer (incl. overflow tagged `type: "overflow"`) and telescope reader; deduped, newest-first.
+- `dusk_console` (`ext.dusk.console`): Read recent log entries. Returns merged union of in-package `debugPrint` capture buffer (captures `debugPrint()`, `print()`, and any Flutter framework path through the `debugPrint` callback; does NOT capture direct `developer.log()` calls) and telescope reader when wired; deduped, newest-first. Works without telescope.
+- `dusk_exceptions` (`ext.dusk.exceptions`): Read recent exception entries. Returns merged union of in-package non-fatal `FlutterError` capture buffer (incl. overflow tagged `type: "overflow"`) and telescope reader; deduped, newest-first. Optional `since` ISO8601 param filters to entries strictly after that timestamp (for before/after action deltas).
 - `dusk_observe` (`ext.dusk.observe`): Return structured candidate list of every interactive widget on screen.
 
 *Keyboard / Input*
@@ -67,8 +69,11 @@
 - [Installation](https://fluttersdk.com/dusk/getting-started/installation.md)
 - [Quickstart](https://fluttersdk.com/dusk/getting-started/quickstart.md)
 - [Commands index](https://fluttersdk.com/dusk/commands/index.md)
+- [Driving real apps: gotchas for agents](https://fluttersdk.com/dusk/getting-started/driving-real-apps-gotchas.md)
 - [dusk:snap](https://fluttersdk.com/dusk/commands/dusk-snap.md)
 - [dusk:tap](https://fluttersdk.com/dusk/commands/dusk-tap.md)
+- [dusk:fill](https://fluttersdk.com/dusk/commands/dusk-fill.md)
+- [dusk:reset_overlays](https://fluttersdk.com/dusk/commands/dusk-reset-overlays.md)
 - [dusk:find](https://fluttersdk.com/dusk/commands/dusk-find.md)
 - [dusk:observe](https://fluttersdk.com/dusk/commands/dusk-observe.md)
 - [dusk:screenshot](https://fluttersdk.com/dusk/commands/dusk-screenshot.md)
@@ -79,7 +84,7 @@
 ## MCP
 - [MCP overview](https://fluttersdk.com/dusk/mcp/overview.md)
 - [MCP setup (.mcp.json wiring)](https://fluttersdk.com/dusk/mcp/setup.md): when fastcli is absent, `mcp:install` auto-selects `dart run fluttersdk_dusk mcp:serve` as the plugin-aware fallback (no manual edit needed).
-- [MCP tool reference (31 tools)](https://fluttersdk.com/dusk/mcp/tool-reference.md)
+- [MCP tool reference (33 tools)](https://fluttersdk.com/dusk/mcp/tool-reference.md)
 
 ## Plugins
 - [Magic integration](https://fluttersdk.com/dusk/plugins/magic-integration.md)

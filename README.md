@@ -35,7 +35,7 @@ flutter pub add fluttersdk_dusk
 dart run fluttersdk_dusk dusk:install      # patches lib/main.dart + scaffolds ./bin/fsa + registers dusk plugin
 ```
 
-That's it. After the second command, all 32 `dusk:*` commands surface through `./bin/fsa <cmd>` (~110ms warm) or `dart run fluttersdk_dusk <cmd>` (works the same, ~3s startup), and the MCP server is one `dart run fluttersdk_dusk mcp:install` away. When fastcli (`./bin/fsa`) is absent, `mcp:install` writes `dart run fluttersdk_dusk mcp:serve` into `.mcp.json` automatically; no manual edit required. See [MCP install: 8 clients](#mcp-install-8-clients) for the per-client wiring. Manual wiring, Magic-stack integration, and the full per-command flag reference live in the [Getting Started guide](https://fluttersdk.com/dusk/getting-started).
+That's it. After the second command, all 34 `dusk:*` commands surface through `./bin/fsa <cmd>` (~110ms warm) or `dart run fluttersdk_dusk <cmd>` (works the same, ~3s startup), and the MCP server is one `dart run fluttersdk_dusk mcp:install` away. When fastcli (`./bin/fsa`) is absent, `mcp:install` writes `dart run fluttersdk_dusk mcp:serve` into `.mcp.json` automatically; no manual edit required. See [MCP install: 8 clients](#mcp-install-8-clients) for the per-client wiring. Manual wiring, Magic-stack integration, and the full per-command flag reference live in the [Getting Started guide](https://fluttersdk.com/dusk/getting-started).
 
 > [!TIP]
 > **fastcli** is the AOT-compiled artisan dispatcher (~110ms warm) shipped as `./bin/fsa`. `dusk:install` scaffolds it for you automatically (best-effort; falls through to a warning when `dart` is not on PATH). After that, every `./bin/fsa <cmd>` is the fast path. The CLI also runs as `dart run fluttersdk_dusk <cmd>` with the same surface, ~3s slower per call.
@@ -44,7 +44,7 @@ That's it. After the second command, all 32 `dusk:*` commands surface through `.
 
 End-to-end testing on Flutter has always been a stitched-together ritual. `flutter_driver` ships a one-off socket protocol that does not survive hot restart. `integration_test` runs in-process against a simulated `WidgetTester`, but you write a test file, build, run, and wait. AI coding agents that want to drive the running app reach for ad hoc `flutter test` invocations, copy stack traces back into the prompt, and paste screenshots back, calling it a workflow.
 
-**Dusk closes that loop.** A single VM Service extension family (`ext.dusk.*`), a single CLI namespace (`dusk:*`), and a single stdio MCP server back **32 CLI commands** and **31 MCP tools** (28 `ext.dusk.*` + 3 `artisan:dusk:*` substrate-routed). The same contracts power human-driven terminal calls and agent-driven MCP tool calls: `dusk:tap --ref=e7` (CLI) and `dusk_tap` (MCP) reach the exact same code path. No test harness, no test file, no build step. Attach to the live app and the agent has eyes (`dusk_snap`, `dusk_screenshot`, `dusk_observe`) and hands (`dusk_tap`, `dusk_type`, `dusk_scroll`, `dusk_drag`). On Flutter web, the `dusk:screenshot` CLI command falls back to CDP `Page.captureScreenshot` when artisan was started with `--cdp-port`, bypassing the in-isolate extension that hangs under CanvasKit; the `dusk_screenshot` MCP tool still dispatches in-isolate, so web agents should use the CLI for screenshots. `dusk_exceptions` captures non-fatal `FlutterError`s (including overflow) in-package so diagnostics work even without telescope.
+**Dusk closes that loop.** A single VM Service extension family (`ext.dusk.*`), a single CLI namespace (`dusk:*`), and a single stdio MCP server back **34 CLI commands** and **33 MCP tools** (30 `ext.dusk.*` + 3 `artisan:dusk:*` substrate-routed). The same contracts power human-driven terminal calls and agent-driven MCP tool calls: `dusk:tap --ref=e7` (CLI) and `dusk_tap` (MCP) reach the exact same code path. No test harness, no test file, no build step. Attach to the live app and the agent has eyes (`dusk_snap`, `dusk_screenshot`, `dusk_observe`) and hands (`dusk_tap`, `dusk_type`, `dusk_scroll`, `dusk_drag`). On Flutter web, the `dusk:screenshot` CLI command falls back to CDP `Page.captureScreenshot` when artisan was started with `--cdp-port`, bypassing the in-isolate extension that hangs under CanvasKit; the `dusk_screenshot` MCP tool still dispatches in-isolate, so web agents should use the CLI for screenshots. `dusk_exceptions` captures non-fatal `FlutterError`s (including overflow) in-package so diagnostics work even without telescope.
 
 | Tool | What it does | Where Dusk fits |
 |---|---|---|
@@ -60,8 +60,8 @@ End-to-end testing on Flutter has always been a stitched-together ritual. `flutt
 | | Feature | Description |
 |:--|:--------|:------------|
 | 🌳 | **Semantics Snapshot** | `dusk_snap` emits a YAML tree with stable `[ref=eN]` tokens; every action targets a ref, no brittle XPath or coordinate guessing |
-| 🛠️ | **32 CLI Commands** | snap, tap, type, drag, scroll, hover, dblclick, right_click, triple_click, focus, blur, clear, set_checkbox, select_option, press_key, wait, find, observe, navigate, modal, screenshot, hot_reload_and_snap, CDP resize + device, close_app, install, doctor |
-| 🤖 | **31 MCP Tools** | The full CLI surface plus `dusk_evaluate`, exposed as stdio JSON-RPC tools to Claude Code, Cursor, Windsurf, VS Code Copilot, and any MCP-compatible agent |
+| 🛠️ | **34 CLI Commands** | snap, tap, type, fill, drag, scroll, hover, dblclick, right_click, triple_click, focus, blur, clear, set_checkbox, select_option, press_key, wait, find, observe, navigate, modal, reset_overlays, screenshot, hot_reload_and_snap, CDP resize + device, close_app, install, doctor |
+| 🤖 | **33 MCP Tools** | The full CLI surface plus `dusk_evaluate`, exposed as stdio JSON-RPC tools to Claude Code, Cursor, Windsurf, VS Code Copilot, and any MCP-compatible agent |
 | 🚪 | **6-Step Actionability Gate** | Every gesture passes defunct (preflight) → enabled → zero-rect → off-viewport (auto-scrolls) → stable (2-frame rect drift) → receives-events (hit-test path); no flaky taps |
 | 🔖 | **Playwright-style Locators** | `q<N>` re-resolvable handles via `dusk_find` walk the live Semantics tree on every action. Stale handles throw, never silently act on the wrong widget |
 | 🔄 | **Hot Reload + Snap Round-trip** | `dusk_hot_reload_and_snap` returns `{reloaded, durationMs, snapshot, screenshot, exceptions}` in one call |
@@ -75,7 +75,7 @@ End-to-end testing on Flutter has always been a stitched-together ritual. `flutt
 
 ## AI Coding Assistants
 
-Dusk ships AI-first. The skill at [`skills/fluttersdk-dusk/SKILL.md`](skills/fluttersdk-dusk/SKILL.md) teaches your agent the 6 core laws, the `e<N>` / `q<N>` ref grammar, the 6-step actionability vocabulary, the 31 MCP tool surface, and the agent-workflow playbooks. The same skill is distributed through [**fluttersdk/ai**](https://github.com/fluttersdk/ai) for Claude Code, Cursor, OpenCode, Gemini CLI, VS Code Copilot, Codex CLI, Cline, and Roo Code, one command:
+Dusk ships AI-first. The skill at [`skills/fluttersdk-dusk/SKILL.md`](skills/fluttersdk-dusk/SKILL.md) teaches your agent the 6 core laws, the `e<N>` / `q<N>` ref grammar, the 6-step actionability vocabulary, the 33 MCP tool surface, and the agent-workflow playbooks. The same skill is distributed through [**fluttersdk/ai**](https://github.com/fluttersdk/ai) for Claude Code, Cursor, OpenCode, Gemini CLI, VS Code Copilot, Codex CLI, Cline, and Roo Code, one command:
 
 ```bash
 npx skills add fluttersdk/ai --skill fluttersdk-dusk
@@ -87,7 +87,7 @@ This is independent of dusk's own runtime MCP server (`./bin/fsa mcp:serve`, cov
 
 ## MCP install: 8 clients
 
-Dusk is the first Flutter MCP server focused on **UI automation** (tap, snap, screenshot, observe) rather than runtime telemetry. The 31 `dusk_*` tools surface to any MCP-compatible agent.
+Dusk is the first Flutter MCP server focused on **UI automation** (tap, snap, screenshot, observe) rather than runtime telemetry. The 33 `dusk_*` tools surface to any MCP-compatible agent.
 
 > [!NOTE]
 > Configs below use `./bin/fsa` (the fastcli wrapper, see top of README). If fastcli is not scaffolded yet, swap `./bin/fsa mcp:serve` for `dart run fluttersdk_dusk mcp:serve` in every client row.
@@ -136,7 +136,7 @@ Dusk is the first Flutter MCP server focused on **UI automation** (tap, snap, sc
 [agent] artisan_stop                                # tear down
 ```
 
-Full per-tool input schemas + example calls in the [MCP tool reference](https://fluttersdk.com/dusk/mcp/tool-reference). For agents that read structured project context at attach time, the canonical entry point is [`llms.txt`](https://fluttersdk.com/dusk/llms.txt); it lists the 31 MCP tool names inline, plus the command surface, ref token grammar, and 6-step actionability vocabulary. The site serves the bare URLs to humans and the same paths with a `.md` suffix to LLM agents (e.g. `https://fluttersdk.com/dusk/getting-started.md`).
+Full per-tool input schemas + example calls in the [MCP tool reference](https://fluttersdk.com/dusk/mcp/tool-reference). For agents that read structured project context at attach time, the canonical entry point is [`llms.txt`](https://fluttersdk.com/dusk/llms.txt); it lists the 33 MCP tool names inline, plus the command surface, ref token grammar, and 6-step actionability vocabulary. The site serves the bare URLs to humans and the same paths with a `.md` suffix to LLM agents (e.g. `https://fluttersdk.com/dusk/getting-started.md`).
 
 ## Examples
 

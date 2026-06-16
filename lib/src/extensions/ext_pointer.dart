@@ -11,6 +11,7 @@ import '../utils/dusk_exceptions.dart';
 import '../utils/error_envelope.dart';
 import 'ext_find.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
+import 'ext_wait_find.dart' show findByTextWaitLoop;
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// Parses the optional `'true' | 'false'` flag [params] field [name],
@@ -27,6 +28,65 @@ bool _parseBoolFlag(
   final String? raw = params[name];
   if (raw == null || raw.isEmpty) return defaultValue;
   return raw != 'false' && raw != '0';
+}
+
+/// Captures a cheap, TARGET-scoped effect signal for the opt-in `verify`
+/// flag: the route the target sits under plus a hash of the target's own
+/// semantics subtree (label / value / role / child labels).
+///
+/// The signal is deliberately scoped to the TARGET, not a global route or
+/// whole-tree hash (oracle D1 verdict): a counter button whose own label
+/// increments (`Count: 0` -> `Count: 1`) changes the subtree hash, while
+/// unrelated background churn elsewhere in the tree does not produce a false
+/// "something changed". Route-name inclusion catches navigations that replace
+/// the target's scope.
+///
+/// Returns an opaque token compared by equality pre/post action. When the
+/// entry carries no [SemanticsNode] (synthetic entries), or its node is
+/// recycled by a node-replacing rebuild between capture points, the subtree
+/// hash degrades to 0 and the token collapses to the route name alone, still
+/// a valid before/after comparison.
+String _captureVerifySignal(RefEntry entry) {
+  final String route = _routeNameOf(entry.element);
+  final int subtreeHash = _semanticsSubtreeHash(entry.node);
+  return '$route#$subtreeHash';
+}
+
+/// Resolves the name of the nearest enclosing [ModalRoute] for [element], or
+/// the empty string when none is found (no route ancestor, defunct element).
+String _routeNameOf(Element element) {
+  try {
+    final ModalRoute<dynamic>? route = ModalRoute.of(element as BuildContext);
+    return route?.settings.name ?? '';
+  } catch (_) {
+    return '';
+  }
+}
+
+/// Computes an order-sensitive hash of [node]'s semantics subtree from each
+/// node's label, value, and role-relevant flags. Returns `0` when [node] is
+/// `null`. Cheap: a single DFS over the target's own subtree, not the whole
+/// Semantics tree.
+int _semanticsSubtreeHash(SemanticsNode? node) {
+  if (node == null) return 0;
+  int hash = 0;
+  void visit(SemanticsNode current) {
+    final SemanticsData data = current.getSemanticsData();
+    hash = Object.hash(
+      hash,
+      data.label,
+      data.value,
+      data.flagsCollection.isEnabled,
+      data.flagsCollection.isChecked,
+    );
+    current.visitChildren((SemanticsNode child) {
+      visit(child);
+      return true;
+    });
+  }
+
+  visit(node);
+  return hash;
 }
 
 /// Builds the post-action snapshot YAML and appends it under the
@@ -94,6 +154,13 @@ RefEntry? resolveRefForAction(String ref) {
 /// non-zero drag velocity; 5 steps with 16ms spacing is enough to satisfy
 /// Flutter's gesture recognizer logic.
 const int _kDragSteps = 5;
+
+/// Default poll ceiling (ms) for the `until` text-confirmation on tap.
+const int _kDefaultUntilMs = 3000;
+
+/// Poll cadence (ms) for the `until` text-confirmation loop. Must be >= 100
+/// (the [findByTextWaitLoop] CPU-constraint assertion).
+const int _kUntilPollIntervalMs = 100;
 
 /// Pointer ID used for single-touch events (tap, hover).
 ///
@@ -207,6 +274,11 @@ Future<void> _injectTap(Offset center,
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
 ///   embedding the post-action accessibility snapshot in the response.
 ///   Mirrors Playwright MCP's `setIncludeSnapshot()` opt-out.
+/// - `verify` (optional, default `'false'`): when `'true'`, capture a cheap
+///   TARGET-scoped signal (route + semantics-subtree hash) before and after
+///   the tap and add a `changed: true|false` field reporting whether the tap
+///   produced an observable effect on the target. Default-off keeps the
+///   frozen success-shape byte-identical to before.
 ///
 /// Response JSON (default):
 /// ```json
@@ -216,6 +288,24 @@ Future<void> _injectTap(Offset center,
 /// With `includeSnapshot: 'false'`:
 /// ```json
 /// { "ref": "e3" }
+/// ```
+///
+/// With `verify: 'true'`:
+/// ```json
+/// { "ref": "e3", "changed": true, "snapshot": "<yaml>" }
+/// ```
+///
+/// - `until` (optional): when set, after the tap settles the handler polls the
+///   live element tree for a [Text] widget whose data equals this string and
+///   adds an `untilMatched: true|false` field reporting whether it appeared
+///   within `untilTimeoutMs`. Confirms a navigation / state change produced
+///   the expected text (Playwright `waitFor`-after-click parity) in one call,
+///   so the agent does not need a separate `dusk_wait_for` round-trip.
+/// - `untilTimeoutMs` (optional, default 3000): poll ceiling for `until`.
+///
+/// With `until: 'Welcome'`:
+/// ```json
+/// { "ref": "e3", "untilMatched": true, "snapshot": "<yaml>" }
 /// ```
 Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   String method,
@@ -295,8 +385,19 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   //
   //    Scope: this try/catch is the ONLY place that returns .error after the
   //    guard clauses above. A throw here means the pointer was NOT delivered.
+  //
+  //    Live-rect re-resolve (D1): dispatch at the element's CURRENT center,
+  //    re-resolved via `dispatchRectOf` after the gate passed, not the cached
+  //    `entry.rect.center` captured at snapshot time. A host that rebuilt the
+  //    target into a shifted slot retains the same Element/RenderObject, so
+  //    the live rect is valid; falling back to the cached center only when
+  //    the live rect is null (sliver / detached / synthetic-test entry).
+  final bool verify = _parseBoolFlag(params, 'verify', defaultValue: false);
+  final String? preSignal = verify ? _captureVerifySignal(entry) : null;
+  final Offset dispatchCenter =
+      dispatchRectOf(entry)?.center ?? entry.rect.center;
   try {
-    await _injectTap(entry.rect.center);
+    await _injectTap(dispatchCenter);
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.tap: _injectTap failed for ref "$ref": '
@@ -335,10 +436,60 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     }
   }
 
-  // 3. Build the post-action snapshot (Playwright parity) and embed it
+  // 3. Effect verification (opt-in `verify`). When enabled, recapture the
+  //    TARGET-scoped signal AFTER the pointer settled and compare it against
+  //    [preSignal]. A differing token means the tap produced an observable
+  //    effect on the target (its own label / route changed); an identical
+  //    token means nothing the agent can see happened. The recapture reuses
+  //    the same [entry] — the live-rect dispatch above keeps the Element /
+  //    SemanticsNode identity, so `entry.node.getSemanticsData()` reflects the
+  //    post-rebuild subtree. The signal collapses to the route name alone for
+  //    synthetic (node-less) entries, which is still a valid before/after
+  //    comparison. Failures here are post-dispatch noise: the field is simply
+  //    omitted rather than converting a successful tap into an error.
+  final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
+  if (verify) {
+    try {
+      final String postSignal = _captureVerifySignal(entry);
+      payload['changed'] = postSignal != preSignal;
+    } catch (e) {
+      developer.log(
+        '[fluttersdk_dusk] ext.dusk.tap: post-dispatch verify signal swallowed '
+        'for ref "$ref": $e',
+        name: 'fluttersdk_dusk',
+      );
+    }
+  }
+
+  // 3b. Until-text confirmation (opt-in `until`). When enabled, poll the live
+  //     element tree for a Text widget whose data equals the expected string
+  //     and add `untilMatched` to the payload. Reuses [findByTextWaitLoop]
+  //     (the same poll loop dusk_wait_for uses) so the cadence + fake-async
+  //     behaviour match. Failures here are post-dispatch noise: the tap
+  //     already fired, so the field is simply omitted on error.
+  final String? until = params['until'];
+  if (until != null && until.isNotEmpty) {
+    try {
+      final int untilTimeoutMs =
+          int.tryParse(params['untilTimeoutMs'] ?? '') ?? _kDefaultUntilMs;
+      final Map<String, dynamic> result = await findByTextWaitLoop(
+        text: until,
+        timeoutMs: untilTimeoutMs,
+        pollIntervalMs: _kUntilPollIntervalMs,
+      );
+      payload['untilMatched'] = result['matched'] == true;
+    } catch (e) {
+      developer.log(
+        '[fluttersdk_dusk] ext.dusk.tap: post-dispatch until poll swallowed '
+        'for ref "$ref": $e',
+        name: 'fluttersdk_dusk',
+      );
+    }
+  }
+
+  // 4. Build the post-action snapshot (Playwright parity) and embed it
   //    under `snapshot`. Snapshot-build failures are post-dispatch noise
   //    and must NOT convert a successful tap into an error envelope.
-  final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
   try {
     await _appendSnapshotIfRequested(payload, params);
   } catch (e) {
@@ -431,11 +582,16 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
       );
     }
 
-    // 1. Emit hover event at widget center.
+    // 1. Emit hover event at the widget's LIVE center (D1): re-resolve the
+    //    rect via `dispatchRectOf` after the gate passed, falling back to the
+    //    cached `entry.rect.center` only when the live rect is null (sliver /
+    //    detached / synthetic-test entry).
+    final Offset hoverCenter =
+        dispatchRectOf(entry)?.center ?? entry.rect.center;
     WidgetsBinding.instance.handlePointerEvent(
       PointerHoverEvent(
         pointer: _kSinglePointer,
-        position: entry.rect.center,
+        position: hoverCenter,
         viewId: _viewId(),
         timeStamp: Duration.zero,
         kind: PointerDeviceKind.mouse,
@@ -615,10 +771,13 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     }
 
     // Drag uses pointer ID 2 to stay separate from single-touch events (ID 1).
+    // Both endpoints dispatch at their LIVE center (D1): re-resolve each rect
+    // via `dispatchRectOf` after both gates passed, falling back to the cached
+    // center only when the live rect is null (sliver / detached / synthetic).
     const int dragPointer = 2;
     final viewId = _viewId();
-    final start = startEntry.rect.center;
-    final end = endEntry.rect.center;
+    final start = dispatchRectOf(startEntry)?.center ?? startEntry.rect.center;
+    final end = dispatchRectOf(endEntry)?.center ?? endEntry.rect.center;
 
     // 1. Pointer down at the drag source.
     WidgetsBinding.instance.handlePointerEvent(
@@ -777,9 +936,10 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     );
   }
 
-  // 1. First tap — identical to aiTestTapHandler's _injectTap call.
+  // 1. First tap at the LIVE center (D1): re-resolve via `dispatchRectOf`
+  //    after the gate passed, falling back to the cached center when null.
   try {
-    await _injectTap(entry.rect.center);
+    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.dblclick: first _injectTap failed for ref '
@@ -799,9 +959,11 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
   await Future<void>.delayed(const Duration(milliseconds: 100));
 
   // 3. Second tap — pointer ID reused safely because the first Up event
-  //    closed the hit-test cache entry (sequential, non-concurrent).
+  //    closed the hit-test cache entry (sequential, non-concurrent). Re-resolve
+  //    the live center again (D1): the first tap may itself have rebuilt the
+  //    host into a shifted slot between the two clicks.
   try {
-    await _injectTap(entry.rect.center);
+    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.dblclick: second _injectTap failed for ref '
@@ -916,10 +1078,15 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
     }
     final viewId = _viewId();
     final ts = Duration.zero;
+    // Dispatch at the LIVE center (D1): re-resolve via `dispatchRectOf` after
+    // the gate passed, falling back to the cached center when null. Computed
+    // once so the Down and the matching Up share the same point.
+    final Offset rightClickCenter =
+        dispatchRectOf(entry)?.center ?? entry.rect.center;
     WidgetsBinding.instance.handlePointerEvent(
       PointerDownEvent(
         pointer: _kSinglePointer,
-        position: entry.rect.center,
+        position: rightClickCenter,
         viewId: viewId,
         timeStamp: ts,
         kind: PointerDeviceKind.mouse,
@@ -930,7 +1097,7 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
     WidgetsBinding.instance.handlePointerEvent(
       PointerUpEvent(
         pointer: _kSinglePointer,
-        position: entry.rect.center,
+        position: rightClickCenter,
         viewId: viewId,
         timeStamp: const Duration(milliseconds: 50),
         kind: PointerDeviceKind.mouse,
@@ -1015,11 +1182,14 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
         ),
       );
     }
-    await _injectTap(entry.rect.center);
+    // Each tap dispatches at the LIVE center (D1): re-resolve via
+    // `dispatchRectOf` before every click, falling back to the cached center
+    // when null. A preceding tap may rebuild the host into a shifted slot.
+    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
     await Future<void>.delayed(const Duration(milliseconds: 100));
-    await _injectTap(entry.rect.center);
+    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
     await Future<void>.delayed(const Duration(milliseconds: 100));
-    await _injectTap(entry.rect.center);
+    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
     await WidgetsBinding.instance.endOfFrame;
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,

@@ -6,6 +6,8 @@ The `eN` namespace is snapshot-frozen: every fresh `dusk:snap` clears the regist
 
 Interactive nodes inside a currently-overflowing render ancestor carry an additive `overflow: true` sub-line in the YAML output. This is a live current-state check (`RenderFlex.toStringShort()` appends ` OVERFLOWING` while the constraint is violated); it is not a historical record. For the full non-fatal error history including overflow details, use `dusk:exceptions`.
 
+Text fields collapse to a single typeable ref. A field such as a wind `WInput` produces two nested `textbox` Semantics nodes (the outer wrapper plus the `RenderEditable` leaf that always owns its own node). `dusk:snap` suppresses the inner duplicate when its render object is a render-tree descendant of the outer `textbox` node's render object, emitting one ref for the surviving node and tagging it with an additive `typeable: true` sub-line. Collapse is by render-object containment only, so two sibling fields sharing the same label stay two distinct refs. Target the node carrying `typeable: true` when typing: `dusk:type` resolves the inner `EditableText` from it.
+
 ---
 
 ## Table of contents
@@ -52,8 +54,11 @@ The VM Service handler returns a JSON envelope `{ "snapshot": "<yaml>" }`. The C
 ```yaml
 [ref=e1] role=button label="Sign in" rect=(120,400,120,48) actions=[tap]
 [ref=e2] role=textbox label="Email" rect=(20,200,335,56) actions=[tap, focus, type]
+  typeable: true
 [ref=e3] role=text label="Welcome back" rect=(20,80,335,32)
 ```
+
+The `typeable: true` sub-line marks the single surviving `textbox` node after the nested-field collapse described above; it is the node `dusk:type` resolves.
 
 When `--includeEnrichers` is set, each entry gains indented lines contributed by the registered enrichers (see [Enricher fragments](#enricher-fragments)).
 
@@ -84,6 +89,17 @@ The `overflow: true` sub-line is emitted by the snapshot dispatcher itself (not 
 [ref=e5] role=button label="Submit" rect=(0,0,320,48) actions=[tap]
   overflow: true
 ```
+
+### Typeable annotation and textbox collapse
+
+A text field commonly produces two nested `textbox` Semantics nodes: an outer wrapper (e.g. a wind `WInput`'s `Semantics(textField:true)`) and the `RenderEditable` leaf, which always owns its own `textField` node and which `MergeSemantics` cannot absorb. Both nodes used to mint a ref; typing on the inner leaf threw `-32000`. The snapshot walk now suppresses the inner node when its render object is a render-tree descendant of the outer `textbox` node's render object, leaving one ref for the surviving node and appending `typeable: true` beneath it:
+
+```yaml
+[ref=e2] role=textbox label="Email" rect=(20,200,335,56) actions=[tap, focus, type]
+  typeable: true
+```
+
+The collapse is by render-object containment only, never label/value equality, so two sibling fields sharing a label remain two distinct refs. The `typeable: true` node is the one `dusk:type` resolves to the inner `EditableText`.
 
 ---
 

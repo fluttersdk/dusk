@@ -323,7 +323,9 @@ const int _kPollIntervalMs = 200;
 /// [endOfFrame] await before the find_by_* one-shot handlers (which mutate
 /// refs) is the right gate; the wait loop is read-only so it just needs the
 /// [Future.delayed] to yield to the event loop each cycle.
-@visibleForTesting
+///
+/// Also a production helper for `ext.dusk.tap --until` (D7): after a tap the
+/// pointer handler polls this loop to confirm the expected text appeared.
 Future<Map<String, dynamic>> findByTextWaitLoop({
   required String text,
   required int timeoutMs,

@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../dusk_log_capture.dart';
 import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
@@ -59,15 +60,26 @@ void registerConsoleExtensions() {
 
 /// Handler for the `ext.dusk.console` VM Service extension.
 ///
-/// Reads recent log entries from the telescope store via the
-/// [recentLogsReader] function-pointer indirection. When telescope is not
-/// installed the default reader returns an empty list (graceful no-op).
+/// Merges entries from two sources, newest-first, deduped by
+/// `(level, message, logger)`, then clips to `limit`:
+///
+/// 1. [recentCapturedLogs] — in-package ring buffer fed by the [debugPrint]
+///    override installed by [installLogCapture]. Present without telescope.
+///    Captures every call that routes through the [debugPrint] global callback
+///    (`debugPrint(...)`, `print(...)`, any Flutter framework path). Does NOT
+///    capture direct `dart:developer` `log()` calls that bypass [debugPrint].
+/// 2. [recentLogsReader] — function-pointer indirection wired by
+///    `MagicTelescopeIntegration.install()`. Defaults to an empty list when
+///    telescope is absent (graceful no-op). When telescope is wired it returns
+///    all log sources including `Logger.root.onRecord` from `package:logging`
+///    (which covers direct `developer.log()` calls when the app configures
+///    hierarchical logging).
 ///
 /// Params (all string-valued):
 /// - `limit` (optional, default 50): maximum number of log entries to return.
 /// - `minLevel` (optional): minimum severity level to include (e.g. `'WARNING'`,
-///   `'ERROR'`). Passed verbatim to the reader; filtering semantics are owned
-///   by the telescope store.
+///   `'SEVERE'`). Applied to both sources; the in-package buffer uses the same
+///   level names as `dart:logging` (INFO, WARNING, SEVERE, SHOUT, ...).
 ///
 /// Response JSON:
 /// ```json
@@ -83,16 +95,39 @@ Future<developer.ServiceExtensionResponse> aiTestConsoleHandler(
     final String? minLevel =
         params['minLevel']?.isNotEmpty == true ? params['minLevel'] : null;
 
-    // 2. Read logs through the function-pointer so the telescope package is
-    //    never a hard dependency of dusk (pre-existing xml/image conflict
-    //    blocks adding telescope as a path-dep; indirection is the only safe
-    //    cross-package wiring approach).
-    final List<Map<String, dynamic>> logs = recentLogsReader(
+    // 2. Collect from both sources: in-package buffer (debugPrint capture) and
+    //    the telescope reader (when wired). Use a generous fetch so the merge
+    //    has enough candidates before the final limit clip.
+    final List<Map<String, dynamic>> buffered = recentCapturedLogs(
+      limit: limit,
+      minLevel: minLevel,
+    );
+    final List<Map<String, dynamic>> telescope = recentLogsReader(
       limit: limit,
       minLevel: minLevel,
     );
 
-    // 3. Return the structured envelope — count lets callers skip iterating the
+    // 3. Merge, dedup by (level, message, logger), keep newest-first (in-package
+    //    buffer already newest-first; telescope entries follow so buffered entries
+    //    win on dedup conflicts), then clip to limit.
+    final Set<String> seen = <String>{};
+    final List<Map<String, dynamic>> merged = <Map<String, dynamic>>[];
+
+    for (final Map<String, dynamic> entry in <Map<String, dynamic>>[
+      ...buffered,
+      ...telescope,
+    ]) {
+      final String key =
+          '${entry['level']} ${entry['message']} ${entry['logger']}';
+      if (seen.add(key)) {
+        merged.add(entry);
+      }
+    }
+
+    final List<Map<String, dynamic>> logs =
+        merged.length > limit ? merged.sublist(0, limit) : merged;
+
+    // 4. Return the structured envelope — count lets callers skip iterating the
     //    list when only the total matters.
     return developer.ServiceExtensionResponse.result(
       jsonEncode(<String, dynamic>{

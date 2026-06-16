@@ -326,4 +326,177 @@ void main() {
       },
     );
   });
+
+  group('ext_exceptions — since filter', () {
+    setUp(() {
+      // 1. Reset reader and buffer before each test.
+      recentExceptionsReader = ({int limit = 20}) => const [];
+      resetCapturedExceptionsForTesting();
+    });
+
+    tearDown(() {
+      resetCapturedExceptionsForTesting();
+    });
+
+    // -------------------------------------------------------------------------
+    // (i) Two exceptions at different timestamps split correctly by since.
+    // -------------------------------------------------------------------------
+
+    test(
+      '(i) since filter: only exceptions strictly after since are returned',
+      () async {
+        // Seed two entries with distinct timestamps via the telescope reader.
+        recentExceptionsReader = ({int limit = 20}) => [
+              {
+                'type': 'StateError',
+                'message': 'early error',
+                'stackHead': 'at early()',
+                'library': 'test',
+                'fatal': false,
+                'time': '2024-01-01T10:00:00.000Z',
+              },
+              {
+                'type': 'StateError',
+                'message': 'late error',
+                'stackHead': 'at late()',
+                'library': 'test',
+                'fatal': false,
+                'time': '2024-01-01T12:00:00.000Z',
+              },
+            ];
+
+        // since = 11:00 — only 'late error' (12:00) is strictly after.
+        final response = await aiTestExceptionsHandler(
+          'ext.dusk.exceptions',
+          <String, String>{'since': '2024-01-01T11:00:00.000Z'},
+        );
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final List<dynamic> exceptions = decoded['exceptions'] as List<dynamic>;
+        expect(decoded['count'], equals(1));
+        expect(exceptions, hasLength(1));
+        expect(
+          (exceptions.first as Map<String, dynamic>)['message'],
+          equals('late error'),
+        );
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (j) No since param returns the full cumulative list (backward compatible).
+    // -------------------------------------------------------------------------
+
+    test(
+      '(j) no since param: cumulative list returned with identical payload keys',
+      () async {
+        recentExceptionsReader = ({int limit = 20}) => [
+              {
+                'type': 'ArgumentError',
+                'message': 'first error',
+                'stackHead': 'at a()',
+                'library': 'lib',
+                'fatal': false,
+                'time': '2024-06-01T09:00:00.000Z',
+              },
+              {
+                'type': 'StateError',
+                'message': 'second error',
+                'stackHead': 'at b()',
+                'library': 'lib',
+                'fatal': false,
+                'time': '2024-06-01T10:00:00.000Z',
+              },
+            ];
+
+        final response = await aiTestExceptionsHandler(
+          'ext.dusk.exceptions',
+          <String, String>{},
+        );
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+
+        // Both entries present.
+        expect(decoded['count'], equals(2));
+        expect((decoded['exceptions'] as List).length, equals(2));
+
+        // Payload keys/shape: type, message, stackHead, library, fatal, time.
+        final Map<String, dynamic> first =
+            (decoded['exceptions'] as List)[0] as Map<String, dynamic>;
+        expect(first.containsKey('type'), isTrue);
+        expect(first.containsKey('message'), isTrue);
+        expect(first.containsKey('stackHead'), isTrue);
+        expect(first.containsKey('library'), isTrue);
+        expect(first.containsKey('fatal'), isTrue);
+        expect(first.containsKey('time'), isTrue);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (k) since exactly equal to entry time excludes that entry (strictly after).
+    // -------------------------------------------------------------------------
+
+    test(
+      '(k) since equal to entry time: entry is excluded (strictly after only)',
+      () async {
+        const String ts = '2024-01-01T10:00:00.000Z';
+        recentExceptionsReader = ({int limit = 20}) => [
+              {
+                'type': 'StateError',
+                'message': 'exact time error',
+                'stackHead': 'at exact()',
+                'library': 'test',
+                'fatal': false,
+                'time': ts,
+              },
+            ];
+
+        final response = await aiTestExceptionsHandler(
+          'ext.dusk.exceptions',
+          <String, String>{'since': ts},
+        );
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        // Strictly after means same-timestamp is excluded.
+        expect(decoded['count'], equals(0));
+        expect((decoded['exceptions'] as List).isEmpty, isTrue);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (l) Unparseable since is treated as no filter (graceful fallback).
+    // -------------------------------------------------------------------------
+
+    test(
+      '(l) unparseable since: treated as no filter, returns full list',
+      () async {
+        recentExceptionsReader = ({int limit = 20}) => [
+              {
+                'type': 'StateError',
+                'message': 'any error',
+                'stackHead': 'at any()',
+                'library': 'test',
+                'fatal': false,
+                'time': '2024-01-01T10:00:00.000Z',
+              },
+            ];
+
+        final response = await aiTestExceptionsHandler(
+          'ext.dusk.exceptions',
+          <String, String>{'since': 'not-a-date'},
+        );
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        // Graceful fallback: no filter applied, 1 entry returned.
+        expect(decoded['count'], equals(1));
+      },
+    );
+  });
 }
