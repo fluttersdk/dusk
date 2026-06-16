@@ -44,7 +44,7 @@ jobs:
           awk -v p="$pct" 'BEGIN{ if (p+0 < 80.0) { print "FAIL: coverage below 80% floor"; exit 1 } else { print "PASS: coverage at or above 80% floor" } }'
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: coverage/lcov.info
           fail_ci_if_error: false
