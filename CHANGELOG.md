@@ -6,7 +6,7 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ---
 
-## [Unreleased]
+## [0.0.7] - 2026-06-17
 
 ### Added
 
@@ -32,6 +32,7 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 - **Pointer verbs now dispatch at the element's LIVE rect, not the cached snapshot rect.** Every pointer verb (`tap`, `hover`, `drag` start + end endpoints, `dblclick`, `right_click`, `triple_click`) re-resolves the target's current bounding rect via the new `dispatchRectOf(entry)` helper immediately after the actionability gate passes and dispatches at that live center, falling back to the cached `entry.rect.center` only when the live rect is null (sliver / detached / synthetic). A host that rebuilt the target into a shifted slot between snapshot and action retains the same `Element` / `RenderObject` identity, so the live rect is valid. This fixes the false-success class where `dusk:tap` reported success while `onTap` never fired because the pointer landed on the target's stale gate-time position. The helper is purely additive to the FROZEN actionability gate: it runs after the gate passes and before dispatch, touching neither the gate order nor any failure-reason substring.
 - **`dusk:snap` collapses nested `textbox` nodes and marks the survivor `typeable: true`.** A wind `WInput` wraps as `Semantics(textField:true) > MergeSemantics > TextField`; because `RenderEditable` unconditionally owns its own `textField` Semantics node (flutter#26336) and `MergeSemantics` cannot absorb it (flutter#160281), the tree carried TWO nested `textbox` nodes and minted two `eN` refs. Agents naturally targeted the inner leaf, where `dusk:type` threw `-32000`. The snapshot walk now suppresses any `textbox` node whose render object is a render-tree DESCENDANT of an enclosing `textbox` node's render object, emitting a single ref for the outer typeable node so existing scripts keep resolving. The surviving textbox line gains an additive `typeable: true` sub-line. Collapse is by render-object CONTAINMENT only, never label/value equality, so two sibling fields sharing a label stay two distinct refs. The `textbox` role string is unchanged; `eN` minting stays snapshot-only. The source-side fix lives in wind (W1); this is the defensive dusk-side collapse.
+- **Bumped `fluttersdk_artisan` to `^0.0.8`.** Picks up the substrate `restart` fix that preserves `--cdp-port` across the stop/start cycle (so `dusk:resize` / `dusk:device` keep working after `fsa restart`) and the published-config import-path fix in the plugin installer.
 
 ---
 
