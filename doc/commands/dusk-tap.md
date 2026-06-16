@@ -27,6 +27,7 @@ dart run fluttersdk_dusk dusk:tap --ref=<eN|qN>
                                    [--[no-]checkReceivesEvents]
                                    [--verify]
                                    [--until=<text>]
+                                   [--untilTimeoutMs=<n>]
 ```
 
 `dusk:tap` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI, calls `ext.dusk.tap`, and prints either a one-line success or the post-tap JSON depending on `--includeSnapshot` / `--verify`.
@@ -45,7 +46,8 @@ The pointer is dispatched at the target's LIVE center: the handler re-resolves t
 | `--checkStable` | flag | `true` | no | Run the Stable (2-frame rect-unchanged) actionability gate. Disable when targeting an animating widget that intentionally rebuilds across frames. |
 | `--checkReceivesEvents` | flag | `true` | no | Run the Receives-Events (front-most hit-test) actionability gate. Disable when targeting a widget that is intentionally occluded by an overlay you also want to interact with. |
 | `--verify` | flag | `false` | no | Capture a target-scoped before/after signal (the nearest enclosing route name plus a hash of the target element's own semantics subtree) and add a `changed` boolean to the response reporting whether the tap produced an observable effect on the target. Off by default, which keeps the response shape unchanged. Enabling `--verify` always prints the JSON envelope (so the `changed` field is visible) regardless of `--includeSnapshot`. |
-| `--until` | string | (none) | no | After the tap settles, poll the live element tree (same loop as `dusk:wait`) for a `Text` whose data equals this value, up to the `until` timeout (default 3000ms), and add an `untilMatched` boolean to the response reporting whether it appeared. Use to confirm a navigation / state change in one call instead of a separate `dusk:wait`. Off by default, which keeps the response shape unchanged. |
+| `--until` | string | (none) | no | After the tap settles, poll the live element tree (same loop as `dusk:wait`) for a `Text` whose data equals this value, up to the `--untilTimeoutMs` timeout (default 3000ms), and add an `untilMatched` boolean to the response reporting whether it appeared. Use to confirm a navigation / state change in one call instead of a separate `dusk:wait`. Off by default, which keeps the response shape unchanged. Setting `--until` always prints the JSON envelope (so `untilMatched` is visible) regardless of `--includeSnapshot`. |
+| `--untilTimeoutMs` | int | `3000` | no | Timeout in milliseconds for the `--until` poll. Ignored when `--until` is not set. |
 
 The two `check*` flags default to `true`. Disable them with the inverted form (`--no-checkStable`, `--no-checkReceivesEvents`) when the target genuinely should not be subject to that precondition.
 

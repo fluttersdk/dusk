@@ -192,7 +192,11 @@ const List<String> _kDismissLabels = <String>[
 ///    shortcut but are NOT [PopupRoute]s (custom `OverlayEntry` panels,
 ///    dropdown menus closed via `Shortcuts`).
 /// 3. A Cancel / Dismiss / Close / OK / Done labelled tap handles modal
-///    barriers that require an explicit affordance to close.
+///    barriers that require an explicit affordance to close. This layer fires
+///    only when a [PopupRoute] is still detected after layers 1-2 (see
+///    [_hasOpenOverlay]); it is deliberately not attempted for fully-custom
+///    [OverlayEntry] overlays, since tapping such a label on a clean screen
+///    would hit a legitimate page button.
 ///
 /// Params: none.
 ///
@@ -212,10 +216,10 @@ Future<developer.ServiceExtensionResponse> aiTestResetOverlaysHandler(
     final bool escaped = _pressEscape();
     await _settleFrame();
 
-    // 3. Cancel / Dismiss labelled tap — the last-resort affordance for modal
-    //    barriers that require an explicit button. Only attempted when an
-    //    overlay still appears to be present so the clean-tree case stays a
-    //    no-op (idempotent).
+    // 3. Cancel / Dismiss labelled tap: the last-resort affordance for modal
+    //    barriers that require an explicit button. Only attempted when a
+    //    PopupRoute still persists (see [_hasOpenOverlay]) so a clean screen
+    //    never has a legitimate Cancel/OK/Done button tapped by accident.
     bool dismissTapped = false;
     if (_hasOpenOverlay()) {
       dismissTapped = _tapDismissAffordance();
@@ -280,9 +284,15 @@ bool _pressEscape() {
   }
 }
 
-/// Returns `true` when an [OverlayEntry]-backed route or any [PopupRoute] is
-/// still present in any navigator (i.e. the dismiss + Escape layers did not
-/// fully clear the screen).
+/// Returns `true` when any [PopupRoute] is still present in any navigator
+/// (i.e. the dismiss layer did not fully clear it).
+///
+/// Detection is [PopupRoute]-based only: a fully-custom [OverlayEntry] overlay
+/// with no backing [PopupRoute] is NOT detected here. Such overlays are left to
+/// the Escape layer (2); the Cancel/Dismiss tap layer (3) is intentionally not
+/// fired for them, because tapping a Cancel/Close/OK/Done label on an otherwise
+/// clean screen would hit a legitimate page button. This is the deliberate
+/// trade-off behind gating layer 3 on a precise [PopupRoute] check.
 bool _hasOpenOverlay() {
   final Element? root = WidgetsBinding.instance.rootElement;
   if (root == null) return false;

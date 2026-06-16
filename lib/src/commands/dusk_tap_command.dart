@@ -41,6 +41,15 @@ class DuskTapCommand extends ArtisanCommand {
           'field reporting whether the tap produced an observable effect.',
       defaultsTo: false,
     );
+    parser.addOption(
+      'until',
+      help: 'After the tap, poll the live tree for a Text equal to this value '
+          'and add an `untilMatched` boolean to the response.',
+    );
+    parser.addOption(
+      'untilTimeoutMs',
+      help: 'Timeout in milliseconds for --until polling (default 3000).',
+    );
   }
 
   @override
@@ -58,18 +67,26 @@ class DuskTapCommand extends ArtisanCommand {
     final checkReceivesEvents =
         (ctx.input.option('checkReceivesEvents') as bool?) ?? true;
     final verify = (ctx.input.option('verify') as bool?) ?? false;
+    final until = ctx.input.option('until') as String?;
+    final untilTimeoutMs = ctx.input.option('untilTimeoutMs') as String?;
+    final hasUntil = until != null && until.isNotEmpty;
     final params = <String, String>{
       'ref': ref,
       'includeSnapshot': includeSnapshot.toString(),
       'checkStable': checkStable.toString(),
       'checkReceivesEvents': checkReceivesEvents.toString(),
       'verify': verify.toString(),
+      if (hasUntil) 'until': until,
+      if (untilTimeoutMs != null && untilTimeoutMs.isNotEmpty)
+        'untilTimeoutMs': untilTimeoutMs,
     };
     final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.tap',
       params,
     );
-    if (includeSnapshot || verify) {
+    // Print the JSON envelope whenever a field beyond `ref` may be present
+    // (snapshot, `changed`, or `untilMatched`) so the caller can read it.
+    if (includeSnapshot || verify || hasUntil) {
       ctx.output.writeln(jsonEncode(response));
     } else {
       ctx.output.success('Tapped $ref');

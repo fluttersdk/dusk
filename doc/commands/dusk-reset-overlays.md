@@ -89,6 +89,6 @@ Safe to call even when nothing is open; the no-op path returns `popped: 0`.
 <a name="see-also"></a>
 ## See also
 
-- [dusk:modal](dusk-snap.md): the underlying dismiss-modals path; `dusk:reset_overlays` adds Escape + Cancel-tap fallback on top.
+- [dusk:dismiss_modals](index.md): the underlying dismiss-modals path; `dusk:reset_overlays` adds Escape + Cancel-tap fallback on top.
 - [dusk:tap](dusk-tap.md): tap a specific Cancel button by ref when you want precise control.
 - [dusk:snap](dusk-snap.md): re-snapshot after a reset; refs from before the reset are stale.

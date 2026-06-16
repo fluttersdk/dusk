@@ -60,6 +60,40 @@ void main() {
       expect(ctx.lastParams, containsPair('ref', 'q3'));
     });
 
+    test('configure declares --until and --untilTimeoutMs options', () {
+      final parser = ArgParser();
+      DuskTapCommand().configure(parser);
+      expect(parser.options.keys,
+          containsAll(<String>['until', 'untilTimeoutMs']));
+    });
+
+    test('handle forwards --until and --untilTimeoutMs to ext.dusk.tap',
+        () async {
+      final ctx = _StubContext(
+        input: MapInput(const {
+          'ref': 'e5',
+          'until': 'Welcome back',
+          'untilTimeoutMs': '5000',
+        }),
+        output: BufferedOutput(),
+        response: const {'ref': 'e5', 'untilMatched': true},
+      );
+      final exit = await DuskTapCommand().handle(ctx);
+      expect(exit, equals(0));
+      expect(ctx.lastParams, containsPair('until', 'Welcome back'));
+      expect(ctx.lastParams, containsPair('untilTimeoutMs', '5000'));
+    });
+
+    test('handle omits until params when --until is absent', () async {
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e5'}),
+        output: BufferedOutput(),
+      );
+      await DuskTapCommand().handle(ctx);
+      expect(ctx.lastParams!.containsKey('until'), isFalse);
+      expect(ctx.lastParams!.containsKey('untilTimeoutMs'), isFalse);
+    });
+
     test('handle returns 1 when --ref is missing', () async {
       final ctx = _StubContext(
         input: MapInput(const {}),

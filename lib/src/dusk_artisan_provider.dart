@@ -211,6 +211,18 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'tap had an observable effect. Defaults to false, which '
                     'keeps the response shape unchanged.',
               },
+              'until': <String, dynamic>{
+                'type': 'string',
+                'description': 'After the tap settles, poll the live element '
+                    'tree for a Text whose data equals this value and add an '
+                    '`untilMatched` boolean to the response. Omit to keep the '
+                    'response shape unchanged.',
+              },
+              'untilTimeoutMs': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Timeout in milliseconds for the `until` poll '
+                    '(default 3000). Ignored when `until` is omitted.',
+              },
             },
             'required': <String>['ref'],
           },
