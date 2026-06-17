@@ -236,7 +236,7 @@ class DuskInstallCommand extends ArtisanCommand {
     // 3. Magic-side coordinated wiring when the consumer pulls in magic.
     //    Detect via pubspec.yaml; skip silently when magic_devtools is not a dep
     //    or when main.dart has no Magic.init() anchor (vanilla app).
-    if (_hasMagicDevtoolsDep()) {
+    if (hasMagicInit && _hasMagicDevtoolsDep()) {
       MainDartEditor.addImport(
         mainDartPath,
         "import 'package:magic_devtools/dusk.dart';",
@@ -256,8 +256,8 @@ class DuskInstallCommand extends ArtisanCommand {
   }
 
   /// Returns true when the consumer's pubspec.yaml lists `magic_devtools:`
-  /// (the package that ships MagicDuskIntegration) as a dependency or
-  /// dev_dependency (2-space indent).
+  /// (the package that ships MagicDuskIntegration) under `dependencies:` or
+  /// `dev_dependencies:` (2-space indent).
   static bool _hasMagicDevtoolsDep() {
     final pubspec = File(pubspecPathResolver());
     if (!pubspec.existsSync()) return false;

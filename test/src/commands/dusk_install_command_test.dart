@@ -562,6 +562,61 @@ class MyApp extends StatelessWidget {
       },
     );
 
+    // ------------------------------------------------------------------
+    // magic_devtools dep + NO Magic.init: must NOT inject import or call
+    // ------------------------------------------------------------------
+
+    test(
+      'magic_devtools dep without Magic.init: does NOT inject '
+      "import 'package:magic_devtools/dusk.dart' or MagicDuskIntegration",
+      () async {
+        // Vanilla app: has magic_devtools in pubspec but NO `await Magic.init(`
+        // in main.dart. The import and install call must stay absent so
+        // `dart analyze` in the consumer does not trip over an unused import.
+        final mainDartPath = _seedProject(
+          tempDir,
+          pubspecDeps: const {'magic_devtools': 'any'},
+          mainDartContents: '''
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) => const MaterialApp(home: SizedBox());
+}
+''',
+        );
+        DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+        DuskInstallCommand.pubspecPathResolver =
+            () => '${tempDir.path}/pubspec.yaml';
+
+        final exit = await DuskInstallCommand().handle(_ctx());
+        expect(exit, equals(0));
+
+        final result = File(mainDartPath).readAsStringSync();
+        expect(
+          result.contains("import 'package:magic_devtools/dusk.dart';"),
+          isFalse,
+          reason:
+              'must NOT inject an unused magic_devtools import when main.dart '
+              'has no await Magic.init( anchor',
+        );
+        expect(
+          result.contains('MagicDuskIntegration.install()'),
+          isFalse,
+          reason:
+              'must NOT inject MagicDuskIntegration.install() when no Magic.init '
+              'anchor is present (container is never ready)',
+        );
+        // The vanilla DuskPlugin wiring must still land.
+        expect(result.contains('DuskPlugin.install();'), isTrue);
+      },
+    );
+
     test(
       'chained Phase 2 skips artisan install when bin/dispatcher.dart '
       'already exists (idempotent re-run)',

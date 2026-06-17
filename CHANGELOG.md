@@ -8,6 +8,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`dusk:install` no longer injects `import 'package:magic_devtools/dusk.dart';` or `MagicDuskIntegration.install()` into a vanilla Flutter app that has `magic_devtools` in its pubspec but no `await Magic.init(` call in `lib/main.dart`.** Previously, the `magic_devtools` wiring block ran whenever the pubspec listed the dependency, regardless of whether a `Magic.init` anchor existed. This left an unused import in the consumer's file, causing `dart analyze` to fail. The gate is now `hasMagicInit && _hasMagicDevtoolsDep()`, matching the block's own intent documented in the comment above it. The existing `try/catch` around `injectAfterMagicInit` is retained as a defensive fallback.
+
 ### Changed
 
 - **`dusk:install` now injects `import 'package:magic_devtools/dusk.dart';` and gates on the `magic_devtools` dependency** instead of the removed `package:magic/dusk_integration.dart`. The `MagicDuskIntegration` class was extracted from the `magic` core into the new `magic_devtools` package; the injected class name (`MagicDuskIntegration.install()`) is unchanged. Consumers that follow magic's install.yaml (which adds `magic_devtools` to dev_dependencies before running `dusk:install`) get the integration wired automatically; magic-only consumers without `magic_devtools` in pubspec.yaml are unaffected. Coordinated with the magic_devtools extraction.
