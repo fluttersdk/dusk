@@ -98,7 +98,7 @@ Every registration routes through `registerExtensionIdempotent` (from `fluttersd
 These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:
 
 1. `DuskSnapshotEnricher` typedef shape: `String? Function(Element, RefRegistry)`
-2. `DuskPlugin.install()`, the `DuskPlugin.enrichers` live-append list (magic appends to it via `MagicDuskIntegration`), and `DuskPlugin.registerNavigateAdapter()` signatures
+2. `DuskPlugin.install()`, the `DuskPlugin.enrichers` live-append list (`magic_devtools` appends to it via `MagicDuskIntegration`), and `DuskPlugin.registerNavigateAdapter()` signatures
 3. `RefRegistry` public method signatures (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`)
 4. The 6 alpha-1 MCP tool names (`dusk_snap`, `dusk_tap`, `dusk_screenshot`, `dusk_hover`, `dusk_drag`, `dusk_type`) and their `ext.dusk.*` extension method names
 5. `DuskActionabilityException` `reason` substring vocabulary (`not enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured by`)

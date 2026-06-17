@@ -7,6 +7,15 @@ of `DuskSnapshotEnricher` callbacks against `DuskPlugin.enrichers`, so every
 `dusk:snap` (or `dusk_snap` MCP) output carries Magic-aware annotations
 alongside the standard Semantics tree.
 
+`MagicDuskIntegration` ships in the **`magic_devtools`** package, not in magic
+core. Add it as a dev_dependency (it is debug-only; release builds tree-shake
+the `kDebugMode` branch that calls `install()`):
+
+```yaml
+dev_dependencies:
+  magic_devtools: ^<version>
+```
+
 This document covers the five behavioural enrichers most likely to drive an
 agent's reasoning loop. The full integration ships fourteen enrichers; the
 nine not covered here (`magicFormEnricher`, `magicNavigationEnricher`,
@@ -27,9 +36,12 @@ require the service providers to be live). It must also run **after**
 `DuskPlugin.install()`, because the `DuskPlugin.enrichers` list is the
 target the integration mutates.
 
-The canonical debug-only host integration:
+The canonical debug-only host integration (`MagicDuskIntegration` comes from
+the `magic_devtools` dev_dependency):
 
 ```dart
+import 'package:magic_devtools/dusk.dart'; // from magic_devtools dev_dependency
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Magic.init();
