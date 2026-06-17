@@ -37,7 +37,6 @@ dependencies:
 
   fluttersdk_dusk:
     path: ..
-    version: 0.0.7
 
 dev_dependencies:
   flutter_test:

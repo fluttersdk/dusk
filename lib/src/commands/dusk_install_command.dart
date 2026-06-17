@@ -16,10 +16,10 @@ import 'package:fluttersdk_artisan/artisan.dart';
 /// Two anchor modes:
 ///   - Magic-stack apps (`lib/main.dart` contains `await Magic.init(`):
 ///     wire `DuskPlugin.install()` BEFORE `Magic.init` so the driver is
-///     live during Magic boot. When `magic_devtools:` is also a pubspec dep, ALSO
-///     inject `MagicDuskIntegration.install()` AFTER `Magic.init` (the
-///     integration queries `Magic.find<X>()` for the form / nav
-///     enrichers, which only resolves once the container is ready).
+///     live during Magic boot. When `magic_devtools:` is also a pubspec
+///     dependency or dev_dependency, ALSO inject `MagicDuskIntegration.install()`
+///     AFTER `Magic.init` (the integration queries `Magic.find<X>()` for the
+///     form / nav enrichers, which only resolves once the container is ready).
 ///   - Vanilla apps: wire `DuskPlugin.install()` before `runApp(`.
 ///
 /// Idempotent across re-runs: each `addImport` / `injectBeforeAnchor` /
@@ -233,7 +233,7 @@ class DuskInstallCommand extends ArtisanCommand {
       FileHelper.writeFile(mainDartPath, source);
     }
 
-    // 3. Magic-side coordinated wiring when the consumer pulls in magic.
+    // 3. Magic-side coordinated wiring when the consumer pulls in magic_devtools.
     //    Detect via pubspec.yaml; skip silently when magic_devtools is not a dep
     //    or when main.dart has no Magic.init() anchor (vanilla app).
     if (hasMagicInit && _hasMagicDevtoolsDep()) {

@@ -1,6 +1,6 @@
 name: fluttersdk_dusk
 description: "Flutter E2E driver for LLM agents and CI. 34 CLI commands and 33 MCP tools drive a running app over VM Service extensions; no flutter_test harness needed."
-version: 0.0.7
+version: 0.0.8
 homepage: https://fluttersdk.com/dusk
 repository: https://github.com/fluttersdk/dusk
 issue_tracker: https://github.com/fluttersdk/dusk/issues
@@ -32,7 +32,7 @@ dependencies:
 
 executables:
   # `dart run fluttersdk_dusk <cmd>` is the dusk-flavoured artisan wrapper.
-  # Surfaces 32 CLI commands + 31 MCP tools (28 ext.dusk.* + 3 artisan:dusk:*) via DuskArtisanProvider.
+  # Surfaces 34 CLI commands + 33 MCP tools (30 ext.dusk.* + 3 artisan:dusk:*) via DuskArtisanProvider.
   fluttersdk_dusk: fluttersdk_dusk
 
 dev_dependencies:

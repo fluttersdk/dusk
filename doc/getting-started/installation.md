@@ -44,7 +44,7 @@ Alternatively, add it manually to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  fluttersdk_dusk: ^0.0.2
+  fluttersdk_dusk: ^0.0.8
 ```
 
 Then fetch dependencies:
@@ -94,13 +94,15 @@ either, both, or neither depending on your stack.
 
 | Integration | Package | Enrichment |
 |:------------|:--------|:-----------|
-| `MagicDuskIntegration.install()` | `magic` | MagicForm field values, validation state, named route per node. |
+| `MagicDuskIntegration.install()` | `magic_devtools` | MagicForm field values, validation state, named route per node. |
 | `Wind.installDebugResolver()` (in `package:fluttersdk_wind/fluttersdk_wind.dart`) | `fluttersdk_wind` >= alpha-10 | Wind state surfaces through the neutral `WindDebugRegistry` bridge; dusk emits the 6 core fields (breakpoint, brightness, platform, states, bgColor, textColor) automatically without enricher registration. |
 
 ```dart
+import 'package:magic_devtools/dusk.dart'; // magic_devtools only
+// ...
 if (kDebugMode) {
   DuskPlugin.install();
-  MagicDuskIntegration.install(); // magic-stack only
+  MagicDuskIntegration.install(); // magic-stack only (from magic_devtools)
   Wind.installDebugResolver();    // wind UI only (alpha-10+)
 }
 ```
@@ -127,7 +129,7 @@ The optional `mcp:install` step in the next section writes the plugin-aware `.mc
 <a name="wire-mcp-tools"></a>
 ## Wire MCP tools
 
-With artisan registered, expose dusk's 31 MCP tools to your AI client by writing the `.mcp.json` entry:
+With artisan registered, expose dusk's 33 MCP tools to your AI client by writing the `.mcp.json` entry:
 
 ```bash
 dart run fluttersdk_dusk mcp:install

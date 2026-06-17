@@ -603,7 +603,7 @@ class MyApp extends StatelessWidget {
           isFalse,
           reason:
               'must NOT inject an unused magic_devtools import when main.dart '
-              'has no await Magic.init( anchor',
+              'has no `await Magic.init(` anchor',
         );
         expect(
           result.contains('MagicDuskIntegration.install()'),

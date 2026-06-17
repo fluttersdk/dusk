@@ -8,13 +8,21 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-### Fixed
+---
 
-- **`dusk:install` no longer injects `import 'package:magic_devtools/dusk.dart';` or `MagicDuskIntegration.install()` into a vanilla Flutter app that has `magic_devtools` in its pubspec but no `await Magic.init(` call in `lib/main.dart`.** Previously, the `magic_devtools` wiring block ran whenever the pubspec listed the dependency, regardless of whether a `Magic.init` anchor existed. This left an unused import in the consumer's file, causing `dart analyze` to fail. The gate is now `hasMagicInit && _hasMagicDevtoolsDep()`, matching the block's own intent documented in the comment above it. The existing `try/catch` around `injectAfterMagicInit` is retained as a defensive fallback.
+## [0.0.8] - 2026-06-17
 
 ### Changed
 
 - **`dusk:install` now injects `import 'package:magic_devtools/dusk.dart';` and gates on the `magic_devtools` dependency** instead of the removed `package:magic/dusk_integration.dart`. The `MagicDuskIntegration` class was extracted from the `magic` core into the new `magic_devtools` package; the injected class name (`MagicDuskIntegration.install()`) is unchanged. Consumers that follow magic's install.yaml (which adds `magic_devtools` to dev_dependencies before running `dusk:install`) get the integration wired automatically; magic-only consumers without `magic_devtools` in pubspec.yaml are unaffected. Coordinated with the magic_devtools extraction.
+
+### Fixed
+
+- **`dusk:install` no longer injects `import 'package:magic_devtools/dusk.dart';` or `MagicDuskIntegration.install()` into a vanilla Flutter app that has `magic_devtools` in its pubspec but no `await Magic.init(` call in `lib/main.dart`.** Previously, the `magic_devtools` wiring block ran whenever the pubspec listed the dependency, regardless of whether a `Magic.init` anchor existed. This left an unused import in the consumer's file, causing `dart analyze` to fail. The gate is now `hasMagicInit && _hasMagicDevtoolsDep()`, matching the block's own intent documented in the comment above it. The existing `try/catch` around `injectAfterMagicInit` is retained as a defensive fallback.
+
+### Documentation
+
+- Docs, skill, and example synced to the `magic_devtools` extraction: `doc/plugins/magic-integration.md` updated to note that `MagicDuskIntegration` now ships in `magic_devtools` (add as a dev_dependency) and shows the required `import 'package:magic_devtools/dusk.dart';`. `skills/fluttersdk-dusk/references/cli-commands.md` updated to reflect the `magic_devtools` gate and `magic_devtools/dusk.dart` import. `ARCHITECTURE.md` frozen-contracts item updated from `magic` to `magic_devtools`. Version pins bumped to `^0.0.8` throughout (`pubspec.yaml`, `example/pubspec.yaml`, `doc/getting-started/installation.md`, `skills/fluttersdk-dusk/SKILL.md`).
 
 ---
 
@@ -203,7 +211,9 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.6...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.8...HEAD
+[0.0.8]: https://github.com/fluttersdk/dusk/compare/0.0.7...0.0.8
+[0.0.7]: https://github.com/fluttersdk/dusk/compare/0.0.6...0.0.7
 [0.0.6]: https://github.com/fluttersdk/dusk/compare/0.0.5...0.0.6
 [0.0.5]: https://github.com/fluttersdk/dusk/compare/0.0.4...0.0.5
 [0.0.4]: https://github.com/fluttersdk/dusk/compare/0.0.3...0.0.4
