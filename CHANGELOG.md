@@ -8,6 +8,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **`ext.dusk.snap` now surfaces captured non-fatal render/build FlutterErrors in a `renderErrors` block, and `dusk:snap` prints a `⚠ N render error(s)` banner above the tree.** A widget that throws at build time (a `ParentDataWidget` misuse such as `flex-1`/`Expanded` placed under a `Semantics`/`WAnchor` instead of directly inside a Flex, or an overflow) can render partially and stay invisible in the semantics snapshot, so an action against it silently no-ops with no signal to the agent. The snapshot payload now carries `renderErrors: {count, recent: [{type, message}], hint}` (populated from the existing `FlutterError.onError` capture buffer, omitted entirely when clean), so a broken screen is impossible to miss without separately calling `ext.dusk.exceptions`. Touches `lib/src/extensions/ext_snapshot.dart`, `lib/src/commands/dusk_snap_command.dart`; covered by `test/src/extensions/ext_snapshot_render_errors_test.dart`.
+
 ---
 
 ## [0.0.8] - 2026-06-17
