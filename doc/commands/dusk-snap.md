@@ -47,7 +47,7 @@ The flag is parsed via `(ctx.input.option('includeEnrichers') as bool?) ?? false
 <a name="returns"></a>
 ## Returns
 
-The VM Service handler returns a JSON envelope `{ "snapshot": "<yaml>" }`. The CLI unwraps the `snapshot` field and writes the raw YAML to stdout; when the field is missing the entire JSON object is dumped instead.
+The VM Service handler returns a JSON envelope `{ "snapshot": "<yaml>", "groupId": "<id>" }`. The CLI unwraps the `snapshot` field and writes the raw YAML to stdout; when the field is missing the entire JSON object is dumped instead.
 
 **Success envelope (illustrative):**
 
@@ -61,6 +61,43 @@ The VM Service handler returns a JSON envelope `{ "snapshot": "<yaml>" }`. The C
 The `typeable: true` sub-line marks the single surviving `textbox` node after the nested-field collapse described above; it is the node `dusk:type` resolves.
 
 When `--includeEnrichers` is set, each entry gains indented lines contributed by the registered enrichers (see [Enricher fragments](#enricher-fragments)).
+
+### Render errors
+
+When the `FlutterError.onError` capture buffer holds non-fatal render or build errors (for example a `ParentDataWidget` misuse such as `Expanded` placed outside a `Flex`, or a layout overflow), the response includes a `renderErrors` block:
+
+```json
+{
+  "snapshot": "<yaml>",
+  "groupId": "snapshot-1700000000000",
+  "renderErrors": {
+    "count": 2,
+    "recent": [
+      { "type": "FlutterError", "message": "Incorrect use of ParentDataWidget." },
+      { "type": "FlutterError", "message": "A RenderFlex overflowed by 32 pixels." }
+    ],
+    "hint": "Run dusk:exceptions (CLI) or dusk_exceptions (MCP) for full messages + stack traces."
+  }
+}
+```
+
+Fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `count` | int | Total number of captured render/build errors. May exceed `recent.length`. |
+| `recent` | array (max 3) | Most recent entries; each has `type` (string) and `message` (first line only). |
+| `hint` | string | Fixed advisory pointing to `dusk:exceptions` (CLI) / `dusk_exceptions` (MCP) for full detail. |
+
+The `renderErrors` block is **omitted entirely** when no errors are in the buffer. A clean screen produces the standard two-key envelope (`snapshot` + `groupId`).
+
+**CLI banner:** when `renderErrors` is present, `dusk:snap` prints a render-error banner to **stderr** (stdout stays the pure snapshot text, so tooling that captures only stdout is unaffected):
+
+```
+⚠ 2 render error(s) captured on this screen (run dusk:exceptions for full detail):
+  - FlutterError: Incorrect use of ParentDataWidget.
+  - FlutterError: A RenderFlex overflowed by 32 pixels.
+```
 
 **Error envelope:**
 

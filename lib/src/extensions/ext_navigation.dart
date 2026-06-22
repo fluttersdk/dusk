@@ -203,59 +203,56 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
     // 2. Dismiss open modal overlays so navigation is unobstructed.
     await dismissAllModals();
 
-    // 3. Push the route. Try Navigator 1.0 (pushNamed via onGenerateRoute)
-    //    first; on failure (typically Navigator.onGenerateRoute is null
-    //    because the app uses a Router-based stack like go_router / auto_route),
-    //    fall back to the platform-channel route-information broadcast which
-    //    every Router-backed delegate listens to.
-    final Element? root = WidgetsBinding.instance.rootElement;
+    // 3. Push the route. Prefer a consumer-registered navigate adapter
+    //    (typically MagicRoute.to wired in host main.dart) when present: it
+    //    dispatches through the app's own router public API (go_router /
+    //    auto_route), which is the correct path for Router-based apps and
+    //    avoids the spurious "no corresponding route" FlutterError that
+    //    `Navigator.pushNamed` raises on a Router-only stack (its
+    //    `onGenerateRoute` is null there, and the failure is asynchronous so a
+    //    try/catch around the call cannot suppress it; it lands in the
+    //    FlutterError buffer and pollutes ext.dusk.snap / ext.dusk.exceptions).
+    //    `pushed = true` means dispatch attempted, NOT that the route was
+    //    honored; the URL verify below is the source of truth.
     bool pushed = false;
-    if (root != null) {
-      final NavigatorState? navigator = _findNavigator(root);
-      if (navigator != null) {
-        try {
-          // Fire-and-forget. `Navigator.pushNamed` returns a Future that
-          // completes when the pushed route is POPPED, not when it lands —
-          // awaiting it would block this handler until the agent navigates
-          // away, which deadlocks any test (and any test-like context) that
-          // never pops. The push itself happens synchronously inside the
-          // call; the post-dispatch endOfFrame ticks below guarantee the
-          // new route is mounted before we URL-verify.
-          unawaited(navigator.pushNamed(route));
-          pushed = true;
-        } catch (e) {
-          // Navigator.onGenerateRoute null (go_router stack). Fall through to
-          // the cross-router platform channel below.
-          developer.log(
-            '[fluttersdk_dusk] extDuskNavigateHandler: Navigator.pushNamed '
-            'failed for "$route" ($e); falling back to '
-            'SystemNavigator.routeInformationUpdated.',
-            name: 'dusk',
-          );
-        }
+    final adapter = DuskPlugin.navigateAdapter;
+    if (adapter != null) {
+      try {
+        pushed = await adapter(route);
+      } catch (e) {
+        developer.log(
+          '[fluttersdk_dusk] extDuskNavigateHandler: navigateAdapter '
+          'threw for "$route" ($e); falling back to Navigator / '
+          'SystemNavigator.routeInformationUpdated.',
+          name: 'dusk',
+        );
       }
     }
+
+    // Fallback for apps WITHOUT a registered adapter: Navigator 1.0 pushNamed.
     if (!pushed) {
-      // Consumer-registered adapter (typically MagicRoute.to wired in
-      // host main.dart). Cleanest dispatch path for app frameworks that
-      // own their own router (Magic / GoRouter with custom
-      // RouteInformationProvider), because the host pushes through the
-      // router's public API instead of platform-channel broadcasts the
-      // delegate may not be listening to. `pushed = true` means dispatch
-      // attempted, NOT that the route was honored — URL verify below is
-      // the source of truth (the adapter has no way to report whether
-      // the router accepted or silently dropped the path).
-      final adapter = DuskPlugin.navigateAdapter;
-      if (adapter != null) {
-        try {
-          pushed = await adapter(route);
-        } catch (e) {
-          developer.log(
-            '[fluttersdk_dusk] extDuskNavigateHandler: navigateAdapter '
-            'threw for "$route" ($e); falling back to '
-            'SystemNavigator.routeInformationUpdated.',
-            name: 'dusk',
-          );
+      final Element? root = WidgetsBinding.instance.rootElement;
+      if (root != null) {
+        final NavigatorState? navigator = _findNavigator(root);
+        if (navigator != null) {
+          try {
+            // Fire-and-forget. `Navigator.pushNamed` returns a Future that
+            // completes when the pushed route is POPPED, not when it lands.
+            // Awaiting it would block this handler until the agent navigates
+            // away, which deadlocks any test that never pops. The push itself
+            // happens synchronously inside the call; the post-dispatch
+            // endOfFrame ticks below guarantee the new route is mounted before
+            // we URL-verify.
+            unawaited(navigator.pushNamed(route));
+            pushed = true;
+          } catch (e) {
+            developer.log(
+              '[fluttersdk_dusk] extDuskNavigateHandler: Navigator.pushNamed '
+              'failed for "$route" ($e); falling back to '
+              'SystemNavigator.routeInformationUpdated.',
+              name: 'dusk',
+            );
+          }
         }
       }
     }

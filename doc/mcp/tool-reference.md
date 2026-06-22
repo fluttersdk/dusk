@@ -880,9 +880,31 @@ carrying `typeable: true` when calling `dusk_type`.
 
 ### Returns
 
-Success: a YAML document where each node is annotated with a `[ref=e<N>]` token, its role,
-label, actions, bounds, optional `overflow: true` and `typeable: true` sub-lines, and any
-enricher-contributed indented lines.
+Success: `{ "snapshot": "<yaml>", "groupId": "<id>" }`. The `snapshot` value is a YAML
+document where each node is annotated with a `[ref=e<N>]` token, its role, label, actions,
+bounds, optional `overflow: true` and `typeable: true` sub-lines, and any enricher-contributed
+indented lines.
+
+When non-fatal render or build `FlutterError`s are in the capture buffer (for example a
+`ParentDataWidget` misuse or a layout overflow), a `renderErrors` block is added to the
+response:
+
+```json
+{
+  "snapshot": "...",
+  "groupId": "snapshot-1700000000000",
+  "renderErrors": {
+    "count": 1,
+    "recent": [ { "type": "FlutterError", "message": "Incorrect use of ParentDataWidget." } ],
+    "hint": "Run dusk:exceptions for full messages + stack traces."
+  }
+}
+```
+
+`renderErrors` is omitted entirely when the screen is clean. `recent` contains at most 3
+entries, each with `type` (string) and `message` (first line of the error). `count` reflects
+the full buffer depth, which may exceed 3. Use `dusk_exceptions` to retrieve full messages and
+stack traces.
 
 ### Example call
 

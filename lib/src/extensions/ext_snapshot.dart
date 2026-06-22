@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
 
+import '../dusk_error_capture.dart';
 import '../dusk_plugin.dart';
 import '../ref_registry.dart';
 import '../utils/error_envelope.dart';
@@ -44,6 +45,18 @@ import '../utils/error_envelope.dart';
 ///
 /// ```json
 /// { "snapshot": "<yaml>", "groupId": "snapshot-1700000000000" }
+/// ```
+///
+/// When non-fatal render/build FlutterErrors have been captured (ParentDataWidget
+/// misuse, overflow, etc.), a `renderErrors` block is added so a silently-broken
+/// widget is visible without a separate `ext.dusk.exceptions` call. Omitted when
+/// clean:
+///
+/// ```json
+/// { "snapshot": "<yaml>", "groupId": "...",
+///   "renderErrors": { "count": 1,
+///     "recent": [ { "type": "FlutterError", "message": "Incorrect use of ..." } ],
+///     "hint": "Run dusk:exceptions (CLI) or dusk_exceptions (MCP) for full messages + stack traces." } }
 /// ```
 
 void registerSnapExtension() {
@@ -125,9 +138,32 @@ Future<Map<String, dynamic>> duskSnapBuild({
 
     walkOwner(RendererBinding.instance.rootPipelineOwner);
 
+    // Surface captured non-fatal render/build FlutterErrors (ParentDataWidget
+    // misuse, overflow, etc.) directly in the snapshot. A widget that throws at
+    // build time can render partially and stay invisible in the semantics tree,
+    // so an action against it silently no-ops. Including a renderErrors summary
+    // here means a broken screen is impossible to miss without remembering to
+    // call ext.dusk.exceptions separately. Omitted entirely when there are none.
+    final List<Map<String, dynamic>> captured =
+        recentCapturedExceptions(limit: 50);
+
     return <String, dynamic>{
       'snapshot': buffer.toString(),
       'groupId': groupId,
+      if (captured.isNotEmpty)
+        'renderErrors': <String, dynamic>{
+          'count': captured.length,
+          'recent': captured
+              .take(3)
+              .map((Map<String, dynamic> e) => <String, dynamic>{
+                    'type': e['type'],
+                    'message':
+                        (e['message'] as String? ?? '').split('\n').first,
+                  })
+              .toList(),
+          'hint': 'Run dusk:exceptions (CLI) or dusk_exceptions (MCP) for '
+              'full messages + stack traces.',
+        },
     };
   } finally {
     handle.dispose();

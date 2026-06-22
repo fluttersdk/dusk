@@ -37,6 +37,24 @@ class DuskSnapCommand extends ArtisanCommand {
       'ext.dusk.snap',
       params,
     );
+    // Surface captured render/build FlutterErrors so a silently-broken widget
+    // (e.g. a ParentDataWidget misuse that makes a button render but ignore
+    // taps) is impossible to miss. This is a diagnostic, not snapshot payload,
+    // so it goes to stderr via ctx.output.error: stdout stays the pure snapshot
+    // for tooling that captures only the snapshot text. Full detail lives in
+    // dusk:exceptions (CLI) / dusk_exceptions (MCP).
+    final renderErrors = result['renderErrors'] as Map<String, dynamic>?;
+    if (renderErrors != null) {
+      final count = renderErrors['count'];
+      ctx.output.error('⚠ $count render error(s) captured on this screen '
+          '(run dusk:exceptions / dusk_exceptions for full detail):');
+      final recent = renderErrors['recent'] as List<dynamic>? ?? const [];
+      for (final e in recent) {
+        final entry = e as Map<String, dynamic>;
+        ctx.output.error('  - ${entry['type']}: ${entry['message']}');
+      }
+    }
+
     final snapshot = result['snapshot'] as String? ?? jsonEncode(result);
     ctx.output.writeln(snapshot);
     return 0;
