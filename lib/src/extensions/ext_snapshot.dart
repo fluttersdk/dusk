@@ -56,7 +56,7 @@ import '../utils/error_envelope.dart';
 /// { "snapshot": "<yaml>", "groupId": "...",
 ///   "renderErrors": { "count": 1,
 ///     "recent": [ { "type": "FlutterError", "message": "Incorrect use of ..." } ],
-///     "hint": "Run dusk:exceptions for full messages + stack traces." } }
+///     "hint": "Run dusk:exceptions (CLI) or dusk_exceptions (MCP) for full messages + stack traces." } }
 /// ```
 
 void registerSnapExtension() {
@@ -161,7 +161,8 @@ Future<Map<String, dynamic>> duskSnapBuild({
                         (e['message'] as String? ?? '').split('\n').first,
                   })
               .toList(),
-          'hint': 'Run dusk:exceptions for full messages + stack traces.',
+          'hint': 'Run dusk:exceptions (CLI) or dusk_exceptions (MCP) for '
+              'full messages + stack traces.',
         },
     };
   } finally {

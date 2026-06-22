@@ -80,6 +80,38 @@ void main() {
       expect(output.content, contains('[ref=e1]'));
     });
 
+    test('handle surfaces a renderErrors banner alongside the snapshot',
+        () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: output,
+        response: const {
+          'snapshot': '- button "Save" [ref=e1]',
+          'renderErrors': {
+            'count': 2,
+            'recent': [
+              {
+                'type': 'FlutterError',
+                'message': 'Incorrect use of ParentDataWidget.',
+              },
+            ],
+            'hint': 'Run dusk:exceptions (CLI) or dusk_exceptions (MCP) for '
+                'full messages + stack traces.',
+          },
+        },
+      );
+      final exit = await DuskSnapCommand().handle(ctx);
+      expect(exit, equals(0));
+      // The banner is surfaced (it routes to stderr via ctx.output.error in
+      // production; BufferedOutput merges that channel into content for the
+      // assertion).
+      expect(output.content, contains('2 render error(s) captured'));
+      expect(output.content, contains('Incorrect use of ParentDataWidget.'));
+      // The snapshot payload is still emitted.
+      expect(output.content, contains('[ref=e1]'));
+    });
+
     test('handle falls back to JSON encode when response has no snapshot key',
         () async {
       final output = BufferedOutput();

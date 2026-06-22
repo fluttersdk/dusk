@@ -76,7 +76,7 @@ When the `FlutterError.onError` capture buffer holds non-fatal render or build e
       { "type": "FlutterError", "message": "Incorrect use of ParentDataWidget." },
       { "type": "FlutterError", "message": "A RenderFlex overflowed by 32 pixels." }
     ],
-    "hint": "Run dusk:exceptions for full messages + stack traces."
+    "hint": "Run dusk:exceptions (CLI) or dusk_exceptions (MCP) for full messages + stack traces."
   }
 }
 ```
@@ -87,11 +87,11 @@ Fields:
 |-------|------|-------------|
 | `count` | int | Total number of captured render/build errors. May exceed `recent.length`. |
 | `recent` | array (max 3) | Most recent entries; each has `type` (string) and `message` (first line only). |
-| `hint` | string | Fixed advisory pointing to `dusk:exceptions` for full detail. |
+| `hint` | string | Fixed advisory pointing to `dusk:exceptions` (CLI) / `dusk_exceptions` (MCP) for full detail. |
 
 The `renderErrors` block is **omitted entirely** when no errors are in the buffer. A clean screen produces the standard two-key envelope (`snapshot` + `groupId`).
 
-**CLI banner:** when `renderErrors` is present, `dusk:snap` prints a warning banner before the YAML:
+**CLI banner:** when `renderErrors` is present, `dusk:snap` prints a render-error banner to **stderr** (stdout stays the pure snapshot text, so tooling that captures only stdout is unaffected):
 
 ```
 ⚠ 2 render error(s) captured on this screen (run dusk:exceptions for full detail):
