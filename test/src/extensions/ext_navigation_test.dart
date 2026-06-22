@@ -208,6 +208,72 @@ void main() {
       expect(routeSeenByAdapter, equals('/settings'));
     });
 
+    testWidgets('adapter is preferred over Navigator when both are available',
+        (WidgetTester tester) async {
+      // Regression guard for the adapter-first reorder. Constructs a widget
+      // tree where BOTH a registered navigate adapter AND a pushable named
+      // Navigator route exist, then asserts:
+      //   (a) the adapter received the route, and
+      //   (b) the Navigator did NOT push it (the target widget never mounted).
+      //
+      // If the reorder were reverted so Navigator fires before the adapter,
+      // Navigator.pushNamed('/adapter-wins-target') would succeed, the
+      // target Scaffold would mount, and find.text('adapter-wins-content')
+      // would return a match, failing assertion (b).
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      // 1. Mount an app with a pushable named route so Navigator COULD push.
+      await tester.pumpWidget(
+        MaterialApp(
+          initialRoute: '/',
+          routes: <String, WidgetBuilder>{
+            '/': (BuildContext context) =>
+                const Scaffold(body: Text('adapter-wins-home')),
+            '/adapter-wins-target': (BuildContext context) => const Scaffold(
+                  body: Text('adapter-wins-content'),
+                ),
+          },
+        ),
+      );
+
+      // 2. Register a recording adapter that claims the route (returns true).
+      //    This is the same pattern as the existing test; the critical
+      //    difference is that a named route for the same path also exists above.
+      String? routeSeenByAdapter;
+      DuskPlugin.registerNavigateAdapter((String route) async {
+        routeSeenByAdapter = route;
+        return true; // claim the route so Navigator fallback must be skipped.
+      });
+      addTearDown(() => DuskPlugin.registerNavigateAdapter(null));
+
+      // 3. Drive the handler.
+      // ignore: unawaited_futures
+      extDuskNavigateHandler(
+        'ext.dusk.navigate',
+        <String, String>{
+          'route': '/adapter-wins-target',
+          'includeSnapshot': 'false',
+        },
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // 4a. Adapter must have received the route.
+      expect(routeSeenByAdapter, equals('/adapter-wins-target'));
+
+      // 4b. Navigator must NOT have pushed the target route: the target
+      //     widget's unique content marker must be absent from the tree.
+      //     A find.text that returns nothing proves Navigator.pushNamed was
+      //     never called (or was called but skipped because pushed was true).
+      expect(
+        find.text('adapter-wins-content'),
+        findsNothing,
+        reason: 'Navigator must not push the route when the adapter claimed it',
+      );
+    });
+
     // Negative-path coverage (router never honors the route → navigated:false
     // + reason field) is exercised end-to-end via the uptizm-app MCP smoke
     // test, where the actual GoRouter + the dusk_navigate VM service call

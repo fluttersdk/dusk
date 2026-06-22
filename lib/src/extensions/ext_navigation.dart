@@ -210,10 +210,10 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
     //    avoids the spurious "no corresponding route" FlutterError that
     //    `Navigator.pushNamed` raises on a Router-only stack (its
     //    `onGenerateRoute` is null there, and the failure is asynchronous so a
-    //    try/catch around the call cannot suppress it — it lands in the
+    //    try/catch around the call cannot suppress it; it lands in the
     //    FlutterError buffer and pollutes ext.dusk.snap / ext.dusk.exceptions).
     //    `pushed = true` means dispatch attempted, NOT that the route was
-    //    honored — the URL verify below is the source of truth.
+    //    honored; the URL verify below is the source of truth.
     bool pushed = false;
     final adapter = DuskPlugin.navigateAdapter;
     if (adapter != null) {
@@ -237,8 +237,8 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
         if (navigator != null) {
           try {
             // Fire-and-forget. `Navigator.pushNamed` returns a Future that
-            // completes when the pushed route is POPPED, not when it lands —
-            // awaiting it would block this handler until the agent navigates
+            // completes when the pushed route is POPPED, not when it lands.
+            // Awaiting it would block this handler until the agent navigates
             // away, which deadlocks any test that never pops. The push itself
             // happens synchronously inside the call; the post-dispatch
             // endOfFrame ticks below guarantee the new route is mounted before

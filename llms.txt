@@ -5,7 +5,7 @@
 **MCP tools (33)**, see `doc/mcp/tool-reference.md` for full input schemas. The 30 `ext.dusk.*` and 3 `artisan:dusk:*` (substrate-routed) tools are listed below.
 
 *Snapshot / Screenshot*
-- `dusk_snap` (`ext.dusk.snap`): Capture Semantics tree YAML with stable `[ref=eN]` tokens. Nodes inside a currently-overflowing ancestor carry an `overflow: true` sub-line. Nested `textbox` nodes collapse by render-object containment to a single ref tagged `typeable: true` (the node `dusk_type` resolves); sibling fields sharing a label stay distinct.
+- `dusk_snap` (`ext.dusk.snap`): Capture Semantics tree YAML with stable `[ref=eN]` tokens. Nodes inside a currently-overflowing ancestor carry an `overflow: true` sub-line. Nested `textbox` nodes collapse by render-object containment to a single ref tagged `typeable: true` (the node `dusk_type` resolves); sibling fields sharing a label stay distinct. When non-fatal render/build FlutterErrors are in the capture buffer, the response includes a `renderErrors: {count, recent: [{type, message}], hint}` block so a silently-broken screen is visible without a separate `dusk_exceptions` call.
 - `dusk_screenshot` (`ext.dusk.screenshot`, in-isolate): Capture base64-encoded JPEG/PNG frame. Can hang on web under CanvasKit+DWDS; for reliable web screenshots use the CLI `dusk:screenshot --output=<path>`, which falls back to CDP `Page.captureScreenshot` when artisan was started with `--cdp-port` (CLI-only, not this MCP tool).
 
 *Gestures (pointer actions)*

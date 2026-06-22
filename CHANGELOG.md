@@ -14,7 +14,7 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- **`ext.dusk.navigate` now tries the consumer navigate adapter (`DuskPlugin.navigateAdapter`, e.g. `MagicRoute.to`) BEFORE `Navigator.pushNamed`.** On a Router-only stack (go_router / auto_route) `Navigator.onGenerateRoute` is null, so `Navigator.pushNamed` raised an asynchronous "no corresponding route" `FlutterError` on every navigate. Because the failure was async, the handler's try/catch could not suppress it, and it landed in the FlutterError buffer — now doubly visible via the new `renderErrors` snapshot block as a false positive. Adapter-first dispatch routes through the app's own router public API (the correct path for these apps) and skips the throwing `Navigator.pushNamed` entirely; it remains the fallback for apps with no registered adapter. Touches `lib/src/extensions/ext_navigation.dart`.
+- **`ext.dusk.navigate` now tries the consumer navigate adapter (`DuskPlugin.navigateAdapter`, e.g. `MagicRoute.to`) BEFORE `Navigator.pushNamed`.** On a Router-only stack (go_router / auto_route) `Navigator.onGenerateRoute` is null, so `Navigator.pushNamed` raised an asynchronous "no corresponding route" `FlutterError` on every navigate. Because the failure was async, the handler's try/catch could not suppress it, and it landed in the FlutterError buffer, now doubly visible via the new `renderErrors` snapshot block as a false positive. Adapter-first dispatch routes through the app's own router public API (the correct path for these apps) and skips the throwing `Navigator.pushNamed` entirely; it remains the fallback for apps with no registered adapter. Touches `lib/src/extensions/ext_navigation.dart`.
 
 ---
 
