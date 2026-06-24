@@ -234,10 +234,7 @@ class DuskDoctorCommand extends ArtisanCommand {
     const String label = 'snapshot enrichers';
     final int count = enrichersProbe();
     if (count == 0) {
-      ctx.output.warning(
-        '$label: no enrichers registered; install Magic + Wind integrations '
-        'for richer snapshots',
-      );
+      ctx.output.info('$label: enrichers are opt-in; none registered');
       return;
     }
     ctx.output.success('$label: enrichers registered: $count');

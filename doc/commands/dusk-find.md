@@ -62,21 +62,36 @@ The CLI guards an empty params map (`Provide at least one of --text / --contains
 
 **Success envelope (illustrative):**
 
+Single match:
+
 ```json
 {
   "ref": "q1",
-  "matchCount": 1,
-  "rect": [120, 400, 240, 48],
-  "role": "button",
-  "label": "Sign in"
+  "matched": true,
+  "matchCount": 1
 }
 ```
 
-`matchCount > 1` indicates the predicate is ambiguous: the handle still resolves to the first match, but the agent should narrow with an extra predicate (typically `--key`) before acting.
+Multi-match (ambiguous predicate):
+
+```json
+{
+  "ref": "q1",
+  "matched": true,
+  "matchCount": 2,
+  "diagnostic": "label 'Password' matched 2 nodes; refine with --text/--contains or use a q-handle"
+}
+```
+
+`matchCount > 1` means the predicate is ambiguous: the handle still resolves to the FIRST match (backward-compatible), but the agent should narrow with an additional predicate before acting. Common disambiguation strategies:
+
+- Add `--key=<widget-key>` when the widget carries a `ValueKey`.
+- Add `--text=<visible-label>` when the accessibility label and the visible text differ.
+- Use `--contains=<unique-substring>` when only part of the label is unique.
 
 **Error envelope:**
 
-The VM Service handler propagates errors as `ServiceExtensionResponse.error(extensionError, message)`. The CLI surfaces them via `ArtisanContext.callExtension` and exits non-zero. Common messages include `No widget matched predicates: {...}`.
+The VM Service handler propagates errors as `ServiceExtensionResponse.error(extensionError, message)`. The CLI surfaces them via `ArtisanContext.callExtension` and exits non-zero. Common messages include `No widget matched predicates: {}`.
 
 ---
 
@@ -151,6 +166,67 @@ dart run fluttersdk_dusk dusk:find --text="Save" --key="monitor-form-save"
 ```
 
 The two predicates AND together; useful when the screen has multiple "Save" buttons but only one with the canonical key.
+
+---
+
+<a name="ref-staleness"></a>
+## e-ref staleness and when to prefer q-handles
+
+`e<N>` tokens minted by `dusk:snap` are frozen to the Semantics node that was
+live at snap time. They become defunct the moment the node leaves the tree, which
+happens on any route push, list rebuild, or conditional widget swap. The
+`RefRegistry` that backs `e<N>` tokens does NOT re-resolve; calling an action
+with a stale `e<N>` returns a `defunct (element no longer mounted)` failure.
+
+`q<N>` handles minted by `dusk:find` store the predicate set instead of the
+node, and re-walk the live tree on every action call. They survive navigations,
+hot-reloads, and full widget rebuilds as long as the predicate still matches
+something in the tree.
+
+**When to reach for `dusk:find` / `q<N>` instead of using the `e<N>` from a
+snap:**
+
+- The page might rebuild between snap and action (e.g. Settings pages with
+  dynamic sections, lists driven by async data).
+- The agent will retry an action (gate failure, transient loading state).
+- The flow spans more than one navigation hop; an `e<N>` from the previous
+  screen is always stale after the route change.
+- The agent holds a ref across a hot-reload.
+
+The `RefRegistry` is intentionally frozen for `e<N>` (it is a FIFO token store,
+not a live observer). There is no mechanism to refresh a stale `e<N>` in place;
+the design intent is that `dusk:snap` re-mints the ref after every page change.
+For rebuild-prone pages, prefer `dusk:find` / `dusk:observe` from the start.
+
+---
+
+<a name="semantics-label-over-match"></a>
+## Avoiding `--semanticsLabel` over-match
+
+`--semanticsLabel` performs an exact case-sensitive match against
+`SemanticsNode.label` and returns the FIRST node in tree order. When two or
+more nodes carry the same label (e.g. two `TextField` widgets both labelled
+`Password` on a sign-up form, or a list of repeated row controls), the handle
+resolves to the first node in tree order, which may not be the intended target.
+
+The `matchCount` field in the response tells the agent how many nodes matched.
+A `diagnostic` key appears when `matchCount > 1`, e.g.:
+
+```
+label 'Password' matched 2 nodes; refine with --text/--contains or use a q-handle
+```
+
+**Disambiguation strategies (most to least precise):**
+
+1. Add `--key=<widget-key>` when the widget carries a `ValueKey`. This is the
+   most precise predicate and survives label changes.
+2. Combine `--semanticsLabel=Password --text=Confirm` when the second node has
+   distinct visible text (some widgets expose both a label and a text value).
+3. Use `--contains=<unique-substring>` when only part of the label is unique
+   across the matching nodes.
+4. Use `dusk:observe` with a narrow `intent` and inspect the returned candidate
+   list; each candidate includes role, bounds, and enricher fields that let the
+   agent identify the correct target before minting the handle.
 
 ---
 

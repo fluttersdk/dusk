@@ -34,8 +34,11 @@ void registerFindExtension() {
 /// live Semantics + Element tree once to verify the predicates resolve to
 /// a node, then mints a `q<N>` handle backed by the stored predicate set.
 ///
-/// On first match returns `{"ref": "q<N>", "matched": true}`. When no node
-/// matches, returns `{"ref": null, "matched": false}` — no handle is minted.
+/// On first match returns `{"ref": "q<N>", "matched": true, "matchCount": N}`.
+/// When `matchCount > 1`, an additional `diagnostic` key carries a
+/// human-readable hint so agents know to disambiguate with `--text`,
+/// `--contains`, or a widget `--key`. When no node matches, returns
+/// `{"ref": null, "matched": false}` — no handle is minted.
 ///
 /// The handle is opaque from the agent's perspective: passing it back to
 /// `ext.dusk.tap` etc. triggers a fresh tree walk at that moment, so a
@@ -78,7 +81,8 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
     //    NOT store the resolved RefEntry — the handle re-executes the
     //    walk on every action call so the agent gets the latest rect /
     //    element after intermediate rebuilds.
-    final RefEntry? entry = resolveQuery(query);
+    final (RefEntry? entry, int matchCount, String? diagnostic) =
+        resolveQueryWithCount(query);
     if (entry == null) {
       return developer.ServiceExtensionResponse.result(
         jsonEncode(<String, dynamic>{
@@ -92,12 +96,17 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
     //    (no groupId scope; action handlers rebuild RefEntry on call).
     final String token = RefRegistry.registerQuery(query);
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'ref': token,
-        'matched': true,
-      }),
-    );
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'ref': token,
+      'matched': true,
+      'matchCount': matchCount,
+    };
+    // 4. Surface ambiguity diagnostic when more than one node matched.
+    if (diagnostic != null) {
+      payload['diagnostic'] = diagnostic;
+    }
+
+    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.find error: $e\n$stackTrace',
@@ -134,35 +143,64 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
 /// When multiple predicates are set they all must match the same node /
 /// element (intersection).
 RefEntry? resolveQuery(DuskQuery query) {
+  return resolveQueryWithCount(query).$1;
+}
+
+/// Variant of [resolveQuery] that also returns the total number of Semantics
+/// nodes that matched the label predicate and an optional ambiguity
+/// diagnostic.
+///
+/// Returns a record `(entry, matchCount, diagnostic)`:
+/// - `entry` — first match, or `null` when nothing matched.
+/// - `matchCount` — number of nodes that matched (1 for a unique match, 0
+///   when no match; only meaningful for the `semanticsLabel` / `text`
+///   Semantics-walk paths; key and text-only Element paths always report 1).
+/// - `diagnostic` — non-null only when `matchCount > 1`; a message suitable
+///   for surfacing to an agent, e.g. `label 'Password' matched 2 nodes;
+///   refine with --text/--contains or use a q-handle`.
+///
+/// Single-match and no-match behaviour is identical to [resolveQuery];
+/// callers that do not need ambiguity detection may use [resolveQuery]
+/// directly.
+(RefEntry?, int, String?) resolveQueryWithCount(DuskQuery query) {
   // 1. Key-based match: Element tree walk. Cheapest, most specific.
   if (query.keyValue != null) {
     final Element? element = _findElementByKey(query.keyValue!);
-    if (element == null) return null;
-    if (!_elementMatchesOtherPredicates(element, query)) return null;
-    return _entryFromElement(element);
+    if (element == null) return (null, 0, null);
+    if (!_elementMatchesOtherPredicates(element, query)) return (null, 0, null);
+    return (_entryFromElement(element), 1, null);
   }
 
   // 2. Semantics-label match: walk the Semantics tree first because it
   //    surfaces merged accessibility labels (Button "Submit" with no
   //    Text descendant still resolves).
   if (query.semanticsLabel != null) {
-    final SemanticsNode? node =
-        _findSemanticsNodeByLabel(query.semanticsLabel!);
-    if (node == null) return null;
-    return _entryFromSemanticsNode(node);
+    final (SemanticsNode? node, int count) =
+        _findSemanticsNodeByLabelWithCount(query.semanticsLabel!);
+    if (node == null) return (null, 0, null);
+    final String? diagnostic = count > 1
+        ? "label '${query.semanticsLabel}' matched $count nodes; "
+            'refine with --text/--contains or use a q-handle'
+        : null;
+    return (_entryFromSemanticsNode(node), count, diagnostic);
   }
 
   // 3. text-only match: Semantics-label first (covers labelled widgets
   //    where the visible text is the accessibility label), then Element-
   //    tree Text widget fallback.
   if (query.text != null) {
-    final SemanticsNode? node = _findSemanticsNodeByLabel(query.text!);
+    final (SemanticsNode? node, int count) =
+        _findSemanticsNodeByLabelWithCount(query.text!);
     if (node != null) {
-      return _entryFromSemanticsNode(node);
+      final String? diagnostic = count > 1
+          ? "label '${query.text}' matched $count nodes; "
+              'refine with --semanticsLabel/--contains or use a q-handle'
+          : null;
+      return (_entryFromSemanticsNode(node), count, diagnostic);
     }
     final Element? element = _findElementByTextData(query.text!);
-    if (element == null) return null;
-    return _entryFromElement(element);
+    if (element == null) return (null, 0, null);
+    return (_entryFromElement(element), 1, null);
   }
 
   // 4. containsText match: substring search across Semantics labels then
@@ -172,14 +210,14 @@ RefEntry? resolveQuery(DuskQuery query) {
     final SemanticsNode? node =
         _findSemanticsNodeByLabelContains(query.containsText!);
     if (node != null) {
-      return _entryFromSemanticsNode(node);
+      return (_entryFromSemanticsNode(node), 1, null);
     }
     final Element? element = _findElementByTextContains(query.containsText!);
-    if (element == null) return null;
-    return _entryFromElement(element);
+    if (element == null) return (null, 0, null);
+    return (_entryFromElement(element), 1, null);
   }
 
-  return null;
+  return (null, 0, null);
 }
 
 // ---------------------------------------------------------------------------
@@ -289,41 +327,41 @@ SemanticsNode? _findSemanticsNodeByLabelContains(String needle) {
   return found;
 }
 
-/// Walks the live Semantics tree and returns the first node whose [label]
-/// equals [needle].
+/// Walks the live Semantics tree and counts ALL nodes whose [label] equals
+/// [needle], returning the first match alongside the total count.
 ///
 /// Production-bound widget trees expose their semantics owner via
 /// `RendererBinding.instance.rootPipelineOwner.semanticsOwner`. The Flutter
-/// test harness, however, mounts the widget tree under a CHILD pipeline
-/// owner attached to the test view (see `ext_snapshot_dispatcher_test.dart`
-/// docs for the rationale). We walk the root owner first, then every child
-/// owner registered under it, so this helper works in BOTH environments.
-SemanticsNode? _findSemanticsNodeByLabel(String needle) {
+/// test harness mounts the widget tree under a CHILD pipeline owner attached
+/// to the test view, so the walk covers the root owner and all child owners.
+///
+/// The walk never stops early after finding the first node, so the returned
+/// count reflects ALL matches in the tree. When `count > 1` the caller
+/// should surface an ambiguity diagnostic to the agent.
+(SemanticsNode?, int) _findSemanticsNodeByLabelWithCount(String needle) {
   SemanticsNode? found;
+  int count = 0;
 
   void visit(SemanticsNode node) {
-    if (found != null) return;
     if (node.label == needle) {
-      found = node;
-      return;
+      count += 1;
+      found ??= node;
     }
     node.visitChildren((SemanticsNode child) {
       visit(child);
-      return found == null;
+      // Always continue walking to collect the full count.
+      return true;
     });
   }
 
   void visitOwner(PipelineOwner owner) {
-    if (found != null) return;
     final SemanticsNode? root = owner.semanticsOwner?.rootSemanticsNode;
     if (root != null) visit(root);
-    owner.visitChildren((PipelineOwner child) {
-      if (found == null) visitOwner(child);
-    });
+    owner.visitChildren(visitOwner);
   }
 
   visitOwner(RendererBinding.instance.rootPipelineOwner);
-  return found;
+  return (found, count);
 }
 
 /// Cross-checks an Element-tree match against the supplied query's

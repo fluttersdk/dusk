@@ -10,11 +10,17 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- **`ext.dusk.find` now surfaces a `matchCount` field and an ambiguity `diagnostic` in its success response when `--semanticsLabel` or `--text` matches more than one Semantics node.** Previously the handler silently returned the first match, so `--semanticsLabel "Password"` over-matched the email field on forms where both `<TextField semanticsLabel="Password"/>` nodes shared the same label. The response now includes `matchCount: N` on every match; when `N > 1` a `diagnostic` key carries a human-readable hint (`label 'X' matched N nodes; refine with --text/--contains or use a q-handle`). Single-match and no-match behaviour is unchanged (backward-compatible). Touches `lib/src/extensions/ext_find.dart`; covered by `test/src/extensions/ext_find_test.dart`.
+
 - **`ext.dusk.snap` now surfaces captured non-fatal render/build FlutterErrors in a `renderErrors` block, and `dusk:snap` prints a `⚠ N render error(s)` banner to stderr while stdout stays the pure snapshot.** A widget that throws at build time (a `ParentDataWidget` misuse such as `flex-1`/`Expanded` placed under a `Semantics`/`WAnchor` instead of directly inside a Flex, or an overflow) can render partially and stay invisible in the semantics snapshot, so an action against it silently no-ops with no signal to the agent. The snapshot payload now carries `renderErrors: {count, recent: [{type, message}], hint}` (populated from the existing `FlutterError.onError` capture buffer, omitted entirely when clean), so a broken screen is impossible to miss without separately calling `ext.dusk.exceptions`. Touches `lib/src/extensions/ext_snapshot.dart`, `lib/src/commands/dusk_snap_command.dart`; covered by `test/src/extensions/ext_snapshot_render_errors_test.dart`.
 
 ### Changed
 
 - **`ext.dusk.navigate` now tries the consumer navigate adapter (`DuskPlugin.navigateAdapter`, e.g. `MagicRoute.to`) BEFORE `Navigator.pushNamed`.** On a Router-only stack (go_router / auto_route) `Navigator.onGenerateRoute` is null, so `Navigator.pushNamed` raised an asynchronous "no corresponding route" `FlutterError` on every navigate. Because the failure was async, the handler's try/catch could not suppress it, and it landed in the FlutterError buffer, now doubly visible via the new `renderErrors` snapshot block as a false positive. Adapter-first dispatch routes through the app's own router public API (the correct path for these apps) and skips the throwing `Navigator.pushNamed` entirely; it remains the fallback for apps with no registered adapter. Touches `lib/src/extensions/ext_navigation.dart`.
+
+### Fixed
+
+- **`dusk:doctor` check 3 (snapshot enrichers) now emits INFO when no enrichers are registered, instead of WARN.** Enrichers are opt-in; zero is a valid state, not a problem. The WARN reading alongside "integration wired" (check 5) created false contradiction. Touches `lib/src/commands/dusk_doctor_command.dart`; test case updated in `test/src/commands/dusk_doctor_command_test.dart`.
 
 ---
 

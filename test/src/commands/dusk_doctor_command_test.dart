@@ -202,7 +202,8 @@ void main() {
       expect(output.content, contains('enrichers registered: 2'));
     });
 
-    test('WARN when DuskPlugin.enrichers is empty', () async {
+    test('INFO when DuskPlugin.enrichers is empty (enrichers are opt-in)',
+        () async {
       DuskDoctorCommand.enrichersProbe = () => 0;
 
       final output = BufferedOutput();
@@ -212,10 +213,7 @@ void main() {
       expect(exit, equals(0));
       expect(
         output.content,
-        contains(
-          'no enrichers registered; install Magic + Wind integrations for '
-          'richer snapshots',
-        ),
+        contains('enrichers are opt-in; none registered'),
       );
     });
 
@@ -413,10 +411,10 @@ Future<void> main() async {
 
     test(
         'exit code is 0 when every check passes (defaults: empty enrichers '
-        'flip to WARN, but WARN never fails)', () async {
+        'emit INFO, no errors)', () async {
       // With default seams (empty enrichers, no Chrome, no DUSK_DISABLE,
-      // semantics on, no main.dart) the only ERROR-class check (#4) passes,
-      // so exit code is 0 even with multiple WARN / INFO rows below.
+      // semantics on, no main.dart) all checks pass with no ERROR rows,
+      // so exit code is 0.
       final output = BufferedOutput();
       final exit = await DuskDoctorCommand()
           .handle(ArtisanContext.bare(MapInput(const {}), output));
