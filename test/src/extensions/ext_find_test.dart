@@ -526,6 +526,105 @@ void main() {
     );
   });
 
+  group('multi-match semanticsLabel diagnostic', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets(
+      '(f) two nodes sharing a semanticsLabel produce a multi-match diagnostic',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // Two distinct semantics nodes with the same label — models the
+        // "Password" over-match scenario from REPORT #15.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  Semantics(
+                    label: 'Password',
+                    textField: true,
+                    container: true,
+                    child: const SizedBox(width: 200, height: 50),
+                  ),
+                  Semantics(
+                    label: 'Password',
+                    textField: true,
+                    container: true,
+                    child: const SizedBox(width: 200, height: 50),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final response = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'semanticsLabel': 'Password'},
+        );
+
+        // Still resolves (backward-compatible); a q-handle is minted.
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['matched'], isTrue);
+        expect(decoded['ref'], startsWith('q'));
+
+        // Multi-match diagnostic is present.
+        expect(decoded['matchCount'], equals(2));
+        expect(
+          decoded['diagnostic'] as String? ?? '',
+          contains("label 'Password' matched 2 nodes"),
+        );
+      },
+    );
+
+    testWidgets(
+      '(f) single-match semanticsLabel carries no multi-match diagnostic',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: Semantics(
+                  label: 'UniqueLabel',
+                  button: true,
+                  container: true,
+                  child: const SizedBox(width: 100, height: 100),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final response = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'semanticsLabel': 'UniqueLabel'},
+        );
+
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['matched'], isTrue);
+        expect(decoded['matchCount'], equals(1));
+        // No diagnostic key present on single match.
+        expect(decoded.containsKey('diagnostic'), isFalse);
+      },
+    );
+  });
+
   group('RefRegistry query store', () {
     setUp(RefRegistry.resetForTesting);
 

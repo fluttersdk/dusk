@@ -1,11 +1,11 @@
 ---
 name: fluttersdk-dusk
 description: "fluttersdk_dusk: E2E driver for Flutter apps that lets an LLM agent see (snap, observe, screenshot) and act (tap, type, drag, scroll, navigate) on a running Flutter app via 33 MCP tools (`dusk_*`) and 34 matching CLI commands (`./bin/fsa dusk:*`). Snapshots emit a YAML Semantics tree with stable `[ref=eN]` tokens; `dusk_find` and `dusk_observe` mint re-resolvable `q<N>` query handles. Every gesture passes a 6-step actionability gate with substring-parseable failure reasons (`not enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured by`, `defunct`). TRIGGER when: any `dusk_*` MCP tool call, any `dusk:*` CLI command, `./bin/fsa` invocation, the user asks the agent to drive / inspect / test / debug a running Flutter app, the user mentions snap / observe / actionability / ref / eN / qN, or the conversation touches end-to-end testing of a Flutter UI. DO NOT TRIGGER when: only authoring `flutter_test` widget tests, only reading telescope ring buffers without driving the UI (use fluttersdk-telescope), or only modifying Dart source without running it."
-version: 0.0.8
+version: 0.0.9
 when_to_use: "Any task where the agent drives or inspects a running Flutter app via dusk: calling `dusk_*` MCP tools in a loop (snap, tap, type, screenshot, hot_reload_and_snap), invoking `./bin/fsa dusk:<verb>` from a shell, recovering from an actionability failure, choosing between `e<N>` and `q<N>` ref tokens, waiting for text or network idle, navigating routes, or filling a form."
 ---
 
-<!-- fluttersdk_dusk v0.0.8 | Skill updated: 2026-06-17 -->
+<!-- fluttersdk_dusk v0.0.9 | Skill updated: 2026-06-25 -->
 
 # fluttersdk_dusk
 
@@ -188,6 +188,22 @@ even on `reloaded: true`: a successful reload can still throw at runtime
 Default: snap returns `e<N>`; use them inline. Switch to `dusk_find` /
 `dusk_observe` and `q<N>` the moment the agent enters a retry or
 multi-step flow against the same target.
+
+**e-ref staleness on rebuild-prone pages.** `e<N>` tokens are frozen to
+the Semantics node at snap time. The `RefRegistry` backing them does NOT
+re-resolve; on pages that rebuild (Settings, lists driven by async data,
+any page with conditional sections), use `dusk_find` from the start
+instead of snapping and then regretting the stale `defunct` failure.
+
+**`--semanticsLabel` over-match.** `dusk_find { semanticsLabel: "X" }`
+exact-matches against the accessibility label and resolves to the FIRST node;
+ambiguity is now surfaced via `matchCount` and `diagnostic` in the response.
+On forms with repeated labels ("Password" and "Confirm Password" both labelled
+"Password"), the handle points at the first match. Check the `matchCount`
+field in the response; when `> 1`, read the `diagnostic` key and add a second
+predicate (`--key`, `--text`, or `--contains`) before acting. Full
+disambiguation table: `references/actionability-and-refs.md` section
+"semanticsLabel exact-match and over-match".
 
 ## 5. Quick install + doctor (when dusk is missing)
 

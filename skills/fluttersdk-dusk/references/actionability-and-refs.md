@@ -166,6 +166,13 @@ predicates.
 - Become defunct when the node unmounts (the widget leaves the tree).
   After hot-reload, navigation, or a list rebuild, expect every
   not-refreshed `e<N>` to fail with `"defunct"`.
+- **The `RefRegistry` backing `e<N>` tokens is FROZEN (a FIFO token
+  store, not a live observer).** There is no way to refresh a stale
+  `e<N>` in place; the design intent is that `dusk_snap` re-mints
+  the ref after every page change. For pages that rebuild frequently
+  (Settings, lists driven by async data, any page with conditional
+  sections), prefer `dusk_find` / `dusk_observe` from the start to
+  get a `q<N>` handle that re-resolves on every action.
 
 When to use them: immediately after the snap that minted them, when
 the UI is static, when the action is one-shot.
@@ -228,3 +235,36 @@ the action is safe but the gate fails:
 
 Both flags are per-call. There is no global way to disable the gate;
 that is intentional. Disable per call, not per session.
+
+## `--semanticsLabel` exact-match and over-match
+
+`dusk_find { semanticsLabel: "Password" }` performs a case-sensitive exact
+match against `SemanticsNode.label` and resolves to the FIRST node in tree
+order; when more than one node matches, ambiguity is surfaced via `matchCount`
+and `diagnostic` in the response. On forms where multiple fields share the
+same label (e.g. a Password field and a Confirm Password field both labelled
+"Password", or a list of rows each containing a "Delete" button), the handle
+points at the first match.
+
+The `matchCount` key in the success response tells the agent how many nodes
+matched. When `matchCount > 1` the response also carries a `diagnostic` key:
+
+```json
+{
+  "ref": "q3",
+  "matched": true,
+  "matchCount": 2,
+  "diagnostic": "label 'Password' matched 2 nodes; refine with --key, --text, or --contains"
+}
+```
+
+The handle still resolves (backward-compatible), so existing scripts that
+do not read `diagnostic` are unaffected. New agent code should read
+`matchCount` and, when `> 1`, apply one of these disambiguation strategies:
+
+| Strategy | When to use |
+|---|---|
+| Add `--key=<widget-key>` | The widget carries a `ValueKey`; most precise, survives label changes. |
+| Add `--text=<visible-text>` | The accessibility label and visible text differ; combines with `semanticsLabel` as an AND predicate. |
+| Use `--contains=<unique-substring>` | Only part of the label is unique; e.g. `--contains="Confirm"` to single out "Confirm Password". |
+| Use `dusk_observe` | When no single predicate is unique; observe returns candidates with bounds and enricher fields the agent can reason about before minting a handle. |
