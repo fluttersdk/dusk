@@ -196,13 +196,14 @@ any page with conditional sections), use `dusk_find` from the start
 instead of snapping and then regretting the stale `defunct` failure.
 
 **`--semanticsLabel` over-match.** `dusk_find { semanticsLabel: "X" }`
-exact-matches against the accessibility label and silently picks the FIRST
-node. On forms with repeated labels ("Password" and "Confirm Password" both
-labelled "Password"), the handle points at the wrong field. Check the
-`matchCount` field in the response; when `> 1`, read the `diagnostic` key
-and add a second predicate (`--key`, `--text`, or `--contains`) before
-acting. Full disambiguation table: `references/actionability-and-refs.md`
-section "semanticsLabel exact-match and over-match".
+exact-matches against the accessibility label and resolves to the FIRST node;
+ambiguity is now surfaced via `matchCount` and `diagnostic` in the response.
+On forms with repeated labels ("Password" and "Confirm Password" both labelled
+"Password"), the handle points at the first match. Check the `matchCount`
+field in the response; when `> 1`, read the `diagnostic` key and add a second
+predicate (`--key`, `--text`, or `--contains`) before acting. Full
+disambiguation table: `references/actionability-and-refs.md` section
+"semanticsLabel exact-match and over-match".
 
 ## 5. Quick install + doctor (when dusk is missing)
 

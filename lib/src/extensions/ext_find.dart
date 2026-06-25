@@ -152,12 +152,13 @@ RefEntry? resolveQuery(DuskQuery query) {
 ///
 /// Returns a record `(entry, matchCount, diagnostic)`:
 /// - `entry` — first match, or `null` when nothing matched.
-/// - `matchCount` — number of nodes that matched (1 for a unique match, 0
-///   when no match; only meaningful for the `semanticsLabel` / `text`
-///   Semantics-walk paths; key and text-only Element paths always report 1).
+/// - `matchCount` — number of nodes that matched (1 on a single match, 0
+///   when nothing matches; only meaningful for the `semanticsLabel` / `text`
+///   Semantics-walk paths; key-based and text-only Element paths return 1 on
+///   a match, 0 on no match).
 /// - `diagnostic` — non-null only when `matchCount > 1`; a message suitable
 ///   for surfacing to an agent, e.g. `label 'Password' matched 2 nodes;
-///   refine with --text/--contains or use a q-handle`.
+///   refine with --key, --text, or --contains`.
 ///
 /// Single-match and no-match behaviour is identical to [resolveQuery];
 /// callers that do not need ambiguity detection may use [resolveQuery]
@@ -180,7 +181,7 @@ RefEntry? resolveQuery(DuskQuery query) {
     if (node == null) return (null, 0, null);
     final String? diagnostic = count > 1
         ? "label '${query.semanticsLabel}' matched $count nodes; "
-            'refine with --text/--contains or use a q-handle'
+            'refine with --key, --text, or --contains'
         : null;
     return (_entryFromSemanticsNode(node), count, diagnostic);
   }
@@ -194,7 +195,7 @@ RefEntry? resolveQuery(DuskQuery query) {
     if (node != null) {
       final String? diagnostic = count > 1
           ? "label '${query.text}' matched $count nodes; "
-              'refine with --semanticsLabel/--contains or use a q-handle'
+              'refine with --key, --text, or --contains'
           : null;
       return (_entryFromSemanticsNode(node), count, diagnostic);
     }

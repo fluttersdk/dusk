@@ -239,11 +239,12 @@ that is intentional. Disable per call, not per session.
 ## `--semanticsLabel` exact-match and over-match
 
 `dusk_find { semanticsLabel: "Password" }` performs a case-sensitive exact
-match against `SemanticsNode.label` and silently resolves to the FIRST node
-in tree order. On forms where multiple fields share the same label (e.g. a
-Password field and a Confirm Password field both labelled "Password", or a
-list of rows each containing a "Delete" button), the handle points at the
-wrong target.
+match against `SemanticsNode.label` and resolves to the FIRST node in tree
+order; when more than one node matches, ambiguity is surfaced via `matchCount`
+and `diagnostic` in the response. On forms where multiple fields share the
+same label (e.g. a Password field and a Confirm Password field both labelled
+"Password", or a list of rows each containing a "Delete" button), the handle
+points at the first match.
 
 The `matchCount` key in the success response tells the agent how many nodes
 matched. When `matchCount > 1` the response also carries a `diagnostic` key:
@@ -253,7 +254,7 @@ matched. When `matchCount > 1` the response also carries a `diagnostic` key:
   "ref": "q3",
   "matched": true,
   "matchCount": 2,
-  "diagnostic": "label 'Password' matched 2 nodes; refine with --text/--contains or use a q-handle"
+  "diagnostic": "label 'Password' matched 2 nodes; refine with --key, --text, or --contains"
 }
 ```
 

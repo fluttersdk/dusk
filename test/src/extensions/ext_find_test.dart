@@ -528,6 +528,7 @@ void main() {
 
   group('multi-match semanticsLabel diagnostic', () {
     setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
 
     testWidgets(
       '(f) two nodes sharing a semanticsLabel produce a multi-match diagnostic',

@@ -79,7 +79,7 @@ Multi-match (ambiguous predicate):
   "ref": "q1",
   "matched": true,
   "matchCount": 2,
-  "diagnostic": "label 'Password' matched 2 nodes; refine with --text/--contains or use a q-handle"
+  "diagnostic": "label 'Password' matched 2 nodes; refine with --key, --text, or --contains"
 }
 ```
 
@@ -213,7 +213,7 @@ The `matchCount` field in the response tells the agent how many nodes matched.
 A `diagnostic` key appears when `matchCount > 1`, e.g.:
 
 ```
-label 'Password' matched 2 nodes; refine with --text/--contains or use a q-handle
+label 'Password' matched 2 nodes; refine with --key, --text, or --contains
 ```
 
 **Disambiguation strategies (most to least precise):**
