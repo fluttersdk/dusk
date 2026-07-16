@@ -501,6 +501,71 @@ void main() {
     );
 
     testWidgets(
+      '(c) find prefers the interactive node when a label collides with text',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // A visible label Text and the control it names share a label (the
+        // settings-toggle / MSSwitch pattern, and the login heading-vs-button
+        // pattern). The plain Text sits FIRST in tree order. find must resolve
+        // the interactive control, not the inert text, so the tap lands on the
+        // control.
+        int taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  const Text('Email'),
+                  Semantics(
+                    button: true,
+                    label: 'Email',
+                    onTap: () => taps += 1,
+                    excludeSemantics: true,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => taps += 1,
+                      child: const SizedBox(width: 80, height: 40),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final findResponse = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'semanticsLabel': 'Email'},
+        );
+        final decoded =
+            jsonDecode(findResponse.result!) as Map<String, dynamic>;
+        final String qRef = decoded['ref'] as String;
+        // Both the Text and the button carry the label.
+        expect(decoded['matchCount'], 2);
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': qRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        await future;
+        // The button's onTap fired, not the inert Text.
+        expect(taps, greaterThan(0));
+      },
+    );
+
+    testWidgets(
       '(c) q-ref survives a widget rebuild that would invalidate an eN',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);

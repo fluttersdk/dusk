@@ -340,13 +340,15 @@ SemanticsNode? _findSemanticsNodeByLabelContains(String needle) {
 /// count reflects ALL matches in the tree. When `count > 1` the caller
 /// should surface an ambiguity diagnostic to the agent.
 (SemanticsNode?, int) _findSemanticsNodeByLabelWithCount(String needle) {
-  SemanticsNode? found;
+  SemanticsNode? firstMatch;
+  SemanticsNode? firstInteractive;
   int count = 0;
 
   void visit(SemanticsNode node) {
     if (node.label == needle) {
       count += 1;
-      found ??= node;
+      firstMatch ??= node;
+      firstInteractive ??= _isInteractiveNode(node) ? node : null;
     }
     node.visitChildren((SemanticsNode child) {
       visit(child);
@@ -362,7 +364,21 @@ SemanticsNode? _findSemanticsNodeByLabelContains(String needle) {
   }
 
   visitOwner(RendererBinding.instance.rootPipelineOwner);
-  return (found, count);
+  // Prefer an interactive match (a button, switch, or text field) over a plain
+  // node when one label collides across both: a visible label WText that names
+  // an adjacent control, or a heading that repeats a button's text, would
+  // otherwise resolve to the non-interactive copy and land the tap on the label
+  // instead of the control. Falls back to the first match when none is
+  // interactive.
+  return (firstInteractive ?? firstMatch, count);
+}
+
+/// Whether [node] is something an agent would act on (button / switch / text
+/// field / anything exposing a tap action) rather than inert content.
+bool _isInteractiveNode(SemanticsNode node) {
+  final flags = node.flagsCollection;
+  if (flags.isButton || flags.isTextField) return true;
+  return node.getSemanticsData().hasAction(SemanticsAction.tap);
 }
 
 /// Cross-checks an Element-tree match against the supplied query's
