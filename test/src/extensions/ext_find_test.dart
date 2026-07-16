@@ -413,6 +413,94 @@ void main() {
     );
 
     testWidgets(
+      '(c) q-ref tap fires onTap for an excludeSemantics button '
+      '(WAnchor semanticLabel / WSwitch pattern)',
+      (WidgetTester tester) async {
+        // DPR=2 mirrors the live web run (retina); logical stays 800x600.
+        tester.view.physicalSize = const Size(1600, 1200);
+        tester.view.devicePixelRatio = 2.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // Mirrors WAnchor's `semanticLabel != null` branch (used by WSwitch and
+        // icon-only buttons): a Semantics(button, onTap, excludeSemantics: true)
+        // wrapping the real gesture. The exclusion drops the descendant
+        // GestureDetector's node from the semantics tree, so the ONLY semantics
+        // node is this annotation node. A q-ref must still resolve to the
+        // owning element (not fall back to the root) and its pointer tap must
+        // reach the underlying GestureDetector. This reproduces the live bug
+        // where MSSwitch toggles (notification prefs, status-page monitor
+        // assignment) ignored dusk taps.
+        int taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: Semantics(
+                  // Outer boundary the real WSwitch wraps around WAnchor:
+                  // Semantics(container, toggled) -> MergeSemantics -> WAnchor's
+                  // Semantics(button, onTap, excludeSemantics: true). This is the
+                  // full live structure the earlier bare reproduction omitted.
+                  container: true,
+                  toggled: false,
+                  child: MergeSemantics(
+                    child: Semantics(
+                      button: true,
+                      label: 'toggle-x',
+                      onTap: () => taps += 1,
+                      excludeSemantics: true,
+                      child: MouseRegion(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: () => taps += 1,
+                          child: const SizedBox(width: 80, height: 40),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final findResponse = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'semanticsLabel': 'toggle-x'},
+        );
+        final String qRef = (jsonDecode(findResponse.result!)
+            as Map<String, dynamic>)['ref'] as String;
+        expect(qRef, startsWith('q'));
+
+        // The entry must anchor on the switch box (top-left), NOT the viewport:
+        // a root fallback here is exactly what made the live MSSwitch taps miss.
+        final RefEntry? entry = resolveRefForAction(qRef);
+        expect(entry, isNotNull);
+        final Rect dispatchRect = dispatchRectOf(entry!)!;
+        expect(dispatchRect.center.dx, lessThan(200));
+        expect(dispatchRect.center.dy, lessThan(120));
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': qRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.errorDetail, isNull);
+        expect(taps, greaterThan(0));
+      },
+    );
+
+    testWidgets(
       '(c) q-ref survives a widget rebuild that would invalidate an eN',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
