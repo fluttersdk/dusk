@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:fluttersdk_dusk/src/utils/actionability_gate.dart';
 import 'package:fluttersdk_dusk/src/utils/dusk_exceptions.dart';
 import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
 
@@ -332,6 +333,81 @@ void main() {
 
         expect(response.errorDetail, isNull);
         expect(response.result, isNotNull);
+        expect(taps, equals(1));
+      },
+    );
+
+    testWidgets(
+      '(c) q-ref tap dispatches at the target, not the viewport center '
+      '(off-center target)',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // A 120x60 target pinned to the top-left corner: its center (60, 30)
+        // is far from the 800x600 viewport center (400, 300). A q-ref that
+        // anchored its RefEntry at the ROOT element resolved its live dispatch
+        // rect (`dispatchRectOf` = `_liveRectOf(entry.element)`) to the whole
+        // viewport, so the tap fired at (400, 300) and missed the target. This
+        // is the exact defect that made real buttons (Sign In, checkbox) ignore
+        // q-ref taps while a centered target coincidentally still worked.
+        int taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: GestureDetector(
+                  onTap: () => taps += 1,
+                  child: Semantics(
+                    label: 'corner-target',
+                    button: true,
+                    container: true,
+                    child: Container(
+                      width: 120,
+                      height: 60,
+                      color: const Color(0xFF000000),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final findResponse = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'semanticsLabel': 'corner-target'},
+        );
+        final String qRef = (jsonDecode(findResponse.result!)
+            as Map<String, dynamic>)['ref'] as String;
+        expect(qRef, startsWith('q'));
+
+        // The entry anchors on the owning element, so the live dispatch rect
+        // is the target's top-left box, NOT the whole viewport.
+        final RefEntry? entry = resolveRefForAction(qRef);
+        expect(entry, isNotNull);
+        final Rect dispatchRect = dispatchRectOf(entry!)!;
+        expect(dispatchRect.center.dx, lessThan(200));
+        expect(dispatchRect.center.dy, lessThan(120));
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': qRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.errorDetail, isNull);
         expect(taps, equals(1));
       },
     );
