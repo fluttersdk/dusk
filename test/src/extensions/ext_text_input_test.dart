@@ -538,6 +538,54 @@ void main() {
           expect(controller.text, equals('typed'));
         },
       );
+
+      // -----------------------------------------------------------------------
+      // Rect-based selection: a SemanticsNode-minted ref carries the app-root
+      // element, so a descendant-first walk resolves field #1. typeIntoElement
+      // must select the field whose rect matches targetRect instead, so a
+      // multi-field form writes the field the agent actually targeted.
+      // -----------------------------------------------------------------------
+
+      testWidgets(
+        '(rect) writes the field matching targetRect, not the first editable',
+        (WidgetTester tester) async {
+          final TextEditingController email = TextEditingController();
+          final TextEditingController password = TextEditingController();
+          addTearDown(email.dispose);
+          addTearDown(password.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    TextField(controller: email),
+                    TextField(controller: password),
+                  ],
+                ),
+              ),
+            ),
+          );
+
+          // The SECOND (password) field is the agent's target.
+          final Rect target =
+              tester.getRect(find.byType(EditableText).at(1));
+
+          // element = app root (the SemanticsNode-minted-ref shape); a plain
+          // descendant-first walk would land on field #1 (email). The rect
+          // routes the write to the targeted field instead.
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'secret',
+            targetRect: target,
+          );
+          await tester.pump();
+          await tester.pump();
+
+          expect(password.text, equals('secret'));
+          expect(email.text, isEmpty);
+        },
+      );
     });
 
     group('ext.dusk.press_key registration', () {
