@@ -514,9 +514,9 @@ Rect _globalRectFromSemantics(SemanticsNode node) {
   // compares against render-tree localToGlobal rects in LOGICAL pixels, so
   // divide the DPR back out; otherwise, on a DPR!=1 display, every tap that
   // falls back to this rect lands at N times the intended offset and misses.
-  final double dpr =
-      WidgetsBinding.instance.platformDispatcher.implicitView?.devicePixelRatio ??
-          1.0;
+  final double dpr = WidgetsBinding
+          .instance.platformDispatcher.implicitView?.devicePixelRatio ??
+      1.0;
   if (dpr > 0 && dpr != 1.0) {
     rect = Rect.fromLTRB(
       rect.left / dpr,
