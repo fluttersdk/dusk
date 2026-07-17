@@ -158,7 +158,7 @@ Future<void> typeIntoElement({
   //    so the correct, visible field is written; fall back to the element walk.
   final EditableTextState? state =
       (targetRect != null ? _findEditableTextStateByRect(targetRect) : null) ??
-      _resolveEditableTextState(element);
+          _resolveEditableTextState(element);
   if (state == null) {
     throw ArgumentError(
       '[fluttersdk_dusk] typeIntoElement: no EditableText found in or under '
@@ -573,7 +573,7 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
         _localToGlobalRectForNode(entry?.node) ?? entry?.rect;
     final EditableTextState? state =
         (clearRect != null ? _findEditableTextStateByRect(clearRect) : null) ??
-        _resolveEditableTextState(element);
+            _resolveEditableTextState(element);
     if (state == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,

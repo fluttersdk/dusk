@@ -568,8 +568,7 @@ void main() {
           );
 
           // The SECOND (password) field is the agent's target.
-          final Rect target =
-              tester.getRect(find.byType(EditableText).at(1));
+          final Rect target = tester.getRect(find.byType(EditableText).at(1));
 
           // element = app root (the SemanticsNode-minted-ref shape); a plain
           // descendant-first walk would land on field #1 (email). The rect
