@@ -22,6 +22,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 - **`dusk:doctor` check 3 (snapshot enrichers) now emits INFO when no enrichers are registered, instead of WARN.** Enrichers are opt-in; zero is a valid state, not a problem. The WARN reading alongside "integration wired" (check 5) created false contradiction. Touches `lib/src/commands/dusk_doctor_command.dart`; test case updated in `test/src/commands/dusk_doctor_command_test.dart`.
 
+- **`q<N>` (find / observe) taps now dispatch at the target's own rect instead of the viewport centre.** `_entryFromSemanticsNode` anchored the `RefEntry` at the root element, so `dispatchRectOf` returned `_liveRectOf(root)` (the whole viewport) and every find/observe gesture fired at screen centre. A centred target coincidentally worked; off-centre controls (a submit button, a checkbox, a sidebar item) were missed silently. The entry now resolves the element whose `RenderBox` contributes the node (via `debugSemantics` identity, matching `ext_observe`), so the gesture lands on the addressed widget. Touches `lib/src/extensions/ext_find.dart`; covered by `test/src/extensions/ext_find_test.dart`.
+
+- **`find`-by-label now prefers the first INTERACTIVE match when a label collides with inert text.** A visible `Text` naming an adjacent control (a settings label beside a switch that shares its `semanticLabel`) or a heading repeating a button's text (a "Sign In" heading over the submit button) sits first in tree order, so the handle resolved to the inert node and the tap landed on the label. `find` now resolves to the first node exposing `SemanticsAction.tap` (button / switch / text field) when the label spans an interactive and a non-interactive node, falling back to the first match otherwise. `matchCount` / `diagnostic` still report the collision. Touches `lib/src/extensions/ext_find.dart`; covered by `test/src/extensions/ext_find_test.dart`.
+
 ---
 
 ## [0.0.8] - 2026-06-17
