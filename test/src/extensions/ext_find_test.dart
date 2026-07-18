@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
@@ -952,5 +953,48 @@ void main() {
       final String next = RefRegistry.registerQuery(const DuskQuery(text: 'b'));
       expect(next, equals('q1'));
     });
+  });
+
+  group('globalRectFromSemantics (transform + DPR fallback)', () {
+    // This fallback fires only for a synthetic / non-RenderBox-owned node.
+    // Every node matched through extDuskFindHandler with a real widget tree
+    // resolves to its owning RenderBox (proven across scroll/merge/link/list
+    // structures), so the fallback is unreachable via the public handler. Its
+    // transform-composition + DPR-correction math is verified directly here.
+
+    testWidgets(
+      'composes the node transform and divides the rect by the DPR',
+      (WidgetTester tester) async {
+        tester.view.devicePixelRatio = 2.0;
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final SemanticsNode node = SemanticsNode()
+          ..rect = const Rect.fromLTWH(0, 0, 200, 100)
+          ..transform = Matrix4.identity();
+
+        // Semantics rects fold in the DPR (physical px); the fallback divides
+        // it back to the logical space dusk dispatches pointers in.
+        expect(
+          globalRectFromSemantics(node),
+          const Rect.fromLTWH(0, 0, 100, 50),
+        );
+      },
+    );
+
+    testWidgets(
+      'leaves the rect untouched at DPR 1 and with no transform',
+      (WidgetTester tester) async {
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final SemanticsNode node = SemanticsNode()
+          ..rect = const Rect.fromLTWH(10, 20, 60, 40);
+
+        expect(
+          globalRectFromSemantics(node),
+          const Rect.fromLTWH(10, 20, 60, 40),
+        );
+      },
+    );
   });
 }

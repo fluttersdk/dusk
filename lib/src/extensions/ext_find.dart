@@ -459,7 +459,7 @@ RefEntry? _entryFromSemanticsNode(SemanticsNode node) {
           : null;
   final Rect resolvedRect = box != null
       ? box.localToGlobal(Offset.zero) & box.size
-      : _globalRectFromSemantics(node);
+      : globalRectFromSemantics(node);
   return RefEntry(
     rect: resolvedRect,
     element: target ?? root,
@@ -503,7 +503,13 @@ Element? _elementForSemanticsNode(SemanticsNode node) {
 /// parent. Composing transforms from the leaf upward yields the global
 /// rect; pointer dispatch consumes `rect.center` and must be in the same
 /// space as the view's logical viewport.
-Rect _globalRectFromSemantics(SemanticsNode node) {
+///
+/// Public and `@visibleForTesting`: this fallback only runs for a synthetic or
+/// non-RenderBox-owned node (see [_elementForSemanticsNode]), which cannot be
+/// produced through [extDuskFindHandler] with a real widget tree, so the
+/// transform-composition + DPR-correction math is verified directly.
+@visibleForTesting
+Rect globalRectFromSemantics(SemanticsNode node) {
   Rect rect = node.rect;
   SemanticsNode? current = node;
   while (current != null) {
