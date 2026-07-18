@@ -645,11 +645,14 @@ EditableTextState? _resolveEditableTextState(Element element) {
 /// [targetRect] (the global rect of the ref the agent targeted).
 ///
 /// Walks every [EditableText] from the app root and prefers the one whose rect
-/// CONTAINS the target's center, falling back to the nearest center when none
-/// contains it. This routes a `type`/`clear`/`fill` to the field the agent
-/// actually targeted rather than the first editable in the tree, and prefers
-/// the visible on-screen editable over any zero-sized off-stage accessibility
-/// proxy (whose empty rect is skipped).
+/// OVERLAPS [targetRect] by the largest area, falling back to the editable
+/// nearest the target's center when none overlaps. Overlap-area ranking (not
+/// center-containment) is used because a field's editable sits inside the
+/// field's larger semantics rect, which also spans its label / decoration, so
+/// a center-containment test mis-fires. This routes a `type`/`clear`/`fill` to
+/// the field the agent actually targeted rather than the first editable in the
+/// tree, and prefers the visible on-screen editable over any zero-sized
+/// off-stage accessibility proxy (whose empty rect is skipped).
 EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
   final Element? root = WidgetsBinding.instance.rootElement;
   if (root == null) return null;

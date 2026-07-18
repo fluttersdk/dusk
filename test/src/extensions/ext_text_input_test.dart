@@ -585,6 +585,66 @@ void main() {
           expect(email.text, isEmpty);
         },
       );
+
+      testWidgets(
+        '(rect) clear empties the field matching targetRect, not the first',
+        (WidgetTester tester) async {
+          tester.view.physicalSize = const Size(800, 600);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          final TextEditingController email = TextEditingController(
+            text: 'a@b.com',
+          );
+          final TextEditingController password = TextEditingController(
+            text: 'secret',
+          );
+          addTearDown(email.dispose);
+          addTearDown(password.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    TextField(controller: email),
+                    TextField(controller: password),
+                  ],
+                ),
+              ),
+            ),
+          );
+
+          // Target the SECOND (password) field by its rect, but register the
+          // ref against the app root (the SemanticsNode-minted-ref shape) so a
+          // plain descendant-first walk would clear field #1 (email) instead.
+          final Rect target = tester.getRect(find.byType(EditableText).at(1));
+          final String ref = RefRegistry.registerForTesting(
+            rect: target,
+            element: WidgetsBinding.instance.rootElement!,
+            groupId: 'g',
+            isTextField: true,
+          );
+
+          final future = aiTestClearHandler(
+            'ext.dusk.clear',
+            <String, String>{
+              'ref': ref,
+              'checkStable': 'false',
+              'checkReceivesEvents': 'false',
+            },
+          );
+          await tester.pump();
+          await tester.pump();
+          await future;
+
+          // The rect routed the clear to the targeted (password) field; the
+          // first editable (email) is untouched.
+          expect(password.text, isEmpty);
+          expect(email.text, equals('a@b.com'));
+        },
+      );
     });
 
     group('ext.dusk.press_key registration', () {
