@@ -566,6 +566,70 @@ void main() {
     );
 
     testWidgets(
+      '(c) find prefers a tappable non-button node over colliding inert text',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // A tappable navigation row (a ListTile-style control) exposes
+        // SemanticsAction.tap WITHOUT the button flag, so the interactive
+        // preference must fall past isButton/isTextField to the tap-action
+        // check. An inert Text sharing the label sits first in tree order.
+        int taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  const Text('Monitors'),
+                  Semantics(
+                    label: 'Monitors',
+                    onTap: () => taps += 1,
+                    excludeSemantics: true,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => taps += 1,
+                      child: const SizedBox(width: 120, height: 44),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final findResponse = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'semanticsLabel': 'Monitors'},
+        );
+        final decoded =
+            jsonDecode(findResponse.result!) as Map<String, dynamic>;
+        final String qRef = decoded['ref'] as String;
+        // Both the Text and the tappable row carry the label.
+        expect(decoded['matchCount'], 2);
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': qRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        await future;
+        // The tappable row fired, not the inert Text: the tap-action branch of
+        // the interactive check selected it despite the absent button flag.
+        expect(taps, greaterThan(0));
+      },
+    );
+
+    testWidgets(
       '(c) q-ref survives a widget rebuild that would invalidate an eN',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
