@@ -228,6 +228,22 @@ label 'Password' matched 2 nodes; refine with --key, --text, or --contains
    list; each candidate includes role, bounds, and enricher fields that let the
    agent identify the correct target before minting the handle.
 
+**Interactive nodes win a mixed collision.** When a label spans one interactive
+node (a button, switch, or text field exposing `SemanticsAction.tap`) and one or
+more inert nodes (a `Text` heading or a settings label that repeats the control's
+copy), the handle resolves to the first interactive node rather than the first
+node in tree order. A visible label naming an adjacent control, or a heading
+repeating a button's text, otherwise sits first in tree order and the tap would
+land on the inert label. When every match is interactive or every match is inert,
+the handle falls back to the first node in tree order. `matchCount` and
+`diagnostic` still report the full collision either way, so an agent that needs a
+specific one of several interactive matches should still refine the predicate.
+
+Each `qN` gesture then dispatches at the resolved node's own on-screen rect (the
+`RenderBox` bounds of the widget that contributes the node), so off-centre
+controls (a sidebar item, a submit button below the fold) receive the tap at
+their real position rather than the viewport centre.
+
 ---
 
 <a name="see-also"></a>
