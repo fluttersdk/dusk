@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_text_input.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
 import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
@@ -643,6 +644,63 @@ void main() {
           // first editable (email) is untouched.
           expect(password.text, isEmpty);
           expect(email.text, equals('a@b.com'));
+        },
+      );
+
+      testWidgets(
+        '(rect) clear via a q-ref derives the target from the node render rect',
+        (WidgetTester tester) async {
+          tester.view.physicalSize = const Size(800, 600);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          RefRegistry.resetForTesting();
+
+          final TextEditingController controller = TextEditingController(
+            text: 'clear-me',
+          );
+          addTearDown(controller.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Center(
+                  child: Semantics(
+                    label: 'search-field',
+                    child: TextField(controller: controller),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+
+          // A q-ref (unlike registerForTesting) carries the matched
+          // SemanticsNode, so clear resolves the target rect from the node's own
+          // render object via _localToGlobalRectForNode instead of a stored
+          // rect. This is the real find -> clear path.
+          final findResponse = await extDuskFindHandler(
+            'ext.dusk.find',
+            <String, String>{'semanticsLabel': 'search-field'},
+          );
+          final String qRef = (jsonDecode(findResponse.result!)
+              as Map<String, dynamic>)['ref'] as String;
+          expect(qRef, startsWith('q'));
+
+          final future = aiTestClearHandler(
+            'ext.dusk.clear',
+            <String, String>{
+              'ref': qRef,
+              'checkStable': 'false',
+              'checkReceivesEvents': 'false',
+            },
+          );
+          await tester.pump(const Duration(milliseconds: 100));
+          await tester.pump();
+          await tester.pump();
+          await future;
+
+          expect(controller.text, isEmpty);
         },
       );
     });
