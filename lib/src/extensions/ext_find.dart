@@ -450,18 +450,22 @@ RefEntry? _entryFromSemanticsNode(SemanticsNode node) {
   final bool isTextField = node.flagsCollection.isTextField;
   final Element? target = _elementForSemanticsNode(node);
   final RenderObject? renderObject = target?.findRenderObject();
-  final bool sized = renderObject is RenderBox &&
-      renderObject.attached &&
-      renderObject.hasSize;
-  final Rect resolvedRect = sized
-      ? renderObject.localToGlobal(Offset.zero) & renderObject.size
+  // Promote to a RenderBox local so the rect calculation and the RefEntry field
+  // share one non-null handle; a separate `sized` boolean would not promote
+  // `renderObject` for the localToGlobal/size reads below.
+  final RenderBox? box =
+      renderObject is RenderBox && renderObject.attached && renderObject.hasSize
+          ? renderObject
+          : null;
+  final Rect resolvedRect = box != null
+      ? box.localToGlobal(Offset.zero) & box.size
       : _globalRectFromSemantics(node);
   return RefEntry(
     rect: resolvedRect,
     element: target ?? root,
     groupId: _kQueryGroupId,
     isTextField: isTextField,
-    renderObject: sized ? renderObject : null,
+    renderObject: box,
     node: node,
   );
 }
