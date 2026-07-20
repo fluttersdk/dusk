@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -147,10 +148,17 @@ class TestRefRegistry {
 Future<void> typeIntoElement({
   required Element element,
   required String text,
+  Rect? targetRect,
 }) async {
-  // 1. Resolve the EditableTextState — either the element IS the EditableText,
-  //    or it is an ancestor (e.g. TextField) that contains one as a descendant.
-  final EditableTextState? state = _resolveEditableTextState(element);
+  // 1. Resolve the EditableTextState. A ref minted from a SemanticsNode carries
+  //    the app-root element (see ext_find `_entryFromSemanticsNode`), so a plain
+  //    descendant-first walk from it returns the FIRST EditableText in the tree,
+  //    sending every type/fill on a multi-field form to field #1. When the ref's
+  //    on-screen rect is known, select the editable whose global rect matches it
+  //    so the correct, visible field is written; fall back to the element walk.
+  final EditableTextState? state =
+      (targetRect != null ? _findEditableTextStateByRect(targetRect) : null) ??
+          _resolveEditableTextState(element);
   if (state == null) {
     throw ArgumentError(
       '[fluttersdk_dusk] typeIntoElement: no EditableText found in or under '
@@ -375,7 +383,11 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       );
     }
 
-    await typeIntoElement(element: element, text: text);
+    await typeIntoElement(
+      element: element,
+      text: text,
+      targetRect: _localToGlobalRectForNode(entry?.node) ?? entry?.rect,
+    );
 
     // Wait two frames so ValueListenableBuilder listeners rebuild and paint
     // before the MCP client reads state (per Stage 3 mandate: every mutating
@@ -557,7 +569,11 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
         ),
       );
     }
-    final EditableTextState? state = _resolveEditableTextState(element);
+    final Rect? clearRect =
+        _localToGlobalRectForNode(entry?.node) ?? entry?.rect;
+    final EditableTextState? state =
+        (clearRect != null ? _findEditableTextStateByRect(clearRect) : null) ??
+            _resolveEditableTextState(element);
     if (state == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
@@ -623,6 +639,93 @@ EditableTextState? _resolveEditableTextState(Element element) {
     found = _resolveEditableTextState(child);
   });
   return found;
+}
+
+/// Selects the [EditableTextState] whose on-screen rect best matches
+/// [targetRect] (the global rect of the ref the agent targeted).
+///
+/// Walks every [EditableText] from the app root and prefers the one whose rect
+/// OVERLAPS [targetRect] by the largest area, falling back to the editable
+/// nearest the target's center when none overlaps. Overlap-area ranking (not
+/// center-containment) is used because a field's editable sits inside the
+/// field's larger semantics rect, which also spans its label / decoration, so
+/// a center-containment test mis-fires. This routes a `type`/`clear`/`fill` to
+/// the field the agent actually targeted rather than the first editable in the
+/// tree, and prefers the visible on-screen editable over any zero-sized
+/// off-stage accessibility proxy (whose empty rect is skipped).
+EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
+  final Element? root = WidgetsBinding.instance.rootElement;
+  if (root == null) return null;
+  final Offset target = targetRect.center;
+  // Prefer the editable whose rect OVERLAPS the target the most (a field's own
+  // editable sits inside the field's semantics rect, which also spans its label
+  // / decoration, so center-containment mis-fires; overlap area does not). Fall
+  // back to nearest-center only when nothing overlaps.
+  EditableTextState? bestOverlap;
+  double bestOverlapArea = 0;
+  EditableTextState? nearest;
+  double nearestDist = double.infinity;
+
+  void visit(Element element) {
+    if (element is StatefulElement && element.state is EditableTextState) {
+      final RenderObject? renderObject = element.renderObject;
+      if (renderObject is RenderBox &&
+          renderObject.attached &&
+          renderObject.hasSize &&
+          !renderObject.size.isEmpty) {
+        final Rect rect =
+            renderObject.localToGlobal(Offset.zero) & renderObject.size;
+        final Rect overlap = rect.intersect(targetRect);
+        final double area = (overlap.width > 0 && overlap.height > 0)
+            ? overlap.width * overlap.height
+            : 0;
+        if (area > bestOverlapArea) {
+          bestOverlapArea = area;
+          bestOverlap = element.state as EditableTextState;
+        } else if (bestOverlapArea == 0) {
+          final double dist = (rect.center - target).distanceSquared;
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearest = element.state as EditableTextState;
+          }
+        }
+      }
+    }
+    element.visitChildElements(visit);
+  }
+
+  root.visitChildElements(visit);
+  return bestOverlap ?? nearest;
+}
+
+/// The global rect of the render object that contributes [node] to the
+/// semantics tree, in the SAME `localToGlobal` space as the editable rects that
+/// [_findEditableTextStateByRect] computes.
+///
+/// The ref's stored rect comes from `ext_find` walking the semantics-ancestor
+/// transforms, which on web does not always land in the render tree's
+/// `localToGlobal` space; deriving the target from the node's own render object
+/// keeps the two comparable so overlap-matching selects the right field.
+Rect? _localToGlobalRectForNode(SemanticsNode? node) {
+  if (node == null) return null;
+  final Element? root = WidgetsBinding.instance.rootElement;
+  if (root == null) return null;
+  Rect? result;
+  void visit(Element element) {
+    if (result != null) return;
+    final RenderObject? renderObject = element.renderObject;
+    if (renderObject is RenderBox &&
+        renderObject.attached &&
+        renderObject.hasSize &&
+        identical(renderObject.debugSemantics, node)) {
+      result = renderObject.localToGlobal(Offset.zero) & renderObject.size;
+      return;
+    }
+    element.visitChildElements(visit);
+  }
+
+  root.visitChildElements(visit);
+  return result;
 }
 
 /// Extracts the [TextEditingController] from an [EditableTextState] using the

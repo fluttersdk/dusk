@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_text_input.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
 import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
@@ -536,6 +537,170 @@ void main() {
               jsonDecode(response.result!) as Map<String, dynamic>;
           expect(decoded['text'], equals('typed'));
           expect(controller.text, equals('typed'));
+        },
+      );
+
+      // -----------------------------------------------------------------------
+      // Rect-based selection: a SemanticsNode-minted ref carries the app-root
+      // element, so a descendant-first walk resolves field #1. typeIntoElement
+      // must select the field whose rect matches targetRect instead, so a
+      // multi-field form writes the field the agent actually targeted.
+      // -----------------------------------------------------------------------
+
+      testWidgets(
+        '(rect) writes the field matching targetRect, not the first editable',
+        (WidgetTester tester) async {
+          final TextEditingController email = TextEditingController();
+          final TextEditingController password = TextEditingController();
+          addTearDown(email.dispose);
+          addTearDown(password.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    TextField(controller: email),
+                    TextField(controller: password),
+                  ],
+                ),
+              ),
+            ),
+          );
+
+          // The SECOND (password) field is the agent's target.
+          final Rect target = tester.getRect(find.byType(EditableText).at(1));
+
+          // element = app root (the SemanticsNode-minted-ref shape); a plain
+          // descendant-first walk would land on field #1 (email). The rect
+          // routes the write to the targeted field instead.
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'secret',
+            targetRect: target,
+          );
+          await tester.pump();
+          await tester.pump();
+
+          expect(password.text, equals('secret'));
+          expect(email.text, isEmpty);
+        },
+      );
+
+      testWidgets(
+        '(rect) clear empties the field matching targetRect, not the first',
+        (WidgetTester tester) async {
+          tester.view.physicalSize = const Size(800, 600);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          final TextEditingController email = TextEditingController(
+            text: 'a@b.com',
+          );
+          final TextEditingController password = TextEditingController(
+            text: 'secret',
+          );
+          addTearDown(email.dispose);
+          addTearDown(password.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    TextField(controller: email),
+                    TextField(controller: password),
+                  ],
+                ),
+              ),
+            ),
+          );
+
+          // Target the SECOND (password) field by its rect, but register the
+          // ref against the app root (the SemanticsNode-minted-ref shape) so a
+          // plain descendant-first walk would clear field #1 (email) instead.
+          final Rect target = tester.getRect(find.byType(EditableText).at(1));
+          final String ref = RefRegistry.registerForTesting(
+            rect: target,
+            element: WidgetsBinding.instance.rootElement!,
+            groupId: 'g',
+            isTextField: true,
+          );
+
+          final future = aiTestClearHandler(
+            'ext.dusk.clear',
+            <String, String>{
+              'ref': ref,
+              'checkStable': 'false',
+              'checkReceivesEvents': 'false',
+            },
+          );
+          await tester.pump();
+          await tester.pump();
+          await future;
+
+          // The rect routed the clear to the targeted (password) field; the
+          // first editable (email) is untouched.
+          expect(password.text, isEmpty);
+          expect(email.text, equals('a@b.com'));
+        },
+      );
+
+      testWidgets(
+        '(rect) clear via a q-ref derives the target from the node render rect',
+        (WidgetTester tester) async {
+          tester.view.physicalSize = const Size(800, 600);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          RefRegistry.resetForTesting();
+
+          final TextEditingController controller = TextEditingController(
+            text: 'clear-me',
+          );
+          addTearDown(controller.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Center(
+                  child: Semantics(
+                    label: 'search-field',
+                    child: TextField(controller: controller),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+
+          // A q-ref (unlike registerForTesting) carries the matched
+          // SemanticsNode, so clear resolves the target rect from the node's own
+          // render object via _localToGlobalRectForNode instead of a stored
+          // rect. This is the real find -> clear path.
+          final findResponse = await extDuskFindHandler(
+            'ext.dusk.find',
+            <String, String>{'semanticsLabel': 'search-field'},
+          );
+          final String qRef = (jsonDecode(findResponse.result!)
+              as Map<String, dynamic>)['ref'] as String;
+          expect(qRef, startsWith('q'));
+
+          final future = aiTestClearHandler(
+            'ext.dusk.clear',
+            <String, String>{
+              'ref': qRef,
+              'checkStable': 'false',
+              'checkReceivesEvents': 'false',
+            },
+          );
+          await tester.pump(const Duration(milliseconds: 100));
+          await tester.pump();
+          await tester.pump();
+          await future;
+
+          expect(controller.text, isEmpty);
         },
       );
     });

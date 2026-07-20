@@ -22,6 +22,8 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 - **`dusk:doctor` check 3 (snapshot enrichers) now emits INFO when no enrichers are registered, instead of WARN.** Enrichers are opt-in; zero is a valid state, not a problem. The WARN reading alongside "integration wired" (check 5) created false contradiction. Touches `lib/src/commands/dusk_doctor_command.dart`; test case updated in `test/src/commands/dusk_doctor_command_test.dart`.
 
+- **`dusk:type` now targets the editable inside the ref's own Semantics rect, not the first `EditableText` in the tree.** The handler resolved the field to type into by walking to the first editable under the isolate, so on a form with several inputs a `type` against `q3` (Password) could land in the first field (Email). It now maps the ref's `SemanticsNode` to its global rect (`localToGlobal`) and selects the editable whose render box OVERLAPS that rect by the largest area (falling back to the nearest-center editable when none overlaps), so the value goes into the addressed field. The same rect-based selection also backs `dusk:clear`. Touches `lib/src/extensions/ext_text_input.dart`; covered by `test/src/extensions/ext_text_input_test.dart`.
+
 ---
 
 ## [0.0.8] - 2026-06-17
