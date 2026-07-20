@@ -340,13 +340,15 @@ SemanticsNode? _findSemanticsNodeByLabelContains(String needle) {
 /// count reflects ALL matches in the tree. When `count > 1` the caller
 /// should surface an ambiguity diagnostic to the agent.
 (SemanticsNode?, int) _findSemanticsNodeByLabelWithCount(String needle) {
-  SemanticsNode? found;
+  SemanticsNode? firstMatch;
+  SemanticsNode? firstInteractive;
   int count = 0;
 
   void visit(SemanticsNode node) {
     if (node.label == needle) {
       count += 1;
-      found ??= node;
+      firstMatch ??= node;
+      firstInteractive ??= _isInteractiveNode(node) ? node : null;
     }
     node.visitChildren((SemanticsNode child) {
       visit(child);
@@ -362,7 +364,21 @@ SemanticsNode? _findSemanticsNodeByLabelContains(String needle) {
   }
 
   visitOwner(RendererBinding.instance.rootPipelineOwner);
-  return (found, count);
+  // Prefer an interactive match (a button, switch, or text field) over a plain
+  // node when one label collides across both: a visible label WText that names
+  // an adjacent control, or a heading that repeats a button's text, would
+  // otherwise resolve to the non-interactive copy and land the tap on the label
+  // instead of the control. Falls back to the first match when none is
+  // interactive.
+  return (firstInteractive ?? firstMatch, count);
+}
+
+/// Whether [node] is something an agent would act on (button / switch / text
+/// field / anything exposing a tap action) rather than inert content.
+bool _isInteractiveNode(SemanticsNode node) {
+  final flags = node.flagsCollection;
+  if (flags.isButton || flags.isTextField) return true;
+  return node.getSemanticsData().hasAction(SemanticsAction.tap);
 }
 
 /// Cross-checks an Element-tree match against the supplied query's
@@ -413,22 +429,70 @@ RefEntry? _entryFromElement(Element element) {
   );
 }
 
-/// Materialises a [RefEntry] from a [SemanticsNode]. The element field is
-/// set to the root element (best-effort anchor for EditableText focus
-/// lookups); the rect is mapped from the node's local space up through
-/// each ancestor's transform to obtain global coordinates that
-/// pointer-event dispatch can hit.
+/// Materialises a [RefEntry] from a [SemanticsNode].
+///
+/// The entry's [RefEntry.element] is the live [Element] whose render object
+/// contributes [node] to the semantics tree, NOT the root element. This is
+/// load-bearing: pointer dispatch re-resolves the tap point from
+/// `dispatchRectOf(entry) = _liveRectOf(entry.element)`, and EditableText focus
+/// walks descendants of `entry.element`. Anchoring the entry at the root made
+/// both resolve against the whole viewport, so every q-ref tap dispatched at
+/// the SCREEN center (missing the target) and text-input landed on the first
+/// editable in the tree. Resolving the owning element fixes both at the source.
+///
+/// The rect is taken from that element's [RenderBox] via `localToGlobal`
+/// (LOGICAL px, the space dusk's pointer events use). It falls back to the
+/// root element and the semantics-transform rect only when no render object
+/// owns the node (the DPR-divided `_globalRectFromSemantics`, kept logical).
 RefEntry? _entryFromSemanticsNode(SemanticsNode node) {
   final Element? root = WidgetsBinding.instance.rootElement;
   if (root == null) return null;
   final bool isTextField = node.flagsCollection.isTextField;
+  final Element? target = _elementForSemanticsNode(node);
+  final RenderObject? renderObject = target?.findRenderObject();
+  // Promote to a RenderBox local so the rect calculation and the RefEntry field
+  // share one non-null handle; a separate `sized` boolean would not promote
+  // `renderObject` for the localToGlobal/size reads below.
+  final RenderBox? box =
+      renderObject is RenderBox && renderObject.attached && renderObject.hasSize
+          ? renderObject
+          : null;
+  final Rect resolvedRect = box != null
+      ? box.localToGlobal(Offset.zero) & box.size
+      : globalRectFromSemantics(node);
   return RefEntry(
-    rect: _globalRectFromSemantics(node),
-    element: root,
+    rect: resolvedRect,
+    element: target ?? root,
     groupId: _kQueryGroupId,
     isTextField: isTextField,
+    renderObject: box,
     node: node,
   );
+}
+
+/// The live [Element] whose [RenderBox] contributes [node] to the semantics
+/// tree, matching on `debugSemantics` identity (debug-only, and dusk is
+/// `kDebugMode`-gated). Returns `null` when no render object owns [node]
+/// (a purely synthetic or merged-away node); callers fall back to the root.
+Element? _elementForSemanticsNode(SemanticsNode node) {
+  final Element? root = WidgetsBinding.instance.rootElement;
+  if (root == null) return null;
+  Element? result;
+  void visit(Element element) {
+    if (result != null) return;
+    final RenderObject? renderObject = element.renderObject;
+    if (renderObject is RenderBox &&
+        renderObject.attached &&
+        renderObject.hasSize &&
+        identical(renderObject.debugSemantics, node)) {
+      result = element;
+      return;
+    }
+    element.visitChildElements(visit);
+  }
+
+  root.visitChildElements(visit);
+  return result;
 }
 
 /// Walks up the [SemanticsNode] ancestor chain, applying each ancestor's
@@ -439,7 +503,13 @@ RefEntry? _entryFromSemanticsNode(SemanticsNode node) {
 /// parent. Composing transforms from the leaf upward yields the global
 /// rect; pointer dispatch consumes `rect.center` and must be in the same
 /// space as the view's logical viewport.
-Rect _globalRectFromSemantics(SemanticsNode node) {
+///
+/// Public and `@visibleForTesting`: this fallback only runs for a synthetic or
+/// non-RenderBox-owned node (see [_elementForSemanticsNode]), which cannot be
+/// produced through [extDuskFindHandler] with a real widget tree, so the
+/// transform-composition + DPR-correction math is verified directly.
+@visibleForTesting
+Rect globalRectFromSemantics(SemanticsNode node) {
   Rect rect = node.rect;
   SemanticsNode? current = node;
   while (current != null) {
@@ -448,6 +518,22 @@ Rect _globalRectFromSemantics(SemanticsNode node) {
       rect = MatrixUtils.transformRect(transform, rect);
     }
     current = current.parent;
+  }
+  // The semantics ancestor transforms fold in the root view's device pixel
+  // ratio, so `rect` is in PHYSICAL pixels. dusk dispatches pointer events and
+  // compares against render-tree localToGlobal rects in LOGICAL pixels, so
+  // divide the DPR back out; otherwise, on a DPR!=1 display, every tap that
+  // falls back to this rect lands at N times the intended offset and misses.
+  final double dpr = WidgetsBinding
+          .instance.platformDispatcher.implicitView?.devicePixelRatio ??
+      1.0;
+  if (dpr > 0 && dpr != 1.0) {
+    rect = Rect.fromLTRB(
+      rect.left / dpr,
+      rect.top / dpr,
+      rect.right / dpr,
+      rect.bottom / dpr,
+    );
   }
   return rect;
 }

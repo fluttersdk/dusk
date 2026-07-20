@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:fluttersdk_dusk/src/utils/actionability_gate.dart';
 import 'package:fluttersdk_dusk/src/utils/dusk_exceptions.dart';
 import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
 
@@ -337,6 +339,298 @@ void main() {
     );
 
     testWidgets(
+      '(c) q-ref tap dispatches at the target, not the viewport center '
+      '(off-center target)',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // A 120x60 target pinned to the top-left corner: its center (60, 30)
+        // is far from the 800x600 viewport center (400, 300). A q-ref that
+        // anchored its RefEntry at the ROOT element resolved its live dispatch
+        // rect (`dispatchRectOf` = `_liveRectOf(entry.element)`) to the whole
+        // viewport, so the tap fired at (400, 300) and missed the target. This
+        // is the exact defect that made real buttons (Sign In, checkbox) ignore
+        // q-ref taps while a centered target coincidentally still worked.
+        int taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: GestureDetector(
+                  onTap: () => taps += 1,
+                  child: Semantics(
+                    label: 'corner-target',
+                    button: true,
+                    container: true,
+                    child: Container(
+                      width: 120,
+                      height: 60,
+                      color: const Color(0xFF000000),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final findResponse = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'semanticsLabel': 'corner-target'},
+        );
+        final String qRef = (jsonDecode(findResponse.result!)
+            as Map<String, dynamic>)['ref'] as String;
+        expect(qRef, startsWith('q'));
+
+        // The entry anchors on the owning element, so the live dispatch rect
+        // is the target's top-left box, NOT the whole viewport.
+        final RefEntry? entry = resolveRefForAction(qRef);
+        expect(entry, isNotNull);
+        final Rect dispatchRect = dispatchRectOf(entry!)!;
+        expect(dispatchRect.center.dx, lessThan(200));
+        expect(dispatchRect.center.dy, lessThan(120));
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': qRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.errorDetail, isNull);
+        expect(taps, equals(1));
+      },
+    );
+
+    testWidgets(
+      '(c) q-ref tap fires onTap for an excludeSemantics button '
+      '(WAnchor semanticLabel / WSwitch pattern)',
+      (WidgetTester tester) async {
+        // DPR=2 mirrors the live web run (retina); logical stays 800x600.
+        tester.view.physicalSize = const Size(1600, 1200);
+        tester.view.devicePixelRatio = 2.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // Mirrors WAnchor's `semanticLabel != null` branch (used by WSwitch and
+        // icon-only buttons): a Semantics(button, onTap, excludeSemantics: true)
+        // wrapping the real gesture. The exclusion drops the descendant
+        // GestureDetector's node from the semantics tree, so the ONLY semantics
+        // node is this annotation node. A q-ref must still resolve to the
+        // owning element (not fall back to the root) and its pointer tap must
+        // reach the underlying GestureDetector. This reproduces the live bug
+        // where MSSwitch toggles (notification prefs, status-page monitor
+        // assignment) ignored dusk taps.
+        int taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: Semantics(
+                  // Outer boundary the real WSwitch wraps around WAnchor:
+                  // Semantics(container, toggled) -> MergeSemantics -> WAnchor's
+                  // Semantics(button, onTap, excludeSemantics: true). This is the
+                  // full live structure the earlier bare reproduction omitted.
+                  container: true,
+                  toggled: false,
+                  child: MergeSemantics(
+                    child: Semantics(
+                      button: true,
+                      label: 'toggle-x',
+                      onTap: () => taps += 1,
+                      excludeSemantics: true,
+                      child: MouseRegion(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: () => taps += 1,
+                          child: const SizedBox(width: 80, height: 40),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final findResponse = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'semanticsLabel': 'toggle-x'},
+        );
+        final String qRef = (jsonDecode(findResponse.result!)
+            as Map<String, dynamic>)['ref'] as String;
+        expect(qRef, startsWith('q'));
+
+        // The entry must anchor on the switch box (top-left), NOT the viewport:
+        // a root fallback here is exactly what made the live MSSwitch taps miss.
+        final RefEntry? entry = resolveRefForAction(qRef);
+        expect(entry, isNotNull);
+        final Rect dispatchRect = dispatchRectOf(entry!)!;
+        expect(dispatchRect.center.dx, lessThan(200));
+        expect(dispatchRect.center.dy, lessThan(120));
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': qRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.errorDetail, isNull);
+        expect(taps, greaterThan(0));
+      },
+    );
+
+    testWidgets(
+      '(c) find prefers the interactive node when a label collides with text',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // A visible label Text and the control it names share a label (the
+        // settings-toggle / MSSwitch pattern, and the login heading-vs-button
+        // pattern). The plain Text sits FIRST in tree order. find must resolve
+        // the interactive control, not the inert text, so the tap lands on the
+        // control.
+        int taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  const Text('Email'),
+                  Semantics(
+                    button: true,
+                    label: 'Email',
+                    onTap: () => taps += 1,
+                    excludeSemantics: true,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => taps += 1,
+                      child: const SizedBox(width: 80, height: 40),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final findResponse = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'semanticsLabel': 'Email'},
+        );
+        final decoded =
+            jsonDecode(findResponse.result!) as Map<String, dynamic>;
+        final String qRef = decoded['ref'] as String;
+        // Both the Text and the button carry the label.
+        expect(decoded['matchCount'], 2);
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': qRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        await future;
+        // The button's onTap fired, not the inert Text.
+        expect(taps, greaterThan(0));
+      },
+    );
+
+    testWidgets(
+      '(c) find prefers a tappable non-button node over colliding inert text',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // A tappable navigation row (a ListTile-style control) exposes
+        // SemanticsAction.tap WITHOUT the button flag, so the interactive
+        // preference must fall past isButton/isTextField to the tap-action
+        // check. An inert Text sharing the label sits first in tree order.
+        int taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  const Text('Monitors'),
+                  Semantics(
+                    label: 'Monitors',
+                    onTap: () => taps += 1,
+                    excludeSemantics: true,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => taps += 1,
+                      child: const SizedBox(width: 120, height: 44),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final findResponse = await extDuskFindHandler(
+          'ext.dusk.find',
+          <String, String>{'semanticsLabel': 'Monitors'},
+        );
+        final decoded =
+            jsonDecode(findResponse.result!) as Map<String, dynamic>;
+        final String qRef = decoded['ref'] as String;
+        // Both the Text and the tappable row carry the label.
+        expect(decoded['matchCount'], 2);
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': qRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        await future;
+        // The tappable row fired, not the inert Text: the tap-action branch of
+        // the interactive check selected it despite the absent button flag.
+        expect(taps, greaterThan(0));
+      },
+    );
+
+    testWidgets(
       '(c) q-ref survives a widget rebuild that would invalidate an eN',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
@@ -659,5 +953,48 @@ void main() {
       final String next = RefRegistry.registerQuery(const DuskQuery(text: 'b'));
       expect(next, equals('q1'));
     });
+  });
+
+  group('globalRectFromSemantics (transform + DPR fallback)', () {
+    // This fallback fires only for a synthetic / non-RenderBox-owned node.
+    // Every node matched through extDuskFindHandler with a real widget tree
+    // resolves to its owning RenderBox (proven across scroll/merge/link/list
+    // structures), so the fallback is unreachable via the public handler. Its
+    // transform-composition + DPR-correction math is verified directly here.
+
+    testWidgets(
+      'composes the node transform and divides the rect by the DPR',
+      (WidgetTester tester) async {
+        tester.view.devicePixelRatio = 2.0;
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final SemanticsNode node = SemanticsNode()
+          ..rect = const Rect.fromLTWH(0, 0, 200, 100)
+          ..transform = Matrix4.identity();
+
+        // Semantics rects fold in the DPR (physical px); the fallback divides
+        // it back to the logical space dusk dispatches pointers in.
+        expect(
+          globalRectFromSemantics(node),
+          const Rect.fromLTWH(0, 0, 100, 50),
+        );
+      },
+    );
+
+    testWidgets(
+      'leaves the rect untouched at DPR 1 and with no transform',
+      (WidgetTester tester) async {
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final SemanticsNode node = SemanticsNode()
+          ..rect = const Rect.fromLTWH(10, 20, 60, 40);
+
+        expect(
+          globalRectFromSemantics(node),
+          const Rect.fromLTWH(10, 20, 60, 40),
+        );
+      },
+    );
   });
 }
