@@ -26,6 +26,8 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 - **`find`-by-label now prefers the first INTERACTIVE match when a label collides with inert text.** A visible `Text` naming an adjacent control (a settings label beside a switch that shares its `semanticLabel`) or a heading repeating a button's text (a "Sign In" heading over the submit button) sits first in tree order, so the handle resolved to the inert node and the tap landed on the label. `find` now resolves to the first node exposing `SemanticsAction.tap` (button / switch / text field) when the label spans an interactive and a non-interactive node, falling back to the first match otherwise. `matchCount` / `diagnostic` still report the collision. Touches `lib/src/extensions/ext_find.dart`; covered by `test/src/extensions/ext_find_test.dart`.
 
+- **`dusk:type` now targets the editable inside the ref's own Semantics rect, not the first `EditableText` in the tree.** The handler resolved the field to type into by walking to the first editable under the isolate, so on a form with several inputs a `type` against `q3` (Password) could land in the first field (Email). It now maps the ref's `SemanticsNode` to its global rect (`localToGlobal`) and selects the editable whose render box OVERLAPS that rect by the largest area (falling back to the nearest-center editable when none overlaps), so the value goes into the addressed field. The same rect-based selection also backs `dusk:clear`. Touches `lib/src/extensions/ext_text_input.dart`; covered by `test/src/extensions/ext_text_input_test.dart`.
+
 ---
 
 ## [0.0.8] - 2026-06-17
