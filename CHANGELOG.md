@@ -8,6 +8,8 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-07-29
+
 ### Added
 
 - **`ext.dusk.find` now surfaces a `matchCount` field and an ambiguity `diagnostic` in its success response when `--semanticsLabel` or `--text` matches more than one Semantics node.** Previously the handler silently returned the first match, so `--semanticsLabel "Password"` over-matched the email field on forms where both `<TextField semanticsLabel="Password"/>` nodes shared the same label. The response now includes `matchCount: N` on every match; when `N > 1` a `diagnostic` key carries a human-readable hint (`label 'X' matched N nodes; refine with --key, --text, or --contains`). Single-match and no-match behaviour is unchanged (backward-compatible). Touches `lib/src/extensions/ext_find.dart`; covered by `test/src/extensions/ext_find_test.dart`.
