@@ -4,6 +4,15 @@ The two parts of dusk that matter most for agent recovery: the gate that
 guards every gesture, and the ref token system that lets the agent
 target widgets across UI mutations.
 
+## Contents
+
+- [The 6-step gate, in detail](#the-6-step-gate-in-detail)
+- [The error envelope shape](#the-error-envelope-shape)
+- [Ref token lifecycles](#ref-token-lifecycles)
+- [Choosing between snap and observe](#choosing-between-snap-and-observe)
+- [When the gate is wrong](#when-the-gate-is-wrong)
+- [`--semanticsLabel` exact-match and over-match](#--semanticslabel-exact-match-and-over-match)
+
 ## The 6-step gate, in detail
 
 Every `dusk_tap`, `dusk_hover`, `dusk_drag`, `dusk_dblclick`,

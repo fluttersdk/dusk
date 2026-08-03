@@ -11,6 +11,16 @@ non-zero exit code on failure). Use the CLI from Bash when:
 
 For interactive agent loops, MCP is faster (no process spawn per call).
 
+## Contents
+
+- [Entry points](#entry-points)
+- [Common flags across commands](#common-flags-across-commands)
+- [Output](#output)
+- [Commands by family](#commands-by-family)
+- [Install + doctor (no app required)](#install--doctor-no-app-required)
+- [Exit codes and pipeline patterns](#exit-codes-and-pipeline-patterns)
+- [MCP-only: there is no CLI for evaluate](#mcp-only-there-is-no-cli-for-evaluate)
+
 ## Entry points
 
 | Form | Startup | When to use |

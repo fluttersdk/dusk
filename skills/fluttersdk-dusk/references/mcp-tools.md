@@ -5,6 +5,23 @@ Each entry: one-line purpose, input schema, return shape, when to use it,
 common errors. Use this file as a lookup; the agent rarely needs all 33 in
 the same session.
 
+## Contents
+
+- [How calls work](#how-calls-work)
+- [See: snap, screenshot, observe](#see-snap-screenshot-observe)
+- [Find: query handles](#find-query-handles)
+- [Click family: tap, dblclick, right_click, triple_click, hover, drag](#click-family-tap-dblclick-right_click-triple_click-hover-drag)
+- [Text input: type, clear, press_key, focus, blur, fill](#text-input-type-clear-press_key-focus-blur-fill)
+- [Form controls: set_checkbox, select_option](#form-controls-set_checkbox-select_option)
+- [Scroll](#scroll)
+- [Wait](#wait)
+- [Navigation](#navigation)
+- [Diagnostics (telescope bridge)](#diagnostics-telescope-bridge)
+- [Evaluation (MCP-only)](#evaluation-mcp-only)
+- [App control](#app-control)
+- [Composite (substrate-routed)](#composite-substrate-routed)
+- [Device emulation (substrate-routed, CDP, web-only)](#device-emulation-substrate-routed-cdp-web-only)
+
 ## How calls work
 
 The MCP client forwards `tools/call` to the artisan server
