@@ -126,7 +126,7 @@ Returns `{ "ref": "q3", "matched": true }` or `{ "ref": null, "matched": false }
 `dusk:fill` replaces the focus + clear + type + wait sequence and retries
 once when the ref goes stale mid-fill, so it is the default for entering
 text. `--ref` and `--text` are both mandatory. `--includeSnapshot` defaults
-to FALSE on the CLI while the `dusk_fill` MCP tool defaults it to true;
+to false on the CLI while the `dusk_fill` MCP tool defaults it to true;
 pass it explicitly when you want the post-fill tree from Bash.
 `--no-checkStable` and `--no-checkReceivesEvents` skip the matching
 actionability steps, same as on the other gestures.

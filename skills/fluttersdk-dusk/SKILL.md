@@ -86,8 +86,10 @@ and verify with `./bin/fsa dusk:doctor`.
    (a) MCP responses are always JSON. The CLI splits by verb: read /
    query verbs return JSON (`dusk:snap`, `dusk:observe`, `dusk:find`,
    `dusk:get_routes`, `dusk:console`, `dusk:exceptions`, `dusk:wait`,
-   `dusk:wait_for_network_idle`, `dusk:hot_reload_and_snap`,
-   `dusk:reset_overlays`); the 19
+   `dusk:wait_for_network_idle`, `dusk:hot_reload_and_snap`), and so does
+   `dusk:reset_overlays`, which acts on the app but still prints its
+   `{popped, escaped, dismissTapped}` object so you can see which layer
+   cleared the screen; the 19
    side-effect verbs (`dusk:tap`, `dusk:hover`, `dusk:drag`, `dusk:type`,
    `dusk:fill`, `dusk:clear`, `dusk:press_key`, `dusk:scroll`,
    `dusk:focus`, `dusk:blur`, `dusk:dblclick`, `dusk:right_click`,
