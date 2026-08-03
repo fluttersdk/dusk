@@ -5,6 +5,19 @@ Flutter app through dusk. Every flow assumes the app is already running
 and `./bin/fsa dusk:doctor` passes. Examples shown as MCP calls; the CLI
 equivalents have identical params.
 
+## Contents
+
+- [Fill a form and submit](#fill-a-form-and-submit)
+- [Find a button that is below the fold](#find-a-button-that-is-below-the-fold)
+- [Open, fill, and close a modal](#open-fill-and-close-a-modal)
+- [Navigate and verify the new screen](#navigate-and-verify-the-new-screen)
+- [Pull-to-refresh, scroll, and assert idle](#pull-to-refresh-scroll-and-assert-idle)
+- [Edit code, hot-reload, verify](#edit-code-hot-reload-verify)
+- [Wait for a specific log line or exception](#wait-for-a-specific-log-line-or-exception)
+- [Capture a "before / after" diff for a UI change](#capture-a-before--after-diff-for-a-ui-change)
+- [Recovery patterns](#recovery-patterns)
+- [Multi-tool composites worth knowing](#multi-tool-composites-worth-knowing)
+
 ## Fill a form and submit
 
 ```
