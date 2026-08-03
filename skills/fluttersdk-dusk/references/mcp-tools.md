@@ -1,8 +1,8 @@
 # MCP tools reference
 
-The 31 `dusk_*` MCP tools an LLM agent calls to drive a running Flutter app.
+The 33 `dusk_*` MCP tools an LLM agent calls to drive a running Flutter app.
 Each entry: one-line purpose, input schema, return shape, when to use it,
-common errors. Use this file as a lookup; the agent rarely needs all 31 in
+common errors. Use this file as a lookup; the agent rarely needs all 33 in
 the same session.
 
 ## How calls work
@@ -11,7 +11,7 @@ The MCP client forwards `tools/call` to the artisan server
 (`dart run fluttersdk_dusk mcp:serve`). The server dispatches to one of:
 
 - An `ext.dusk.*` VM Service extension running inside the Flutter isolate
-  (28 tools).
+  (30 tools).
 - An `artisan:dusk:*` substrate command running outside the isolate
   (3 tools: `dusk_hot_reload_and_snap`, `dusk_resize_viewport`,
   `dusk_device_profile`).
@@ -215,7 +215,7 @@ without a mouse pointer). Returns `{ ref, snapshot? }`.
 
 ---
 
-## Text input: type, clear, press_key, focus, blur
+## Text input: type, clear, press_key, focus, blur, fill
 
 ### dusk_type
 
@@ -256,6 +256,27 @@ and calls `node.requestFocus()`. Returns `{ ref, focused: true, snapshot? }`.
 `includeSnapshot` (default false). Calls
 `FocusManager.instance.primaryFocus?.unfocus()` regardless of ref.
 Returns `{ blurred: true, hadFocus, snapshot? }`.
+
+### dusk_fill
+
+| Param | Type | Required | Default | Note |
+|---|---|---|---|---|
+| `ref` | string | yes | -- | Text-field ref (`e<N>` or `q<N>`) from a prior snap or find |
+| `text` | string | yes | -- | Value to set; replaces existing content. `""` clears the field |
+| `includeSnapshot` | boolean | no | true | Embed the post-fill snapshot |
+
+Focus, clear, type, and settle in one call. Composes the gated focus / clear /
+type handlers, so the actionability gate, IME focus, and `onChanged` plus
+validator firing all still run, and retries the whole sequence once when the
+ref goes stale mid-fill. Returns `{ ref, text, filled: true }` plus the
+optional snapshot.
+
+Reach for this instead of the manual focus + clear + type + wait sequence.
+Prefer a `q<N>` handle from `dusk_find` when the field may rebuild between the
+snapshot and the fill: the stale-retry then re-resolves cleanly on the second
+pass, where a frozen `e<N>` would come back `defunct`.
+
+The CLI form defaults `includeSnapshot` to false, the opposite of this tool.
 
 ---
 
@@ -377,6 +398,21 @@ and look for nav buttons, or read the source.
 No params. Returns `{ popped: <count> }`. Pops every `PopupRoute`
 subclass (dialog, bottom sheet) above the first persistent route.
 Does not touch page routes.
+
+### dusk_reset_overlays
+
+No params. Returns `{ popped: <count>, escaped: <bool>, dismissTapped: <bool> }`.
+
+Three escalating layers run in order, each a no-op when the previous one
+already cleared the screen: (1) pop every `PopupRoute` (dialogs, bottom
+sheets, popups) without touching the page stack; (2) press Escape, for
+overlays wired to the dismiss shortcut; (3) tap a Cancel / Dismiss / Close /
+OK / Done labelled affordance, for modal barriers that need an explicit tap.
+The return value names the layer that did the work.
+
+Idempotent, so it is safe to call speculatively between flows. Prefer it over
+`dusk_dismiss_modals` when the overlay is not a `PopupRoute`: a custom
+`OverlayEntry`, a dropdown menu, or a barrier dialog.
 
 ---
 

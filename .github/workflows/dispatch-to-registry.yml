@@ -1,22 +1,23 @@
-# Auto-sync FlutterSDK AI registry on skill changes.
+# Auto-sync the FlutterSDK AI registry when a fluttersdk_dusk release is published.
 #
-# Fires repository_dispatch at fluttersdk/ai when this repo's skill subtree or
-# pubspec.yaml changes on master, or on tag push. The registry's sync.yml
-# receives the event, pulls this subtree, bumps the version triplet, and
-# pushes back to main.
+# Fires repository_dispatch at fluttersdk/ai on a published GitHub release, or
+# on a manual run. The registry's sync.yml receives the event, pulls the
+# skills/fluttersdk-dusk/ subtree, bumps the version triplet, and pushes to main.
 #
-# Auth: uses the fluttersdk-registry GitHub App (1-hour mint-on-demand tokens)
-# instead of a personal PAT. Requires REGISTRY_BOT_APP_ID + REGISTRY_BOT_PRIVATE_KEY
+# Deliberately NOT on every push. A skill edit that lands on master between
+# releases waits for the release that carries it, so the registry version
+# tracks published packages instead of counting commits: under the old push
+# trigger the registry reached v1.3.75, most of those re-publishing the same
+# skill content. Reach for the manual run when a skill fix has to arrive
+# before the next release.
+#
+# Auth: uses the fluttersdk-registry GitHub App (1-hour mint-on-demand
+# tokens). Requires REGISTRY_BOT_APP_ID + REGISTRY_BOT_PRIVATE_KEY
 # secrets on this repo (same values as on fluttersdk/ai).
 
 name: Dispatch skill update to registry
 
 on:
-    push:
-        branches: [master]
-        paths:
-            - "skills/fluttersdk-dusk/**"
-            - "pubspec.yaml"
     release:
         types: [published]
     workflow_dispatch:
