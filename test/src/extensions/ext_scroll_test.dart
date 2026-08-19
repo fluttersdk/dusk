@@ -167,6 +167,50 @@ void main() {
       final response = await future;
       expect(response.errorCode, isNull);
     });
+
+    testWidgets('effect reports the offset on both sides of the scroll',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: List<Widget>.generate(
+                40,
+                (i) => SizedBox(height: 60, child: Text('row $i')),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(0, 0, 100, 60),
+        element: tester.element(find.text('row 0')),
+        groupId: 'g-scroll-effect',
+        isTextField: false,
+      );
+
+      final future = aiTestScrollHandler(
+        'ext.dusk.scroll',
+        {'ref': ref, 'dy': '120', 'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final Map<String, dynamic> effect =
+          decoded['effect'] as Map<String, dynamic>;
+
+      // `scrolled: true` says the call ran. Only the offsets say the list
+      // moved, which is what a ref that is not a scrollable fails to do
+      // while still reporting success.
+      expect(effect['kind'], equals('scrollOffset'));
+      expect(effect['before'], equals(0.0));
+      expect(effect['after'], equals(120.0));
+      expect(effect['changed'], isTrue);
+    });
   });
 
   // ---------------------------------------------------------------------------

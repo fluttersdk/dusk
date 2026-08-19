@@ -84,8 +84,9 @@ the target into a shifted slot between snapshot and action: the `Element` /
 same-type-and-key rebuild, so the live rect is valid and the pointer lands on
 the moved target instead of its stale gate-time position. A residual TOCTOU
 window remains between the live-rect re-resolve and the dispatch itself (the
-smallest achievable without a frame lock); the opt-in `verify` flag on
-`ext.dusk.tap` lets an agent confirm the tap produced an observable effect.
+smallest achievable without a frame lock); the `effect` block on every
+`ext.dusk.tap` response reports whether the tap produced an observable effect,
+so the residual window is visible rather than silent.
 
 ## Failure reason substrings
 

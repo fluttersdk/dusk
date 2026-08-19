@@ -126,6 +126,25 @@ and verify with `./bin/fsa dusk:doctor`.
    `✓ Tapped e7`, so neither would show you the block otherwise. The key
    is absent on a healthy engine, so its presence is the whole signal.
 
+8. **`effect` is the post-condition, and it is always there.** Every
+   side-effect verb reports what the widget HOLDS afterwards, not what it
+   was asked to do. A green tick means the event was DISPATCHED; the
+   `effect` block is what says it was received.
+
+   | Verb | `kind` | Read this |
+   |---|---|---|
+   | `dusk_tap` | `treeChanged` | `changed: false` means the target's own route and semantics subtree are unchanged, so nothing observable happened |
+   | `dusk_type` / `dusk_clear` / `dusk_fill` | `text` | `value` is read back off the live controller; `verified: false` means a formatter or keyboard type filtered the write |
+   | `dusk_scroll` | `scrollOffset` | `before` == `after` means nothing moved (a ref that is not a scrollable, or a list already at the end) |
+   | `dusk_set_checkbox` | `checked` | `after` is re-read from the widget; `verified: false` means the control kept its old state |
+
+   **This replaces the act, re-snap, read-the-value-back, compare
+   diagnostic.** Do not run that by hand any more, and do not conclude the
+   app is broken from a green tick alone. A fill against a number field
+   once reported the text it had been handed while the field kept nothing,
+   and the defect-shaped story that followed survived two rewrites of a
+   widget that was correct the whole time.
+
 ## 2. Tool surface (33 MCP tools, 34 CLI commands)
 
 | Family | Tools | Mental model |
@@ -158,11 +177,15 @@ Full per-tool input schema, return shape, and example calls:
 3. dusk_tap { ref: "e7" }             Gate fires, gesture dispatches,
                                       response carries a post-action
                                       snapshot by default.
-4. dusk_wait_for { text: "Saved" }    Block on the expected post-condition.
-5. dusk_snap                          Re-snap and confirm.
+4. <read response.effect>             changed:false means the tap did
+                                      nothing observable. Stop here rather
+                                      than debugging the app.
+5. dusk_wait_for { text: "Saved" }    Block on the expected post-condition.
+6. dusk_snap                          Re-snap and confirm.
 ```
 
-The post-action snapshot in step 3 is usually enough to skip step 5 on
+Step 4 is a read of the response you already have, not a tool call. The
+post-action snapshot in step 3 is usually enough to skip step 6 on
 simple cases. Skip `dusk_wait_for` only when the action is synchronous
 (local state toggle); always wait when the action triggers HTTP, animation,
 or navigation.

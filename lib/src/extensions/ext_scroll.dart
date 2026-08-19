@@ -6,6 +6,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
 import '../utils/dusk_response.dart';
+import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_find.dart' show resolveQuery;
@@ -96,8 +97,14 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       targetContext = _resolveRefContext(ref);
     }
 
-    // 3. Perform the scroll operation.
+    // 3. Perform the scroll operation. The starting offset is read first so
+    //    the response can say whether anything actually moved: a ref that is
+    //    not a scrollable, and a list already at its end, both report a clean
+    //    success today and neither moves a pixel.
     double finalOffset = 0.0;
+    final double? startOffset = targetContext == null
+        ? _findRootScrollable()?.position.pixels
+        : Scrollable.maybeOf(targetContext)?.position.pixels;
 
     if (intoView && targetContext != null) {
       // Scroll into view — ensureVisible handles the math.
@@ -162,6 +169,7 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
     final Map<String, dynamic> payload = <String, dynamic>{
       'scrolled': true,
       'finalOffset': finalOffset,
+      'effect': scrollOffsetEffect(before: startOffset, after: finalOffset),
     };
     try {
       await _appendSnapshotIfRequested(payload, params);

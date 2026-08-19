@@ -31,6 +31,27 @@ action reports a success that could not have landed.
 The block is omitted entirely on a healthy engine, so its presence is the signal. See
 [Frame production](../reference/frame-production.md) for the full picture and the fix.
 
+## Universal response field: `effect`
+
+Every side-effect verb reports what the widget HOLDS afterwards, not what it was asked to
+do. A dusk action confirms that it DISPATCHED; the `effect` block is what confirms the
+widget received.
+
+| Verb | `kind` | Fields |
+|---|---|---|
+| `dusk_tap` | `treeChanged` | `changed` |
+| `dusk_type`, `dusk_clear`, `dusk_fill` | `text` | `verified`, `value` (read back off the live controller) |
+| `dusk_scroll` | `scrollOffset` | `changed`, `before`, `after` |
+| `dusk_set_checkbox` | `checked` | `verified`, `before`, `after` |
+
+```json
+{ "ref": "e5", "effect": { "kind": "text", "verified": false, "value": "" } }
+```
+
+That example is the real case it exists for: a fill against a number field reported the
+text it had been handed while the widget kept nothing, and the resulting defect-shaped
+story survived two rewrites of the widget before anyone read the field back.
+
 ## Table of contents
 
 - [`dusk_blur`](#dusk_blur)
@@ -968,16 +989,16 @@ detached render objects). A button whose host rebuilt it into a shifted slot bet
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
-| `verify` | boolean | no | Capture a target-scoped before/after signal (route + semantics-subtree hash) and add a `changed` boolean to the response reporting whether the tap had an observable effect. Default `false`, which keeps the response shape unchanged. |
 | `until` | string | no | After the tap settles, poll the live element tree for a `Text` equal to this value (up to `untilTimeoutMs`) and add an `untilMatched` boolean. Confirms a navigation / state change in one call. Default off, which keeps the response shape unchanged. |
 | `untilTimeoutMs` | integer | no | Poll ceiling for `until`, in milliseconds. Default `3000`. |
 
 ### Returns
 
-Success: `{ ref: "<ref>" }`. With `verify: true` the response also carries
-`changed: true|false` (true when the target's route or semantics subtree changed, false
-when nothing observable did). With `until` set the response carries
-`untilMatched: true|false` (true when the expected text appeared within the window).
+Success: `{ ref: "<ref>", effect: {kind: "treeChanged", changed: bool} }`. The `effect`
+block is always present: `changed` is true when the target's own route or semantics
+subtree differed after the tap, false when nothing observable happened. With `until` set
+the response also carries `untilMatched: true|false` (true when the expected text appeared
+within the window).
 
 Error: actionability gate failure (`"not enabled"` / `"zero rect"` / `"off-viewport"`) or
 stale-handle.
@@ -985,7 +1006,7 @@ stale-handle.
 ### Example call
 
 ```json
-{ "name": "dusk_tap", "arguments": { "ref": "e5", "verify": true } }
+{ "name": "dusk_tap", "arguments": { "ref": "e5" } }
 ```
 
 ---

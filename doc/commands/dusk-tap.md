@@ -25,12 +25,11 @@ dart run fluttersdk_dusk dusk:tap --ref=<eN|qN>
                                    [--includeSnapshot]
                                    [--[no-]checkStable]
                                    [--[no-]checkReceivesEvents]
-                                   [--verify]
                                    [--until=<text>]
                                    [--untilTimeoutMs=<n>]
 ```
 
-`dusk:tap` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI, calls `ext.dusk.tap`, and prints either a one-line success or the post-tap JSON depending on `--includeSnapshot` / `--verify`.
+`dusk:tap` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI, calls `ext.dusk.tap`, and prints either a one-line success or the post-tap JSON depending on `--includeSnapshot` / `--until`.
 
 The pointer is dispatched at the target's LIVE center: the handler re-resolves the element's current bounding rect immediately after the actionability gate passes (falling back to the cached snapshot rect only for slivers / detached render objects), so a tap still lands on a button whose host rebuilt it into a shifted slot between `dusk:snap` and `dusk:tap`.
 
@@ -45,7 +44,6 @@ The pointer is dispatched at the target's LIVE center: the handler re-resolves t
 | `--includeSnapshot` | flag | `false` | no | Embed the post-tap snapshot YAML in the response. Useful when the tap is expected to trigger a navigation or modal and the next agent step needs the fresh tree. |
 | `--checkStable` | flag | `true` | no | Run the Stable (2-frame rect-unchanged) actionability gate. Disable when targeting an animating widget that intentionally rebuilds across frames. |
 | `--checkReceivesEvents` | flag | `true` | no | Run the Receives-Events (front-most hit-test) actionability gate. Disable when targeting a widget that is intentionally occluded by an overlay you also want to interact with. |
-| `--verify` | flag | `false` | no | Capture a target-scoped before/after signal (the nearest enclosing route name plus a hash of the target element's own semantics subtree) and add a `changed` boolean to the response reporting whether the tap produced an observable effect on the target. Off by default, which keeps the response shape unchanged. Enabling `--verify` always prints the JSON envelope (so the `changed` field is visible) regardless of `--includeSnapshot`. |
 | `--until` | string | (none) | no | After the tap settles, poll the live element tree (same loop as `dusk:wait`) for a `Text` whose data equals this value, up to the `--untilTimeoutMs` timeout (default 3000ms), and add an `untilMatched` boolean to the response reporting whether it appeared. Use to confirm a navigation / state change in one call instead of a separate `dusk:wait`. Off by default, which keeps the response shape unchanged. Setting `--until` always prints the JSON envelope (so `untilMatched` is visible) regardless of `--includeSnapshot`. |
 | `--untilTimeoutMs` | int | `3000` | no | Timeout in milliseconds for the `--until` poll. Ignored when `--until` is not set. |
 
@@ -70,6 +68,13 @@ The two `check*` flags default to `true`. Disable them with the inverted form (`
 [ok]      Tapped e2
 ```
 
+When the `effect` block reports no change, the one-line form says so rather than
+claiming a plain success:
+
+```
+[ok]      Tapped e2 (no observable change)
+```
+
 **Success envelope (`--includeSnapshot` on):**
 
 ```json
@@ -79,16 +84,18 @@ The two `check*` flags default to `true`. Disable them with the inverted form (`
 }
 ```
 
-**Success envelope (`--verify` on):**
+**The `effect` block, on every response:**
 
 ```json
 {
   "ref": "e2",
-  "changed": true
+  "effect": { "kind": "treeChanged", "changed": true }
 }
 ```
 
-`changed` is `true` when the target's route or semantics subtree differed after the tap, `false` when nothing observable changed (a false-success signal the agent can branch on). The `changed` field is omitted entirely when `--verify` is off.
+`changed` is `true` when the target's route or its own semantics subtree differed after the tap, `false` when nothing observable changed. The signal is deliberately scoped to the TARGET rather than the whole tree, so unrelated background churn does not read as "something happened", and a counter button whose own label increments does.
+
+`changed: false` is the classic false success: a button the gate accepted, whose `onTap` never fired. It was an opt-in `--verify` flag until it became clear that the agents who most needed it were the ones who did not know to ask for it.
 
 **Error envelope (actionability gate failure):**
 
@@ -147,19 +154,19 @@ dart run fluttersdk_dusk dusk:tap --ref=e5 --no-checkStable
 
 Skips the 2-frame stable check for an animating loader / shimmer / spinner that the agent legitimately wants to interact with.
 
-### 4. Tap and verify the tap had an observable effect
+### 4. Read whether the tap had an observable effect
 
 ```bash
-dart run fluttersdk_dusk dusk:tap --ref=e2 --verify
+dart run fluttersdk_dusk dusk:tap --ref=e2 --includeSnapshot
 ```
 
 Expected output (illustrative):
 
 ```json
-{"ref":"e2","changed":true}
+{"ref":"e2","effect":{"kind":"treeChanged","changed":true},"snapshot":"..."}
 ```
 
-`changed:false` flags a tap that the gate accepted but that produced no observable effect on the target (the classic false-success: a button that looks tappable but whose `onTap` never fired). Use it as a post-condition assertion in agent-driven flows.
+No flag is needed: the block is on every response. Use it as a post-condition assertion in agent-driven flows, and read it before concluding the app is broken.
 
 ### 5. Tap and wait for the expected text to appear
 

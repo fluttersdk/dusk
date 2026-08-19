@@ -9,6 +9,7 @@ import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
 import '../utils/dusk_response.dart';
+import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_pointer.dart';
@@ -146,7 +147,7 @@ class TestRefRegistry {
 /// handler ([aiTestTypeHandler]), two [WidgetsBinding.instance.endOfFrame]
 /// awaits are performed before returning the response.
 @visibleForTesting
-Future<void> typeIntoElement({
+Future<String?> typeIntoElement({
   required Element element,
   required String text,
   Rect? targetRect,
@@ -247,6 +248,11 @@ Future<void> typeIntoElement({
       );
     }
   }
+
+  // 5. Read the value back off the live state rather than echoing [text].
+  //    An input formatter or a keyboard type can filter the write, and the
+  //    caller has no way to tell that from a clean success otherwise.
+  return state.textEditingValue.text;
 }
 
 /// Resolves a [LogicalKeyboardKey] from an agent-facing [key] name string
@@ -384,7 +390,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       );
     }
 
-    await typeIntoElement(
+    final String? written = await typeIntoElement(
       element: element,
       text: text,
       targetRect: _localToGlobalRectForNode(entry?.node) ?? entry?.rect,
@@ -395,10 +401,18 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     // extension awaits endOfFrame before returning).
     await awaitFramesOrTimeout(2);
 
-    // 2. Embed post-action snapshot (opt-out via includeSnapshot:'false').
+    // 2. Report what the field HOLDS, not what it was handed. `text` stays
+    //    for callers that read it, but `effect.value` is the one read back
+    //    off the live controller, and `effect.verified` is false when a
+    //    formatter or keyboard type filtered the write.
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'text': text,
+      'effect': textEffect(expected: text, actual: written),
+    };
+
+    // 3. Embed post-action snapshot (opt-out via includeSnapshot:'false').
     //    Snapshot-build noise must NOT convert a successful type into an
     //    error envelope: the text has already landed in the controller.
-    final Map<String, dynamic> payload = <String, dynamic>{'text': text};
     try {
       await _appendSnapshotIfRequested(payload, params);
     } catch (e) {
@@ -594,9 +608,13 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
     }
     controller.clear();
     await awaitFrameOrTimeout();
+    // Read the controller back rather than asserting the clear worked. A
+    // field whose parent rewrites the value on change lands back where it
+    // was, and `text: ''` alone would report that as a clean clear.
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,
       'text': '',
+      'effect': textEffect(expected: '', actual: controller.text),
     };
     if (_parseBoolFlag(params, 'includeSnapshot', defaultValue: false)) {
       final snap = await duskSnapBuild();

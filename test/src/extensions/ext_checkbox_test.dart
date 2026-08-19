@@ -124,6 +124,16 @@ void main() {
         expect(decoded['toggled'], isTrue);
         expect(decoded['value'], equals(false));
         expect(decoded['previousValue'], equals(true));
+
+        // `value` echoes what was requested. `effect.after` is read back off
+        // the widget, so a control that ignored the tap is distinguishable
+        // from one that took it.
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['kind'], equals('checked'));
+        expect(effect['before'], isTrue);
+        expect(effect['after'], isFalse);
+        expect(effect['verified'], isTrue);
       },
     );
 

@@ -10,6 +10,21 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- **Every side-effect verb now returns an `effect` block reporting what the widget HOLDS, not what it was asked to do.** A dusk action confirms that it DISPATCHED; nothing in the response confirmed the widget received, and that gap has produced defect-shaped stories more than once. `ext.dusk.fill` printed a green tick four times onto a field covered by a pinned footer. A fill against an `InputType.number` field reported the text it had been handed while the widget kept nothing, and the resulting "the sheet holds a stale copy" theory survived two rewrites of a widget that had been correct the whole time. The block is always present, because the agents who most need it are the ones who do not know to ask:
+
+  | Verb | `kind` | Fields |
+  |---|---|---|
+  | `tap` | `treeChanged` | `changed` (target-scoped route + semantics-subtree signal) |
+  | `type`, `clear`, `fill` | `text` | `verified`, `value` read back off the live `TextEditingController` |
+  | `scroll` | `scrollOffset` | `changed`, `before`, `after` |
+  | `set_checkbox` | `checked` | `verified`, `before`, `after` re-read from the widget |
+
+  Two handlers were reporting the request rather than the result and now read back: `ext.dusk.type` echoed its own `text` parameter, and `ext.dusk.set_checkbox` returned `value: <requested>` for a control that may have ignored the tap. `typeIntoElement` returns the post-write value for this. New: `lib/src/utils/effect_report.dart`. Covered by `test/src/extensions/ext_text_input_effect_test.dart` (including a digits-only field that rejects the write, the reproducible stand-in for the number-field case) plus cases in the scroll, checkbox, fill and pointer suites.
+
+### Removed
+
+- **`ext.dusk.tap`'s opt-in `verify` flag and its top-level `changed` field.** The signal it produced is now the always-on `effect` block above, so the flag was a second way to ask for something the response already carries. `dusk:tap --verify` and the `verify` MCP property are gone; read `effect.changed` instead of `changed`. Migration is a one-line rename for anything that branched on it. `dusk:tap`'s one-line output also gained a `(no observable change)` suffix, because the default path prints `✓ Tapped e7` and would otherwise drop the one field worth reading.
+
 - **`dusk:screenshot` and `dusk_screenshot` now expose `ref` and `rect`, so an agent can capture one component instead of the whole screen.** `ext.dusk.screenshot` has supported all three modes (viewport, ref, ref + sub-rect) since it shipped, and the skill documented them, but neither surface an agent actually reaches declared the parameters: the CLI's `configure` had only `--output` / `--format` / `--quality`, the MCP `inputSchema` had only `format` / `quality`, and its description sent the reader to `dusk_snap` for "region screenshots", which mints a ref that nothing would accept. The capability was reachable only by calling the VM Service extension by hand. Agents worked around it by capturing the full frame and cropping in Python, or by growing the viewport to a size no device has and putting it back afterwards. `rect` still requires `ref` and is a hard error alone, rather than a silent full-frame capture.
 
   On web the CLI captures through CDP because the in-isolate rasterise hangs under CanvasKit + DWDS, and CDP has no notion of a Flutter ref. Rather than duplicate the geometry, `ext.dusk.screenshot` gained a `geometry: 'true'` mode that resolves the same `ref` + `rect` and returns `{rect: {x, y, width, height}, devicePixelRatio}` without rasterising; the CLI turns that into a `Page.captureScreenshot` clip (Flutter logical pixels and CDP CSS pixels are the same unit, so it crosses over unscaled). A ref that no longer resolves exits `1` rather than falling back to a full-frame capture, because an image that looks right and answers a different question is the failure this flag exists to remove. Touches `lib/src/extensions/ext_screenshot.dart`, `lib/src/commands/dusk_screenshot_command.dart`, `lib/src/dusk_artisan_provider.dart`; covered by `test/src/extensions/ext_screenshot_test.dart` and `test/src/commands/dusk_screenshot_command_test.dart`. New page: `doc/reference/frame-production.md` sibling `doc/commands/dusk-screenshot.md` examples 5 and 6.

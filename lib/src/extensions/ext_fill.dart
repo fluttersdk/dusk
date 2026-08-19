@@ -128,6 +128,10 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
       'ref': ref,
       'text': typed['text'] ?? params['text'],
       'filled': true,
+      // The type step read the value back off the live controller; carry
+      // that verdict up rather than restating `filled: true`, which only
+      // says the sequence ran.
+      if (typed['effect'] != null) 'effect': typed['effect'],
     };
     if (_parseBoolFlag(params, 'includeSnapshot', defaultValue: true)) {
       try {

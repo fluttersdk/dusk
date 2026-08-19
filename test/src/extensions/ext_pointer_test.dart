@@ -1237,7 +1237,7 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // D1 — live-rect re-resolve before dispatch + opt-in --verify effect check.
+  // D1 — live-rect re-resolve before dispatch + the always-on effect check.
   //
   // The bug: pointer verbs dispatched at the CACHED entry.rect.center captured
   // at gate time, not the element's live position after a rebuild. The fix is
@@ -1414,17 +1414,17 @@ void main() {
     );
   });
 
-  group('aiTestTapHandler verify', () {
+  group('aiTestTapHandler effect', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
     // -------------------------------------------------------------------------
-    // (d) verify:true returns changed:true when the target subtree changes
+    // (d) effect.changed is true when the target subtree changes
     // (a counter button whose own label increments).
     // -------------------------------------------------------------------------
 
     testWidgets(
-      '(d) verify:true returns changed:true when the target subtree changes',
+      '(d) reports changed:true when the target subtree changes',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
         tester.view.devicePixelRatio = 1.0;
@@ -1466,7 +1466,6 @@ void main() {
           'ext.dusk.tap',
           <String, String>{
             'ref': ref,
-            'verify': 'true',
             'includeSnapshot': 'false',
             // The timing-sensitive gates (stable/receives-events) are not
             // under test here; opt out so the gate's `await endOfFrame` does
@@ -1484,16 +1483,19 @@ void main() {
         expect(response.result, isNotNull);
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['changed'], isTrue);
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['kind'], equals('treeChanged'));
+        expect(effect['changed'], isTrue);
       },
     );
 
     // -------------------------------------------------------------------------
-    // (d) verify:true returns changed:false when nothing changes (inert button).
+    // (d) effect.changed is false when nothing changes (inert button).
     // -------------------------------------------------------------------------
 
     testWidgets(
-      '(d) verify:true returns changed:false when nothing changes',
+      '(d) reports changed:false when nothing changes',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
         tester.view.devicePixelRatio = 1.0;
@@ -1530,7 +1532,6 @@ void main() {
           'ext.dusk.tap',
           <String, String>{
             'ref': ref,
-            'verify': 'true',
             'includeSnapshot': 'false',
             // Gate timing is not under test here; opt out so the stable
             // gate's `await endOfFrame` does not outrun the fake-async pump
@@ -1547,17 +1548,20 @@ void main() {
         expect(response.result, isNotNull);
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['changed'], isFalse);
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['kind'], equals('treeChanged'));
+        expect(effect['changed'], isFalse);
       },
     );
 
     // -------------------------------------------------------------------------
-    // (d) default call (no verify) payload is byte-identical to before: no
-    // `changed` key, frozen success-shape preserved.
+    // (d) the block needs no opt-in: a default call carries it too, which
+    // is the point. An agent cannot forget to ask whether the tap landed.
     // -------------------------------------------------------------------------
 
     testWidgets(
-      '(d) default call (no verify) omits the changed field entirely',
+      '(d) a default call carries the effect block',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
         tester.view.devicePixelRatio = 1.0;
@@ -1595,8 +1599,11 @@ void main() {
         expect(response.result, isNotNull);
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded.keys.toList(), equals(<String>['ref']));
-        expect(decoded.containsKey('changed'), isFalse);
+        expect(decoded.keys.toList(), equals(<String>['ref', 'effect']));
+        expect(
+          (decoded['effect'] as Map<String, dynamic>)['kind'],
+          equals('treeChanged'),
+        );
       },
     );
   });

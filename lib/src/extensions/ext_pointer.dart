@@ -8,6 +8,7 @@ import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
 import '../utils/dusk_response.dart';
+import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_find.dart';
@@ -31,9 +32,9 @@ bool _parseBoolFlag(
   return raw != 'false' && raw != '0';
 }
 
-/// Captures a cheap, TARGET-scoped effect signal for the opt-in `verify`
-/// flag: the route the target sits under plus a hash of the target's own
-/// semantics subtree (label / value / role / child labels).
+/// Captures a cheap, TARGET-scoped effect signal: the route the target
+/// sits under plus a hash of the target's own semantics subtree
+/// (label / value / role / child labels).
 ///
 /// The signal is deliberately scoped to the TARGET, not a global route or
 /// whole-tree hash (oracle D1 verdict): a counter button whose own label
@@ -47,7 +48,7 @@ bool _parseBoolFlag(
 /// recycled by a node-replacing rebuild between capture points, the subtree
 /// hash degrades to 0 and the token collapses to the route name alone, still
 /// a valid before/after comparison.
-String _captureVerifySignal(RefEntry entry) {
+String _captureEffectSignal(RefEntry entry) {
   final String route = _routeNameOf(entry.element);
   final int subtreeHash = _semanticsSubtreeHash(entry.node);
   return '$route#$subtreeHash';
@@ -274,25 +275,21 @@ Future<void> _injectTap(Offset center,
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
 ///   embedding the post-action accessibility snapshot in the response.
 ///   Mirrors Playwright MCP's `setIncludeSnapshot()` opt-out.
-/// - `verify` (optional, default `'false'`): when `'true'`, capture a cheap
-///   TARGET-scoped signal (route + semantics-subtree hash) before and after
-///   the tap and add a `changed: true|false` field reporting whether the tap
-///   produced an observable effect on the target. Default-off keeps the
-///   frozen success-shape byte-identical to before.
+///
+/// Every response carries an `effect` block. A cheap TARGET-scoped signal
+/// (route + semantics-subtree hash) is captured before and after the tap;
+/// `changed` reports whether the tap produced an observable effect on the
+/// target itself, rather than on unrelated background churn.
 ///
 /// Response JSON (default):
 /// ```json
-/// { "ref": "e3", "snapshot": "<yaml>" }
+/// { "ref": "e3", "effect": {"kind": "treeChanged", "changed": true},
+///   "snapshot": "<yaml>" }
 /// ```
 ///
 /// With `includeSnapshot: 'false'`:
 /// ```json
-/// { "ref": "e3" }
-/// ```
-///
-/// With `verify: 'true'`:
-/// ```json
-/// { "ref": "e3", "changed": true, "snapshot": "<yaml>" }
+/// { "ref": "e3", "effect": {"kind": "treeChanged", "changed": true} }
 /// ```
 ///
 /// - `until` (optional): when set, after the tap settles the handler polls the
@@ -392,8 +389,7 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   //    target into a shifted slot retains the same Element/RenderObject, so
   //    the live rect is valid; falling back to the cached center only when
   //    the live rect is null (sliver / detached / synthetic-test entry).
-  final bool verify = _parseBoolFlag(params, 'verify', defaultValue: false);
-  final String? preSignal = verify ? _captureVerifySignal(entry) : null;
+  final String preSignal = _captureEffectSignal(entry);
   final Offset dispatchCenter =
       dispatchRectOf(entry)?.center ?? entry.rect.center;
   try {
@@ -436,11 +432,11 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     }
   }
 
-  // 3. Effect verification (opt-in `verify`). When enabled, recapture the
-  //    TARGET-scoped signal AFTER the pointer settled and compare it against
-  //    [preSignal]. A differing token means the tap produced an observable
-  //    effect on the target (its own label / route changed); an identical
-  //    token means nothing the agent can see happened. The recapture reuses
+  // 3. Effect verification. Recapture the TARGET-scoped signal AFTER the
+  //    pointer settled and compare it against [preSignal]. A differing token
+  //    means the tap produced an observable effect on the target (its own
+  //    label / route changed); an identical token means nothing the agent
+  //    can see happened, which is the reading a bare success hides. The recapture reuses
   //    the same [entry] — the live-rect dispatch above keeps the Element /
   //    SemanticsNode identity, so `entry.node.getSemanticsData()` reflects the
   //    post-rebuild subtree. The signal collapses to the route name alone for
@@ -448,17 +444,15 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   //    comparison. Failures here are post-dispatch noise: the field is simply
   //    omitted rather than converting a successful tap into an error.
   final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
-  if (verify) {
-    try {
-      final String postSignal = _captureVerifySignal(entry);
-      payload['changed'] = postSignal != preSignal;
-    } catch (e) {
-      developer.log(
-        '[fluttersdk_dusk] ext.dusk.tap: post-dispatch verify signal swallowed '
-        'for ref "$ref": $e',
-        name: 'fluttersdk_dusk',
-      );
-    }
+  try {
+    final String postSignal = _captureEffectSignal(entry);
+    payload['effect'] = treeChangedEffect(before: preSignal, after: postSignal);
+  } catch (e) {
+    developer.log(
+      '[fluttersdk_dusk] ext.dusk.tap: post-dispatch effect signal swallowed '
+      'for ref "$ref": $e',
+      name: 'fluttersdk_dusk',
+    );
   }
 
   // 3b. Until-text confirmation (opt-in `until`). When enabled, poll the live

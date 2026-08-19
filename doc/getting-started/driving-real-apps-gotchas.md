@@ -134,6 +134,6 @@ clear overlays that are not `PopupRoute`s.
 ## See also
 
 - [dusk:fill](../commands/dusk-fill.md), [dusk:reset_overlays](../commands/dusk-reset-overlays.md)
-- [dusk:tap](../commands/dusk-tap.md) (`--verify`, `--until`)
+- [dusk:tap](../commands/dusk-tap.md) (`effect`, `--until`)
 - [dusk:exceptions](../commands/index.md), [dusk:find](../commands/dusk-find.md)
 - [Reference: Actionability gate](../reference/actionability-gate.md)

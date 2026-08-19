@@ -198,10 +198,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'when the ref is unknown or stale (re-snap to refresh).\n'
               '- For drag use dusk_drag; for typing use dusk_type after '
               'dusk_tap to focus the field.\n'
-              '- Set verify=true to confirm the tap produced an observable '
-              'effect: the response gains a `changed` boolean (true when the '
-              "target's route or semantics subtree changed, false when "
-              'nothing did).',
+              '- Every response carries an `effect` block: '
+              '`{kind: "treeChanged", changed: bool}`. `changed: false` means '
+              "the target's own route and semantics subtree are byte-"
+              'identical after the tap, so nothing the agent can see '
+              'happened. Read it before concluding the app is broken.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{
@@ -209,14 +210,6 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'type': 'string',
                 'description': 'Widget ref token from a prior dusk_snap '
                     'call. Shape: `e<N>` (e.g. `e5`, `e23`).',
-              },
-              'verify': <String, dynamic>{
-                'type': 'boolean',
-                'description': 'When true, capture a target-scoped before/'
-                    'after signal (route + semantics-subtree hash) and add a '
-                    '`changed` boolean to the response reporting whether the '
-                    'tap had an observable effect. Defaults to false, which '
-                    'keeps the response shape unchanged.',
               },
               'until': <String, dynamic>{
                 'type': 'string',

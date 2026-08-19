@@ -8,6 +8,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 import '../ref_registry.dart';
 import '../utils/dusk_exceptions.dart';
 import '../utils/dusk_response.dart';
+import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
@@ -133,6 +134,11 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
       'previousValue': effectiveCurrent,
       'value': effectiveCurrent,
       'toggled': false,
+      'effect': checkedEffect(
+        expected: targetValue,
+        before: effectiveCurrent,
+        after: effectiveCurrent,
+      ),
     });
   }
 
@@ -157,11 +163,22 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
     );
   }
 
+  // 6. Re-read the widget rather than reporting the value we asked for. A
+  //    control whose parent rejects the change, or one whose tap landed on
+  //    an overlay, keeps its old state, and `value: targetValue` would call
+  //    that a success.
+  final bool? settledValue = _readCheckboxValue(entry.element);
+
   return duskResult(<String, dynamic>{
     'ref': ref,
     'previousValue': effectiveCurrent,
     'value': targetValue,
     'toggled': true,
+    'effect': checkedEffect(
+      expected: targetValue,
+      before: effectiveCurrent,
+      after: settledValue,
+    ),
   });
 }
 

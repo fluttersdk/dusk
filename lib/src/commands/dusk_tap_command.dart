@@ -37,12 +37,6 @@ class DuskTapCommand extends ArtisanCommand {
       help: 'Run the Receives-Events (front-most hit-test) actionability gate.',
       defaultsTo: true,
     );
-    parser.addFlag(
-      'verify',
-      help: 'Capture a target-scoped before/after signal and add a `changed` '
-          'field reporting whether the tap produced an observable effect.',
-      defaultsTo: false,
-    );
     parser.addOption(
       'until',
       help: 'After the tap, poll the live tree for a Text equal to this value '
@@ -68,7 +62,6 @@ class DuskTapCommand extends ArtisanCommand {
     final checkStable = (ctx.input.option('checkStable') as bool?) ?? true;
     final checkReceivesEvents =
         (ctx.input.option('checkReceivesEvents') as bool?) ?? true;
-    final verify = (ctx.input.option('verify') as bool?) ?? false;
     final until = ctx.input.option('until') as String?;
     final untilTimeoutMs = ctx.input.option('untilTimeoutMs') as String?;
     final hasUntil = until != null && until.isNotEmpty;
@@ -77,7 +70,6 @@ class DuskTapCommand extends ArtisanCommand {
       'includeSnapshot': includeSnapshot.toString(),
       'checkStable': checkStable.toString(),
       'checkReceivesEvents': checkReceivesEvents.toString(),
-      'verify': verify.toString(),
       if (hasUntil) 'until': until,
       if (untilTimeoutMs != null && untilTimeoutMs.isNotEmpty)
         'untilTimeoutMs': untilTimeoutMs,
@@ -87,12 +79,18 @@ class DuskTapCommand extends ArtisanCommand {
       params,
     );
     reportFrameWarning(ctx, response);
-    // Print the JSON envelope whenever a field beyond `ref` may be present
-    // (snapshot, `changed`, or `untilMatched`) so the caller can read it.
-    if (includeSnapshot || verify || hasUntil) {
+    // The envelope always carries `effect`, and it is the field that says
+    // whether the tap did anything, so a bare `✓ Tapped e7` would drop the
+    // one thing worth reading. Print the JSON unless the caller has opted
+    // out of the extras entirely.
+    if (includeSnapshot || hasUntil) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Tapped $ref');
+      final effect = response['effect'] as Map<String, dynamic>?;
+      final changed = effect?['changed'];
+      ctx.output.success(
+        changed == false ? 'Tapped $ref (no observable change)' : 'Tapped $ref',
+      );
     }
     return 0;
   }
