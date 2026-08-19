@@ -484,8 +484,17 @@ Empty when telescope is not wired.
 
 ### dusk_exceptions
 
-`limit` (default 20). Returns `{ exceptions: [{ exceptionType, message, time, stackTrace? }], count }`.
-Empty when telescope is not wired.
+`limit` (default 20), `since` (ISO8601, entries strictly after it),
+`clear` (empty the in-package buffer AFTER the read). Returns
+`{ exceptions: [{ exceptionType, message, time, stackTrace? }], count }`.
+Works without telescope: dusk keeps its own non-fatal FlutterError buffer.
+
+**The buffer is cumulative, so read it as a delta.** One real fault at boot
+rides along on every later read, and a per-route sweep then reports it
+against every route: a 12-of-12 "overflow on every screen" finding once
+turned out to be a single 4.8px transient. Pass `clear: true` between
+routes, or pin a `since` from before the action. An instrument with a
+permanent false positive stops being consulted.
 
 ---
 

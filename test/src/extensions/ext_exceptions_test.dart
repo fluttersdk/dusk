@@ -499,4 +499,75 @@ void main() {
       },
     );
   });
+
+  // ---------------------------------------------------------------------------
+  // clear — the cumulative-buffer escape hatch
+  // ---------------------------------------------------------------------------
+
+  group('ext_exceptions — clear', () {
+    setUp(() {
+      recentExceptionsReader = ({int limit = 20}) => const [];
+      resetCapturedExceptionsForTesting();
+    });
+
+    tearDown(resetCapturedExceptionsForTesting);
+
+    Future<List<dynamic>> callHandler(Map<String, String> params) async {
+      final response = await aiTestExceptionsHandler(
+        'ext.dusk.exceptions',
+        params,
+      );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      return decoded['exceptions'] as List<dynamic>;
+    }
+
+    void seed(String message) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: StateError(message),
+          stack: StackTrace.fromString('at a()'),
+          library: 'test library',
+        ),
+      );
+    }
+
+    test('returns the current entries and then empties the buffer', () async {
+      // The buffer is cumulative, so one real fault at boot rides along on
+      // every later read and a sweep reports it against every route. That
+      // is how a 12-of-12 "overflow on every screen" finding turned out to
+      // be one transient. An instrument with a permanent false positive
+      // stops being consulted.
+      installErrorCapture();
+      seed('boot-time noise');
+
+      expect(
+          await callHandler(<String, String>{'clear': 'true'}), hasLength(1));
+      expect(await callHandler(<String, String>{}), isEmpty);
+    });
+
+    test('keeps capturing after a clear', () async {
+      installErrorCapture();
+      seed('before');
+      await callHandler(<String, String>{'clear': 'true'});
+
+      seed('after');
+
+      final List<dynamic> entries = await callHandler(<String, String>{});
+      expect(entries, hasLength(1));
+      expect(
+        (entries.first as Map<String, dynamic>)['message'],
+        contains('after'),
+      );
+    });
+
+    test('leaves the buffer alone without the flag', () async {
+      installErrorCapture();
+      seed('sticky');
+
+      await callHandler(<String, String>{});
+
+      expect(await callHandler(<String, String>{}), hasLength(1));
+    });
+  });
 }

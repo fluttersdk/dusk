@@ -40,7 +40,7 @@
 
 *Diagnostics*
 - `dusk_console` (`ext.dusk.console`): Read recent log entries. Returns merged union of in-package `debugPrint` capture buffer (captures `debugPrint()`, `print()`, and any Flutter framework path through the `debugPrint` callback; does NOT capture direct `developer.log()` calls) and telescope reader when wired; deduped, newest-first. Works without telescope.
-- `dusk_exceptions` (`ext.dusk.exceptions`): Read recent exception entries. Returns merged union of in-package non-fatal `FlutterError` capture buffer (incl. overflow tagged `type: "overflow"`) and telescope reader; deduped, newest-first. Optional `since` ISO8601 param filters to entries strictly after that timestamp (for before/after action deltas).
+- `dusk_exceptions` (`ext.dusk.exceptions`): Read recent exception entries. Returns merged union of in-package non-fatal `FlutterError` capture buffer (incl. overflow tagged `type: "overflow"`) and telescope reader; deduped, newest-first. Optional `since` ISO8601 param filters to entries strictly after that timestamp, and `clear: true` empties the in-package buffer AFTER the read. The buffer is cumulative, so one boot-time fault otherwise rides along on every later read and a per-route sweep reports it against every route.
 - `dusk_observe` (`ext.dusk.observe`): Return structured candidate list of every interactive widget on screen.
 
 *Keyboard / Input*

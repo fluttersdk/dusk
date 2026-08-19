@@ -1028,6 +1028,16 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'Omit to return the full cumulative list. Unparseable '
                     'values are silently ignored (treated as absent).',
               },
+              'clear': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Empty the in-package capture buffer AFTER '
+                    'returning the current entries. The buffer is cumulative, '
+                    'so one real fault at boot rides along on every later '
+                    'read and a per-route sweep reports it against every '
+                    'route. Clear between routes to get a real delta. Only '
+                    'the in-package buffer is affected; a wired telescope '
+                    'owns its own store.',
+              },
             },
           },
           extensionMethod: 'ext.dusk.exceptions',

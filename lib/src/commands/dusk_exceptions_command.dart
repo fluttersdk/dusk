@@ -38,6 +38,12 @@ class DuskExceptionsCommand extends ArtisanCommand {
       help: 'ISO8601 timestamp. When set, only exceptions strictly after '
           'this time are returned (e.g. 2024-01-01T10:00:00.000Z).',
     );
+    parser.addFlag(
+      'clear',
+      help: 'Empty the in-package capture buffer AFTER returning the current '
+          'entries, so the next read is a clean per-route delta.',
+      defaultsTo: false,
+    );
   }
 
   @override
@@ -51,6 +57,9 @@ class DuskExceptionsCommand extends ArtisanCommand {
     }
     if (since != null && since.isNotEmpty) {
       params['since'] = since;
+    }
+    if ((ctx.input.option('clear') as bool?) ?? false) {
+      params['clear'] = 'true';
     }
 
     final response = await ctx.callExtension<Map<String, dynamic>>(
