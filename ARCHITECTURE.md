@@ -132,6 +132,10 @@ These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:
 | 4 | 2-frame rect drift ≤ 0.5px | `not stable (rect changed by Xpx)` | Skipped when `--no-checkStable` |
 | 5 | hit-test path at `rect.center` includes the target render object or a descendant | `obscured by other widget (top=...)` | Skipped when `--no-checkReceivesEvents` |
 
+The gate returns an `ActionabilityReport` alongside throwing. Step 5 has three outcomes, not two: `confirmed`, `indeterminate` (the hit-test could not answer), and `skipped` (`--no-checkReceivesEvents`). Only the first is silent; the other two surface as a `checks` block on the response, because a clean pass used to be indistinguishable from a confirmed one and that is how a fill printed a green tick four times onto a row covered by a pinned footer.
+
+`indeterminate` is the Flutter Web case: DWDS pipes hit-tests through a snapshot view that does not mirror the live element subtree, so the path comes back carrying only the root render view. The gate proceeds (breaking every valid tap on that artifact is the worse failure) and attaches `overlapCandidates` from a rect scan: render objects that overlap the target and paint after it. Advisory, since an overlap is not proof of occlusion.
+
 `scroll`, `select_option`, and `press_key` intentionally skip the gate (the parent scrollable, popup machinery, or focused widget owns its own enabled check).
 
 ## RefRegistry token systems

@@ -1599,10 +1599,16 @@ void main() {
         expect(response.result, isNotNull);
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded.keys.toList(), equals(<String>['ref', 'effect']));
         expect(
           (decoded['effect'] as Map<String, dynamic>)['kind'],
           equals('treeChanged'),
+        );
+        // This call opts out of the receives-events gate (synthetic rect),
+        // and the payload records that rather than letting a clean pass
+        // read as a confirmation the gate never made.
+        expect(
+          (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+          equals('skipped'),
         );
       },
     );
@@ -1717,6 +1723,57 @@ void main() {
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
         expect(decoded['untilMatched'], isFalse);
+      },
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Gate reporting
+  // ---------------------------------------------------------------------------
+
+  group('aiTestTapHandler checks', () {
+    setUp(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'records an unprovable receives-events check on the payload',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // Nothing painted, so the hit-test reaches only the root render
+        // view. That is the shape Flutter Web's debug build produces for a
+        // real widget, and it used to pass as a silent clean gate.
+        await tester.pumpWidget(const SizedBox.shrink());
+
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 50, 50),
+          element: tester.element(find.byType(SizedBox)),
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'includeSnapshot': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final Map<String, dynamic> checks =
+            decoded['checks'] as Map<String, dynamic>;
+        expect(checks['receivesEvents'], equals('indeterminate'));
+        expect(checks['why'], contains('root'));
+        expect(checks['hint'], contains('may have landed on something else'));
       },
     );
   });

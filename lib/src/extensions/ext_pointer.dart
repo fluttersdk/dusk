@@ -353,8 +353,9 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
       _parseBoolFlag(params, 'checkStable', defaultValue: true);
   final bool checkReceivesEvents =
       _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+  final ActionabilityReport gate;
   try {
-    await ensureActionable(
+    gate = await ensureActionable(
       entry,
       ref: ref,
       checkStable: checkStable,
@@ -444,6 +445,11 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   //    comparison. Failures here are post-dispatch noise: the field is simply
   //    omitted rather than converting a successful tap into an error.
   final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
+  // What the gate could NOT establish. Absent on the healthy path, so its
+  // presence is the signal: a clean pass used to be indistinguishable from
+  // a confirmed one.
+  final Map<String, dynamic>? checks = gate.toPayload();
+  if (checks != null) payload['checks'] = checks;
   try {
     final String postSignal = _captureEffectSignal(entry);
     payload['effect'] = treeChangedEffect(before: preSignal, after: postSignal);

@@ -9,6 +9,72 @@ import '../ref_registry.dart';
 import 'dusk_exceptions.dart';
 import 'frame_sync.dart';
 
+/// What the receives-events check could establish.
+enum ReceivesEvents {
+  /// The hit-test path reached the target or a descendant.
+  confirmed,
+
+  /// The hit-test could not answer. Flutter Web's debug build routinely
+  /// returns a path carrying only the root render view, because DWDS pipes
+  /// hit-tests through a snapshot view that does not mirror the live
+  /// element subtree. The gate proceeds, because breaking every valid tap
+  /// on that artifact is the worse failure, but proceeding SILENTLY is how
+  /// a fill printed a green tick four times onto a row covered by a pinned
+  /// footer.
+  indeterminate,
+
+  /// The caller passed `checkReceivesEvents: false`.
+  skipped,
+}
+
+/// What the gate established on the way through, for the response payload.
+///
+/// The gate's job is to throw on a precondition it can DISPROVE. This
+/// carries the other half: what it could not prove either way, so a caller
+/// never reads a clean pass as a confirmation the gate never made.
+@immutable
+class ActionabilityReport {
+  /// Builds a report.
+  const ActionabilityReport({
+    required this.receivesEvents,
+    this.why,
+    this.overlapCandidates = const <String>[],
+  });
+
+  /// Outcome of check 5.
+  final ReceivesEvents receivesEvents;
+
+  /// Why the check could not answer. Null unless [receivesEvents] is
+  /// [ReceivesEvents.indeterminate].
+  final String? why;
+
+  /// Render objects that overlap the target's rect and are painted after
+  /// it, computed only when the hit-test could not answer. Advisory: an
+  /// overlap is not proof of occlusion (a transparent layer overlaps and
+  /// swallows nothing), which is why these are candidates rather than a
+  /// failure.
+  final List<String> overlapCandidates;
+
+  /// The `checks` block for a response payload, or null when the gate
+  /// confirmed everything it set out to.
+  ///
+  /// Null on the healthy path so a clean action carries no extra bytes and
+  /// the presence of the key is itself the signal, matching `warnings` and
+  /// `renderErrors`.
+  Map<String, dynamic>? toPayload() {
+    if (receivesEvents == ReceivesEvents.confirmed) return null;
+    return <String, dynamic>{
+      'receivesEvents': receivesEvents.name,
+      if (why != null) 'why': why,
+      if (overlapCandidates.isNotEmpty) 'overlapCandidates': overlapCandidates,
+      if (receivesEvents == ReceivesEvents.indeterminate)
+        'hint': 'The gate could not confirm the target receives the event, '
+            'so this action may have landed on something else. Read the '
+            '`effect` block before trusting it.',
+    };
+  }
+}
+
 /// Guards an action tool against firing on a widget that cannot accept the
 /// action.
 ///
@@ -56,7 +122,7 @@ import 'frame_sync.dart';
 /// production never override the defaults; widget tests that fabricate
 /// synthetic [RefEntry] rects (which would not match the live render-object
 /// geometry) opt out by passing `false`.
-Future<void> ensureActionable(
+Future<ActionabilityReport> ensureActionable(
   RefEntry entry, {
   required String ref,
   bool checkStable = true,
@@ -77,7 +143,7 @@ Future<void> ensureActionable(
 /// entry point to exercise the "empty views" code path without monkey-
 /// patching `WidgetsBinding.instance.platformDispatcher`.
 @visibleForTesting
-Future<void> ensureActionableForViews(
+Future<ActionabilityReport> ensureActionableForViews(
   RefEntry entry, {
   required String ref,
   required Iterable<FlutterView> views,
@@ -142,7 +208,12 @@ Future<void> ensureActionableForViews(
   //    layout cannot accommodate the element).
   final FlutterView? view = views.isEmpty ? null : views.first;
   if (view == null) {
-    return;
+    // No view, so no viewport and no hit-test surface. The remaining checks
+    // have nothing to measure against; say so rather than reporting a pass.
+    return const ActionabilityReport(
+      receivesEvents: ReceivesEvents.indeterminate,
+      why: 'no FlutterView is attached',
+    );
   }
   final Size physical = view.physicalSize;
   final double dpr = view.devicePixelRatio;
@@ -209,44 +280,72 @@ Future<void> ensureActionableForViews(
   //    entry's render object (or a descendant) appears in the path. If the
   //    topmost target is anything else, a modal scrim / overlay / stacked
   //    widget is swallowing the pointer.
-  if (checkReceivesEvents) {
-    final RenderObject? target = entry.element.findRenderObject();
-    if (target != null) {
-      final BoxHitTestResult result = BoxHitTestResult();
-      RendererBinding.instance
-          .hitTestInView(result, currentRect.center, view.viewId);
-      final List<HitTestEntry<HitTestTarget>> path =
-          result.path.toList(growable: false);
-      final bool targetInPath = path.any(
-        (HitTestEntry<HitTestTarget> e) =>
-            identical(e.target, target) || _isDescendantOf(e.target, target),
-      );
-      if (!targetInPath) {
-        // Graceful degradation: when the hit-test path contains ONLY the
-        // root render view (Flutter Web's `_ReusableRenderView` or the
-        // generic `RenderView`), the platform compositor swallowed the
-        // synthetic hit-test before it reached the widget layer. Treat as
-        // "could not determine receivership" and let the action proceed.
-        // The behavior happens routinely in Flutter Web's debug build
-        // because DWDS pipes hit-tests through a snapshot view that does
-        // not always mirror the live element subtree, and breaking valid
-        // taps on that artifact is a worse failure mode than letting
-        // pointer dispatch decide.
-        final bool platformOnly =
-            path.length == 1 && _isRootRenderView(path.first.target);
-        if (platformOnly || path.isEmpty) {
-          // proceed
-        } else {
-          final HitTestTarget top = path.first.target;
-          final String topName = top.runtimeType.toString();
-          throw DuskActionabilityException(
-            ref: ref,
-            reason: 'obscured by other widget (top=$topName)',
-          );
-        }
-      }
-    }
+  if (!checkReceivesEvents) {
+    return const ActionabilityReport(receivesEvents: ReceivesEvents.skipped);
   }
+
+  final RenderObject? target = entry.element.findRenderObject();
+  if (target == null) {
+    return const ActionabilityReport(
+      receivesEvents: ReceivesEvents.indeterminate,
+      why: 'the target has no render object to hit-test against',
+    );
+  }
+
+  final BoxHitTestResult result = BoxHitTestResult();
+  RendererBinding.instance
+      .hitTestInView(result, currentRect.center, view.viewId);
+  final List<HitTestEntry<HitTestTarget>> path =
+      result.path.toList(growable: false);
+  final bool targetInPath = path.any(
+    (HitTestEntry<HitTestTarget> e) =>
+        identical(e.target, target) || _isDescendantOf(e.target, target),
+  );
+  if (targetInPath) {
+    return const ActionabilityReport(
+      receivesEvents: ReceivesEvents.confirmed,
+    );
+  }
+
+  // Graceful degradation: when the hit-test path contains ONLY the root
+  // render view (Flutter Web's `_ReusableRenderView` or the generic
+  // `RenderView`), the platform compositor swallowed the synthetic
+  // hit-test before it reached the widget layer. The behaviour happens
+  // routinely in Flutter Web's debug build because DWDS pipes hit-tests
+  // through a snapshot view that does not always mirror the live element
+  // subtree, and breaking valid taps on that artifact is a worse failure
+  // mode than letting pointer dispatch decide.
+  //
+  // So the action proceeds, but it no longer proceeds SILENTLY. A clean
+  // pass here used to be indistinguishable from a confirmed one, which is
+  // how a fill printed a green tick four times onto a row covered by a
+  // pinned footer. The report says what the gate could not establish, and
+  // a rect scan offers the layers that could plausibly be on top.
+  // The test is "the ROOT VIEW is topmost", not "the path has one entry".
+  // `path` runs deepest-first, so a root view in front means nothing in the
+  // widget layer claimed the point. The old length check was a proxy for
+  // that and it was too narrow: a path of view + gesture-handler tripped
+  // the throw instead, and the gate then reported
+  // `obscured by other widget (top=_ReusableRenderView)`, naming the render
+  // view as the thing covering the widget it hosts.
+  final bool platformOnly =
+      path.isNotEmpty && _isRootRenderView(path.first.target);
+  if (platformOnly || path.isEmpty) {
+    return ActionabilityReport(
+      receivesEvents: ReceivesEvents.indeterminate,
+      why: path.isEmpty
+          ? 'hit-test returned an empty path'
+          : 'hit-test returned only the root render view',
+      overlapCandidates: occlusionCandidatesFor(target, currentRect),
+    );
+  }
+
+  final HitTestTarget top = path.first.target;
+  final String topName = top.runtimeType.toString();
+  throw DuskActionabilityException(
+    ref: ref,
+    reason: 'obscured by other widget (top=$topName)',
+  );
 }
 
 /// Recognises the framework-level RenderView wrappers that legitimately
@@ -345,3 +444,49 @@ bool _isDescendantOf(HitTestTarget target, RenderObject candidate) {
   }
   return false;
 }
+
+/// Names the render objects that overlap [rect] and paint after [target].
+///
+/// A depth-first pre-order walk visits siblings in child order, and a Stack
+/// paints its children in that same order, so "visited after the target" is
+/// a usable proxy for "painted on top of it". Ancestors and descendants of
+/// the target are excluded: a parent that contains the target is not
+/// covering it.
+List<String> occlusionCandidatesFor(RenderObject target, Rect rect) {
+  final RenderObject? root =
+      WidgetsBinding.instance.rootElement?.findRenderObject();
+  if (root == null) return const <String>[];
+
+  final List<String> candidates = <String>[];
+  bool seenTarget = false;
+
+  void visit(RenderObject node) {
+    if (candidates.length >= _kMaxOverlapCandidates) return;
+    if (identical(node, target)) {
+      // Everything under the target is the target's own content, and
+      // everything visited before it paints underneath. Skip the subtree
+      // and start collecting from here.
+      seenTarget = true;
+      return;
+    }
+    if (seenTarget && node is RenderBox && node.attached && node.hasSize) {
+      final Rect other = node.localToGlobal(Offset.zero) & node.size;
+      if (other.overlaps(rect) && !_isDescendantOf(node, target)) {
+        candidates.add('${node.runtimeType}@${_formatRect(other)}');
+      }
+    }
+    node.visitChildren(visit);
+  }
+
+  root.visitChildren(visit);
+  return candidates;
+}
+
+/// Ceiling on reported candidates. A full-screen scrim overlaps every
+/// widget on the page, so an unbounded list would be noise rather than a
+/// lead.
+const int _kMaxOverlapCandidates = 5;
+
+String _formatRect(Rect rect) =>
+    '${rect.left.toStringAsFixed(0)},${rect.top.toStringAsFixed(0)},'
+    '${rect.width.toStringAsFixed(0)}x${rect.height.toStringAsFixed(0)}';

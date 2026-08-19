@@ -88,6 +88,48 @@ smallest achievable without a frame lock); the `effect` block on every
 `ext.dusk.tap` response reports whether the tap produced an observable effect,
 so the residual window is visible rather than silent.
 
+## What the gate could not prove
+
+The gate throws on a precondition it can DISPROVE. Step 5 has a third
+outcome it cannot: the hit-test sometimes fails to answer at all. On Flutter
+Web's debug build that is routine, because DWDS pipes hit-tests through a
+snapshot view that does not mirror the live element subtree, so the path
+comes back carrying only the root render view.
+
+Breaking every valid tap on that artifact would be the worse failure, so the
+gate proceeds. It used to proceed silently, and a clean pass was then
+indistinguishable from a confirmed one: that is how a fill printed a green
+tick four times onto a row covered by a pinned footer, with nothing in any
+response to say the check had not run.
+
+The response now carries a `checks` block whenever step 5 did not confirm:
+
+```json
+{
+  "ref": "e7",
+  "checks": {
+    "receivesEvents": "indeterminate",
+    "why": "hit-test returned only the root render view",
+    "overlapCandidates": ["RenderPhysicalShape@0,712,390x88"],
+    "hint": "The gate could not confirm the target receives the event, so this action may have landed on something else. Read the `effect` block before trusting it."
+  }
+}
+```
+
+| `receivesEvents` | Meaning |
+|---|---|
+| absent | Confirmed. The hit-test reached the target or a descendant. |
+| `indeterminate` | The hit-test could not answer. The action was dispatched anyway. |
+| `skipped` | The caller passed `checkReceivesEvents: false`. |
+
+`overlapCandidates` is a rect scan run only on the indeterminate path: render
+objects that overlap the target and paint after it, capped at five. It is
+advisory, not a verdict. An overlap is not proof of occlusion, since a
+transparent layer overlaps and swallows nothing, which is exactly why the
+hit-test exists and why these are candidates.
+
+The block is absent on the healthy path, so its presence is the signal.
+
 ## Failure reason substrings
 
 The thrown message has the shape

@@ -44,6 +44,14 @@ and verify with `./bin/fsa dusk:doctor`.
    for flaky animations or known overlays. `scroll`, `select_option`, and
    `press_key` skip the gate by design.
 
+   **A clean gate is not always a confirmed one.** Step 5 can fail to
+   answer, which on Flutter Web is routine (DWDS pipes hit-tests through a
+   snapshot view that does not mirror the live tree). The gate proceeds and
+   the response carries `checks: {receivesEvents: "indeterminate", why,
+   overlapCandidates, hint}`. Read it: this is the state in which a fill
+   printed a green tick four times onto a row covered by a pinned footer.
+   The key is absent when the check confirmed.
+
 3. **Failure reasons are substring contracts.** On gate failure the
    response carries one of these exact substrings; branch on the
    substring, not the full message:
