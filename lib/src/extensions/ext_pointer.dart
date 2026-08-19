@@ -9,6 +9,7 @@ import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import 'ext_find.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
 import 'ext_wait_find.dart' show findByTextWaitLoop;
@@ -247,8 +248,7 @@ Future<void> _injectTap(Offset center,
 
   // 4. Two frames: first settles the gesture recognizer arena, second
   //    completes any implicit animation triggered by the tap.
-  await WidgetsBinding.instance.endOfFrame;
-  await WidgetsBinding.instance.endOfFrame;
+  await awaitFramesOrTimeout(2);
 }
 
 /// Handler for the `ext.dusk.tap` VM Service extension.
@@ -426,7 +426,7 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     try {
       final editable = _findEditableTextState(entry.element);
       editable?.requestKeyboard();
-      await WidgetsBinding.instance.endOfFrame;
+      await awaitFrameOrTimeout();
     } catch (e) {
       developer.log(
         '[fluttersdk_dusk] ext.dusk.tap: post-dispatch noise swallowed for '
@@ -599,8 +599,7 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     );
 
     // 2. Two frames to let MouseRegion and AnimatedContainer settle.
-    await WidgetsBinding.instance.endOfFrame;
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFramesOrTimeout(2);
 
     // 3. Embed post-action snapshot (opt-out via includeSnapshot:'false').
     //    Snapshot build failures are best-effort; never convert success
@@ -821,8 +820,7 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     );
 
     // 4. Two frames to settle drag-end callbacks and rebuild.
-    await WidgetsBinding.instance.endOfFrame;
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFramesOrTimeout(2);
 
     // 5. Embed post-action snapshot (opt-out via includeSnapshot:'false').
     final Map<String, dynamic> payload = <String, dynamic>{
@@ -1103,8 +1101,7 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
         kind: PointerDeviceKind.mouse,
       ),
     );
-    await WidgetsBinding.instance.endOfFrame;
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFramesOrTimeout(2);
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,
       'button': 'right',
@@ -1190,7 +1187,7 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
     await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
     await Future<void>.delayed(const Duration(milliseconds: 100));
     await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFrameOrTimeout();
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,
       'clickCount': 3,

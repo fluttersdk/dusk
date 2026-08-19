@@ -116,7 +116,9 @@ void main() {
       final HttpClientResponse response = timeout == null
           ? await request.close()
           : await request.close().timeout(timeout);
-      return response.transform(utf8.decoder).join();
+      // Awaited, not returned bare: the `finally` closes the client, and an
+      // unawaited return lets that fire while the body is still streaming.
+      return await response.transform(utf8.decoder).join();
     } finally {
       client.close();
     }

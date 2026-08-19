@@ -93,6 +93,12 @@ ext.dusk.console               ext.dusk.exceptions          ext.dusk.observe
 
 Every registration routes through `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety.
 
+### Frame settling is always bounded
+
+A handler that dispatches a gesture, a text edit, or a navigation awaits one or two frames afterwards so the gesture arena drains and any implicit animation starts. Those awaits go through `awaitFrameOrTimeout` / `awaitFramesOrTimeout` in `lib/src/utils/frame_sync.dart`, never `WidgetsBinding.instance.endOfFrame` directly.
+
+`endOfFrame` schedules a frame only while `SchedulerBinding.framesEnabled` is true. A backgrounded browser tab reports `document.visibilityState: "hidden"` and Flutter Web turns frame production off, so a bare await there never completes: the extension blocks until the calling CLI's own timeout kills it, with no output and no error. `kFrameSyncTimeout` (200ms, twelve frames at 60Hz) is long enough that a healthy engine always resolves on the real frame and short enough that a starved one degrades into an early return. The actionability gate uses the same helper for its stability and scroll-into-view awaits.
+
 ## Frozen contracts (alpha-2)
 
 These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:

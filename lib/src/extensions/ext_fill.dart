@@ -7,6 +7,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 import '../ref_registry.dart';
 import '../utils/dusk_exceptions.dart';
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import 'ext_focus.dart' show aiTestFocusHandler;
 import 'ext_pointer.dart' show resolveRefForAction;
 import 'ext_snapshot.dart' show duskSnapBuild;
@@ -199,13 +200,13 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
   final developer.ServiceExtensionResponse focus =
       await aiTestFocusHandler('ext.dusk.focus', stepParams);
   if (focus.errorCode != null) return focus;
-  await WidgetsBinding.instance.endOfFrame;
+  await awaitFrameOrTimeout();
 
   // 2. Clear the existing value so the type below is a replace, not an append.
   final developer.ServiceExtensionResponse clear =
       await aiTestClearHandler('ext.dusk.clear', stepParams);
   if (clear.errorCode != null) return clear;
-  await WidgetsBinding.instance.endOfFrame;
+  await awaitFrameOrTimeout();
 
   // 3. Type the new value. The gated type handler awaits two frames itself.
   return aiTestTypeHandler('ext.dusk.type', <String, String>{

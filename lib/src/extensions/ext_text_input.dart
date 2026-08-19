@@ -10,6 +10,7 @@ import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import 'ext_pointer.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
 import 'package:fluttersdk_artisan/artisan.dart';
@@ -392,8 +393,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     // Wait two frames so ValueListenableBuilder listeners rebuild and paint
     // before the MCP client reads state (per Stage 3 mandate: every mutating
     // extension awaits endOfFrame before returning).
-    await WidgetsBinding.instance.endOfFrame;
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFramesOrTimeout(2);
 
     // 2. Embed post-action snapshot (opt-out via includeSnapshot:'false').
     //    Snapshot-build noise must NOT convert a successful type into an
@@ -470,8 +470,7 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
     // without a frame scheduler, so we skip the awaits and the snapshot
     // embed below. Mirrors the same guard in ext_navigation.dart.
     if (WidgetsBinding.instance.rootElement != null) {
-      await WidgetsBinding.instance.endOfFrame;
-      await WidgetsBinding.instance.endOfFrame;
+      await awaitFramesOrTimeout(2);
     }
 
     final Map<String, dynamic> payload = <String, dynamic>{
@@ -594,7 +593,7 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
       );
     }
     controller.clear();
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFrameOrTimeout();
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,
       'text': '',

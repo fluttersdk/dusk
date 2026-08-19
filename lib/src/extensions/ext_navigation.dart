@@ -9,6 +9,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../dusk_plugin.dart';
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import 'ext_modal_router.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
 
@@ -270,8 +271,7 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
     //    rootElement: in headless / test contexts with no widget tree the
     //    endOfFrame future never completes without a frame scheduler.
     if (WidgetsBinding.instance.rootElement != null) {
-      await WidgetsBinding.instance.endOfFrame;
-      await WidgetsBinding.instance.endOfFrame;
+      await awaitFramesOrTimeout(2);
     }
 
     // 4b. Verify post-navigate URL actually matches what we asked. Some
@@ -352,8 +352,7 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
     //    with no widget tree the endOfFrame future never completes without a
     //    frame scheduler.
     if (WidgetsBinding.instance.rootElement != null) {
-      await WidgetsBinding.instance.endOfFrame;
-      await WidgetsBinding.instance.endOfFrame;
+      await awaitFramesOrTimeout(2);
     }
 
     // 4. Embed post-action snapshot (opt-out via includeSnapshot:'false')

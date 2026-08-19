@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
 import 'ext_snapshot.dart' show duskSnapBuild;
 
@@ -85,7 +86,7 @@ Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
       );
     }
     node.requestFocus();
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFrameOrTimeout();
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,
       'focused': true,
@@ -119,7 +120,7 @@ Future<developer.ServiceExtensionResponse> aiTestBlurHandler(
     final FocusManager fm = FocusManager.instance;
     final FocusNode? primary = fm.primaryFocus;
     primary?.unfocus();
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFrameOrTimeout();
     final Map<String, dynamic> payload = <String, dynamic>{
       'blurred': true,
       'hadFocus': primary != null,

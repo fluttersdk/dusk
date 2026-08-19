@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
 import 'dusk_exceptions.dart';
+import 'frame_sync.dart';
 
 /// Guards an action tool against firing on a widget that cannot accept the
 /// action.
@@ -165,7 +166,7 @@ Future<void> ensureActionableForViews(
           Scrollable.maybeOf(entry.element as BuildContext) != null;
       if (hasScrollable) {
         renderObject.showOnScreen(duration: Duration.zero);
-        await _awaitFrameOrTimeout();
+        await awaitFrameOrTimeout();
         final Rect? liveRect = _liveRectOf(entry.element);
         if (liveRect != null) {
           currentRect = liveRect;
@@ -189,7 +190,7 @@ Future<void> ensureActionableForViews(
   //    the original entry.rect — otherwise the deliberate scroll motion from
   //    step 3 would always trip this gate.
   if (checkStable) {
-    await _awaitFrameOrTimeout();
+    await awaitFrameOrTimeout();
     final Rect? liveRect = _liveRectOf(entry.element);
     if (liveRect != null) {
       final double delta = _maxSideDelta(currentRect, liveRect);
@@ -246,26 +247,6 @@ Future<void> ensureActionableForViews(
       }
     }
   }
-}
-
-/// Await the next `WidgetsBinding.endOfFrame` but fall through after
-/// [timeout] if no frame is scheduled.
-///
-/// `endOfFrame` is a [Future] that completes when the next frame finishes;
-/// it NEVER completes when nothing has scheduled a frame (Flutter does not
-/// poll a frame clock — it only renders on demand). In `flutter_test` runs,
-/// `showOnScreen` on a widget with no `Scrollable` ancestor is a no-op, so
-/// the gate's `await endOfFrame` would hang the test indefinitely. The
-/// timeout is large enough to cover a real production reflow (16ms at 60Hz
-/// + scheduler jitter + dart2js dispatch overhead) and small enough that
-/// no real user action waits more than ~one frame on the gate.
-Future<void> _awaitFrameOrTimeout({
-  Duration timeout = const Duration(milliseconds: 200),
-}) {
-  return WidgetsBinding.instance.endOfFrame.timeout(
-    timeout,
-    onTimeout: () {},
-  );
 }
 
 /// Recognises the framework-level RenderView wrappers that legitimately

@@ -8,6 +8,12 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every action extension hung forever when the app stopped producing frames, which is what a backgrounded browser tab does.** Twenty-seven `await WidgetsBinding.instance.endOfFrame` calls across `ext_pointer`, `ext_text_input`, `ext_navigation`, `ext_fill`, `ext_focus`, `ext_scroll` and `ext_checkbox` settled a gesture or an edit by awaiting the binding directly. `endOfFrame` only schedules a frame while `SchedulerBinding.framesEnabled` is true, and Flutter Web turns frame production off once Chrome reports `document.visibilityState: "hidden"`, so the future never completed: `dusk:tap` sat for 45s+ with no output and no error until the caller's shell timeout killed it, which reads as a wedged app rather than a backgrounded window. All twenty-seven now route through `awaitFrameOrTimeout` / `awaitFramesOrTimeout` (`lib/src/utils/frame_sync.dart`), which falls through after `kFrameSyncTimeout` (200ms per frame). A healthy engine is unaffected: a real frame lands in ~16ms and still wins. The actionability gate's own private copy of this helper was removed in favour of the shared one, leaving one bound for the whole package. Covered by `test/src/utils/frame_sync_test.dart` and a frame-starvation case in `test/src/extensions/ext_pointer_test.dart`.
+
+- **`CdpClient.defaultHttpGet` and `ChromeFinder.defaultHttpGet` closed the `HttpClient` while the response body was still streaming.** Both returned `response.transform(utf8.decoder).join()` without awaiting it inside a `try`/`finally` whose `finally` calls `client.close()`, so the close raced the body drain and a truncated or failed read was possible on a slow `/json` response. The same shape was in the integration smoke helper. Touches `lib/src/cdp/cdp_client.dart`, `lib/src/cdp/chrome_finder.dart`, `test/integration/cdp_smoke_test.dart`.
+
 ### Docs
 
 - **The registry dispatch fires on a published release now, not on every push that touches the skill.** Under the push trigger `fluttersdk/ai` climbed to v1.3.75, and most of those releases re-published identical skill content: a docs commit and a release commit each cost the registry a version. The registry version now tracks published dusk releases instead of counting commits. `workflow_dispatch` stays as the manual escape hatch when a skill fix has to reach users before the next release. (`.github/workflows/dispatch-to-registry.yml`)

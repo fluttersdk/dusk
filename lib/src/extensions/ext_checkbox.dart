@@ -9,6 +9,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 import '../ref_registry.dart';
 import '../utils/dusk_exceptions.dart';
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
 
 // ---------------------------------------------------------------------------
@@ -251,6 +252,5 @@ Future<void> _injectTapAt(Offset center) async {
     ),
   );
 
-  await WidgetsBinding.instance.endOfFrame;
-  await WidgetsBinding.instance.endOfFrame;
+  await awaitFramesOrTimeout(2);
 }

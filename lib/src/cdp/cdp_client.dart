@@ -82,7 +82,9 @@ final class CdpClient {
     try {
       final HttpClientRequest request = await client.getUrl(uri);
       final HttpClientResponse response = await request.close();
-      return response.transform(utf8.decoder).join();
+      // Awaited, not returned bare: the `finally` closes the client, and an
+      // unawaited return lets that fire while the body is still streaming.
+      return await response.transform(utf8.decoder).join();
     } finally {
       client.close();
     }

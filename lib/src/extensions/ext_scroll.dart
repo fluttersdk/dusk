@@ -7,6 +7,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import 'ext_find.dart' show resolveQuery;
 import 'ext_snapshot.dart' show duskSnapBuild;
 
@@ -155,7 +156,7 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
     }
 
     // 4. Wait for the UI to settle before returning.
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFrameOrTimeout();
 
     // 5. Embed post-action snapshot (opt-out via includeSnapshot:'false').
     final Map<String, dynamic> payload = <String, dynamic>{
@@ -355,7 +356,7 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
     }
 
     // 4. Wait for the UI to settle.
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFrameOrTimeout();
 
     return developer.ServiceExtensionResponse.result(
       jsonEncode(<String, dynamic>{

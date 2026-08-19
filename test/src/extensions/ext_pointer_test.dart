@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -1709,6 +1710,74 @@ void main() {
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
         expect(decoded['untilMatched'], isFalse);
+      },
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Frame starvation — the hidden-page path
+  // ---------------------------------------------------------------------------
+
+  group('aiTestTapHandler under frame starvation', () {
+    setUp(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'tap resolves when the engine produces no frames',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('hello'))),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Scaffold));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        // `runAsync` swaps the fake clock for the real one AND stops the
+        // harness from pumping, which is exactly what a backgrounded Chrome
+        // tab does: `document.visibilityState: "hidden"` disables frame
+        // production, so every `endOfFrame` the handler awaits never
+        // completes. The handler must fall through on its own timer rather
+        // than block until the caller's shell timeout kills it.
+        final ServiceExtensionResponse? response =
+            await tester.runAsync<ServiceExtensionResponse?>(
+          () => aiTestTapHandler(
+            'ext.dusk.tap',
+            <String, String>{
+              'ref': ref,
+              'checkStable': 'false',
+              'checkReceivesEvents': 'false',
+              'includeSnapshot': 'false',
+            },
+          )
+              .then<ServiceExtensionResponse?>(
+                (ServiceExtensionResponse r) => r,
+              )
+              .timeout(
+                const Duration(seconds: 5),
+                onTimeout: () => null,
+              ),
+        );
+
+        expect(
+          response,
+          isNotNull,
+          reason: 'tap must not block forever when no frame is produced',
+        );
+        expect(response!.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['ref'], equals(ref));
       },
     );
   });
