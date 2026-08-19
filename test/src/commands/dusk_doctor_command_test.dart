@@ -23,6 +23,8 @@ void _resetDoctorHooks() {
     final file = File(path);
     return file.existsSync() ? file.readAsStringSync() : null;
   };
+  DuskDoctorCommand.currentDirectoryProbe = () => Directory.current.path;
+  DuskDoctorCommand.cdpSessionProbe = (int port, int? webPort) async => null;
 }
 
 void main() {
@@ -623,6 +625,158 @@ Future<void> main() async {
         ),
         isNull,
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Check 6 — session ownership
+  // ---------------------------------------------------------------------------
+
+  group('DuskDoctorCommand session ownership', () {
+    test('passes when state.json names this project', () async {
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'projectRoot': '/repos/uptizm',
+          };
+      DuskDoctorCommand.currentDirectoryProbe = () => '/repos/uptizm';
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('Session ownership'));
+      expect(output.content, isNot(contains('another project')));
+    });
+
+    test('warns when state.json belongs to a different project', () async {
+      // The measured failure: a sibling worktree rewrote the shared state
+      // file mid-session and two dusk commands drove the wrong app, which
+      // produced a screenshot of an entirely different product.
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'projectRoot': '/repos/depools',
+          };
+      DuskDoctorCommand.currentDirectoryProbe = () => '/repos/uptizm';
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('Session ownership'));
+      expect(output.content, contains('/repos/depools'));
+      expect(output.content, contains('another project'));
+    });
+
+    test('skips when no state file exists', () async {
+      DuskDoctorCommand.stateFileReader = () async => null;
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('Session ownership: Skipped'));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Check 7 — CDP session health
+  // ---------------------------------------------------------------------------
+
+  group('DuskDoctorCommand CDP session', () {
+    test('skips when no cdpPort is recorded', () async {
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{};
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('CDP session: Skipped'));
+    });
+
+    test('warns when the recorded port is unreachable', () async {
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'cdpPort': 9333,
+            'webPort': 3100,
+          };
+      DuskDoctorCommand.cdpSessionProbe = (int port, int? webPort) async =>
+          const DuskCdpSessionReport(reachable: false);
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('CDP session'));
+      expect(output.content, contains('9333'));
+      expect(output.content, contains('unreachable'));
+    });
+
+    test('warns when no page serves this run web port', () async {
+      // The orphan-Chrome case: a killed flutter run leaves its browser up
+      // with the old build and its own debug port, so every capture comes
+      // back byte-identical and nothing says why.
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'cdpPort': 9333,
+            'webPort': 3100,
+          };
+      DuskDoctorCommand.cdpSessionProbe =
+          (int port, int? webPort) async => const DuskCdpSessionReport(
+                reachable: true,
+                pageUrls: <String>['http://localhost:9999/'],
+              );
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('CDP session'));
+      expect(output.content, contains('3100'));
+      expect(output.content, contains('no page'));
+    });
+
+    test('warns when the matching page is hidden', () async {
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'cdpPort': 9333,
+            'webPort': 3100,
+          };
+      DuskDoctorCommand.cdpSessionProbe =
+          (int port, int? webPort) async => const DuskCdpSessionReport(
+                reachable: true,
+                pageUrls: <String>['http://localhost:3100/'],
+                hidden: true,
+              );
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('hidden'));
+      expect(output.content, contains('bringToFront'));
+    });
+
+    test('passes when the page is visible and serves this run', () async {
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'cdpPort': 9333,
+            'webPort': 3100,
+          };
+      DuskDoctorCommand.cdpSessionProbe =
+          (int port, int? webPort) async => const DuskCdpSessionReport(
+                reachable: true,
+                pageUrls: <String>['http://localhost:3100/'],
+                hidden: false,
+              );
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('CDP session: port 9333'));
+      expect(output.content, isNot(contains('bringToFront')));
     });
   });
 }

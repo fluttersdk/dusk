@@ -149,6 +149,7 @@ final class CdpClient {
   static Future<CdpClient> connect({
     required int port,
     Duration handshakeTimeout = const Duration(seconds: 10),
+    String? matchUrlSubstring,
   }) async {
     // V1 connects to the FIRST page tab (type: "page") from /json. The browser
     // endpoint at /json/version returns the browser-level WebSocket which does
@@ -185,19 +186,32 @@ final class CdpClient {
       );
     }
 
-    // 3. Filter for page tabs and pick the first one. Service worker, shared
-    //    worker, and iframe tabs are excluded; Emulation.* targets the page.
+    // 3. Filter for page tabs. Service worker, shared worker, and iframe
+    //    tabs are excluded; Emulation.* targets the page.
+    //
+    //    [matchUrlSubstring] narrows further, and callers that know which
+    //    app they mean should pass it. A killed `flutter run` leaves its
+    //    Chrome alive with the old build and its own debug port, so the
+    //    first page tab is not reliably the one under test: captures then
+    //    come back byte-identical from the orphan and nothing says why.
     Map<String, dynamic>? pageTab;
     for (final dynamic entry in tabs) {
-      if (entry is Map<String, dynamic> && entry['type'] == 'page') {
-        pageTab = entry;
-        break;
+      if (entry is! Map<String, dynamic> || entry['type'] != 'page') continue;
+      if (matchUrlSubstring != null) {
+        final String url = entry['url'] as String? ?? '';
+        if (!url.contains(matchUrlSubstring)) continue;
       }
+      pageTab = entry;
+      break;
     }
     if (pageTab == null) {
       throw DuskCdpException(
-        'Chrome /json on port $port returned no page tab. '
-        'Open a tab in the running Chrome before retrying.',
+        matchUrlSubstring == null
+            ? 'Chrome /json on port $port returned no page tab. '
+                'Open a tab in the running Chrome before retrying.'
+            : 'Chrome /json on port $port has no page tab whose URL contains '
+                '"$matchUrlSubstring". The port may belong to a different '
+                'browser than the one running this app.',
       );
     }
 

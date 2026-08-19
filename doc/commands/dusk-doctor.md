@@ -11,7 +11,7 @@ Five lightweight checks run in order, each emitting one row via the `ArtisanOutp
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
-- [The five checks](#the-five-checks)
+- [The seven checks](#the-seven-checks)
 - [Examples](#examples)
 - [See also](#see-also)
 
@@ -65,8 +65,8 @@ No structured JSON envelope is emitted; the output is row-per-check via `Artisan
 
 ---
 
-<a name="the-five-checks"></a>
-## The five checks
+<a name="the-seven-checks"></a>
+## The seven checks
 
 ### 1. Hot-restart staleness
 
@@ -93,6 +93,26 @@ Reads `lib/main.dart` and reports one of three states:
 - `vanilla Flutter detected` ; no `Magic.init(` anchor.
 
 INFO only; never fails the doctor regardless of the consumer stack.
+
+### 6. Session ownership
+
+Compares `state.json`'s `projectRoot` against the directory the command is running from. `~/.artisan/state.json` is a **single global slot**, so a sibling project's `artisan start` silently takes it over: every `dusk:*` call from here then drives that app instead, and every one of them succeeds. The measured case had a worktree in another repository rewrite the file mid-session, after which two commands produced a screenshot of an entirely different product before anyone noticed.
+
+WARN, naming both paths. Skipped when no `projectRoot` is recorded. Paths are compared after resolving symlinks, so a worktree checkout does not read as a mismatch on the same directory.
+
+### 7. CDP session health
+
+Probes the `cdpPort` recorded in state for three failures. They matter together because they present as one symptom, a capture that never changes, and nothing else in the output distinguishes them:
+
+| Finding | What it means |
+|---|---|
+| Port unreachable | A killed `flutter run` can leave its dart dev server holding the web port while its Chrome (and the debug port) is gone. The recorded port now points at nothing. |
+| No page on this run's `webPort` | An orphan browser from an earlier run, still up with the old build and its own debug port. Captures come back byte-identical from it. |
+| The matching page is hidden | `document.hidden` is true, so Flutter has stopped producing frames: snapshots lose their `- text` nodes and gestures cannot take effect. Send CDP `Page.bringToFront`. |
+
+WARN in all three cases. Skipped when no `cdpPort` is recorded, which is the normal state for a native target. The visibility read targets the page whose URL carries this run's `webPort`, not whichever tab Chrome happens to list first.
+
+See [Frame production](../reference/frame-production.md) for the hidden-page case in full.
 
 ---
 

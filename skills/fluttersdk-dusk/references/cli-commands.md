@@ -228,7 +228,7 @@ Launch Chrome with the debug port first: `./bin/fsa start --device=chrome --cdp-
 
 ```bash
 dart run fluttersdk_dusk dusk:install                           # one-time setup
-./bin/fsa dusk:doctor                                           # 5 preflight checks
+./bin/fsa dusk:doctor                                           # 7 preflight checks
 ```
 
 `dusk:install` patches `lib/main.dart` (adds `kDebugMode` guard +
@@ -245,6 +245,17 @@ dart run fluttersdk_dusk dusk:install                           # one-time setup
 3. Enricher count (`DuskPlugin.enrichers.length`)
 4. `semanticsEnabled` (the only check that exits non-zero on failure)
 5. Magic-init detection in `lib/main.dart`
+6. Session ownership: does `state.json` describe THIS project? `~/.artisan/
+   state.json` is one global slot, so a sibling project's `artisan start`
+   takes it over and every `dusk:*` call from here drives that app instead,
+   succeeding each time.
+7. CDP session health: is the recorded `cdpPort` live, does it serve a page
+   on this run's web port (an orphan browser from a killed run does not), and
+   is that page visible (a hidden one stops frame production).
+
+Reach for `dusk:doctor` FIRST whenever dusk behaves strangely. Checks 6 and 7
+cover the two failures that look exactly like a broken driver or a broken app
+and are neither.
 
 ## Exit codes and pipeline patterns
 
