@@ -163,6 +163,12 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '- Pass `depth: <n>` to limit tree traversal depth (default '
               'unlimited). Useful when the tree is huge and you only need '
               'the visible region.\n'
+              '- Narrow instead of reading everything: `within: "e12"` walks '
+              'one subtree, `interactiveOnly: true` drops the prose, '
+              '`grep: "Sign in"` keeps only matches and the path to them. A '
+              'full tree is the wrong default answer to most questions, and '
+              'on a shell whose sidebar repeats page labels it is also the '
+              'misleading one.\n'
               '- Returns YAML; the model parses ref tokens out of the '
               'shape `[ref=e<N>]` next to each widget.',
           inputSchema: <String, dynamic>{
@@ -173,6 +179,29 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Max tree-traversal depth from the root. '
                     'Omit for full tree. Use a small number (5-10) when '
                     'snapshotting only the focused screen.',
+              },
+              'within': <String, dynamic>{
+                'type': 'string',
+                'description': 'Scope the walk to one subtree: the `e<N>` '
+                    'ref of the region to read. Reach for this when a label '
+                    'repeats across the shell, which it usually does (a '
+                    'sidebar item and the page it opens share one), because '
+                    'an unscoped lookup resolves the nav item and you end up '
+                    'measuring the sidebar.',
+              },
+              'interactiveOnly': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Emit only nodes that carry a ref (buttons, '
+                    'text fields, links, anything tappable) and drop the '
+                    'plain text lines. Default false. Use when the next step '
+                    'is an action and the prose is not the question.',
+              },
+              'grep': <String, dynamic>{
+                'type': 'string',
+                'description': 'Emit only nodes whose label or value matches '
+                    'this regular expression, plus the ancestors leading to '
+                    'them. Ancestors are kept because they carry the refs '
+                    'you act on: a matching text line has none of its own.',
               },
             },
           },
@@ -834,6 +863,17 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'pass the inner value\'s `toString()` (e.g. '
                     '`"monitor-row-7"`); for arbitrary Keys, pass the '
                     'full `Key.toString()` value.',
+              },
+              'within': <String, dynamic>{
+                'type': 'string',
+                'description': 'Evaluate the predicates inside one subtree: '
+                    'the `e<N>` ref of the region to search. Reach for it '
+                    'whenever a label repeats across the shell, which a '
+                    'sidebar and the page it opens usually do, because the '
+                    'unscoped match lands on the nav item. The scope is part '
+                    'of the minted `q<N>` handle, so it survives into every '
+                    're-resolve; once the scope stops resolving the handle '
+                    'reports no match with a diagnostic naming it.',
               },
             },
           },

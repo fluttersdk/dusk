@@ -443,6 +443,7 @@ predicates still match.
 | `contains` | string | no | Substring match against accessibility label first, then `Text.data` (case-sensitive). Use when the visible label is dynamic (counters, timestamps, plurals). |
 | `semanticsLabel` | string | no | Exact match against `SemanticsNode.label` only (no Text fallback). |
 | `key` | string | no | Match against a widget `Key`. For `ValueKey`, pass the inner value's `toString()`. |
+| `within` | string | no | Evaluate the predicates inside one subtree: the `e<N>` ref of the region to search. The scope becomes part of the minted `q<N>` handle, so it survives every re-resolve; once the scope stops resolving the handle reports `matched: false` with a diagnostic naming it. |
 
 At least one of the four must be supplied. When multiple are passed they form an
 intersection.
@@ -934,6 +935,14 @@ carrying `typeable: true` when calling `dusk_type`.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `depth` | integer | no | Max tree-traversal depth from the root. Omit for full tree. |
+| `within` | string | no | Scope the walk to one subtree: the `e<N>` ref of the region to read. `q<N>` handles are not addressable here. An unknown ref is an error, not a silent widening. |
+| `interactiveOnly` | boolean | no | Emit only nodes carrying a ref; drop the plain `- text` lines. Default `false`. |
+| `grep` | string | no | Emit only nodes whose label or value matches this regular expression, plus the ancestors leading to them. |
+
+A full tree is the wrong default answer to most questions. It costs context on any real
+screen, and on a shell whose sidebar repeats the labels of the pages it opens it is also
+the misleading answer: the unscoped lookup resolves the nav item. `within` +
+`interactiveOnly` is the usual shape before an action.
 
 ### Returns
 

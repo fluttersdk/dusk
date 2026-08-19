@@ -86,6 +86,9 @@ For pipeline use, prefer the JSON-emitting verbs:
 ```bash
 ./bin/fsa dusk:snap                           # full tree
 ./bin/fsa dusk:snap --depth=4                 # limit walk depth
+./bin/fsa dusk:snap --within=e12              # one region only
+./bin/fsa dusk:snap --interactiveOnly         # refs only, no prose
+./bin/fsa dusk:snap --grep="Sign ?in"         # matches + the path to them
 ./bin/fsa dusk:observe --roles=textbox,button --limit=20
 ./bin/fsa dusk:observe --intent="login fields" --includeEnrichers=full
 ./bin/fsa dusk:screenshot -o page.jpg
@@ -101,6 +104,7 @@ bytes to disk; the JSON `base64` is reserved for the MCP path).
 ./bin/fsa dusk:find --text="Submit"
 ./bin/fsa dusk:find --contains="Sign"
 ./bin/fsa dusk:find --semanticsLabel="Email field"
+./bin/fsa dusk:find --text="Monitors" --within=e12   # scope to one region
 ./bin/fsa dusk:find --key="ValueKey('login-submit')"
 ```
 

@@ -88,6 +88,7 @@ class DuskQuery {
     this.containsText,
     this.semanticsLabel,
     this.keyValue,
+    this.withinRef,
   });
 
   /// Exact match against [SemanticsNode.label] (preferred for accessibility-
@@ -107,6 +108,16 @@ class DuskQuery {
 
   /// Stringified [Key] value (matches [ValueKey.value.toString()]).
   final String? keyValue;
+
+  /// `e<N>` ref of the subtree the predicates are evaluated inside.
+  ///
+  /// Part of the query rather than a one-off resolution argument, because a
+  /// `q<N>` handle re-executes on every action: a scoped locator that forgot
+  /// its scope on the next re-resolve would be worse than an unscoped one,
+  /// since it looks correct right up until the shell rebuilds. Playwright's
+  /// scoped locators behave the same way, including the part where a handle
+  /// stops resolving once its scope is gone.
+  final String? withinRef;
 }
 
 /// Static registry mapping `[ref=eN]` tokens to [RefEntry] records.

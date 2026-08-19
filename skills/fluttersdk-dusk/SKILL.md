@@ -145,6 +145,20 @@ and verify with `./bin/fsa dusk:doctor`.
    and the defect-shaped story that followed survived two rewrites of a
    widget that was correct the whole time.
 
+9. **Narrow the snapshot; the full tree is usually the wrong answer.**
+   `dusk_snap { within: "e12" }` walks one subtree, `interactiveOnly: true`
+   drops the prose, `grep: "<regex>"` keeps only matches plus the ancestors
+   carrying their refs. `dusk_find { within: "e12" }` scopes a query the
+   same way, and the scope becomes part of the `q<N>` handle so it survives
+   every re-resolve.
+
+   **The reason is not only context cost.** On a shell whose sidebar
+   repeats the labels of the pages it opens, an exact-label lookup resolves
+   the NAV ITEM, so the caller measures the sidebar and concludes two pages
+   differ. Deriving a content region from an x-coordinate does not fix it
+   either: the threshold is wrong at every other width, and there is no
+   sidebar at all on a phone. Scope by ref.
+
 ## 2. Tool surface (33 MCP tools, 34 CLI commands)
 
 | Family | Tools | Mental model |

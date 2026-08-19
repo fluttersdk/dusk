@@ -81,6 +81,9 @@ with stable `[ref=eN]` tokens.
 | Param | Type | Required | Default | Note |
 |---|---|---|---|---|
 | `depth` | integer | no | unlimited | Maximum tree depth to walk |
+| `within` | string | no | whole tree | `e<N>` ref of the subtree to walk. `q<N>` handles are not addressable here |
+| `interactiveOnly` | boolean | no | false | Emit only ref-bearing nodes; drop the plain `- text` lines |
+| `grep` | string | no | none | Emit only nodes whose label or value matches this regex, plus the ancestors leading to them |
 
 **Returns.** `{ snapshot: "<yaml>", groupId: "snapshot-<timestamp>" }`.
 
@@ -91,6 +94,12 @@ followed by indented enricher lines (`magicFormField: email`, `magicRoute:
 **Use it.** As the first call of any new agent session, or whenever the
 UI mutates (navigation, modal open, hot-reload). Re-snap after each act
 to refresh `e<N>` tokens against the live tree.
+
+**Narrow after the first read.** One unfiltered snap to see the shape,
+then `within` + `interactiveOnly` for everything after it. A full tree
+costs context on any real screen, and on a shell whose sidebar repeats
+page labels it is also the misleading read: the unscoped lookup resolves
+the nav item and you end up measuring the sidebar.
 
 **Common pitfalls.** `e<N>` tokens become defunct when their node
 unmounts. After a route push or a list rebuild, an old `e<N>` will fail
@@ -203,6 +212,7 @@ Semantics tree on every action. Playwright Locator equivalent.
 | `contains` | string | Substring match (looser; use when label is dynamic) |
 | `semanticsLabel` | string | Exact match on `Semantics(label: ...)` only, ignores Text widgets |
 | `key` | string | Stringified widget Key (`Key('login-submit')`) |
+| `within` | string | `e<N>` ref of the subtree to search in. Becomes part of the handle, so the scope survives every re-resolve |
 
 **Returns.** `{ ref: "q3", matched: true }` or `{ ref: null, matched: false }`.
 
@@ -212,7 +222,9 @@ The same `q<N>` works after the widget rebuilds, after a scroll, after
 a hot-reload (as long as the predicate still matches something).
 
 **Pitfalls.** `dusk_find` returns the first match. When a label is not
-unique, scope with `contains` plus another predicate, or use
+unique, reach for `within` first: a sidebar and the page it opens share
+their labels, and the unscoped match lands on the nav item. Otherwise
+scope with `contains` plus another predicate, or use
 `dusk_observe` to enumerate.
 
 ---

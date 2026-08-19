@@ -42,6 +42,7 @@ At least one of the four options must be non-empty; an empty params map returns 
 | `--contains` | string | unset | Substring match against the visible text label or Semantics label (case-sensitive). Use when the label is dynamic (counters, timestamps, plurals) and exact `--text` is too brittle. |
 | `--semanticsLabel` | string | unset | Exact match against the widget's accessibility label (the explicit `Semantics(label: ...)` value set by the widget tree). Use when the visible text and the a11y label diverge. |
 | `--key` | string | unset | Match the widget's `ValueKey` identifier (the `Key('signin-button')` form). Most precise; survives label and copy changes. |
+| `--within` | string (`e<N>`) | unset (whole tree) | Evaluate the predicates inside one subtree. The scope becomes part of the minted `q<N>` handle, so it survives into every re-resolve; once the scope stops resolving the handle reports `matched: false` with a diagnostic naming it. |
 
 The predicates compose AND: a `dusk:find --text=Sign --key=signin-button` call returns the widget that matches both. Use a single predicate when the agent only needs one axis.
 
