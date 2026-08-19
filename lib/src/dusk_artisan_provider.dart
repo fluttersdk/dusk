@@ -253,14 +253,21 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'reliable web screenshots, run the CLI command '
               '`dusk:screenshot --output=<path>` instead: when artisan was '
               'started with `--cdp-port`, the CLI falls back to CDP '
-              '`Page.captureScreenshot` for a full-viewport capture. That CDP '
-              'fallback is CLI-only; it does not apply to this MCP tool.\n'
+              '`Page.captureScreenshot`, and it honours `--ref` / `--rect` '
+              'there by resolving the region first and clipping the capture. '
+              'That CDP fallback is CLI-only; it does not apply to this MCP '
+              'tool.\n'
               '\n'
               'Usage:\n'
-              '- No required params; defaults to JPEG at quality 70.\n'
+              '- No required params; defaults to the whole viewport as JPEG '
+              'at quality 70.\n'
               '- Pass `format: "png"` for a lossless (larger) payload.\n'
-              '- Captures the WHOLE app surface; for region screenshots use '
-              'dusk_snap to locate a widget first.',
+              '- Pass `ref` (an e<N> from dusk_snap or a q<N> from dusk_find) '
+              'to capture ONLY that widget. This is the cheap way to look at '
+              'one component: a full-screen capture of a tall page costs far '
+              'more tokens and buries the thing you are checking.\n'
+              '- Add `rect: "x,y,w,h"` (logical px, relative to the ref\'s '
+              'top-left) to narrow further. `rect` requires `ref`.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{
@@ -275,6 +282,19 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'type': 'integer',
                 'description': 'JPEG quality 0-100 (higher is better). '
                     'Default 70. Ignored when format is `png`.',
+              },
+              'ref': <String, dynamic>{
+                'type': 'string',
+                'description': 'Capture only this widget. An `e<N>` token '
+                    'from dusk_snap or a `q<N>` handle from dusk_find. Omit '
+                    'to capture the whole viewport.',
+              },
+              'rect': <String, dynamic>{
+                'type': 'string',
+                'description': 'Sub-rect `"x,y,w,h"` in logical pixels, '
+                    'relative to the ref\'s top-left. Requires `ref`; '
+                    'passing it alone is an error rather than a silent '
+                    'full-frame capture.',
               },
             },
           },

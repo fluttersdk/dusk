@@ -34,12 +34,13 @@ void registerScreenshotExtension() {
 ///
 /// Accepted parameters:
 ///
-/// | Name      | Type   | Default  | Notes                                          |
-/// |-----------|--------|----------|------------------------------------------------|
-/// | `ref`     | String | absent   | If absent, captures the app-root viewport.     |
-/// | `rect`    | String | absent   | `x,y,w,h` logical px sub-rect of the ref.      |
-/// | `format`  | String | `'jpeg'` | `'png'` for lossless, `'jpeg'` for q70.        |
-/// | `quality` | int    | 70       | JPEG quality 1-100 (ignored for PNG).          |
+/// | Name       | Type   | Default  | Notes                                         |
+/// |------------|--------|----------|-----------------------------------------------|
+/// | `ref`      | String | absent   | If absent, captures the app-root viewport.    |
+/// | `rect`     | String | absent   | `x,y,w,h` logical px sub-rect of the ref.     |
+/// | `format`   | String | `'jpeg'` | `'png'` for lossless, `'jpeg'` for q70.       |
+/// | `quality`  | int    | 70       | JPEG quality 1-100 (ignored for PNG).         |
+/// | `geometry` | bool   | `false`  | Return the target's rect instead of pixels.   |
 ///
 /// `rect` is interpreted in logical pixels relative to the ref's
 /// `RenderObject` origin (top-left of the widget's paint bounds). It only
@@ -50,6 +51,20 @@ void registerScreenshotExtension() {
 /// ```json
 /// { "format": "jpeg", "base64": "<base64>", "width": 2880, "height": 1800 }
 /// ```
+///
+/// With `geometry: 'true'` the handler resolves the same target but skips
+/// rasterising entirely and returns the target's rect in VIEWPORT logical
+/// pixels instead:
+/// ```json
+/// { "rect": {"x": 12.0, "y": 34.0, "width": 100.0, "height": 50.0},
+///   "devicePixelRatio": 2.0 }
+/// ```
+///
+/// That mode exists for the web capture path. `OffsetLayer.toImage` hangs
+/// under CanvasKit + DWDS, so `dusk:screenshot` captures through Chrome
+/// DevTools Protocol there and needs the region in CSS pixels to build a
+/// `Page.captureScreenshot` clip. Flutter logical pixels map 1:1 onto CDP
+/// CSS pixels, so the rect crosses over unscaled.
 Future<developer.ServiceExtensionResponse> screenshotHandler(
   String method,
   Map<String, String> params,
@@ -75,7 +90,18 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
       );
     }
 
-    // 2. Resolve the capture target: the OffsetLayer to rasterise PLUS the
+    // 2. Geometry mode short-circuits before any rendering work: the caller
+    //    wants the region, not the pixels, because it is going to capture
+    //    them through CDP instead. Answering here rather than in a separate
+    //    extension keeps one resolution path for `ref` + `rect`.
+    if (params['geometry'] == 'true') {
+      return duskResult(_resolveViewportGeometry(
+        ref: (ref != null && ref.isNotEmpty) ? ref : null,
+        subRect: subRect,
+      ));
+    }
+
+    // 3. Resolve the capture target: the OffsetLayer to rasterise PLUS the
     //    bounds (in layer-local coordinates) to rasterise out of it. The
     //    target shape is uniform across all three modes (no ref, ref only,
     //    ref + rect); only how we derive the bounds differs.
@@ -84,7 +110,7 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
       subRect: subRect,
     );
 
-    // 3. Rasterise. toImage asserts !debugNeedsPaint — safe because the
+    // 4. Rasterise. toImage asserts !debugNeedsPaint — safe because the
     //    extension only fires after a frame has painted; in tests the
     //    caller pumps once before invoking us.
     final ui.Image img = await target.layer.toImage(
@@ -96,9 +122,9 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
 
     final String base64Payload;
     try {
-      // 4. Encode to the requested format and base64-encode the byte stream.
+      // 5. Encode to the requested format and base64-encode the byte stream.
       if (format == 'png') {
-        // 4a. PNG path: lossless, larger payload (~300-800 KB for a full HD
+        // 5a. PNG path: lossless, larger payload (~300-800 KB for a full HD
         //     screen at 2x). Use only when pixel-exact output is required.
         final ByteData? byteData =
             await img.toByteData(format: ui.ImageByteFormat.png);
@@ -115,7 +141,7 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
 
         base64Payload = base64Encode(byteData.buffer.asUint8List());
       } else {
-        // 4b. JPEG path (default): lossy q70 encode via the `image` package.
+        // 5b. JPEG path (default): lossy q70 encode via the `image` package.
         //     Steps: toImage() → PNG bytes → decodePng → encodeJpg. This keeps
         //     payloads in the 40-120 KB range for typical app screens.
         final ByteData? pngByteData =
@@ -139,7 +165,7 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
       img.dispose();
     }
 
-    // 5. Return the payload with format, encoded bytes, and dimensions.
+    // 6. Return the payload with format, encoded bytes, and dimensions.
     return duskResult(<String, dynamic>{
       'format': format == 'png' ? 'png' : 'jpeg',
       'base64': base64Payload,
@@ -156,6 +182,80 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
       wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
     );
   }
+}
+
+/// Resolves the capture region in VIEWPORT logical pixels, without touching
+/// the compositor.
+///
+/// This is the geometry half of [_resolveCaptureTarget], and it deliberately
+/// answers in a different coordinate space. `toImage` wants bounds local to
+/// the repaint boundary it rasterises; a CDP `Page.captureScreenshot` clip
+/// wants them relative to the top-left of the page. For a ref whose nearest
+/// repaint-boundary ancestor is an inner `RepaintBoundary` the two disagree,
+/// so the global rect is computed from the render box directly rather than
+/// reused from the capture target.
+///
+/// Mirrors [_resolveCaptureTarget]'s three modes:
+///
+/// 1. No ref: the view's logical viewport.
+/// 2. `ref`: the ref's own global bounds.
+/// 3. `ref` + `subRect`: [subRect] is ref-local, so it is offset by the ref's
+///    global origin.
+///
+/// Throws [StateError] for the same conditions [_resolveRefRenderObject]
+/// does, plus a render object that is not a sized, attached [RenderBox]
+/// (a sliver has no `localToGlobal` answer worth clipping to).
+Map<String, dynamic> _resolveViewportGeometry({
+  required String? ref,
+  required Rect? subRect,
+}) {
+  final double devicePixelRatio = WidgetsBinding
+          .instance.platformDispatcher.implicitView?.devicePixelRatio ??
+      1.0;
+
+  final Rect rect;
+  if (ref == null) {
+    final ui.FlutterView? view =
+        WidgetsBinding.instance.platformDispatcher.implicitView;
+    if (view == null) {
+      throw StateError(
+        'ext.dusk.screenshot: no implicit view, so the viewport has no '
+        'geometry to report.',
+      );
+    }
+    final Size size = view.physicalSize / view.devicePixelRatio;
+    rect = Rect.fromLTWH(0, 0, size.width, size.height);
+  } else {
+    final RenderObject renderObject = _resolveRefRenderObject(ref);
+    if (renderObject is! RenderBox ||
+        !renderObject.attached ||
+        !renderObject.hasSize) {
+      throw StateError(
+        'ext.dusk.screenshot: ref "$ref" has no live rect (its render object '
+        'is detached, unsized, or not a RenderBox). Re-snapshot and retry.',
+      );
+    }
+    final Rect global =
+        renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    rect = subRect == null
+        ? global
+        : Rect.fromLTWH(
+            global.left + subRect.left,
+            global.top + subRect.top,
+            subRect.width,
+            subRect.height,
+          );
+  }
+
+  return <String, dynamic>{
+    'rect': <String, dynamic>{
+      'x': rect.left,
+      'y': rect.top,
+      'width': rect.width,
+      'height': rect.height,
+    },
+    'devicePixelRatio': devicePixelRatio,
+  };
 }
 
 /// The two things [screenshotHandler] needs to call

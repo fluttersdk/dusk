@@ -764,8 +764,8 @@ always dispatches the in-isolate `ext.dusk.screenshot` extension.
 **Web limitation:** the in-isolate path can hang under CanvasKit+DWDS (the `toImage()`
 future never completes). For reliable web screenshots, use the CLI command
 `dusk:screenshot --output=<path>`: when artisan was started with `--cdp-port`, the CLI
-falls back to CDP `Page.captureScreenshot` for a full-viewport capture. That fallback is
-CLI-only and does not apply to this MCP tool.
+falls back to CDP `Page.captureScreenshot`, honouring `--ref` / `--rect` there too. That
+fallback is CLI-only and does not apply to this MCP tool.
 
 ### Input schema
 
@@ -773,17 +773,33 @@ CLI-only and does not apply to this MCP tool.
 |---|---|---|---|
 | `format` | string | no | `jpeg` or `png`. Default `jpeg`. |
 | `quality` | integer | no | JPEG quality 0-100 (higher is better). Default `70`. Ignored when format is `png`. |
+| `ref` | string | no | Capture only this widget: an `e<N>` from `dusk_snap` or a `q<N>` from `dusk_find`. Omit for the whole viewport. |
+| `rect` | string | no | Sub-rect `"x,y,w,h"` in logical pixels, relative to the ref's top-left. Requires `ref`. |
+
+Reach for `ref` whenever the question is about one component. A full-screen capture of a
+tall page costs far more tokens than the region under review and buries the thing you are
+checking, and it forces the resize dance for anything below the fold.
+
+`rect` alone is a hard error rather than a silent full-frame capture: a sub-rect is
+meaningless without the widget it is relative to.
 
 ### Returns
 
-Success: `{ format: "<jpeg|png>", base64: "<base64>", width: <int>, height: <int> }`. The
-in-isolate path captures the app-root viewport (the `RepaintBoundary` the host wraps the
-app in under `kDebugMode`).
+Success: `{ format: "<jpeg|png>", base64: "<base64>", width: <int>, height: <int> }`.
+
+Without `ref` the capture is the app-root viewport (the `RepaintBoundary` the host wraps
+the app in under `kDebugMode`). With `ref` it is the widget's own render-object region,
+rasterised out of its nearest repaint-boundary ancestor.
+
+A third mode, `geometry: "true"`, returns
+`{ rect: {x, y, width, height}, devicePixelRatio: <double> }` and skips rasterising
+altogether. It exists so the CLI can build a CDP clip on web, where rasterising is the
+step that hangs; agents normally want the pixels instead.
 
 ### Example call
 
 ```json
-{ "name": "dusk_screenshot", "arguments": { "format": "jpeg", "quality": 70 } }
+{ "name": "dusk_screenshot", "arguments": { "ref": "e42", "format": "png" } }
 ```
 
 ---

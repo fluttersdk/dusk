@@ -175,6 +175,17 @@ correctness checks, snap is cheaper and faster than screenshot.
 clients this can be lossy. Prefer ref-targeted screenshots when only one
 widget matters.
 
+`rect` without `ref` is a hard error, not a full-frame capture: a sub-rect
+is meaningless without the widget it is relative to.
+
+On web the MCP tool can hang (CanvasKit + DWDS), so use the CLI
+`dusk:screenshot --ref=<ref> -o <path>` there. It resolves the region
+through the extension's geometry mode and clips a CDP
+`Page.captureScreenshot`, so `--ref` and `--rect` behave the same on both
+paths. Reaching for `--ref` also removes the resize dance: without it, a
+component below the fold means growing the viewport to a size no device
+has, capturing, and putting the height back.
+
 ---
 
 ## Find: query handles

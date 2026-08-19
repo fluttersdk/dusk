@@ -409,5 +409,181 @@ void main() {
         },
       );
     });
+
+    // -------------------------------------------------------------------------
+    // Region capture: --ref / --rect
+    // -------------------------------------------------------------------------
+
+    group('region capture', () {
+      test('configure declares --ref and --rect', () {
+        final parser = ArgParser();
+        DuskScreenshotCommand().configure(parser);
+
+        expect(parser.options.keys, contains('ref'));
+        expect(parser.options.keys, contains('rect'));
+      });
+
+      test('native path forwards ref and rect to the extension', () async {
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/region.jpg',
+            'format': 'jpeg',
+            'quality': '70',
+            'ref': 'e5',
+            'rect': '10,20,30,40',
+          }),
+          output: BufferedOutput(),
+          response: const {
+            'format': 'jpeg',
+            'base64': 'AA==',
+            'width': 60,
+            'height': 80,
+          },
+        );
+
+        final exit = await DuskScreenshotCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        expect(ctx.lastMethod, equals('ext.dusk.screenshot'));
+        expect(ctx.lastParams, containsPair('ref', 'e5'));
+        expect(ctx.lastParams, containsPair('rect', '10,20,30,40'));
+      });
+
+      test('native path omits ref and rect when not supplied', () async {
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({'output': '${tempDir.path}/full.jpg'}),
+          output: BufferedOutput(),
+          response: const {'base64': 'AA=='},
+        );
+
+        await DuskScreenshotCommand().handle(ctx);
+
+        expect(ctx.lastParams!.containsKey('ref'), isFalse);
+        expect(ctx.lastParams!.containsKey('rect'), isFalse);
+      });
+
+      test('CDP path clips the capture to the ref rect', () async {
+        const fakePngBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk'
+            '+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        Map<String, dynamic>? capturedParams;
+
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Page.enable': (Map<String, dynamic> _) async =>
+                <String, dynamic>{},
+            'Page.captureScreenshot': (Map<String, dynamic> params) async {
+              capturedParams = params;
+              return <String, dynamic>{'data': fakePngBase64};
+            },
+          },
+        );
+        addTearDown(server.stop);
+
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        // The geometry probe skips rasterising, so it is safe on the web
+        // target whose in-isolate toImage() is the reason this path exists.
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/region.png',
+            'format': 'png',
+            'ref': 'e5',
+          }),
+          output: BufferedOutput(),
+          response: const {
+            'rect': {'x': 12.0, 'y': 34.0, 'width': 100.0, 'height': 50.0},
+          },
+        );
+
+        final exit = await DuskScreenshotCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        expect(ctx.lastMethod, equals('ext.dusk.screenshot'));
+        expect(ctx.lastParams, containsPair('geometry', 'true'));
+        expect(ctx.lastParams, containsPair('ref', 'e5'));
+
+        // Flutter logical px map 1:1 onto CDP CSS px, so the rect crosses
+        // over unscaled.
+        final clip = capturedParams!['clip'] as Map<String, dynamic>;
+        expect(clip['x'], equals(12.0));
+        expect(clip['y'], equals(34.0));
+        expect(clip['width'], equals(100.0));
+        expect(clip['height'], equals(50.0));
+        expect(clip['scale'], equals(1));
+      });
+
+      test('CDP path sends no clip without a ref', () async {
+        const fakePngBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk'
+            '+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        Map<String, dynamic>? capturedParams;
+
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Page.enable': (Map<String, dynamic> _) async =>
+                <String, dynamic>{},
+            'Page.captureScreenshot': (Map<String, dynamic> params) async {
+              capturedParams = params;
+              return <String, dynamic>{'data': fakePngBase64};
+            },
+          },
+        );
+        addTearDown(server.stop);
+
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/full.png',
+            'format': 'png',
+          }),
+          output: BufferedOutput(),
+        );
+
+        await DuskScreenshotCommand().handle(ctx);
+
+        expect(capturedParams!.containsKey('clip'), isFalse);
+      });
+
+      test('CDP path fails loudly when the ref has no live rect', () async {
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Page.enable': (Map<String, dynamic> _) async =>
+                <String, dynamic>{},
+            'Page.captureScreenshot': (Map<String, dynamic> _) async =>
+                <String, dynamic>{'data': ''},
+          },
+        );
+        addTearDown(server.stop);
+
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/region.png',
+            'ref': 'e5',
+          }),
+          output: output,
+          response: const {},
+        );
+
+        final exit = await DuskScreenshotCommand().handle(ctx);
+
+        // Silently falling back to a full-viewport capture would hand the
+        // caller a wrong image that looks right, which is the failure mode
+        // this whole flag exists to remove.
+        expect(exit, equals(1));
+        expect(output.content, contains('no rect'));
+      });
+    });
   });
 }
