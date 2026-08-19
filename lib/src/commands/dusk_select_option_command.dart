@@ -1,6 +1,7 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
 
 /// `artisan dusk:select_option --ref=<eN> --value=<string>` — pick an
 /// option from a DropdownButton / PopupMenuButton. Mirrors the
@@ -18,6 +19,7 @@ class DuskSelectOptionCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption(
       'ref',
       help: 'Snapshot ref token of the parent dropdown / popup widget.',
@@ -48,7 +50,8 @@ class DuskSelectOptionCommand extends ArtisanCommand {
       {'ref': ref, 'value': value},
     );
     reportFrameWarning(ctx, response);
-    ctx.output.success('Selected "$value" on $ref');
+    emitEnvelope(
+        ctx, response, () => ctx.output.success('Selected "$value" on $ref'));
     return 0;
   }
 }

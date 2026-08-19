@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
 
 /// `artisan dusk:focus --ref=<eN>` — request keyboard focus on a widget.
 class DuskFocusCommand extends ArtisanCommand {
@@ -18,6 +19,7 @@ class DuskFocusCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption('ref',
         help: 'Widget ref token (e.g. e5).', mandatory: true);
     parser.addFlag('includeSnapshot',
@@ -42,7 +44,7 @@ class DuskFocusCommand extends ArtisanCommand {
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Focused $ref');
+      emitEnvelope(ctx, response, () => ctx.output.success('Focused $ref'));
     }
     return 0;
   }

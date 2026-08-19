@@ -83,26 +83,22 @@ and verify with `./bin/fsa dusk:doctor`.
    same code path. Use MCP when the agent is wired through an MCP
    client; use the CLI from Bash when chaining shell logic or capturing
    output to a file. Two practical differences worth knowing:
-   (a) MCP responses are always JSON. The CLI splits by verb: read /
-   query verbs return JSON (`dusk:snap`, `dusk:observe`, `dusk:find`,
-   `dusk:get_routes`, `dusk:console`, `dusk:exceptions`, `dusk:wait`,
-   `dusk:wait_for_network_idle`, `dusk:hot_reload_and_snap`), and so does
-   `dusk:reset_overlays`, which acts on the app but still prints its
-   `{popped, escaped, dismissTapped}` object so you can see which layer
-   cleared the screen; the 19
-   side-effect verbs (`dusk:tap`, `dusk:hover`, `dusk:drag`, `dusk:type`,
-   `dusk:fill`, `dusk:clear`, `dusk:press_key`, `dusk:scroll`,
-   `dusk:focus`, `dusk:blur`, `dusk:dblclick`, `dusk:right_click`,
-   `dusk:triple_click`, `dusk:set_checkbox`, `dusk:select_option`,
-   `dusk:navigate`, `dusk:navigate_back`, `dusk:modal`,
-   `dusk:close_app`) print a
-   one-line success summary by default and only emit JSON when
-   `--includeSnapshot` is passed. `dusk:screenshot` writes bytes to disk
+   (a) MCP responses are always JSON. On the CLI, **`--json` prints the
+   raw envelope on any verb** and is what you want whenever the output
+   feeds a tool rather than a terminal; you do not have to know which
+   verbs happen to emit JSON by default. Without it, read / query verbs
+   (`dusk:snap`, `dusk:observe`, `dusk:find`, `dusk:get_routes`,
+   `dusk:console`, `dusk:exceptions`, `dusk:hot_reload_and_snap`) and
+   `dusk:reset_overlays` print JSON; the side-effect verbs and the two
+   waits print a one-line summary. `dusk:screenshot` writes bytes to disk
    and prints `Wrote N bytes...`; `dusk:install` / `dusk:doctor` print
-   categorised reports. Pipe through `jq` only on the JSON-returning
-   shapes. (b) `dusk_evaluate` is MCP-only (no CLI mirror); the
-   dusk-aware Dart REPL lives behind `./bin/fsa tinker` (one-shot form:
-   `./bin/fsa tinker --eval="<expression>"`).
+   categorised reports. (b) `dusk_evaluate` is MCP-only (no CLI mirror);
+   the dusk-aware Dart REPL lives behind `./bin/fsa tinker` (one-shot
+   form: `./bin/fsa tinker --eval="<expression>"`). (c) **`dusk:wait`
+   exits 1 when the condition never matched.** It used to print
+   `✓ Condition matched` and exit 0 on timeout, so a shell chain that
+   depended on it proved nothing; if you carry a workaround for that,
+   drop it.
 
 7. **A `warnings` block means the result is not trustworthy.** When the
    app stops producing frames (a backgrounded browser tab is the usual

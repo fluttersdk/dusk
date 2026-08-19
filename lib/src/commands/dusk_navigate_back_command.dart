@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
 
 /// `artisan dusk:navigate_back` — pop the topmost route off the active
 /// Navigator. Mirrors the `dusk_navigate_back` MCP tool surface.
@@ -19,6 +20,7 @@ class DuskNavigateBackCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addFlag('includeSnapshot',
         help: 'Embed the post-pop snapshot in the response.',
         defaultsTo: false);
@@ -36,7 +38,8 @@ class DuskNavigateBackCommand extends ArtisanCommand {
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Popped current route');
+      emitEnvelope(
+          ctx, response, () => ctx.output.success('Popped current route'));
     }
     return 0;
   }

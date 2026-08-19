@@ -50,33 +50,39 @@ surfaces.
 
 ## Output
 
-stdout shape depends on the command:
+**`--json` on any verb prints the raw envelope.** Reach for it whenever the
+output is going into a tool rather than a terminal; you no longer have to
+know which verbs happen to emit JSON.
+
+Without it, stdout shape depends on the command:
 
 - **JSON payload** on read / query verbs: `dusk:snap`, `dusk:observe`,
   `dusk:find`, `dusk:get_routes`, `dusk:console`, `dusk:exceptions`,
-  `dusk:wait`, `dusk:wait_for_network_idle`, `dusk:hot_reload_and_snap`.
-  These mirror the MCP response shape and are safe to pipe through `jq`.
-- **One-line human summary** on side-effect verbs by default:
-  `dusk:tap`, `dusk:hover`, `dusk:drag`, `dusk:type`, `dusk:clear`,
-  `dusk:press_key`, `dusk:scroll`, `dusk:focus`, `dusk:blur`,
-  `dusk:dblclick`, `dusk:right_click`, `dusk:triple_click`,
-  `dusk:set_checkbox`, `dusk:select_option`, `dusk:navigate`,
-  `dusk:navigate_back`, `dusk:modal`, `dusk:close_app`. Pass
-  `--includeSnapshot` to receive JSON containing the post-action
-  snapshot.
+  `dusk:hot_reload_and_snap`. These mirror the MCP response shape and are
+  safe to pipe through `jq`.
+- **One-line human summary** on the side-effect verbs and on `dusk:wait` /
+  `dusk:wait_for_network_idle`. The summary is not lossy by accident: where
+  the envelope carries a verdict, the line names it (`✓ Tapped e7 (no
+  observable change)`).
 - **Bytes to disk** for `dusk:screenshot` (always requires `-o <path>`;
   prints `Wrote N bytes (K KB, format) to <path>`).
 - **Categorised report** for `dusk:install` and `dusk:doctor`.
 
 stderr carries error messages, including the actionability reason
-substring on gate failures. Exit code: 0 on success, 1 on any failure.
+substring on gate failures, and the frame-production banner.
 
-For pipeline use, prefer the JSON-emitting verbs:
+**Exit code: 0 on success, 1 on any failure, and `dusk:wait` counts a
+condition that never matched as a failure.** It used to print
+`✓ Condition matched` and exit 0 on timeout, which made the one command
+whose whole job is asserting a post-condition pass on exactly the case it
+exists to catch. If a shell loop of yours worked around that, drop the
+workaround.
 
 ```bash
 ./bin/fsa dusk:snap | jq -r '.snapshot' > snap.yaml
 ./bin/fsa dusk:observe --roles=button --limit=10 | jq '.candidates[].label'
-./bin/fsa dusk:tap --ref=e7 --includeSnapshot | jq '.snapshot'  # force JSON
+./bin/fsa dusk:tap --ref=e7 --json | jq '.effect.changed'
+./bin/fsa dusk:wait --text="Saved" || echo "never appeared"
 ```
 
 ## Commands by family

@@ -1,6 +1,7 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
 
 /// `artisan dusk:wait [--text=<s>] [--textGone=<s>] [--expression=<dart>]
 /// [--timeoutMs=<ms>]` — wait for a condition in the running app.
@@ -17,6 +18,7 @@ class DuskWaitCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption(
       'text',
       help: 'Wait until this text appears in the widget tree.',
@@ -67,7 +69,25 @@ class DuskWaitCommand extends ArtisanCommand {
     final response = await ctx.callExtension<Map<String, dynamic>>(
         'ext.dusk.wait_for', params);
     reportFrameWarning(ctx, response);
-    ctx.output.success('Condition matched');
+
+    // A timed-out wait comes back as a SUCCESS envelope carrying
+    // `matched: false`, not as an error. Printing the success line
+    // regardless made the one command whose whole job is asserting a
+    // post-condition pass on exactly the case it exists to catch, and
+    // shell callers chain on its exit code.
+    final bool matched = response['matched'] != false;
+    if (!matched) {
+      emitEnvelope(ctx, response, () {
+        ctx.output.error(
+          'Condition did not match within the timeout. Nothing on screen '
+          'satisfied it, so treat any assertion that depended on this wait '
+          'as unproven.',
+        );
+      });
+      return 1;
+    }
+
+    emitEnvelope(ctx, response, () => ctx.output.success('Condition matched'));
     return 0;
   }
 }

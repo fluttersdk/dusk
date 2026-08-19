@@ -1,6 +1,7 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
 
 /// `artisan dusk:wait_for_network_idle [--timeoutMs=<ms>] [--idleMs=<ms>]
 /// [--pollIntervalMs=<ms>]` ; block until the running app reports zero
@@ -25,6 +26,7 @@ class DuskWaitForNetworkIdleCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption(
       'timeoutMs',
       help: 'Maximum total wait time in milliseconds (default 5000).',
@@ -65,7 +67,7 @@ class DuskWaitForNetworkIdleCommand extends ArtisanCommand {
       params,
     );
     reportFrameWarning(ctx, response);
-    ctx.output.success('Network idle');
+    emitEnvelope(ctx, response, () => ctx.output.success('Network idle'));
     return 0;
   }
 }

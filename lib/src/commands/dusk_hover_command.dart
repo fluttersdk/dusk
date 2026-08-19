@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
 
 /// `artisan dusk:hover --ref=<eN>` — hover the pointer over a widget by ref token.
 class DuskHoverCommand extends ArtisanCommand {
@@ -18,6 +19,7 @@ class DuskHoverCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption(
       'ref',
       help: 'Snapshot ref token (e.g. e1).',
@@ -62,7 +64,7 @@ class DuskHoverCommand extends ArtisanCommand {
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Hovered $ref');
+      emitEnvelope(ctx, response, () => ctx.output.success('Hovered $ref'));
     }
     return 0;
   }

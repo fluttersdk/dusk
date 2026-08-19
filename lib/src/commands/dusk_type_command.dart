@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
 
 /// `artisan dusk:type --ref=<eN> --text=<string>` — type text into a focused widget.
 class DuskTypeCommand extends ArtisanCommand {
@@ -17,6 +18,7 @@ class DuskTypeCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption('ref',
         help: 'Snapshot ref token (e.g. e1).', mandatory: true);
     parser.addOption('text',
@@ -63,7 +65,7 @@ class DuskTypeCommand extends ArtisanCommand {
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Typed into $ref');
+      emitEnvelope(ctx, response, () => ctx.output.success('Typed into $ref'));
     }
     return 0;
   }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
 
 /// `artisan dusk:tap --ref=<eN>` — synthesize a tap on the element.
 class DuskTapCommand extends ArtisanCommand {
@@ -17,6 +18,7 @@ class DuskTapCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption(
       'ref',
       help: 'Snapshot ref token (e.g. e1).',
@@ -79,19 +81,22 @@ class DuskTapCommand extends ArtisanCommand {
       params,
     );
     reportFrameWarning(ctx, response);
-    // The envelope always carries `effect`, and it is the field that says
-    // whether the tap did anything, so a bare `✓ Tapped e7` would drop the
-    // one thing worth reading. Print the JSON unless the caller has opted
-    // out of the extras entirely.
-    if (includeSnapshot || hasUntil) {
+    // Print the envelope when the caller asked for it, or when they asked
+    // for a field that only lives in it (a snapshot, an `untilMatched`).
+    if (wantsJson(ctx) || includeSnapshot || hasUntil) {
       ctx.output.writeln(jsonEncode(response));
-    } else {
-      final effect = response['effect'] as Map<String, dynamic>?;
-      final changed = effect?['changed'];
-      ctx.output.success(
-        changed == false ? 'Tapped $ref (no observable change)' : 'Tapped $ref',
-      );
+      return 0;
     }
+
+    // The summary names the one field worth reading. `effect.changed` is
+    // false for a tap the gate accepted that moved nothing, and a bare
+    // `✓ Tapped e7` would hide exactly that case.
+    final effect = response['effect'] as Map<String, dynamic>?;
+    ctx.output.success(
+      effect?['changed'] == false
+          ? 'Tapped $ref (no observable change)'
+          : 'Tapped $ref',
+    );
     return 0;
   }
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
 
 /// `artisan dusk:right_click --ref=<eN>` — secondary mouse button click.
 class DuskRightClickCommand extends ArtisanCommand {
@@ -18,6 +19,7 @@ class DuskRightClickCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption('ref',
         help: 'Widget ref token (e.g. e5).', mandatory: true);
     parser.addFlag('includeSnapshot',
@@ -54,7 +56,8 @@ class DuskRightClickCommand extends ArtisanCommand {
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Right-clicked $ref');
+      emitEnvelope(
+          ctx, response, () => ctx.output.success('Right-clicked $ref'));
     }
     return 0;
   }

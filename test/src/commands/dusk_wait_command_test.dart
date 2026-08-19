@@ -140,5 +140,64 @@ void main() {
 
       expect(await DuskWaitCommand().handle(ctx), equals(0));
     });
+
+    // -------------------------------------------------------------------------
+    // Outcome reporting
+    // -------------------------------------------------------------------------
+
+    test('reports a matched condition and exits 0', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'text': 'Saved'}),
+        output: output,
+        response: const {'matched': true},
+      );
+
+      final exit = await DuskWaitCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(output.content, contains('Condition matched'));
+    });
+
+    test('exits non-zero when the condition never matched', () async {
+      // ext.dusk.wait_for returns a SUCCESS envelope carrying
+      // `matched: false` on timeout. Printing the success line regardless
+      // makes the one command whose whole job is asserting a post-condition
+      // pass on the exact case it exists to catch, and agents chain on its
+      // exit code.
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'text': 'Saved', 'timeoutMs': '500'}),
+        output: output,
+        response: const {'matched': false},
+      );
+
+      final exit = await DuskWaitCommand().handle(ctx);
+
+      expect(exit, equals(1));
+      expect(output.content, isNot(contains('Condition matched')));
+      expect(output.content, contains('did not match'));
+    });
+
+    test('--json prints the envelope instead of the summary', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'text': 'Saved', 'json': true}),
+        output: output,
+        response: const {'matched': true, 'elapsedMs': 42},
+      );
+
+      final exit = await DuskWaitCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(output.content, contains('"matched":true'));
+      expect(output.content, contains('"elapsedMs":42'));
+    });
+
+    test('configure declares --json', () {
+      final parser = ArgParser();
+      DuskWaitCommand().configure(parser);
+      expect(parser.options.keys, contains('json'));
+    });
   });
 }

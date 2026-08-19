@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
 
 /// `artisan dusk:drag --startRef=<eN> --endRef=<eN>` — drag from one widget to another.
 class DuskDragCommand extends ArtisanCommand {
@@ -18,6 +19,7 @@ class DuskDragCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     // Primary flags: --fromRef / --toRef (parallel to other gesture commands'
     // --ref convention; "from"/"to" reads cleaner than "start"/"end" for a
     // drag). Legacy --startRef / --endRef stay supported as aliases for
@@ -77,7 +79,8 @@ class DuskDragCommand extends ArtisanCommand {
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Dragged $startRef to $endRef');
+      emitEnvelope(ctx, response,
+          () => ctx.output.success('Dragged $startRef to $endRef'));
     }
     return 0;
   }

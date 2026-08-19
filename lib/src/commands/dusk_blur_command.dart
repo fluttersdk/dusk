@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
 
 /// `artisan dusk:blur` — clear keyboard focus from whatever currently holds it.
 class DuskBlurCommand extends ArtisanCommand {
@@ -18,6 +19,7 @@ class DuskBlurCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addFlag('includeSnapshot',
         help: 'Embed the post-blur snapshot in the response.',
         defaultsTo: false);
@@ -35,7 +37,7 @@ class DuskBlurCommand extends ArtisanCommand {
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Blurred');
+      emitEnvelope(ctx, response, () => ctx.output.success('Blurred'));
     }
     return 0;
   }
