@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:navigate_back` — pop the topmost route off the active
 /// Navigator. Mirrors the `dusk_navigate_back` MCP tool surface.
 class DuskNavigateBackCommand extends ArtisanCommand {
@@ -30,6 +32,7 @@ class DuskNavigateBackCommand extends ArtisanCommand {
       'ext.dusk.navigate_back',
       {'includeSnapshot': includeSnapshot.toString()},
     );
+    reportFrameWarning(ctx, response);
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {

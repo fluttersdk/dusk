@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../dusk_error_capture.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
@@ -140,12 +140,10 @@ Future<developer.ServiceExtensionResponse> aiTestExceptionsHandler(
         filtered.length > limit ? filtered.sublist(0, limit) : filtered;
 
     // 5. Return the structured envelope.
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'exceptions': exceptions,
-        'count': exceptions.length,
-      }),
-    );
+    return duskResult(<String, dynamic>{
+      'exceptions': exceptions,
+      'count': exceptions.length,
+    });
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.exceptions: unexpected error: $e\n$st',

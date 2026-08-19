@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:meta/meta.dart';
 
+import 'frame_warning_output.dart';
+
 /// Outcome of a single hot reload attempt, decoupled from the
 /// `package:vm_service` `ReloadReport` shape so tests can inject fakes
 /// without dragging the VM Service library into the test surface.
@@ -145,6 +147,7 @@ class DuskHotReloadAndSnapCommand extends ArtisanCommand {
     //    round-trip because there is nothing useful to return without it.
     final Map<String, dynamic> snap =
         await ctx.callExtension<Map<String, dynamic>>('ext.dusk.snap');
+    reportFrameWarning(ctx, snap);
     final String snapshot = snap['snapshot'] as String? ?? jsonEncode(snap);
 
     // 4. Capture the screenshot when requested. Screenshot failure does NOT
@@ -194,6 +197,7 @@ class DuskHotReloadAndSnapCommand extends ArtisanCommand {
     try {
       final Map<String, dynamic> resp =
           await ctx.callExtension<Map<String, dynamic>>('ext.dusk.exceptions');
+      reportFrameWarning(ctx, resp);
       final List<dynamic>? list = resp['exceptions'] as List<dynamic>?;
       return list ?? const <dynamic>[];
     } catch (_) {

@@ -5,7 +5,7 @@ version: 0.0.9
 when_to_use: "Any task where the agent drives or inspects a running Flutter app via dusk: calling `dusk_*` MCP tools in a loop (snap, tap, type, screenshot, hot_reload_and_snap), invoking `./bin/fsa dusk:<verb>` from a shell, recovering from an actionability failure, choosing between `e<N>` and `q<N>` ref tokens, waiting for text or network idle, navigating routes, or filling a form."
 ---
 
-<!-- fluttersdk_dusk v0.0.9 | Skill updated: 2026-08-04 -->
+<!-- fluttersdk_dusk v0.0.9 | Skill updated: 2026-08-20 -->
 
 # fluttersdk_dusk
 
@@ -103,6 +103,28 @@ and verify with `./bin/fsa dusk:doctor`.
    shapes. (b) `dusk_evaluate` is MCP-only (no CLI mirror); the
    dusk-aware Dart REPL lives behind `./bin/fsa tinker` (one-shot form:
    `./bin/fsa tinker --eval="<expression>"`).
+
+7. **A `warnings` block means the result is not trustworthy.** When the
+   app stops producing frames (a backgrounded browser tab is the usual
+   cause; Flutter maps `document.visibilityState: "hidden"` to
+   `AppLifecycleState.hidden`, which disables frames), semantics labels
+   are never rebuilt and dispatched gestures cannot take effect. Every
+   payload then carries:
+
+   ```json
+   { "warnings": { "framesEnabled": false, "lifecycleState": "hidden", "hint": "..." } }
+   ```
+
+   Two symptoms follow and both look like product defects. `dusk_snap`
+   returns the buttons and none of the `- text` nodes, so a screen that
+   renders perfectly reads as completely empty. And an action returns a
+   clean success for a gesture that could not have landed. **Never
+   conclude "the screen is empty" or "the tap did nothing" while this
+   block is present.** Fix it with one CDP call, `Page.bringToFront`,
+   then retry. On the CLI the same condition prints a stderr banner,
+   because `dusk:snap` prints only the tree and `dusk:tap` prints
+   `✓ Tapped e7`, so neither would show you the block otherwise. The key
+   is absent on a healthy engine, so its presence is the whole signal.
 
 ## 2. Tool surface (33 MCP tools, 34 CLI commands)
 

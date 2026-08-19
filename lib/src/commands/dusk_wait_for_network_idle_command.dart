@@ -1,5 +1,7 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:wait_for_network_idle [--timeoutMs=<ms>] [--idleMs=<ms>]
 /// [--pollIntervalMs=<ms>]` ; block until the running app reports zero
 /// in-flight HTTP requests for a contiguous [idleMs] window.
@@ -58,10 +60,11 @@ class DuskWaitForNetworkIdleCommand extends ArtisanCommand {
       params['pollIntervalMs'] = pollIntervalMs;
     }
 
-    await ctx.callExtension<Map<String, dynamic>>(
+    final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.wait_for_network_idle',
       params,
     );
+    reportFrameWarning(ctx, response);
     ctx.output.success('Network idle');
     return 0;
   }

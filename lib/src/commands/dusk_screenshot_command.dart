@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../cdp/cdp_client.dart';
+import 'frame_warning_output.dart';
 
 /// `artisan dusk:screenshot --output=<path>` — capture a PNG/JPEG screenshot
 /// of the running app and write it to disk.
@@ -159,6 +160,7 @@ class DuskScreenshotCommand extends ArtisanCommand {
       'ext.dusk.screenshot',
       {'format': format, 'quality': quality},
     );
+    reportFrameWarning(ctx, result);
     final String? base64Str = result['base64'] as String?;
     if (base64Str == null) {
       ctx.output.error('Screenshot extension returned no base64: $result');

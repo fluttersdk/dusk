@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:tap --ref=<eN>` — synthesize a tap on the element.
 class DuskTapCommand extends ArtisanCommand {
   @override
@@ -84,6 +86,7 @@ class DuskTapCommand extends ArtisanCommand {
       'ext.dusk.tap',
       params,
     );
+    reportFrameWarning(ctx, response);
     // Print the JSON envelope whenever a field beyond `ref` may be present
     // (snapshot, `changed`, or `untilMatched`) so the caller can read it.
     if (includeSnapshot || verify || hasUntil) {

@@ -10,6 +10,7 @@ import 'package:image/image.dart' as img_lib;
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 /// Registers the `ext.dusk.screenshot` VM Service extension.
@@ -139,14 +140,12 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
     }
 
     // 5. Return the payload with format, encoded bytes, and dimensions.
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'format': format == 'png' ? 'png' : 'jpeg',
-        'base64': base64Payload,
-        'width': width,
-        'height': height,
-      }),
-    );
+    return duskResult(<String, dynamic>{
+      'format': format == 'png' ? 'png' : 'jpeg',
+      'base64': base64Payload,
+      'width': width,
+      'height': height,
+    });
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.screenshot error: $e\n$stackTrace',

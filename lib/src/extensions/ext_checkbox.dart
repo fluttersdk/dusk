@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/gestures.dart';
@@ -8,6 +7,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
@@ -128,14 +128,12 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
 
   // 4. Idempotent: no-op when the current value already matches the target.
   if (effectiveCurrent == targetValue) {
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'ref': ref,
-        'previousValue': effectiveCurrent,
-        'value': effectiveCurrent,
-        'toggled': false,
-      }),
-    );
+    return duskResult(<String, dynamic>{
+      'ref': ref,
+      'previousValue': effectiveCurrent,
+      'value': effectiveCurrent,
+      'toggled': false,
+    });
   }
 
   // 5. Inject a tap to toggle the checkbox. Reuse the same
@@ -159,14 +157,12 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
     );
   }
 
-  return developer.ServiceExtensionResponse.result(
-    jsonEncode(<String, dynamic>{
-      'ref': ref,
-      'previousValue': effectiveCurrent,
-      'value': targetValue,
-      'toggled': true,
-    }),
-  );
+  return duskResult(<String, dynamic>{
+    'ref': ref,
+    'previousValue': effectiveCurrent,
+    'value': targetValue,
+    'toggled': true,
+  });
 }
 
 // ---------------------------------------------------------------------------

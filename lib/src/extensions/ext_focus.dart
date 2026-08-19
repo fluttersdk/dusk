@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
@@ -92,7 +92,7 @@ Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
       'focused': true,
     };
     await _appendSnapshotIfRequested(payload, params);
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.focus error: $e\n$stackTrace',
@@ -126,7 +126,7 @@ Future<developer.ServiceExtensionResponse> aiTestBlurHandler(
       'hadFocus': primary != null,
     };
     await _appendSnapshotIfRequested(payload, params);
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.blur error: $e\n$stackTrace',

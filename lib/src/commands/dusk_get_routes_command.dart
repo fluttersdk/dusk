@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:get_routes` — print the active Navigator's current route
 /// state as JSON (location + title per registered route). Mirrors the
 /// `dusk_get_routes` MCP tool surface.
@@ -22,6 +24,7 @@ class DuskGetRoutesCommand extends ArtisanCommand {
       'ext.dusk.get_routes',
       const <String, String>{},
     );
+    reportFrameWarning(ctx, result);
     ctx.output.writeln(const JsonEncoder.withIndent('  ').convert(result));
     return 0;
   }

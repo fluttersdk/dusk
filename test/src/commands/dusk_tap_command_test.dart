@@ -113,5 +113,30 @@ void main() {
       expect(exit, equals(1));
       expect(ctx.lastMethod, isNull);
     });
+
+    test('handle surfaces the frame-production banner beside the success line',
+        () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7'}),
+        output: output,
+        response: const {
+          'ref': 'e7',
+          'warnings': {
+            'framesEnabled': false,
+            'lifecycleState': 'hidden',
+            'hint': 'The engine is not producing frames...',
+          },
+        },
+      );
+
+      final exit = await DuskTapCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      // The default path prints `✓ Tapped e7` and discards the envelope, so
+      // a tap that could not possibly land would otherwise read as a success.
+      expect(output.content, contains('Tapped e7'));
+      expect(output.content, contains('not producing frames'));
+    });
   });
 }

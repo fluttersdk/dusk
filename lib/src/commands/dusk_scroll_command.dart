@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:scroll --ref=<eN> [--dy=<px>] [--dx=<px>] [--intoView]`
 /// — scroll inside a scrollable widget by ref token.
 class DuskScrollCommand extends ArtisanCommand {
@@ -102,6 +104,7 @@ class DuskScrollCommand extends ArtisanCommand {
 
     final response = await ctx.callExtension<Map<String, dynamic>>(
         'ext.dusk.scroll', params);
+    reportFrameWarning(ctx, response);
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {

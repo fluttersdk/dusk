@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:reset_overlays`: return the app to a known clean screen by
 /// dismissing every modal, pressing Escape, and tapping a Cancel/Dismiss
 /// affordance as a fallback. Idempotent: a no-op when nothing is open. Routes
@@ -23,6 +25,7 @@ class DuskResetOverlaysCommand extends ArtisanCommand {
     final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.reset_overlays',
     );
+    reportFrameWarning(ctx, response);
     ctx.output.writeln(jsonEncode(response));
     return 0;
   }

@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:set_checkbox --ref=<ref> --value=<true|false>` — set the
 /// checked state of a Checkbox or Switch widget identified by a snapshot ref.
 ///
@@ -61,6 +63,7 @@ class DuskSetCheckboxCommand extends ArtisanCommand {
       'ext.dusk.set_checkbox',
       params,
     );
+    reportFrameWarning(ctx, response);
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {

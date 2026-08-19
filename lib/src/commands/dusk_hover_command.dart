@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:hover --ref=<eN>` — hover the pointer over a widget by ref token.
 class DuskHoverCommand extends ArtisanCommand {
   @override
@@ -56,6 +58,7 @@ class DuskHoverCommand extends ArtisanCommand {
         'checkReceivesEvents': checkReceivesEvents.toString(),
       },
     );
+    reportFrameWarning(ctx, response);
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {

@@ -37,6 +37,20 @@ Every tool returns a JSON object via `ServiceExtensionResponse.result` on
 success. Failures return a `DuskErrorEnvelope`: at minimum `{ message }`,
 often with `{ reason, ref, method }` for agent branching.
 
+One field is universal across all 33 success payloads: `warnings`. It is
+present only while the app has stopped producing frames, and it means the
+result cannot be trusted, because the semantics tree is not being rebuilt
+and dispatched gestures cannot take effect.
+
+```json
+{ "warnings": { "framesEnabled": false, "lifecycleState": "hidden", "hint": "..." } }
+```
+
+A backgrounded browser tab is the usual cause. Recover with one CDP call,
+`Page.bringToFront`, then retry. Never read an empty snapshot as an empty
+screen, or a clean action payload as an applied gesture, while this key is
+present. It is omitted entirely on a healthy engine.
+
 Prerequisites for every `dusk_*` MCP tool:
 
 1. The app is running (`./bin/fsa start --device=<dev>`).

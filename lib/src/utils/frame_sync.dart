@@ -1,3 +1,4 @@
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 /// Ceiling for a single [awaitFrameOrTimeout] await.
@@ -43,4 +44,35 @@ Future<void> awaitFramesOrTimeout(
   for (int i = 0; i < count; i++) {
     await awaitFrameOrTimeout(timeout: timeout);
   }
+}
+
+/// The `warnings` block a response carries while the engine has stopped
+/// producing frames, or `null` on a healthy engine.
+///
+/// `SchedulerBinding.framesEnabled` is false for `AppLifecycleState.hidden`,
+/// `paused` and `detached`. Flutter Web reports `hidden` as soon as Chrome
+/// sets `document.visibilityState: "hidden"`, which a backgrounded tab or a
+/// window that fell behind another does on its own.
+///
+/// Two separate readings go wrong in that state and neither looks like a
+/// harness problem. The semantics tree stops being rebuilt, so a snapshot
+/// returns a screen with its buttons and none of its text and the screen
+/// reads as empty. And a dispatched gesture cannot produce the frame that
+/// would apply it, so an action reports a clean dispatch and changes
+/// nothing. Both have been mistaken for product defects.
+///
+/// The block is omitted entirely when frames are flowing, so a healthy run
+/// carries no extra bytes and the presence of the key is itself the signal.
+Map<String, dynamic>? frameProductionWarning() {
+  if (SchedulerBinding.instance.framesEnabled) return null;
+
+  return <String, dynamic>{
+    'framesEnabled': false,
+    'lifecycleState': SchedulerBinding.instance.lifecycleState?.name,
+    'hint': 'The engine is not producing frames, so the semantics tree is '
+        'not being rebuilt and dispatched gestures cannot take effect. A '
+        'backgrounded browser tab is the usual cause. Bring the page to '
+        'front (CDP Page.bringToFront) and retry before trusting this '
+        'result.',
+  };
 }

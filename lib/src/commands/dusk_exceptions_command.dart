@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:exceptions [--limit=<n>] [--since=<iso8601>]` -- read recent
 /// exception entries from the running app's telescope store.
 ///
@@ -55,6 +57,7 @@ class DuskExceptionsCommand extends ArtisanCommand {
       'ext.dusk.exceptions',
       params,
     );
+    reportFrameWarning(ctx, response);
     ctx.output.writeln(jsonEncode(response));
     return 0;
   }

@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:find [--text=...] [--semanticsLabel=...] [--key=...]` —
 /// mint a re-resolvable `q<N>` handle backed by the supplied predicates.
 /// Mirrors the `dusk_find` MCP tool surface (Playwright Locator
@@ -64,6 +66,7 @@ class DuskFindCommand extends ArtisanCommand {
       'ext.dusk.find',
       params,
     );
+    reportFrameWarning(ctx, result);
     ctx.output.writeln(const JsonEncoder.withIndent('  ').convert(result));
     return 0;
   }

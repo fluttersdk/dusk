@@ -1,5 +1,4 @@
 import 'dart:async' show unawaited;
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
@@ -8,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../dusk_plugin.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_modal_router.dart';
@@ -306,7 +306,7 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
         name: 'dusk',
       );
     }
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] extDuskNavigateHandler error: $e\n$stackTrace',
@@ -367,7 +367,7 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
         name: 'dusk',
       );
     }
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] extDuskNavigateBackHandler error: $e\n$stackTrace',
@@ -395,9 +395,7 @@ Future<developer.ServiceExtensionResponse> extDuskGetRoutesHandler(
   Map<String, String> params,
 ) async {
   try {
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(buildGetRoutesResponse()),
-    );
+    return duskResult(buildGetRoutesResponse());
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] extDuskGetRoutesHandler error: $e\n$stackTrace',

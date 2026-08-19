@@ -112,6 +112,44 @@ void main() {
       expect(output.content, contains('[ref=e1]'));
     });
 
+    test('handle surfaces the frame-production banner', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: output,
+        response: const {
+          'snapshot': '- button "Save" [ref=e1]',
+          'warnings': {
+            'framesEnabled': false,
+            'lifecycleState': 'hidden',
+            'hint': 'The engine is not producing frames...',
+          },
+        },
+      );
+
+      final exit = await DuskSnapCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      // stdout carries only the tree, so without this banner the one field
+      // that says the tree is untrustworthy would be dropped on the floor.
+      expect(output.content, contains('not producing frames'));
+      expect(output.content, contains('lifecycle: hidden'));
+      expect(output.content, contains('[ref=e1]'));
+    });
+
+    test('handle stays quiet when the engine is healthy', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: output,
+        response: const {'snapshot': '- button "Save" [ref=e1]'},
+      );
+
+      await DuskSnapCommand().handle(ctx);
+
+      expect(output.content, isNot(contains('not producing frames')));
+    });
+
     test('handle falls back to JSON encode when response has no snapshot key',
         () async {
       final output = BufferedOutput();

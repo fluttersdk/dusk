@@ -11,6 +11,26 @@ Sections are ordered alphabetically. Every section names the dispatch surface
 example payloads show the `params.arguments` object inside the `tools/call` JSON-RPC
 request; the substrate MCP server wraps the response as `CallToolResult` text content.
 
+## Universal response field: `warnings`
+
+Every tool's success payload gains a `warnings` block while the app has stopped producing
+frames (a backgrounded browser tab is the usual cause). In that state the semantics tree is
+not rebuilt and dispatched gestures cannot take effect, so a snapshot reads as empty and an
+action reports a success that could not have landed.
+
+```json
+{
+  "warnings": {
+    "framesEnabled": false,
+    "lifecycleState": "hidden",
+    "hint": "... Bring the page to front (CDP Page.bringToFront) and retry ..."
+  }
+}
+```
+
+The block is omitted entirely on a healthy engine, so its presence is the signal. See
+[Frame production](../reference/frame-production.md) for the full picture and the fix.
+
 ## Table of contents
 
 - [`dusk_blur`](#dusk_blur)

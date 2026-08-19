@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:snap` — captures Semantics tree YAML from the running app.
 class DuskSnapCommand extends ArtisanCommand {
   @override
@@ -37,6 +39,7 @@ class DuskSnapCommand extends ArtisanCommand {
       'ext.dusk.snap',
       params,
     );
+    reportFrameWarning(ctx, result);
     // Surface captured render/build FlutterErrors so a silently-broken widget
     // (e.g. a ParentDataWidget misuse that makes a button render but ignore
     // taps) is impossible to miss. This is a diagnostic, not snapshot payload,

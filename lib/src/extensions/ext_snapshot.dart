@@ -11,6 +11,7 @@ import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostic
 import '../dusk_error_capture.dart';
 import '../dusk_plugin.dart';
 import '../ref_registry.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 /// `ext.dusk.snap` — Playwright-MCP-shaped accessibility snapshot.
@@ -82,7 +83,7 @@ Future<developer.ServiceExtensionResponse> duskSnapHandler(
       maxDepth: depth,
       includeEnrichers: includeEnrichers,
     );
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.snap error: $e\n$stackTrace',

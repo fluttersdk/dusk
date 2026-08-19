@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/widgets.dart';
@@ -6,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_find.dart' show resolveQuery;
@@ -173,7 +173,7 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       );
     }
 
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.scroll error: $e\n$stackTrace',
@@ -358,12 +358,10 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
     // 4. Wait for the UI to settle.
     await awaitFrameOrTimeout();
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'selected': true,
-        'value': value,
-      }),
-    );
+    return duskResult(<String, dynamic>{
+      'selected': true,
+      'value': value,
+    });
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.select_option error: $e\n$stackTrace',

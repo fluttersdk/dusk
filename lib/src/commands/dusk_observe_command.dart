@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:observe [--intent=<hint>] [--roles=<csv>] [--limit=<n>]
 /// [--includeEnrichers=<true|false|full>]` — return a structured candidate
 /// list of every interactive widget on screen.
@@ -76,6 +78,7 @@ class DuskObserveCommand extends ArtisanCommand {
 
     final response = await ctx.callExtension<Map<String, dynamic>>(
         'ext.dusk.observe', params);
+    reportFrameWarning(ctx, response);
     ctx.output.writeln(jsonEncode(response));
     return 0;
   }

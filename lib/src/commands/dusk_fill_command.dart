@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:fill --ref=<eN|qN> --text=<value>`: focus, clear, type, and
 /// settle a text field in one call (replaces the manual focus + clear + type +
 /// settle + stale-retry dance). Routes through `ext.dusk.fill`, which composes
@@ -76,6 +78,7 @@ class DuskFillCommand extends ArtisanCommand {
       'ext.dusk.fill',
       params,
     );
+    reportFrameWarning(ctx, response);
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {

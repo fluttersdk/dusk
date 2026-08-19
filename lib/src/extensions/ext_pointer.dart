@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/gestures.dart';
@@ -8,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_find.dart';
@@ -500,7 +500,7 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     );
   }
 
-  return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+  return duskResult(payload);
 }
 
 /// Handler for the `ext.dusk.hover` VM Service extension.
@@ -615,7 +615,7 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
       );
     }
 
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.hover: unexpected error: $e\n$st',
@@ -837,7 +837,7 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       );
     }
 
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.drag: unexpected error: $e\n$st',
@@ -990,7 +990,7 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     );
   }
 
-  return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+  return duskResult(payload);
 }
 
 /// Registers all pointer-event VM Service extensions.
@@ -1107,7 +1107,7 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
       'button': 'right',
     };
     await _appendSnapshotIfRequested(payload, params);
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.right_click error: $e\n$stackTrace',
@@ -1193,7 +1193,7 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
       'clickCount': 3,
     };
     await _appendSnapshotIfRequested(payload, params);
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.triple_click error: $e\n$stackTrace',

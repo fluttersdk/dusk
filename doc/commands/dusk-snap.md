@@ -99,6 +99,18 @@ The `renderErrors` block is **omitted entirely** when no errors are in the buffe
   - FlutterError: A RenderFlex overflowed by 32 pixels.
 ```
 
+### Frame production
+
+When the app is not producing frames, semantics labels are never rebuilt: the snapshot comes back with its buttons and none of its `- text` nodes, and a screen that renders perfectly reads as completely empty. The response then carries a `warnings` block and `dusk:snap` prints a banner to stderr:
+
+```
+⚠ The app is not producing frames (lifecycle: hidden). The semantics tree is not being
+  rebuilt and gestures cannot take effect, so this result may be stale. A backgrounded
+  browser tab is the usual cause: bring the page to front and retry.
+```
+
+Do not read an empty tree as an empty screen without checking for this block first. See [Frame production](../reference/frame-production.md).
+
 **Error envelope:**
 
 The VM Service handler propagates errors as `ServiceExtensionResponse.error(extensionError, message)`. The CLI surfaces the exception via `ArtisanContext.callExtension` and exits with a non-zero status. Typical failure modes:

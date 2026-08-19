@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
@@ -9,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_pointer.dart';
@@ -409,7 +409,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       );
     }
 
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.type error: $e\n$stackTrace',
@@ -493,7 +493,7 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
       }
     }
 
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.press_key error: $e\n$stackTrace',
@@ -602,7 +602,7 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
       final snap = await duskSnapBuild();
       payload['snapshot'] = snap['snapshot'];
     }
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.clear error: $e\n$stackTrace',

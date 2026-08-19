@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:type --ref=<eN> --text=<string>` — type text into a focused widget.
 class DuskTypeCommand extends ArtisanCommand {
   @override
@@ -57,6 +59,7 @@ class DuskTypeCommand extends ArtisanCommand {
         'checkReceivesEvents': checkReceivesEvents.toString(),
       },
     );
+    reportFrameWarning(ctx, response);
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {

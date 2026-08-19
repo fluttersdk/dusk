@@ -1,5 +1,7 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:modal` — dismiss all open modals, bottom sheets, and dialogs.
 class DuskModalCommand extends ArtisanCommand {
   @override
@@ -14,7 +16,9 @@ class DuskModalCommand extends ArtisanCommand {
 
   @override
   Future<int> handle(ArtisanContext ctx) async {
-    await ctx.callExtension<Map<String, dynamic>>('ext.dusk.dismiss_modals');
+    final response = await ctx
+        .callExtension<Map<String, dynamic>>('ext.dusk.dismiss_modals');
+    reportFrameWarning(ctx, response);
     ctx.output.success('Modals dismissed');
     return 0;
   }

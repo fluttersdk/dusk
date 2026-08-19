@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../dusk_log_capture.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
@@ -129,12 +129,10 @@ Future<developer.ServiceExtensionResponse> aiTestConsoleHandler(
 
     // 4. Return the structured envelope — count lets callers skip iterating the
     //    list when only the total matters.
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'logs': logs,
-        'count': logs.length,
-      }),
-    );
+    return duskResult(<String, dynamic>{
+      'logs': logs,
+      'count': logs.length,
+    });
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.console: unexpected error: $e\n$st',

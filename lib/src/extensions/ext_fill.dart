@@ -6,6 +6,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_focus.dart' show aiTestFocusHandler;
@@ -140,7 +141,7 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
         );
       }
     }
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.fill error: $e\n$stackTrace',

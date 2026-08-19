@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:blur` — clear keyboard focus from whatever currently holds it.
 class DuskBlurCommand extends ArtisanCommand {
   @override
@@ -29,6 +31,7 @@ class DuskBlurCommand extends ArtisanCommand {
       'ext.dusk.blur',
       {'includeSnapshot': includeSnapshot.toString()},
     );
+    reportFrameWarning(ctx, response);
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {

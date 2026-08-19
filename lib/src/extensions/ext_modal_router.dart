@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/gestures.dart';
@@ -8,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
@@ -149,9 +149,7 @@ Future<developer.ServiceExtensionResponse> aiTestDismissModalsHandler(
   try {
     final int popped = await dismissAllModals();
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{'popped': popped}),
-    );
+    return duskResult(<String, dynamic>{'popped': popped});
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] aiTestDismissModalsHandler error: $e\n$st',
@@ -226,13 +224,11 @@ Future<developer.ServiceExtensionResponse> aiTestResetOverlaysHandler(
       await _settleFrame();
     }
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'popped': popped,
-        'escaped': escaped,
-        'dismissTapped': dismissTapped,
-      }),
-    );
+    return duskResult(<String, dynamic>{
+      'popped': popped,
+      'escaped': escaped,
+      'dismissTapped': dismissTapped,
+    });
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] aiTestResetOverlaysHandler error: $e\n$st',

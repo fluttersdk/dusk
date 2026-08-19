@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/rendering.dart';
@@ -6,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
@@ -84,12 +84,10 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
     final (RefEntry? entry, int matchCount, String? diagnostic) =
         resolveQueryWithCount(query);
     if (entry == null) {
-      return developer.ServiceExtensionResponse.result(
-        jsonEncode(<String, dynamic>{
-          'ref': null,
-          'matched': false,
-        }),
-      );
+      return duskResult(<String, dynamic>{
+        'ref': null,
+        'matched': false,
+      });
     }
 
     // 3. Mint a fresh q-handle. The verification entry above is throwaway
@@ -106,7 +104,7 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
       payload['diagnostic'] = diagnostic;
     }
 
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.find error: $e\n$stackTrace',

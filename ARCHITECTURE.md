@@ -99,6 +99,12 @@ A handler that dispatches a gesture, a text edit, or a navigation awaits one or 
 
 `endOfFrame` schedules a frame only while `SchedulerBinding.framesEnabled` is true. A backgrounded browser tab reports `document.visibilityState: "hidden"` and Flutter Web turns frame production off, so a bare await there never completes: the extension blocks until the calling CLI's own timeout kills it, with no output and no error. `kFrameSyncTimeout` (200ms, twelve frames at 60Hz) is long enough that a healthy engine always resolves on the real frame and short enough that a starved one degrades into an early return. The actionability gate uses the same helper for its stability and scroll-into-view awaits.
 
+### One success-response seam
+
+Every handler returns through `duskResult(payload)` in `lib/src/utils/dusk_response.dart` rather than constructing `ServiceExtensionResponse.result(jsonEncode(...))` itself. One seam means a diagnostic that belongs on every reply is added once and the next handler cannot forget it.
+
+Today that diagnostic is `frameProductionWarning()`: a `warnings` block appears only while frame production is off, which is the state in which a snapshot returns a screen with no text and an action reports a dispatch that could not have landed. CLI-side, `reportFrameWarning` in `lib/src/commands/frame_warning_output.dart` prints the matching stderr banner, because the commands that summarise (`dusk:snap` prints only the tree, `dusk:tap` prints `✓ Tapped e7`) would otherwise drop the block. See `doc/reference/frame-production.md`.
+
 ## Frozen contracts (alpha-2)
 
 These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:

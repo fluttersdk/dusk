@@ -1,5 +1,7 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:wait [--text=<s>] [--textGone=<s>] [--expression=<dart>]
 /// [--timeoutMs=<ms>]` — wait for a condition in the running app.
 class DuskWaitCommand extends ArtisanCommand {
@@ -62,7 +64,9 @@ class DuskWaitCommand extends ArtisanCommand {
       params['timeoutMs'] = timeoutMs;
     }
 
-    await ctx.callExtension<Map<String, dynamic>>('ext.dusk.wait_for', params);
+    final response = await ctx.callExtension<Map<String, dynamic>>(
+        'ext.dusk.wait_for', params);
+    reportFrameWarning(ctx, response);
     ctx.output.success('Condition matched');
     return 0;
   }
