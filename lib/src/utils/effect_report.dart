@@ -74,6 +74,24 @@ Map<String, dynamic> scrollOffsetEffect({
   };
 }
 
+/// Effect of a select: the value the control settled on, and whether that is
+/// the one that was asked for.
+///
+/// [actual] is re-read from the live widget after the frame, never echoed
+/// from the request. A dropdown whose parent refuses the change keeps its
+/// old value, and `selected: true, value: <requested>` called that a
+/// success.
+Map<String, dynamic> selectedEffect({
+  required String expected,
+  required String? actual,
+}) {
+  return <String, dynamic>{
+    'kind': 'selected',
+    'verified': actual == expected,
+    'value': actual,
+  };
+}
+
 /// Effect of a checkbox or switch write: the checked state on both sides,
 /// and whether it landed on the requested value.
 Map<String, dynamic> checkedEffect({

@@ -280,4 +280,69 @@ void main() {
       );
     });
   });
+
+  group('a scope ref that no longer lives is refused, not walked', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    /// Mints a scope ref against one screen, then replaces the screen. The
+    /// registry keeps the token: nothing calls `disposeGroup` in production,
+    /// so the entry outlives the widget it was minted from.
+    Future<String> refFromReplacedScreen(WidgetTester tester) async {
+      await tester.pumpWidget(_shell());
+      final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+      final String ref = _refFor(snapshot, 'content');
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('a different screen'))),
+        ),
+      );
+      return ref;
+    }
+
+    testWidgets('snap refuses rather than returning the old screen', (
+      WidgetTester tester,
+    ) async {
+      // The quiet one. A detached SemanticsNode still answers visitChildren,
+      // so the walk succeeded against a subtree that is no longer on screen
+      // and the caller got a snapshot of the PREVIOUS page with no error to
+      // say so.
+      final String ref = await refFromReplacedScreen(tester);
+
+      final developer.ServiceExtensionResponse response = await duskSnapHandler(
+        'ext.dusk.snap',
+        <String, String>{'within': ref},
+      );
+
+      expect(
+        response.result,
+        isNull,
+        reason: 'returned a snapshot of the replaced screen',
+      );
+      expect(response.errorDetail, contains('no longer'));
+    });
+
+    testWidgets('find reports the scope is gone instead of throwing', (
+      WidgetTester tester,
+    ) async {
+      // The loud one, but wrongly worded: the guard only checked registry
+      // membership, so a stale entry passed it and the walk then called
+      // visitChildElements on a defunct element, surfacing as a generic
+      // `unexpected` envelope rather than the re-snapshot diagnostic that
+      // tells the agent what to do next.
+      final String ref = await refFromReplacedScreen(tester);
+
+      final developer.ServiceExtensionResponse response =
+          await extDuskFindHandler(
+        'ext.dusk.find',
+        <String, String>{'semanticsLabel': 'Monitors', 'within': ref},
+      );
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['matched'], isFalse);
+      expect(decoded['diagnostic'], contains('no longer'));
+    });
+  });
 }

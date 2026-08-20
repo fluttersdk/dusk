@@ -369,12 +369,23 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
       );
     }
 
-    // 4. Wait for the UI to settle.
+    // 4. Wait for the UI to settle, then read the control back. `selected:
+    //    true, value: <requested>` was the request echoed to the caller, so
+    //    a dropdown whose parent refuses the change reported a clean success
+    //    and moved nothing.
     await awaitFrameOrTimeout();
+    // Re-resolve rather than reuse: the context from step 2 predates the
+    // frame await, and the widget it named may have rebuilt or gone. Reading
+    // the CURRENT tree is both what the effect block is supposed to report
+    // and the only way to do it without carrying a BuildContext across the
+    // gap.
+    final String? settled =
+        _readSelectedValue(ref == null ? null : _resolveRefContext(ref));
 
     return duskResult(<String, dynamic>{
       'selected': true,
       'value': value,
+      'effect': selectedEffect(expected: value, actual: settled),
     });
   } catch (e, stackTrace) {
     developer.log(
@@ -433,6 +444,38 @@ bool aiTestSelectOptionInElement(
   }
 
   return invoked;
+}
+
+/// Reads the value the first [DropdownButton] currently holds, scoped to
+/// [context] when one was resolved and searched tree-wide otherwise.
+///
+/// Returns null when no dropdown is reachable, which the caller reports as an
+/// unverified effect rather than as a failure: the select may have driven a
+/// control this walk does not recognise.
+String? _readSelectedValue(BuildContext? context) {
+  String? found;
+
+  void visitor(Element element) {
+    if (found != null) return;
+    if (element.widget.runtimeType.toString().startsWith('DropdownButton')) {
+      // Same dynamic dispatch the invoke path uses: DropdownButton<T> cannot
+      // be cast to DropdownButton<dynamic> under covariant generics.
+      // ignore: avoid_dynamic_calls
+      final dynamic current = (element.widget as dynamic).value;
+      if (current != null) {
+        found = current.toString();
+        return;
+      }
+    }
+    element.visitChildElements(visitor);
+  }
+
+  if (context != null) {
+    visitor(context as Element);
+    if (found != null) return found;
+  }
+  WidgetsBinding.instance.rootElement?.visitChildElements(visitor);
+  return found;
 }
 
 /// Searches the entire widget tree for the first [DropdownButton] and invokes

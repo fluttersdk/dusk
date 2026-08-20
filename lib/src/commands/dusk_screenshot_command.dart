@@ -185,8 +185,15 @@ class DuskScreenshotCommand extends ArtisanCommand {
   /// exists to remove.
   ///
   /// Flutter logical pixels and CDP CSS pixels are the same unit, so the
-  /// rect crosses over unscaled and `scale: 1` keeps the output at the
-  /// page's own device pixel ratio.
+  /// rect crosses over unscaled.
+  ///
+  /// `scale: 1` means CSS resolution, NOT the page's device pixel ratio, and
+  /// that is deliberate: an unclipped `Page.captureScreenshot` returns CSS
+  /// resolution too, so the two paths agree and a caller who switches between
+  /// them gets images at one scale. Measured against this package's example
+  /// with `dusk:device --preset=ipad-pro-12.9` (1024x1366 @ 2.0x): full frame
+  /// 1024x1266, clipped 992x32, both CSS. Raising the scale here would make a
+  /// clipped capture the only output on the device grid.
   Future<Map<String, dynamic>?> _resolveClip(
     ArtisanContext ctx,
     String ref,
