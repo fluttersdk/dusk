@@ -376,4 +376,46 @@ void main() {
       expect(response.errorDetail ?? '', contains('e999'));
     });
   });
+
+  group('screenshotHandler — geometry refusals', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('a ref whose render object is not a RenderBox is refused', (
+      WidgetTester tester,
+    ) async {
+      // A sliver has no localToGlobal answer worth clipping to, and a clip
+      // computed from a stale cached rect would crop the wrong region of the
+      // screen while still returning a plausible PNG.
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: CustomScrollView(
+            slivers: <Widget>[
+              SliverToBoxAdapter(child: SizedBox(height: 40)),
+            ],
+          ),
+        ),
+      );
+
+      final Element sliver = tester.element(
+        find.byType(SliverToBoxAdapter, skipOffstage: false),
+      );
+      final String ref = RefRegistry.register(
+        rect: const Rect.fromLTWH(0, 0, 100, 40),
+        element: sliver,
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final developer.ServiceExtensionResponse response =
+          await screenshotHandler(
+        'ext.dusk.screenshot',
+        <String, String>{'ref': ref, 'geometry': 'true'},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, contains('no live rect'));
+    });
+  });
 }

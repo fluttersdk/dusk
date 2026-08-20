@@ -530,4 +530,48 @@ void main() {
       },
     );
   });
+
+  group('aiTestSelectOptionHandler success path', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('selecting an option returns the value that was picked', (
+      WidgetTester tester,
+    ) async {
+      String? picked;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DropdownButton<String>(
+              value: 'one',
+              items: const <DropdownMenuItem<String>>[
+                DropdownMenuItem<String>(value: 'one', child: Text('One')),
+                DropdownMenuItem<String>(value: 'two', child: Text('Two')),
+              ],
+              onChanged: (String? v) => picked = v,
+            ),
+          ),
+        ),
+      );
+
+      // Start the handler, then pump: it awaits a frame to let the dropdown
+      // settle, and under the test binding that frame only happens when the
+      // harness is pumped.
+      final Future<developer.ServiceExtensionResponse> future =
+          aiTestSelectOptionHandler(
+        'ext.dusk.select_option',
+        const <String, String>{'value': 'two'},
+      );
+      for (int i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final developer.ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['selected'], isTrue);
+      expect(decoded['value'], equals('two'));
+      expect(picked, equals('two'));
+    });
+  });
 }

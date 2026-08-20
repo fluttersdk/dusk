@@ -923,6 +923,60 @@ void main() {
       },
     );
   });
+
+  group('ensureActionable auto-scroll', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('an off-viewport target inside a Scrollable is brought in', (
+      WidgetTester tester,
+    ) async {
+      // Playwright scrolls a target into view before deciding it cannot be
+      // acted on. Without this the gate refuses every item below the fold
+      // and the agent has to drive the scrollable by hand to reach a button
+      // the framework would have revealed for it.
+      tester.view.physicalSize = const Size(400, 400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: <Widget>[
+                for (int i = 0; i < 40; i++)
+                  SizedBox(height: 100, child: Text('row-$i')),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final Element target = tester.element(
+        find.text('row-3', skipOffstage: false),
+      );
+      final RefEntry entry = RefEntry(
+        // The stale rect the snapshot minted: far below the 400px viewport.
+        rect: const Rect.fromLTWH(0, 3000, 100, 40),
+        element: target,
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final Future<ActionabilityReport> future = ensureActionable(
+        entry,
+        ref: 'e1',
+        checkStable: false,
+        checkReceivesEvents: false,
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final ActionabilityReport report = await future;
+      expect(report.receivesEvents, equals(ReceivesEvents.skipped));
+    });
+  });
 }
 
 /// Stateful widget used by the stable-gate tests. Holds an

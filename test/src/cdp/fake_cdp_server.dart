@@ -28,7 +28,9 @@ class FakeCdpServer {
     required bool failOnJsonVersion,
     required bool dropWebSocket,
     required Duration delayResponseMs,
+    required String pageUrl,
   })  : _httpServer = httpServer,
+        _pageUrl = pageUrl,
         _handlers = handlers,
         _failOnJsonVersion = failOnJsonVersion,
         _dropWebSocket = dropWebSocket,
@@ -53,6 +55,9 @@ class FakeCdpServer {
   /// - [delayResponseMs]: when greater than [Duration.zero], each WS reply
   ///   waits this long before being written. Used to exercise CdpClient's
   ///   per-request timeout.
+  /// - [pageUrl]: the `url` of the single page tab `/json` reports. Callers
+  ///   that exercise URL matching (CdpClient's `matchUrlSubstring`, the
+  ///   doctor's session probe) pass one carrying the port they look for.
   static Future<FakeCdpServer> start({
     Map<String,
             Future<Map<String, dynamic>> Function(Map<String, dynamic> params)>?
@@ -60,6 +65,7 @@ class FakeCdpServer {
     bool failOnJsonVersion = false,
     bool dropWebSocket = false,
     Duration delayResponseMs = Duration.zero,
+    String pageUrl = 'about:blank',
   }) async {
     final HttpServer httpServer = await HttpServer.bind(
       InternetAddress.loopbackIPv4,
@@ -72,6 +78,7 @@ class FakeCdpServer {
       failOnJsonVersion: failOnJsonVersion,
       dropWebSocket: dropWebSocket,
       delayResponseMs: delayResponseMs,
+      pageUrl: pageUrl,
     );
 
     // Fire-and-forget request loop. Errors here would otherwise drown the
@@ -85,6 +92,7 @@ class FakeCdpServer {
   final Map<String,
           Future<Map<String, dynamic>> Function(Map<String, dynamic> params)>?
       _handlers;
+  final String _pageUrl;
   final bool _failOnJsonVersion;
   final bool _dropWebSocket;
   final Duration _delayResponseMs;
@@ -163,7 +171,7 @@ class FakeCdpServer {
           'type': 'page',
           'id': 'tab-0',
           'title': 'Fake tab',
-          'url': 'about:blank',
+          'url': _pageUrl,
           'webSocketDebuggerUrl': webSocketDebuggerUrl,
         },
       ];

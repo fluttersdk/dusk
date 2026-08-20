@@ -161,5 +161,39 @@ void main() {
       await DuskSnapCommand().handle(ctx);
       expect(output.content, contains('no snapshot key'));
     });
+    test('handle forwards the narrowing options to ext.dusk.snap', () async {
+      // The three narrowing options are what make a snapshot answerable on a
+      // large screen; a command that swallows one sends back the whole tree
+      // and the caller reads it as the scoped answer.
+      final ctx = _StubContext(
+        input: MapInput(const {
+          'within': 'e3',
+          'interactiveOnly': true,
+          'grep': 'Counter',
+        }),
+        output: BufferedOutput(),
+        response: const {'snapshot': ''},
+      );
+
+      await DuskSnapCommand().handle(ctx);
+
+      expect(ctx.lastParams, containsPair('within', 'e3'));
+      expect(ctx.lastParams, containsPair('interactiveOnly', 'true'));
+      expect(ctx.lastParams, containsPair('grep', 'Counter'));
+    });
+
+    test('handle omits the narrowing options when they are empty', () async {
+      final ctx = _StubContext(
+        input: MapInput(const {'within': '', 'grep': ''}),
+        output: BufferedOutput(),
+        response: const {'snapshot': ''},
+      );
+
+      await DuskSnapCommand().handle(ctx);
+
+      expect(ctx.lastParams!.containsKey('within'), isFalse);
+      expect(ctx.lastParams!.containsKey('grep'), isFalse);
+      expect(ctx.lastParams!.containsKey('interactiveOnly'), isFalse);
+    });
   });
 }

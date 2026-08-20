@@ -77,5 +77,28 @@ void main() {
 
       expect(await DuskExceptionsCommand().handle(ctx), equals(0));
     });
+    test('handle forwards --clear so a sweep reads a delta', () async {
+      final ctx = _StubContext(
+        input: MapInput(const {'clear': true}),
+        output: BufferedOutput(),
+        response: const {'exceptions': <dynamic>[], 'count': 0},
+      );
+
+      await DuskExceptionsCommand().handle(ctx);
+
+      expect(ctx.lastParams, containsPair('clear', 'true'));
+    });
+
+    test('handle omits clear when the caller did not ask for it', () async {
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: BufferedOutput(),
+        response: const {'exceptions': <dynamic>[], 'count': 0},
+      );
+
+      await DuskExceptionsCommand().handle(ctx);
+
+      expect(ctx.lastParams!.containsKey('clear'), isFalse);
+    });
   });
 }

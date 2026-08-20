@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -163,6 +166,78 @@ void main() {
       expect(snapshot, contains('sidebar'));
       expect(snapshot, contains('No monitors yet'));
       expect(snapshot, contains('Create monitor'));
+    });
+    testWidgets('the extension parses the narrowing params from strings', (
+      WidgetTester tester,
+    ) async {
+      // Params arrive over the VM Service as strings, and the handler is the
+      // only place that turns them into the typed arguments duskSnapBuild
+      // takes. A build tested directly proves nothing about that hop.
+      await tester.pumpWidget(_shell());
+
+      final developer.ServiceExtensionResponse response = await duskSnapHandler(
+        'ext.dusk.snap',
+        const <String, String>{'interactiveOnly': 'true', 'grep': 'Create'},
+      );
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final String snapshot = decoded['snapshot'] as String;
+      expect(snapshot, contains('Create monitor'));
+      expect(snapshot, isNot(contains('No monitors yet')));
+    });
+
+    testWidgets('an empty grep reads as no grep, not as match-nothing', (
+      WidgetTester tester,
+    ) async {
+      // `--grep=` from a shell arrives as an empty string. Compiling that
+      // into a RegExp matches every line, which looks like it worked.
+      await tester.pumpWidget(_shell());
+
+      final developer.ServiceExtensionResponse response = await duskSnapHandler(
+        'ext.dusk.snap',
+        const <String, String>{'grep': '', 'within': ''},
+      );
+
+      final String snapshot = (jsonDecode(response.result!)
+          as Map<String, dynamic>)['snapshot'] as String;
+      expect(snapshot, contains('sidebar'));
+      expect(snapshot, contains('No monitors yet'));
+    });
+
+    testWidgets('a within ref with no semantics node is refused', (
+      WidgetTester tester,
+    ) async {
+      // `find_by_text` mints element-only entries, and scoping a snapshot to
+      // one would silently walk the whole tree instead.
+      await tester.pumpWidget(_shell());
+
+      final String ref = RefRegistry.register(
+        rect: const Rect.fromLTWH(0, 0, 10, 10),
+        element: tester.element(find.byType(Scaffold)),
+        groupId: 'element-only',
+        isTextField: false,
+      );
+
+      final developer.ServiceExtensionResponse response = await duskSnapHandler(
+        'ext.dusk.snap',
+        <String, String>{'within': ref},
+      );
+
+      expect(response.errorDetail, contains('no semantics node'));
+    });
+
+    testWidgets('an unknown within ref is refused', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(_shell());
+
+      final developer.ServiceExtensionResponse response = await duskSnapHandler(
+        'ext.dusk.snap',
+        const <String, String>{'within': 'e999'},
+      );
+
+      expect(response.errorDetail, contains('not found'));
     });
   });
 }

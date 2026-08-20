@@ -518,6 +518,51 @@ void main() {
         expect(clip['scale'], equals(1));
       });
 
+      test('a sub-rect rides along to the geometry probe', () async {
+        // `--rect` is ref-local, so the extension is the only place that can
+        // turn it into page coordinates. A command that resolved the ref's
+        // own bounds and cropped afterwards would clip the wrong region.
+        const fakePngBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk'
+            '+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        Map<String, dynamic>? capturedParams;
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Page.enable': (params) async => <String, dynamic>{},
+            'Page.bringToFront': (params) async => <String, dynamic>{},
+            'Page.captureScreenshot': (params) async {
+              capturedParams = params;
+              return <String, dynamic>{'data': fakePngBase64};
+            },
+          },
+        );
+        addTearDown(server.stop);
+
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/sub.png',
+            'format': 'png',
+            'ref': 'e5',
+            'rect': '5,5,10,10',
+          }),
+          output: BufferedOutput(),
+          response: const {
+            'rect': {'x': 17.0, 'y': 39.0, 'width': 10.0, 'height': 10.0},
+          },
+        );
+
+        final exit = await DuskScreenshotCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        expect(ctx.lastParams, containsPair('rect', '5,5,10,10'));
+        final clip = capturedParams!['clip'] as Map<String, dynamic>;
+        expect(clip['x'], equals(17.0));
+        expect(clip['width'], equals(10.0));
+      });
+
       test('CDP path sends no clip without a ref', () async {
         const fakePngBase64 =
             'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk'
@@ -585,5 +630,21 @@ void main() {
         expect(output.content, contains('no rect'));
       });
     });
+  });
+
+  test('--rect without --ref is refused', () async {
+    // A rect is ref-local, so without a ref it has no origin to be
+    // relative to. Cropping the viewport at those coordinates instead
+    // would return a plausible image of the wrong region.
+    final output = BufferedOutput();
+    final exit = await DuskScreenshotCommand().handle(
+      ArtisanContext.bare(
+        MapInput(const {'output': '/tmp/x.png', 'rect': '10,20,30,40'}),
+        output,
+      ),
+    );
+
+    expect(exit, equals(1));
+    expect(output.content, contains('needs --ref'));
   });
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -129,5 +130,48 @@ void main() {
         );
       },
     );
+
+    test('defaultHttpGet returns the body of a live endpoint', () async {
+      // The seam every other test swaps out. Its own body has to be
+      // exercised somewhere, because the `finally` that closes the client
+      // races the response stream: returning the future bare instead of
+      // awaiting it truncated the read.
+      final HttpServer server =
+          await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final String payload = '{"ok":true,"pad":"${'x' * 20000}"}';
+      unawaited(
+        server.forEach((HttpRequest request) async {
+          request.response.write(payload);
+          await request.response.close();
+        }),
+      );
+
+      final String body = await ChromeFinder.defaultHttpGet(
+        Uri.parse('http://127.0.0.1:${server.port}/json/version'),
+      );
+
+      expect(body, equals(payload));
+    });
+
+    test('defaultHttpGet raises the typed 404 the caller branches on',
+        () async {
+      final HttpServer server =
+          await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      unawaited(
+        server.forEach((HttpRequest request) async {
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
+        }),
+      );
+
+      await expectLater(
+        ChromeFinder.defaultHttpGet(
+          Uri.parse('http://127.0.0.1:${server.port}/json/version'),
+        ),
+        throwsA(isA<ChromeFinderHttpNotFoundException>()),
+      );
+    });
   });
 }

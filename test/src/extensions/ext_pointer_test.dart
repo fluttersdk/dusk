@@ -1845,6 +1845,118 @@ void main() {
       },
     );
   });
+
+  // ---------------------------------------------------------------------------
+  // Right-click and triple-click: the two verbs whose handlers had no test.
+  // Both settle through the bounded frame awaits, so a starved engine returns
+  // instead of hanging, and both stamp the response through duskResult.
+  // ---------------------------------------------------------------------------
+
+  group('aiTestRightClickHandler', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('an actionable widget returns the right-button envelope', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: SizedBox(width: 100, height: 100)),
+        ),
+      );
+
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: tester.element(find.byType(Scaffold)),
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final Future<ServiceExtensionResponse> future = aiTestRightClickHandler(
+        'ext.dusk.right_click',
+        <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+          'includeSnapshot': 'false',
+        },
+      );
+      for (int i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      final ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['ref'], equals(ref));
+      expect(decoded['button'], equals('right'));
+    });
+
+    testWidgets('an unknown ref returns a stale envelope', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+
+      final ServiceExtensionResponse response = await aiTestRightClickHandler(
+        'ext.dusk.right_click',
+        const <String, String>{'ref': 'e999'},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, isNotNull);
+    });
+  });
+
+  group('aiTestTripleClickHandler', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('an actionable widget returns clickCount 3', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: SizedBox(width: 100, height: 100)),
+        ),
+      );
+
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: tester.element(find.byType(Scaffold)),
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final Future<ServiceExtensionResponse> future = aiTestTripleClickHandler(
+        'ext.dusk.triple_click',
+        <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+          'includeSnapshot': 'false',
+        },
+      );
+      for (int i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      final ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['ref'], equals(ref));
+      expect(decoded['clickCount'], equals(3));
+    });
+  });
 }
 
 /// Minimal widget whose button reveals a "Revealed!" Text on tap. Used by the
