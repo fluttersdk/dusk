@@ -1,0 +1,29 @@
+# Codecov judges this repo against the floor the repo already enforces.
+#
+# `.github/workflows/ci.yml` fails the build below 80% line coverage and
+# CLAUDE.md states the same number as a Golden Rule. Codecov's default is
+# `auto`, which targets whatever the base commit happened to measure, so the
+# bar moves on its own and a green run says nothing durable. Naming the
+# number here makes the two verdicts the same verdict.
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        # Absorbs the sub-point drift a refactor produces without a real
+        # loss of covered behaviour.
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+
+comment:
+  layout: condensed_header, diff, files
+  require_changes: true
+
+# Line coverage is measured over `lib/` only (see the CI lcov step); these
+# never appear in the tracefile and listing them keeps the intent readable.
+ignore:
+  - test/**
+  - example/**
+  - bin/**

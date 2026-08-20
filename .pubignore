@@ -33,6 +33,9 @@ example/test/widget_test.dart
 # ---------------------------------------------------------------------------
 build/
 coverage/
+# Repo CI configuration, not package content: it tells Codecov which floor
+# to judge this repo against and means nothing to a consumer.
+codecov.yml
 .dart_tool/
 **/doc/api/
 .flutter-plugins-dependencies
