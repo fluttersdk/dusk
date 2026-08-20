@@ -1957,6 +1957,183 @@ void main() {
       expect(decoded['clickCount'], equals(3));
     });
   });
+
+  group('the checks block reaches every verb that runs the gate', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    /// A tree with nothing painted at the ref's rect, so the hit-test
+    /// reaches only the root render view. That is the shape Flutter Web's
+    /// debug build produces for a real widget, and it is the state the
+    /// block exists to report.
+    Future<String> unprovableRef(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const SizedBox.shrink());
+      return RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: tester.element(find.byType(SizedBox)),
+        groupId: 'g',
+        isTextField: false,
+      );
+    }
+
+    Future<Map<String, dynamic>> drive(
+      WidgetTester tester,
+      Future<ServiceExtensionResponse> Function() call,
+    ) async {
+      final Future<ServiceExtensionResponse> future = call();
+      for (int i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      return jsonDecode((await future).result!) as Map<String, dynamic>;
+    }
+
+    testWidgets('hover reports it', (WidgetTester tester) async {
+      final String ref = await unprovableRef(tester);
+      final Map<String, dynamic> decoded = await drive(
+        tester,
+        () => aiTestHoverHandler('ext.dusk.hover', <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'includeSnapshot': 'false',
+        }),
+      );
+
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('indeterminate'),
+      );
+    });
+
+    testWidgets('dblclick reports it', (WidgetTester tester) async {
+      final String ref = await unprovableRef(tester);
+      final Map<String, dynamic> decoded = await drive(
+        tester,
+        () => aiTestDoubleClickHandler('ext.dusk.dblclick', <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'includeSnapshot': 'false',
+        }),
+      );
+
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('indeterminate'),
+      );
+    });
+
+    testWidgets('right_click reports it', (WidgetTester tester) async {
+      final String ref = await unprovableRef(tester);
+      final Map<String, dynamic> decoded = await drive(
+        tester,
+        () => aiTestRightClickHandler('ext.dusk.right_click', <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'includeSnapshot': 'false',
+        }),
+      );
+
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('indeterminate'),
+      );
+    });
+
+    testWidgets('triple_click reports it', (WidgetTester tester) async {
+      final String ref = await unprovableRef(tester);
+      final Map<String, dynamic> decoded = await drive(
+        tester,
+        () =>
+            aiTestTripleClickHandler('ext.dusk.triple_click', <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'includeSnapshot': 'false',
+        }),
+      );
+
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('indeterminate'),
+      );
+    });
+
+    testWidgets('drag reports it for either end', (WidgetTester tester) async {
+      final String ref = await unprovableRef(tester);
+      final Map<String, dynamic> decoded = await drive(
+        tester,
+        () => aiTestDragHandler('ext.dusk.drag', <String, String>{
+          'startRef': ref,
+          'endRef': ref,
+          'checkStable': 'false',
+          'includeSnapshot': 'false',
+        }),
+      );
+
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('indeterminate'),
+      );
+    });
+
+    test('a confirmed gate stamps nothing', () {
+      // The healthy path carries no extra bytes, so the key's presence is
+      // itself the signal. Asserted on the shared helper rather than through
+      // a handler, because every verb reaches it the same way.
+      final Map<String, dynamic> payload = <String, dynamic>{'ref': 'e1'};
+      stampChecks(
+        payload,
+        const ActionabilityReport(receivesEvents: ReceivesEvents.confirmed),
+      );
+
+      expect(payload.containsKey('checks'), isFalse);
+    });
+
+    test('a skipped gate is still worth saying out loud', () {
+      // `--no-checkReceivesEvents` is a caller opting out, not a pass; a
+      // response that looked identical to a confirmed one would hide it.
+      final Map<String, dynamic> payload = <String, dynamic>{'ref': 'e1'};
+      stampChecks(
+        payload,
+        const ActionabilityReport(receivesEvents: ReceivesEvents.skipped),
+      );
+
+      expect(
+        (payload['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('skipped'),
+      );
+    });
+  });
+
+  group('aiTestTripleClickHandler gate refusal', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('a zero-rect target is refused with the frozen substring', (
+      WidgetTester tester,
+    ) async {
+      // Agents branch on the reason substring, so every verb that runs the
+      // gate has to surface it in the same envelope shape.
+      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+
+      final String ref = RefRegistry.registerForTesting(
+        rect: Rect.zero,
+        element: tester.element(find.byType(Scaffold)),
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final ServiceExtensionResponse response = await aiTestTripleClickHandler(
+        'ext.dusk.triple_click',
+        <String, String>{'ref': ref},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, contains('zero rect'));
+    });
+  });
 }
 
 /// Minimal widget whose button reveals a "Revealed!" Text on tap. Used by the

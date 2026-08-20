@@ -183,19 +183,25 @@ class DuskDoctorCommand extends ArtisanCommand {
   ) async {
     const Duration probeTimeout = Duration(seconds: 5);
 
-    final String body;
+    final dynamic raw;
     try {
       // defaultHttpGet, not the cdpHttpGet seam: that one is
       // @visibleForTesting, and this probe is itself the seam tests swap.
-      body = await CdpClient.defaultHttpGet(
+      //
+      // The decode is inside the try on purpose. A port recorded in
+      // state.json that some other service has since taken answers with
+      // something that is not CDP JSON, which is one of the three cases
+      // this check exists to name; letting the decode throw took the whole
+      // doctor run down instead of reporting it.
+      final String body = await CdpClient.defaultHttpGet(
         Uri.parse('http://localhost:$port/json'),
       ).timeout(probeTimeout);
+      raw = jsonDecode(body);
     } on Object {
       return const DuskCdpSessionReport(reachable: false);
     }
 
     final List<String> pageUrls = <String>[];
-    final dynamic raw = jsonDecode(body);
     if (raw is List<dynamic>) {
       for (final dynamic entry in raw) {
         if (entry is Map<String, dynamic> && entry['type'] == 'page') {
@@ -548,17 +554,17 @@ class DuskDoctorCommand extends ArtisanCommand {
     }
 
     final String here = currentDirectoryProbe();
-    if (_samePath(recorded, here)) {
+    if (_isWithinProject(here, recorded)) {
       ctx.output.success('$label: state.json describes this project');
       return;
     }
 
     ctx.output.warning(
       '$label: state.json describes another project ($recorded), not this '
-      'one ($here). `~/.artisan/state.json` is a single global slot, so a '
-      'sibling session has taken it; every dusk:* call from here would '
-      'drive that app instead. Re-run `artisan start` for this project '
-      'before driving anything.',
+      'one ($here). `~/.artisan/state.json` is a shared pointer to whichever '
+      'app started last, so every dusk:* call from here would drive that app '
+      'instead. Re-run `artisan start` for this project, or pass '
+      '--state=<path> to name the session you mean.',
     );
   }
 
@@ -624,10 +630,22 @@ class DuskDoctorCommand extends ArtisanCommand {
     );
   }
 
-  /// Normalises two directory paths for comparison: trailing separators and
-  /// a symlinked path (a git worktree checkout is often one) would otherwise
-  /// read as a mismatch on an identical directory.
-  static bool _samePath(String a, String b) {
+  /// Whether [here] is [recorded] or sits beneath it.
+  ///
+  /// IS-WITHIN, not equality: running from `backend/` or a package
+  /// subdirectory is normal, and artisan's own `sessionOwnershipError` lets
+  /// it through. Comparing exactly made the doctor warn about a session
+  /// artisan itself considers this project's.
+  ///
+  /// Duplicated from artisan rather than imported because
+  /// `sessionOwnershipError` is not in the published `fluttersdk_artisan`
+  /// this package resolves against; fold the two together at the next
+  /// coordinated bump.
+  ///
+  /// Trailing separators and symlinks are normalised first: a git worktree
+  /// checkout is routinely a symlink and would otherwise read as a mismatch
+  /// on an identical directory.
+  static bool _isWithinProject(String here, String recorded) {
     String normalise(String raw) {
       final String trimmed =
           raw.endsWith(Platform.pathSeparator) && raw.length > 1
@@ -637,7 +655,10 @@ class DuskDoctorCommand extends ArtisanCommand {
       return dir.existsSync() ? dir.resolveSymbolicLinksSync() : trimmed;
     }
 
-    return normalise(a) == normalise(b);
+    final String child = normalise(here);
+    final String parent = normalise(recorded);
+    return child == parent ||
+        child.startsWith('$parent${Platform.pathSeparator}');
   }
 
   /// Reads an int from a state field, tolerating `int`, `num`, or a numeric

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:fluttersdk_artisan/artisan.dart';
@@ -919,6 +920,84 @@ Future<void> main() async {
       );
 
       expect(output.content, contains('describes this project'));
+    });
+  });
+
+  group('DuskDoctorCommand session ownership from a subdirectory', () {
+    test('a working directory inside the project is not foreign', () async {
+      // Running from `backend/` or a package subdirectory is normal, and
+      // artisan's own guard lets it through. Comparing paths exactly made
+      // the doctor warn about a session artisan itself considers valid, so
+      // the two tools disagreed about the same state file.
+      final Directory root =
+          Directory.systemTemp.createTempSync('dusk_doctor_root_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final Directory nested = Directory('${root.path}/packages/app');
+      nested.createSync(recursive: true);
+
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'pid': 1,
+            'projectRoot': root.path,
+            'startedAt': DateTime.now().toUtc().toIso8601String(),
+          };
+      DuskDoctorCommand.currentDirectoryProbe = () => nested.path;
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('describes this project'));
+      expect(output.content, isNot(contains('another project')));
+    });
+
+    test('a sibling project is still reported as foreign', () async {
+      final Directory mine =
+          Directory.systemTemp.createTempSync('dusk_doctor_mine_');
+      final Directory sibling =
+          Directory.systemTemp.createTempSync('dusk_doctor_sibling_');
+      addTearDown(() {
+        mine.deleteSync(recursive: true);
+        sibling.deleteSync(recursive: true);
+      });
+
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'pid': 1,
+            'projectRoot': sibling.path,
+            'startedAt': DateTime.now().toUtc().toIso8601String(),
+          };
+      DuskDoctorCommand.currentDirectoryProbe = () => mine.path;
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('another project'));
+      expect(output.content, contains('--state='));
+    });
+  });
+
+  group('DuskDoctorCommand.defaultCdpSessionProbe on a hijacked port', () {
+    test('a port answering with non-CDP content reports unreachable', () async {
+      // The check's own docblock names this case: the recorded port has been
+      // taken over by something else. Decoding outside the guard turned the
+      // diagnosis into a crash of the whole doctor run.
+      final HttpServer server =
+          await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      unawaited(
+        server.forEach((HttpRequest request) async {
+          request.response.write('<html>not a devtools endpoint</html>');
+          await request.response.close();
+        }),
+      );
+
+      final DuskCdpSessionReport? report =
+          await DuskDoctorCommand.defaultCdpSessionProbe(server.port, 3210);
+
+      expect(report, isNotNull);
+      expect(report!.reachable, isFalse);
     });
   });
 }

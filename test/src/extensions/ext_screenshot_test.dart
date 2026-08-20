@@ -418,4 +418,59 @@ void main() {
       expect(response.errorDetail, contains('no live rect'));
     });
   });
+
+  group('screenshotHandler ref resolution', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('a q-handle resolves, as both surfaces promise it does', (
+      WidgetTester tester,
+    ) async {
+      // The CLI help and the MCP schema both say `ref` takes "an e<N> token
+      // from dusk_snap or a q<N> handle from dusk_find", but the resolver
+      // only ever consulted the e space, so a q handle came back with "not
+      // found in RefRegistry. Call ext.dusk.snapshot first", which is the
+      // wrong recovery for a query handle.
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(child: Text('Capture me')),
+        ),
+      );
+
+      final String ref = RefRegistry.registerQuery(
+        const DuskQuery(text: 'Capture me'),
+      );
+      expect(ref, startsWith('q'));
+
+      final developer.ServiceExtensionResponse response =
+          await screenshotHandler(
+        'ext.dusk.screenshot',
+        <String, String>{'ref': ref, 'geometry': 'true'},
+      );
+
+      expect(
+        response.result,
+        isNotNull,
+        reason: 'q-handle rejected: ${response.errorDetail}',
+      );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['rect'], isA<Map<String, dynamic>>());
+    });
+
+    testWidgets('an unknown ref names both token spaces in the recovery', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final developer.ServiceExtensionResponse response =
+          await screenshotHandler(
+        'ext.dusk.screenshot',
+        const <String, String>{'ref': 'e999', 'geometry': 'true'},
+      );
+
+      expect(response.errorDetail, contains('ext.dusk.find'));
+    });
+  });
 }

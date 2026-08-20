@@ -574,4 +574,58 @@ void main() {
       expect(picked, equals('two'));
     });
   });
+
+  group('aiTestScrollHandler effect measures the scrollable it drove', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('a ref pointing at the ListView itself reports a real before',
+        (WidgetTester tester) async {
+      // The before-offset used to come from `Scrollable.maybeOf(target)`,
+      // which is the ANCESTOR, while the scroll drove the target itself.
+      // Passing a ListView's own ref (what `find --key=my-list` returns)
+      // therefore reported `before: null` alongside a real `after`, and
+      // `changed: true` for a list that had not moved.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: <Widget>[
+                for (int i = 0; i < 40; i++)
+                  SizedBox(height: 100, child: Text('row-$i')),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final Element listView = tester.element(find.byType(Scrollable));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(0, 0, 400, 600),
+        element: listView,
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final Future<developer.ServiceExtensionResponse> future =
+          aiTestScrollHandler('ext.dusk.scroll', <String, String>{
+        'ref': ref,
+        'dy': '300',
+        'includeSnapshot': 'false',
+      });
+      for (int i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      final Map<String, dynamic> decoded =
+          jsonDecode((await future).result!) as Map<String, dynamic>;
+
+      final Map<String, dynamic> effect =
+          decoded['effect'] as Map<String, dynamic>;
+      expect(effect['kind'], equals('scrollOffset'));
+      expect(effect['before'], isNotNull, reason: 'measured the wrong object');
+      expect(effect['before'], equals(0.0));
+      expect(effect['after'], equals(300.0));
+      expect(effect['changed'], isTrue);
+    });
+  });
 }

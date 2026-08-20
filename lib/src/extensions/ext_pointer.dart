@@ -448,8 +448,7 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   // What the gate could NOT establish. Absent on the healthy path, so its
   // presence is the signal: a clean pass used to be indistinguishable from
   // a confirmed one.
-  final Map<String, dynamic>? checks = gate.toPayload();
-  if (checks != null) payload['checks'] = checks;
+  stampChecks(payload, gate);
   try {
     final String postSignal = _captureEffectSignal(entry);
     payload['effect'] = treeChangedEffect(before: preSignal, after: postSignal);
@@ -565,8 +564,9 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
         _parseBoolFlag(params, 'checkStable', defaultValue: true);
     final bool checkReceivesEvents =
         _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+    final ActionabilityReport gate;
     try {
-      await ensureActionable(
+      gate = await ensureActionable(
         entry,
         ref: ref,
         checkStable: checkStable,
@@ -605,6 +605,7 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     //    Snapshot build failures are best-effort; never convert success
     //    into error.
     final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
+    stampChecks(payload, gate);
     try {
       await _appendSnapshotIfRequested(payload, params);
     } catch (e) {
@@ -736,8 +737,9 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
         _parseBoolFlag(params, 'checkStable', defaultValue: true);
     final bool checkReceivesEvents =
         _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+    final ActionabilityReport startGate;
     try {
-      await ensureActionable(
+      startGate = await ensureActionable(
         startEntry,
         ref: startRef,
         checkStable: checkStable,
@@ -752,8 +754,9 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
         ),
       );
     }
+    final ActionabilityReport endGate;
     try {
-      await ensureActionable(
+      endGate = await ensureActionable(
         endEntry,
         ref: endRef,
         checkStable: checkStable,
@@ -827,6 +830,10 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       'startRef': startRef,
       'endRef': endRef,
     };
+    // Two gates ran. Report the first that could not confirm: either end
+    // being unproven makes the whole drag unproven.
+    stampChecks(payload, startGate);
+    if (!payload.containsKey('checks')) stampChecks(payload, endGate);
     try {
       await _appendSnapshotIfRequested(payload, params);
     } catch (e) {
@@ -917,8 +924,9 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
       _parseBoolFlag(params, 'checkStable', defaultValue: true);
   final bool checkReceivesEvents =
       _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+  final ActionabilityReport gate;
   try {
-    await ensureActionable(
+    gate = await ensureActionable(
       entry,
       ref: ref,
       checkStable: checkStable,
@@ -980,6 +988,7 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
   // POST-DISPATCH: best-effort enrichment — snapshot fires once, after both
   // taps, so the agent sees the final post-dblclick accessibility tree.
   final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
+  stampChecks(payload, gate);
   try {
     await _appendSnapshotIfRequested(payload, params);
   } catch (e) {
@@ -1058,8 +1067,9 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
         _parseBoolFlag(params, 'checkStable', defaultValue: true);
     final bool checkReceivesEvents =
         _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+    final ActionabilityReport gate;
     try {
-      await ensureActionable(
+      gate = await ensureActionable(
         entry,
         ref: ref,
         checkStable: checkStable,
@@ -1106,6 +1116,7 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
       'ref': ref,
       'button': 'right',
     };
+    stampChecks(payload, gate);
     await _appendSnapshotIfRequested(payload, params);
     return duskResult(payload);
   } catch (e, stackTrace) {
@@ -1163,8 +1174,9 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
         _parseBoolFlag(params, 'checkStable', defaultValue: true);
     final bool checkReceivesEvents =
         _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+    final ActionabilityReport gate;
     try {
-      await ensureActionable(
+      gate = await ensureActionable(
         entry,
         ref: ref,
         checkStable: checkStable,
@@ -1192,6 +1204,7 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
       'ref': ref,
       'clickCount': 3,
     };
+    stampChecks(payload, gate);
     await _appendSnapshotIfRequested(payload, params);
     return duskResult(payload);
   } catch (e, stackTrace) {

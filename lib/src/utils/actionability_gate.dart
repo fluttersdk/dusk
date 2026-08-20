@@ -75,6 +75,17 @@ final class ActionabilityReport {
   }
 }
 
+/// Stamps [report]'s `checks` block onto [payload], or leaves the payload
+/// untouched when the gate confirmed everything.
+///
+/// Every handler that runs the gate calls this. The alternative, each one
+/// deciding for itself, is how the block reached `tap` and none of the other
+/// seven verbs, including the `fill` that motivated it.
+void stampChecks(Map<String, dynamic> payload, ActionabilityReport report) {
+  final Map<String, dynamic>? checks = report.toPayload();
+  if (checks != null) payload['checks'] = checks;
+}
+
 /// Guards an action tool against firing on a widget that cannot accept the
 /// action.
 ///

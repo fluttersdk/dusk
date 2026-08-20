@@ -115,4 +115,79 @@ void main() {
       expect(effect['value'], equals(''));
     });
   });
+
+  group('aiTestTypeHandler checks', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('the gate report reaches the payload', (
+      WidgetTester tester,
+    ) async {
+      // `type` ran the gate and threw the report away, so the one verb the
+      // block was written for could not report it: the motivating case is a
+      // `fill` that printed a green tick four times onto a row covered by a
+      // pinned footer, and `fill` delegates straight to this handler.
+      //
+      // Opting out of the hit-test is the deterministic way to produce a
+      // non-confirmed report here; the indeterminate path is covered on the
+      // pointer verbs, which can be given an unpainted rect.
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: TextField())),
+      );
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(0, 0, 200, 40),
+        element: tester.element(find.byType(TextField)),
+        groupId: 'g',
+        isTextField: true,
+      );
+
+      final Future<developer.ServiceExtensionResponse> pending =
+          aiTestTypeHandler('ext.dusk.type', <String, String>{
+        'ref': ref,
+        'text': 'QA Sweep',
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+        'includeSnapshot': 'false',
+      });
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await pending;
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('skipped'),
+      );
+    });
+
+    testWidgets('a confirmed gate leaves no checks block', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: TextField())),
+      );
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(0, 0, 200, 40),
+        element: tester.element(find.byType(TextField)),
+        groupId: 'g',
+        isTextField: true,
+      );
+
+      final Future<developer.ServiceExtensionResponse> pending =
+          aiTestTypeHandler('ext.dusk.type', <String, String>{
+        'ref': ref,
+        'text': 'QA Sweep',
+        'checkStable': 'false',
+        'includeSnapshot': 'false',
+      });
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await pending;
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded.containsKey('checks'), isFalse);
+    });
+  });
 }

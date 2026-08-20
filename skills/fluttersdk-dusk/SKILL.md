@@ -102,11 +102,11 @@ and verify with `./bin/fsa dusk:doctor`.
    and prints `Wrote N bytes...`; `dusk:install` / `dusk:doctor` print
    categorised reports. (b) `dusk_evaluate` is MCP-only (no CLI mirror);
    the dusk-aware Dart REPL lives behind `./bin/fsa tinker` (one-shot
-   form: `./bin/fsa tinker --eval="<expression>"`). (c) **`dusk:wait`
-   exits 1 when the condition never matched.** It used to print
-   `✓ Condition matched` and exit 0 on timeout, so a shell chain that
-   depended on it proved nothing; if you carry a workaround for that,
-   drop it.
+   form: `./bin/fsa tinker --eval="<expression>"`). (c) **`dusk:wait` and
+   `dusk:wait_for_network_idle` exit 1 when the wait never resolved.**
+   Both used to print their success line and exit 0 on timeout, so a
+   shell chain that depended on either proved nothing; if you carry a
+   workaround for that, drop it.
 
 7. **A `warnings` block means the result is not trustworthy.** When the
    app stops producing frames (a backgrounded browser tab is the usual

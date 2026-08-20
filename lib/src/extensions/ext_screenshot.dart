@@ -12,6 +12,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 import '../ref_registry.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
+import 'ext_pointer.dart' show resolveRefForAction;
 
 /// Registers the `ext.dusk.screenshot` VM Service extension.
 ///
@@ -407,11 +408,15 @@ RenderObject _resolveRootRenderObject() {
 /// ref is unknown to [RefRegistry] OR the registered entry carries no live
 /// render object (snapshot did not capture this node from the render tree).
 RenderObject _resolveRefRenderObject(String ref) {
-  final RefEntry? entry = RefRegistry.lookup(ref);
+  // resolveRefForAction, not RefRegistry.lookup: the CLI help and the MCP
+  // schema both advertise `q<N>` here, and lookup only ever sees the `e`
+  // space, so a query handle failed with "not found in RefRegistry" and
+  // sent the agent to re-snapshot instead of re-finding.
+  final RefEntry? entry = resolveRefForAction(ref);
   if (entry == null) {
     throw StateError(
-      'ext.dusk.screenshot: ref "$ref" not found in RefRegistry. '
-      'Call ext.dusk.snapshot first to register refs, or omit ref to '
+      'ext.dusk.screenshot: ref "$ref" not found. Take an e<N> token from '
+      'ext.dusk.snap or a q<N> handle from ext.dusk.find, or omit ref to '
       'capture the root viewport.',
     );
   }

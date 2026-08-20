@@ -67,6 +67,22 @@ class DuskWaitForNetworkIdleCommand extends ArtisanCommand {
       params,
     );
     reportFrameWarning(ctx, response);
+
+    // Same shape as ext.dusk.wait_for: a timeout comes back as a SUCCESS
+    // envelope carrying `matched: false`, not as an error. Printing the
+    // success line regardless made this pass on exactly the case it exists
+    // to catch, and a CI script chains on the exit code.
+    if (response['matched'] == false) {
+      emitEnvelope(ctx, response, () {
+        ctx.output.error(
+          'Network did not go idle within the timeout. Requests were still '
+          'in flight, so treat anything that depended on this wait as '
+          'unproven.',
+        );
+      });
+      return 1;
+    }
+
     emitEnvelope(ctx, response, () => ctx.output.success('Network idle'));
     return 0;
   }

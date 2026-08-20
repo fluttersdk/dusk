@@ -1,4 +1,4 @@
-/// The `effect` block every side-effect verb returns.
+/// The `effect` block the five verbs that can observe a result return.
 ///
 /// A dusk action reports that it DISPATCHED, not that the widget received.
 /// That distinction has cost real debugging time more than once: a fill
@@ -9,10 +9,15 @@
 ///
 /// Every builder here answers the same question in the verb's own terms:
 /// what does the widget hold NOW, and is that what the caller asked for. The
-/// block is always present on a successful action, so an agent never has to
-/// remember to opt in, and the diagnostic an agent would otherwise
-/// hand-assemble (act, re-snap, read the value back, compare) collapses into
-/// the response it already has.
+/// block is always present on a successful action of those five, so an
+/// agent never has to remember to opt in, and the diagnostic it would
+/// otherwise hand-assemble (act, re-snap, read the value back, compare)
+/// collapses into the response it already has.
+///
+/// The verbs without one have nothing cheap to read back: a hover, a
+/// keypress or a modal dismissal leaves no single value that says whether
+/// it landed. `select_option` is the exception worth fixing, and it still
+/// echoes its own `value` parameter.
 ///
 /// Shape: `{"kind": "<kind>", ...kind-specific fields}`. Every kind that can
 /// express intent carries `verified`; the ones that only observe a change

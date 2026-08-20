@@ -178,6 +178,9 @@ actionability steps, same as on the other gestures.
 `wait_for_network_idle` requires `fluttersdk_telescope` wired in the
 running app; without it, it returns immediately as `matched: true`.
 
+Both waits exit `1` when they never resolved, so `&&` chains stop where
+they should. Read the exit code rather than the printed line.
+
 ### Navigation
 
 ```bash

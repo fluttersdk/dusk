@@ -102,11 +102,16 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
     //    not a scrollable, and a list already at its end, both report a clean
     //    success today and neither moves a pixel.
     double finalOffset = 0.0;
-    final double? startOffset = targetContext == null
-        ? _findRootScrollable()?.position.pixels
-        : Scrollable.maybeOf(targetContext)?.position.pixels;
+    // Read per branch, AFTER each has resolved its own scrollable. Reading
+    // it here through `Scrollable.maybeOf` alone measured the ANCESTOR while
+    // the delta branch went on to drive the target itself or a descendant,
+    // so passing a ListView's own ref reported `before: null, changed: true`
+    // for exactly the "ref is not a scrollable" case this block exists to
+    // catch.
+    double? startOffset;
 
     if (intoView && targetContext != null) {
+      startOffset = Scrollable.maybeOf(targetContext)?.position.pixels;
       // Scroll into view — ensureVisible handles the math.
       await aiTestScrollEnsureVisible(
         targetContext,
@@ -157,7 +162,8 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
         );
       }
 
-      final double target = scrollable.position.pixels + dy + dx;
+      startOffset = scrollable.position.pixels;
+      final double target = startOffset + dy + dx;
       await aiTestScrollByDelta(scrollable, target);
       finalOffset = scrollable.position.pixels;
     }

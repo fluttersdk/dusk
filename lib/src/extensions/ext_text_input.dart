@@ -351,6 +351,10 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
         wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
       );
     }
+    // Null when no entry resolved, so no gate ran and there is nothing to
+    // report. `fill` delegates here, which is the verb whose silent clean
+    // pass motivated the block in the first place.
+    ActionabilityReport? gate;
     if (entry != null) {
       // Step 3.1: stable + receives-events gates default on; opt-out via
       // params for tests with synthetic rect.
@@ -359,7 +363,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       final bool checkReceivesEvents =
           _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
       try {
-        await ensureActionable(
+        gate = await ensureActionable(
           entry,
           ref: ref,
           checkStable: checkStable,
@@ -409,6 +413,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       'text': text,
       'effect': textEffect(expected: text, actual: written),
     };
+    if (gate != null) stampChecks(payload, gate);
 
     // 3. Embed post-action snapshot (opt-out via includeSnapshot:'false').
     //    Snapshot-build noise must NOT convert a successful type into an

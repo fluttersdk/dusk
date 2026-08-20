@@ -102,7 +102,9 @@ indistinguishable from a confirmed one: that is how a fill printed a green
 tick four times onto a row covered by a pinned footer, with nothing in any
 response to say the check had not run.
 
-The response now carries a `checks` block whenever step 5 did not confirm:
+The response carries a `checks` block whenever step 5 did not confirm. Every
+verb that runs the gate emits it, `tap`, `hover`, `drag`, `dblclick`,
+`right_click`, `triple_click` and the text verbs (`type` / `clear` / `fill`):
 
 ```json
 {
