@@ -9,7 +9,7 @@ paths:
 
 Mirror the `lib/src/` tree exactly: `lib/src/extensions/ext_pointer.dart` maps to `test/src/extensions/ext_pointer_test.dart`. One production file, one test file. The provider test lives at `test/dusk_artisan_provider_mcp_tools_test.dart` (direct child of `test/`, mirrors the artisan peer). The CDP smoke lives at `test/integration/cdp_smoke_test.dart` and is tagged `integration` so the default runner excludes it.
 
-Subtree counts (current baseline): `test/src/commands/` 31 files, `test/src/extensions/` 17 files, `test/src/utils/` 4, `test/src/cdp/` 4, `test/src/` 2 (`dusk_plugin_test.dart`, `ref_registry_test.dart`).
+Subtree counts (current baseline): `test/src/commands/` 34 files, `test/src/extensions/` 23 files, `test/src/utils/` 6, `test/src/cdp/` 5, `test/src/` 5.
 
 ## Framework and fakes
 
@@ -61,7 +61,7 @@ For new MCP tool descriptors: extend `test/dusk_artisan_provider_mcp_tools_test.
 
 - **RefRegistry tests**: assert on `RefRegistry.lookup(ref)`, `RefRegistry.lookupQuery(ref)`, `RefRegistry.refsForGroup(groupId).length`. Never reach into private `_entries` / `_queries` maps.
 - **Handler tests**: call the handler function directly (`aiTestTapHandler('ext.dusk.tap', params)`), decode the response, assert on the decoded map keys.
-- **Provider tests**: instantiate `DuskArtisanProvider()`, assert `commands().length == 32`, `mcpTools().length == 31`, then assert specific descriptor `name` + `extensionMethod` per index range.
+- **Provider tests**: instantiate `DuskArtisanProvider()`, assert `commands().length == 34`, `mcpTools().length == 33`, then assert specific descriptor `name` + `extensionMethod` per index range.
 - **CDP tests**: spin up `FakeCdpServer`, assert on the recorded JSON-RPC frames (method name + params shape) rather than network bytes.
 
 ## Baseline and coverage gate

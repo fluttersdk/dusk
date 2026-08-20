@@ -44,22 +44,22 @@ Single barrel: `lib/dusk.dart` re-exports the public API. Subsystem layout under
 
 | Path | Purpose |
 |---|---|
-| `extensions/` | 17 files: `ext_snapshot`, `ext_pointer`, `ext_text_input`, `ext_screenshot`, `ext_scroll`, `ext_wait_find`, `ext_modal_router`, `ext_navigation`, `ext_evaluate`, `ext_close_app`, `ext_find`, `ext_console`, `ext_exceptions`, `ext_checkbox`, `ext_observe`, `ext_focus`, plus `register_dusk_extensions` aggregator. See `.claude/rules/extensions.md`. |
-| `commands/` | 32 `ArtisanCommand` subclasses (one file each). See `.claude/rules/commands.md`. |
+| `extensions/` | 18 files: `ext_snapshot`, `ext_pointer`, `ext_text_input`, `ext_screenshot`, `ext_scroll`, `ext_wait_find`, `ext_modal_router`, `ext_navigation`, `ext_evaluate`, `ext_close_app`, `ext_find`, `ext_fill`, `ext_console`, `ext_exceptions`, `ext_checkbox`, `ext_observe`, `ext_focus`, plus `register_dusk_extensions` aggregator. See `.claude/rules/extensions.md`. |
+| `commands/` | 34 `ArtisanCommand` subclasses (one file each). See `.claude/rules/commands.md`. |
 | `cdp/` | `cdp_client.dart` (JSON-RPC over `/json` + WebSocket, 30s timeout), `chrome_finder.dart`, `device_presets.dart` (8 named presets). |
 | `utils/` | `actionability_gate.dart` (6-check gate), `dusk_exceptions.dart`, `error_envelope.dart`, `chrome_reaper.dart`. |
 | `dusk_plugin.dart` | `DuskPlugin.install()` entry, enricher list, navigate adapter hook. Idempotent. Wraps the app root in a `RepaintBoundary` (no `GlobalKey`) so `ext.dusk.screenshot` finds it via render-tree walk. |
 | `ref_registry.dart` | `e<N>` (snapshot-frozen, dedup-by-`node.id`) + `q<N>` (re-resolvable predicate handles) dual token system. |
 | `dusk_snapshot_enricher.dart` | FROZEN typedef: `String? Function(Element element, RefRegistry refs)`. |
 | `dusk_navigate_adapter.dart` | FROZEN typedef: `Future<bool> Function(String route)`. |
-| `dusk_artisan_provider.dart` | `DuskArtisanProvider extends ArtisanServiceProvider`: `commands()` returns 32 entries, `mcpTools()` returns 31 const `McpToolDescriptor`s. |
+| `dusk_artisan_provider.dart` | `DuskArtisanProvider extends ArtisanServiceProvider`: `commands()` returns 34 entries, `mcpTools()` returns 33 const `McpToolDescriptor`s. |
 | `bin/fluttersdk_dusk.dart` | Flutter-free CLI wrapper (no `dart:ui` import). |
 | `lib/cli.dart` | Codegen barrel exporting `FluttersdkDuskArtisanProvider` typedef alias for consumer-side `_plugins.g.dart` auto-discovery. |
 | `install.yaml` | V1 plugin manifest (zero stubs, post-install bootstrap message, `executables:` anchor). |
 
 ## VM Service surface
 
-28 `ext.dusk.*` extensions registered via `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety: `snap`, `tap`, `hover`, `drag`, `dblclick`, `right_click`, `triple_click`, `type`, `clear`, `press_key`, `focus`, `blur`, `scroll`, `select_option`, `set_checkbox`, `screenshot`, `wait_for`, `wait_for_network_idle`, `find`, `observe`, `dismiss_modals`, `navigate`, `navigate_back`, `get_routes`, `evaluate`, `close_app`, `console`, `exceptions`. Two internal helpers (`find_by_text`, `find_by_label`) back the `dusk:wait` polling loop and are not MCP-surfaced. Handler signature: `Future<ServiceExtensionResponse> Function(String method, Map<String, String> params)`. Parse integers via `int.tryParse(params['key'] ?? '')`. Return `.result(jsonEncode(payload))` or `.error(ServiceExtensionResponse.extensionError, msg)` with JSON-encoded `errorDetail` (Flutter framework convention).
+30 `ext.dusk.*` extensions registered via `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety: `snap`, `tap`, `hover`, `drag`, `dblclick`, `right_click`, `triple_click`, `type`, `fill`, `clear`, `press_key`, `focus`, `blur`, `scroll`, `select_option`, `set_checkbox`, `screenshot`, `wait_for`, `wait_for_network_idle`, `find`, `observe`, `dismiss_modals`, `reset_overlays`, `navigate`, `navigate_back`, `get_routes`, `evaluate`, `close_app`, `console`, `exceptions`. Two internal helpers (`find_by_text`, `find_by_label`) back the `dusk:wait` polling loop and are not MCP-surfaced. Handler signature: `Future<ServiceExtensionResponse> Function(String method, Map<String, String> params)`. Parse integers via `int.tryParse(params['key'] ?? '')`. Return `.result(jsonEncode(payload))` or `.error(ServiceExtensionResponse.extensionError, msg)` with JSON-encoded `errorDetail` (Flutter framework convention).
 
 Three MCP tools route through the `artisan:dusk:*` substrate prefix instead of a VM extension because they need out-of-isolate execution: `dusk_hot_reload_and_snap` (in-isolate self-reload would deadlock), `dusk_resize_viewport`, `dusk_device_profile` (both drive Chrome DevTools Protocol from a non-Flutter Dart context).
 

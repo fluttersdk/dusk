@@ -53,8 +53,8 @@ final class DuskTapCommand extends ArtisanCommand {
 
 ## Boot modes
 
-- `ArtisanBoot.connected` (29 commands): requires a running app's VM Service URI from `~/.artisan/state.json`. Used for every `ext.dusk.*` route.
-- `ArtisanBoot.none` (3 commands): runs without a VM Service. Used for `dusk:install` (writes `lib/main.dart`), `dusk:doctor` (filesystem + env preflight), `dusk:resize` and `dusk:device` (Chrome DevTools Protocol from a non-Flutter Dart context).
+- `ArtisanBoot.connected` (30 commands): requires a running app's VM Service URI from `~/.artisan/state.json`. Used for every `ext.dusk.*` route.
+- `ArtisanBoot.none` (4 commands): runs without a VM Service. Used for `dusk:install` (writes `lib/main.dart`), `dusk:doctor` (filesystem + env preflight), `dusk:resize` and `dusk:device` (Chrome DevTools Protocol from a non-Flutter Dart context).
 
 Three commands use the `artisan:dusk:*` substrate prefix instead of `ext.dusk.*`: `dusk:hot_reload_and_snap` (in-isolate self-reload would deadlock; routes through the substrate dispatcher to write `r\n` to the flutter run FIFO and tail-poll the log), `dusk:resize` and `dusk:device` (drive CDP via `lib/src/cdp/cdp_client.dart`).
 
@@ -77,7 +77,7 @@ Commands that call an extension and receive a `DuskErrorEnvelope` should pretty-
 
 ## Registration
 
-The 32 commands are registered in order at `lib/src/dusk_artisan_provider.dart:64-120` inside `commands()`. The 31 MCP descriptors live at `lib/src/dusk_artisan_provider.dart:123-1434` inside `mcpTools()`. `dusk_evaluate` is intentionally MCP-only (no CLI mirror) because `magic_tinker` owns the connected REPL surface; never duplicate it under `dusk:`.
+The 34 commands are registered in order at `lib/src/dusk_artisan_provider.dart:64-120` inside `commands()`. The 33 MCP descriptors live at `lib/src/dusk_artisan_provider.dart:123-1434` inside `mcpTools()`. `dusk_evaluate` is intentionally MCP-only (no CLI mirror) because `magic_tinker` owns the connected REPL surface; never duplicate it under `dusk:`.
 
 ## MCP tool descriptor format
 
