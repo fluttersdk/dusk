@@ -14,6 +14,7 @@ Text fields collapse to a single typeable ref. A field such as a wind `WInput` p
 
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
+- [Narrowing](#narrowing)
 - [Returns](#returns)
 - [Enricher fragments](#enricher-fragments)
 - [Examples](#examples)
@@ -25,7 +26,11 @@ Text fields collapse to a single typeable ref. A field such as a wind `WInput` p
 ## Synopsis
 
 ```
-dart run fluttersdk_dusk dusk:snap [--depth=<n>] [--includeEnrichers]
+dart run fluttersdk_dusk dusk:snap [--depth=<n>]
+                                   [--within=<eN>]
+                                   [--interactiveOnly]
+                                   [--grep=<regex>]
+                                   [--includeEnrichers]
 ```
 
 `dusk:snap` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI recorded in `~/.artisan/state.json`, calls `ext.dusk.snap`, and prints the snapshot YAML to stdout.
@@ -39,8 +44,33 @@ dart run fluttersdk_dusk dusk:snap [--depth=<n>] [--includeEnrichers]
 |--------|------|---------|-------------|
 | `--depth` | int (string-parsed) | unset (full tree) | Optional max tree depth. Caps the walk so very deep widget trees stay readable. Omit for the full tree. |
 | `--includeEnrichers` | flag | `false` | Emit Magic and Wind enricher fragments under each ref entry. Default off matches the Playwright-style minimal snapshot; turn on when the agent needs the className tokens, route name, or form field metadata. |
+| `--within` | string (`e<N>`) | unset (whole tree) | Scope the walk to one subtree. Takes an `e<N>` ref from a prior snapshot; `q<N>` query handles are not addressable here, since they re-resolve per action and have no fixed subtree. An unknown or node-less ref is an error rather than a silent widening. |
+| `--interactiveOnly` | flag | `false` | Emit only nodes that carry a ref (buttons, text fields, links, headers, anything with a tap action) and drop the plain `- text` lines. |
+| `--grep` | string (regex) | unset | Emit only nodes whose label or value matches, plus the ancestors that lead to them. Ancestors survive because they carry the refs you act on: a matching `- text` line has none of its own. |
 
-The flag is parsed via `(ctx.input.option('includeEnrichers') as bool?) ?? false` and serialised as a string into the VM Service params map.
+Every flag is serialised as a string into the VM Service params map; the command does no key translation.
+
+---
+
+<a name="narrowing"></a>
+## Narrowing, and why the full tree is usually the wrong answer
+
+A full tree costs context on any real screen, and on a shell whose sidebar repeats the labels of the pages it opens it is also the misleading answer: an exact-label lookup resolves the nav item, so the caller measures the sidebar and concludes two pages differ. That has produced confident wrong readings more than once.
+
+```bash
+# Read one region. Take its ref from a prior snapshot.
+dart run fluttersdk_dusk dusk:snap --within=e12
+
+# Only the things you can act on.
+dart run fluttersdk_dusk dusk:snap --interactiveOnly
+
+# Only what matches, plus the path to it.
+dart run fluttersdk_dusk dusk:snap --grep="Sign ?in"
+```
+
+The three compose. `--within=e12 --interactiveOnly` is the usual shape before an action: one region, refs only.
+
+An unfiltered call is unchanged, byte for byte.
 
 ---
 
@@ -98,6 +128,18 @@ The `renderErrors` block is **omitted entirely** when no errors are in the buffe
   - FlutterError: Incorrect use of ParentDataWidget.
   - FlutterError: A RenderFlex overflowed by 32 pixels.
 ```
+
+### Frame production
+
+When the app is not producing frames, semantics labels are never rebuilt: the snapshot comes back with its buttons and none of its `- text` nodes, and a screen that renders perfectly reads as completely empty. The response then carries a `warnings` block and `dusk:snap` prints a banner to stderr:
+
+```
+⚠ The app is not producing frames (lifecycle: hidden). The semantics tree is not being
+  rebuilt and gestures cannot take effect, so this result may be stale. A backgrounded
+  browser tab is the usual cause: bring the page to front and retry.
+```
+
+Do not read an empty tree as an empty screen without checking for this block first. See [Frame production](../reference/frame-production.md).
 
 **Error envelope:**
 

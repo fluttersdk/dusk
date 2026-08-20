@@ -12,7 +12,7 @@ paths:
 
 ## Registration
 
-Every VM Service extension is registered inside a `registerXExtensions()` (or `registerXExtension()` for single-extension files) function exported from the matching `ext_<name>.dart` file. The aggregator at `lib/src/extensions/register_dusk_extensions.dart` calls all 16 registration functions; `DuskPlugin.install()` calls the aggregator exactly once.
+Every VM Service extension is registered inside a `registerXExtensions()` (or `registerXExtension()` for single-extension files) function exported from the matching `ext_<name>.dart` file. The aggregator at `lib/src/extensions/register_dusk_extensions.dart` calls all 17 registration functions; `DuskPlugin.install()` calls the aggregator exactly once.
 
 Use `registerExtensionIdempotent` from `fluttersdk_artisan` for every `developer.registerExtension` call:
 

@@ -113,5 +113,64 @@ void main() {
       expect(exit, equals(1));
       expect(ctx.lastMethod, isNull);
     });
+
+    test('--json prints the envelope instead of the summary', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7', 'json': true}),
+        output: output,
+        response: const {
+          'ref': 'e7',
+          'effect': {'kind': 'treeChanged', 'changed': true},
+        },
+      );
+
+      final exit = await DuskTapCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(output.content, contains('"kind":"treeChanged"'));
+      expect(output.content, isNot(contains('Tapped e7')));
+    });
+
+    test('the summary names a tap that changed nothing', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7'}),
+        output: output,
+        response: const {
+          'ref': 'e7',
+          'effect': {'kind': 'treeChanged', 'changed': false},
+        },
+      );
+
+      await DuskTapCommand().handle(ctx);
+
+      expect(output.content, contains('no observable change'));
+    });
+
+    test('handle surfaces the frame-production banner beside the success line',
+        () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7'}),
+        output: output,
+        response: const {
+          'ref': 'e7',
+          'warnings': {
+            'framesEnabled': false,
+            'lifecycleState': 'hidden',
+            'hint': 'The engine is not producing frames...',
+          },
+        },
+      );
+
+      final exit = await DuskTapCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      // The default path prints `✓ Tapped e7` and discards the envelope, so
+      // a tap that could not possibly land would otherwise read as a success.
+      expect(output.content, contains('Tapped e7'));
+      expect(output.content, contains('not producing frames'));
+    });
   });
 }

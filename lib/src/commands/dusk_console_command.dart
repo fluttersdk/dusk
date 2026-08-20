@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:console [--limit=<n>] [--minLevel=<level>]` — read recent
 /// log entries from the running app's telescope store.
 ///
@@ -48,6 +50,7 @@ class DuskConsoleCommand extends ArtisanCommand {
 
     final response = await ctx.callExtension<Map<String, dynamic>>(
         'ext.dusk.console', params);
+    reportFrameWarning(ctx, response);
     ctx.output.writeln(jsonEncode(response));
     return 0;
   }

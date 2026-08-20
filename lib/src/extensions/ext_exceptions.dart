@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../dusk_error_capture.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
@@ -139,13 +139,19 @@ Future<developer.ServiceExtensionResponse> aiTestExceptionsHandler(
     final List<Map<String, dynamic>> exceptions =
         filtered.length > limit ? filtered.sublist(0, limit) : filtered;
 
-    // 5. Return the structured envelope.
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'exceptions': exceptions,
-        'count': exceptions.length,
-      }),
-    );
+    // 5. Optional clear, AFTER the read: the caller gets everything so far
+    //    and a clean slate for the next route, which is the primitive a
+    //    before/after sweep needs. Only the in-package buffer is ours to
+    //    empty; a wired telescope owns its own store.
+    if (params['clear'] == 'true') {
+      clearCapturedExceptions();
+    }
+
+    // 6. Return the structured envelope.
+    return duskResult(<String, dynamic>{
+      'exceptions': exceptions,
+      'count': exceptions.length,
+    });
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.exceptions: unexpected error: $e\n$st',

@@ -163,6 +163,12 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '- Pass `depth: <n>` to limit tree traversal depth (default '
               'unlimited). Useful when the tree is huge and you only need '
               'the visible region.\n'
+              '- Narrow instead of reading everything: `within: "e12"` walks '
+              'one subtree, `interactiveOnly: true` drops the prose, '
+              '`grep: "Sign in"` keeps only matches and the path to them. A '
+              'full tree is the wrong default answer to most questions, and '
+              'on a shell whose sidebar repeats page labels it is also the '
+              'misleading one.\n'
               '- Returns YAML; the model parses ref tokens out of the '
               'shape `[ref=e<N>]` next to each widget.',
           inputSchema: <String, dynamic>{
@@ -173,6 +179,29 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Max tree-traversal depth from the root. '
                     'Omit for full tree. Use a small number (5-10) when '
                     'snapshotting only the focused screen.',
+              },
+              'within': <String, dynamic>{
+                'type': 'string',
+                'description': 'Scope the walk to one subtree: the `e<N>` '
+                    'ref of the region to read. Reach for this when a label '
+                    'repeats across the shell, which it usually does (a '
+                    'sidebar item and the page it opens share one), because '
+                    'an unscoped lookup resolves the nav item and you end up '
+                    'measuring the sidebar.',
+              },
+              'interactiveOnly': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Emit only nodes that carry a ref (buttons, '
+                    'text fields, links, anything tappable) and drop the '
+                    'plain text lines. Default false. Use when the next step '
+                    'is an action and the prose is not the question.',
+              },
+              'grep': <String, dynamic>{
+                'type': 'string',
+                'description': 'Emit only nodes whose label or value matches '
+                    'this regular expression, plus the ancestors leading to '
+                    'them. Ancestors are kept because they carry the refs '
+                    'you act on: a matching text line has none of its own.',
               },
             },
           },
@@ -198,10 +227,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'when the ref is unknown or stale (re-snap to refresh).\n'
               '- For drag use dusk_drag; for typing use dusk_type after '
               'dusk_tap to focus the field.\n'
-              '- Set verify=true to confirm the tap produced an observable '
-              'effect: the response gains a `changed` boolean (true when the '
-              "target's route or semantics subtree changed, false when "
-              'nothing did).',
+              '- Every response carries an `effect` block: '
+              '`{kind: "treeChanged", changed: bool}`. `changed: false` means '
+              "the target's own route and semantics subtree are byte-"
+              'identical after the tap, so nothing the agent can see '
+              'happened. Read it before concluding the app is broken.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{
@@ -209,14 +239,6 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'type': 'string',
                 'description': 'Widget ref token from a prior dusk_snap '
                     'call. Shape: `e<N>` (e.g. `e5`, `e23`).',
-              },
-              'verify': <String, dynamic>{
-                'type': 'boolean',
-                'description': 'When true, capture a target-scoped before/'
-                    'after signal (route + semantics-subtree hash) and add a '
-                    '`changed` boolean to the response reporting whether the '
-                    'tap had an observable effect. Defaults to false, which '
-                    'keeps the response shape unchanged.',
               },
               'until': <String, dynamic>{
                 'type': 'string',
@@ -253,14 +275,21 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'reliable web screenshots, run the CLI command '
               '`dusk:screenshot --output=<path>` instead: when artisan was '
               'started with `--cdp-port`, the CLI falls back to CDP '
-              '`Page.captureScreenshot` for a full-viewport capture. That CDP '
-              'fallback is CLI-only; it does not apply to this MCP tool.\n'
+              '`Page.captureScreenshot`, and it honours `--ref` / `--rect` '
+              'there by resolving the region first and clipping the capture. '
+              'That CDP fallback is CLI-only; it does not apply to this MCP '
+              'tool.\n'
               '\n'
               'Usage:\n'
-              '- No required params; defaults to JPEG at quality 70.\n'
+              '- No required params; defaults to the whole viewport as JPEG '
+              'at quality 70.\n'
               '- Pass `format: "png"` for a lossless (larger) payload.\n'
-              '- Captures the WHOLE app surface; for region screenshots use '
-              'dusk_snap to locate a widget first.',
+              '- Pass `ref` (an e<N> from dusk_snap or a q<N> from dusk_find) '
+              'to capture ONLY that widget. This is the cheap way to look at '
+              'one component: a full-screen capture of a tall page costs far '
+              'more tokens and buries the thing you are checking.\n'
+              '- Add `rect: "x,y,w,h"` (logical px, relative to the ref\'s '
+              'top-left) to narrow further. `rect` requires `ref`.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{
@@ -275,6 +304,19 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'type': 'integer',
                 'description': 'JPEG quality 0-100 (higher is better). '
                     'Default 70. Ignored when format is `png`.',
+              },
+              'ref': <String, dynamic>{
+                'type': 'string',
+                'description': 'Capture only this widget. An `e<N>` token '
+                    'from dusk_snap or a `q<N>` handle from dusk_find. Omit '
+                    'to capture the whole viewport.',
+              },
+              'rect': <String, dynamic>{
+                'type': 'string',
+                'description': 'Sub-rect `"x,y,w,h"` in logical pixels, '
+                    'relative to the ref\'s top-left. Requires `ref`; '
+                    'passing it alone is an error rather than a silent '
+                    'full-frame capture.',
               },
             },
           },
@@ -822,6 +864,17 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     '`"monitor-row-7"`); for arbitrary Keys, pass the '
                     'full `Key.toString()` value.',
               },
+              'within': <String, dynamic>{
+                'type': 'string',
+                'description': 'Evaluate the predicates inside one subtree: '
+                    'the `e<N>` ref of the region to search. Reach for it '
+                    'whenever a label repeats across the shell, which a '
+                    'sidebar and the page it opens usually do, because the '
+                    'unscoped match lands on the nav item. The scope is part '
+                    'of the minted `q<N>` handle, so it survives into every '
+                    're-resolve; once the scope stops resolving the handle '
+                    'reports no match with a diagnostic naming it.',
+              },
             },
           },
           extensionMethod: 'ext.dusk.find',
@@ -974,6 +1027,16 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'whose `time` is strictly after this value are returned. '
                     'Omit to return the full cumulative list. Unparseable '
                     'values are silently ignored (treated as absent).',
+              },
+              'clear': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Empty the in-package capture buffer AFTER '
+                    'returning the current entries. The buffer is cumulative, '
+                    'so one real fault at boot rides along on every later '
+                    'read and a per-route sweep reports it against every '
+                    'route. Clear between routes to get a real delta. Only '
+                    'the in-package buffer is affected; a wired telescope '
+                    'owns its own store.',
               },
             },
           },

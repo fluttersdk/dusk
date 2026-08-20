@@ -7,6 +7,11 @@ import 'package:fluttersdk_dusk/src/extensions/ext_evaluate.dart';
 import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
 
 void main() {
+  // These call the handler from a bare `test()`, so the binding the response
+  // builder reads (`SchedulerBinding.instance`, for the frame-production
+  // warning) is not initialised for free the way `testWidgets` does it.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('ext.dusk.evaluate', () {
     // -------------------------------------------------------------------------
     // (a) Missing expression parameter returns extensionError

@@ -93,6 +93,20 @@ ext.dusk.console               ext.dusk.exceptions          ext.dusk.observe
 
 Every registration routes through `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety.
 
+### Frame settling is always bounded
+
+A handler that dispatches a gesture, a text edit, or a navigation awaits one or two frames afterwards so the gesture arena drains and any implicit animation starts. Those awaits go through `awaitFrameOrTimeout` / `awaitFramesOrTimeout` in `lib/src/utils/frame_sync.dart`, never `WidgetsBinding.instance.endOfFrame` directly.
+
+`endOfFrame` schedules a frame only while `SchedulerBinding.framesEnabled` is true. A backgrounded browser tab reports `document.visibilityState: "hidden"` and Flutter Web turns frame production off, so a bare await there never completes: the extension blocks until the calling CLI's own timeout kills it, with no output and no error. `kFrameSyncTimeout` (200ms, twelve frames at 60Hz) is long enough that a healthy engine always resolves on the real frame and short enough that a starved one degrades into an early return. The actionability gate uses the same helper for its stability and scroll-into-view awaits.
+
+### One success-response seam
+
+Every handler returns through `duskResult(payload)` in `lib/src/utils/dusk_response.dart` rather than constructing `ServiceExtensionResponse.result(jsonEncode(...))` itself. One seam means a diagnostic that belongs on every reply is added once and the next handler cannot forget it.
+
+Alongside it, five verbs carry an `effect` block built from `lib/src/utils/effect_report.dart`: `tap`, the three text verbs (`type` / `clear` / `fill`), `scroll` and `set_checkbox`. A dusk action confirms that it DISPATCHED; the block is what confirms the widget received. `tap` compares a target-scoped semantics-subtree signal, the text verbs read the live `TextEditingController` back instead of echoing the request, `scroll` reports the offset on both sides, and `set_checkbox` re-reads the control. Each of those was a measured false success: a fill onto a field covered by a pinned footer, a fill against a number field that kept nothing, a scroll against a ref that was not a scrollable.
+
+Today the response-level diagnostic is `frameProductionWarning()`: a `warnings` block appears only while frame production is off, which is the state in which a snapshot returns a screen with no text and an action reports a dispatch that could not have landed. CLI-side, `reportFrameWarning` in `lib/src/commands/frame_warning_output.dart` prints the matching stderr banner, because the commands that summarise (`dusk:snap` prints only the tree, `dusk:tap` prints `✓ Tapped e7`) would otherwise drop the block. See `doc/reference/frame-production.md`.
+
 ## Frozen contracts (alpha-2)
 
 These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:
@@ -117,6 +131,10 @@ These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:
 | 3 | rect overlaps viewport | `off-viewport (rect=..., viewport=...)` | Auto-scrolls via `showOnScreen` first if a `Scrollable` ancestor exists |
 | 4 | 2-frame rect drift ≤ 0.5px | `not stable (rect changed by Xpx)` | Skipped when `--no-checkStable` |
 | 5 | hit-test path at `rect.center` includes the target render object or a descendant | `obscured by other widget (top=...)` | Skipped when `--no-checkReceivesEvents` |
+
+The gate returns an `ActionabilityReport` alongside throwing. Step 5 has three outcomes, not two: `confirmed`, `indeterminate` (the hit-test could not answer), and `skipped` (`--no-checkReceivesEvents`). Only the first is silent; the other two surface as a `checks` block on the response, because a clean pass used to be indistinguishable from a confirmed one and that is how a fill printed a green tick four times onto a row covered by a pinned footer.
+
+`indeterminate` is the Flutter Web case: DWDS pipes hit-tests through a snapshot view that does not mirror the live element subtree, so the path comes back carrying only the root render view. The gate proceeds (breaking every valid tap on that artifact is the worse failure) and attaches `overlapCandidates` from a rect scan: render objects that overlap the target and paint after it. Advisory, since an overlap is not proof of occlusion.
 
 `scroll`, `select_option`, and `press_key` intentionally skip the gate (the parent scrollable, popup machinery, or focused widget owns its own enabled check).
 

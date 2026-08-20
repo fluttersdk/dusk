@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:snap` — captures Semantics tree YAML from the running app.
 class DuskSnapCommand extends ArtisanCommand {
   @override
@@ -23,6 +25,22 @@ class DuskSnapCommand extends ArtisanCommand {
           'Default off (Playwright-style minimal snapshot).',
       defaultsTo: false,
     );
+    parser.addOption(
+      'within',
+      help: 'Scope the walk to one subtree: the e<N> ref of the region to '
+          'read. Use it when a label repeats across the shell (a sidebar '
+          'item and the page it opens usually share one).',
+    );
+    parser.addFlag(
+      'interactiveOnly',
+      help: 'Emit only nodes that carry a ref; drop the plain text lines.',
+      defaultsTo: false,
+    );
+    parser.addOption(
+      'grep',
+      help: 'Emit only nodes whose label or value matches this regular '
+          'expression, plus the ancestors that lead to them.',
+    );
   }
 
   @override
@@ -33,10 +51,18 @@ class DuskSnapCommand extends ArtisanCommand {
     final includeEnrichers =
         (ctx.input.option('includeEnrichers') as bool?) ?? false;
     params['includeEnrichers'] = includeEnrichers.toString();
+    final within = ctx.input.option('within') as String?;
+    if (within != null && within.isNotEmpty) params['within'] = within;
+    final interactiveOnly =
+        (ctx.input.option('interactiveOnly') as bool?) ?? false;
+    if (interactiveOnly) params['interactiveOnly'] = 'true';
+    final grep = ctx.input.option('grep') as String?;
+    if (grep != null && grep.isNotEmpty) params['grep'] = grep;
     final result = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.snap',
       params,
     );
+    reportFrameWarning(ctx, result);
     // Surface captured render/build FlutterErrors so a silently-broken widget
     // (e.g. a ParentDataWidget misuse that makes a button render but ignore
     // taps) is impossible to miss. This is a diagnostic, not snapshot payload,

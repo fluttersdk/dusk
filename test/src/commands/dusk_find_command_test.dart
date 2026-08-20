@@ -104,5 +104,15 @@ void main() {
       expect(exit, equals(1));
       expect(ctx.lastMethod, isNull);
     });
+    test('handle forwards --within so the query keeps its scope', () async {
+      final ctx = _StubContext(
+        input: MapInput(const {'text': 'Monitors', 'within': 'e7'}),
+        output: BufferedOutput(),
+      );
+
+      await DuskFindCommand().handle(ctx);
+
+      expect(ctx.lastParams, containsPair('within', 'e7'));
+    });
   });
 }

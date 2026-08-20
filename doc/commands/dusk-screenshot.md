@@ -27,6 +27,8 @@ JPEG is the default for size: a typical Flutter web screen renders in ~30 KB at 
 dart run fluttersdk_dusk dusk:screenshot --output=<path>
                                           [--format=jpeg|png]
                                           [--quality=<1-100>]
+                                          [--ref=<eN|qN>]
+                                          [--rect=<x,y,w,h>]
 ```
 
 `dusk:screenshot` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI. When `cdpPort` is set in state (a web target), the command uses CDP `Page.captureScreenshot`; otherwise it calls `ext.dusk.screenshot`, decodes the base64 payload, and writes the resulting bytes to the supplied output path.
@@ -41,8 +43,10 @@ dart run fluttersdk_dusk dusk:screenshot --output=<path>
 | `--output` | `-o` | string (path) | (none) | yes (`mandatory: true`) | Output file path. Resolved relative to the CWD. The directory must already exist. |
 | `--format` | none | enum | `jpeg` | no | One of `jpeg`, `png`. Constrained by `allowed: ['jpeg', 'png']` so any other value errors out at parse time. |
 | `--quality` | none | int (string-parsed) | `70` | no | JPEG quality, range 1-100. Ignored for PNG. Falls back to `70` when the value fails `int.tryParse`. |
+| `--ref` | none | string | (none) | no | Capture only this widget. An `e<N>` token from `dusk:snap` or a `q<N>` handle from `dusk:find`. Omit for the whole viewport. |
+| `--rect` | none | string `x,y,w,h` | (none) | no | Sub-rect in logical pixels, relative to the ref's top-left. Requires `--ref`. |
 
-The `--output` guard fires before the VM Service call; an empty or missing path returns exit code `1` with `Missing --output=<path>.`.
+The `--output` guard fires before the VM Service call; an empty or missing path returns exit code `1` with `Missing --output=<path>.`. `--rect` without `--ref` returns `1` as well, rather than quietly capturing the whole frame: a sub-rect is meaningless without the widget it is relative to, and an image that looks right but answers a different question is the failure this flag exists to remove.
 
 ---
 
@@ -88,9 +92,13 @@ The handler never resizes the screenshot; the captured image matches the running
 | Condition | Path taken |
 |---|---|
 | No `cdpPort` in state (native target) | `ext.dusk.screenshot` (in-isolate) |
-| `cdpPort` set (web target) | CDP `Page.captureScreenshot` (full viewport) |
+| `cdpPort` set (web target) | CDP `Page.captureScreenshot` |
 
 The CDP path sends `Page.enable` first (required by Chrome before `Page.captureScreenshot`), then `Page.captureScreenshot` with `fromSurface: true`. The resulting dimensions reflect the active `Emulation.setDeviceMetricsOverride` set by `dusk:resize` or `dusk:device`.
+
+**`--ref` works on both paths, by different routes.** In-isolate, `ext.dusk.screenshot` rasterises the ref's own render-object region directly. Over CDP there is no notion of a Flutter ref, so the command first asks the extension for the region in geometry mode, which resolves `--ref` / `--rect` and returns the rect without rasterising (the rasterise is exactly what hangs on this target), then passes it to `Page.captureScreenshot` as a `clip`. Flutter logical pixels and CDP CSS pixels are the same unit, so the rect crosses over unscaled.
+
+One extra round-trip, and one definition of what a ref covers rather than two. When the ref no longer resolves the command exits `1` instead of falling back to a full-frame capture.
 
 ---
 
@@ -128,6 +136,23 @@ dart run fluttersdk_dusk dusk:screenshot --output=/tmp/hifi.jpeg --quality=92
 ```bash
 dart run fluttersdk_dusk dusk:resize --width=1440 --height=900
 dart run fluttersdk_dusk dusk:screenshot --output=/tmp/desktop.jpeg
+```
+
+### 5. Capture one component instead of the whole screen
+
+```bash
+dart run fluttersdk_dusk dusk:snap | grep 'PricingCard'
+# - region "PricingCard" [ref=e42] ...
+dart run fluttersdk_dusk dusk:screenshot --output=/tmp/card.png --format=png --ref=e42
+```
+
+Reach for this whenever the question is about one component. A full-screen capture of a tall page costs far more tokens than the region under review, and it buries the thing you are actually checking. It also removes the resize dance: without `--ref`, seeing a component below the fold means growing the viewport to something no device has, capturing, and putting the height back.
+
+### 6. Capture part of a component
+
+```bash
+# The top-left 200x60 of the card, in logical pixels relative to its own origin.
+dart run fluttersdk_dusk dusk:screenshot --output=/tmp/card-header.png --ref=e42 --rect=0,0,200,60
 ```
 
 ---

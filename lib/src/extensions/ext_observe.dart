@@ -10,6 +10,7 @@ import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostic
 import '../dusk_plugin.dart';
 import '../dusk_snapshot_enricher.dart';
 import '../ref_registry.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
@@ -166,12 +167,10 @@ Future<developer.ServiceExtensionResponse> extDuskObserveHandler(
 
       visitOwner(RendererBinding.instance.rootPipelineOwner);
 
-      return developer.ServiceExtensionResponse.result(
-        jsonEncode(<String, dynamic>{
-          'candidates': candidates,
-          'count': candidates.length,
-        }),
-      );
+      return duskResult(<String, dynamic>{
+        'candidates': candidates,
+        'count': candidates.length,
+      });
     } finally {
       handle.dispose();
     }

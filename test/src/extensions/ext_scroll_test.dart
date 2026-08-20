@@ -167,6 +167,50 @@ void main() {
       final response = await future;
       expect(response.errorCode, isNull);
     });
+
+    testWidgets('effect reports the offset on both sides of the scroll',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: List<Widget>.generate(
+                40,
+                (i) => SizedBox(height: 60, child: Text('row $i')),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(0, 0, 100, 60),
+        element: tester.element(find.text('row 0')),
+        groupId: 'g-scroll-effect',
+        isTextField: false,
+      );
+
+      final future = aiTestScrollHandler(
+        'ext.dusk.scroll',
+        {'ref': ref, 'dy': '120', 'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final Map<String, dynamic> effect =
+          decoded['effect'] as Map<String, dynamic>;
+
+      // `scrolled: true` says the call ran. Only the offsets say the list
+      // moved, which is what a ref that is not a scrollable fails to do
+      // while still reporting success.
+      expect(effect['kind'], equals('scrollOffset'));
+      expect(effect['before'], equals(0.0));
+      expect(effect['after'], equals(120.0));
+      expect(effect['changed'], isTrue);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -485,5 +529,103 @@ void main() {
         }
       },
     );
+  });
+
+  group('aiTestSelectOptionHandler success path', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('selecting an option returns the value that was picked', (
+      WidgetTester tester,
+    ) async {
+      String? picked;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DropdownButton<String>(
+              value: 'one',
+              items: const <DropdownMenuItem<String>>[
+                DropdownMenuItem<String>(value: 'one', child: Text('One')),
+                DropdownMenuItem<String>(value: 'two', child: Text('Two')),
+              ],
+              onChanged: (String? v) => picked = v,
+            ),
+          ),
+        ),
+      );
+
+      // Start the handler, then pump: it awaits a frame to let the dropdown
+      // settle, and under the test binding that frame only happens when the
+      // harness is pumped.
+      final Future<developer.ServiceExtensionResponse> future =
+          aiTestSelectOptionHandler(
+        'ext.dusk.select_option',
+        const <String, String>{'value': 'two'},
+      );
+      for (int i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final developer.ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['selected'], isTrue);
+      expect(decoded['value'], equals('two'));
+      expect(picked, equals('two'));
+    });
+  });
+
+  group('aiTestScrollHandler effect measures the scrollable it drove', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('a ref pointing at the ListView itself reports a real before',
+        (WidgetTester tester) async {
+      // The before-offset used to come from `Scrollable.maybeOf(target)`,
+      // which is the ANCESTOR, while the scroll drove the target itself.
+      // Passing a ListView's own ref (what `find --key=my-list` returns)
+      // therefore reported `before: null` alongside a real `after`, and
+      // `changed: true` for a list that had not moved.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: <Widget>[
+                for (int i = 0; i < 40; i++)
+                  SizedBox(height: 100, child: Text('row-$i')),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final Element listView = tester.element(find.byType(Scrollable));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(0, 0, 400, 600),
+        element: listView,
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final Future<developer.ServiceExtensionResponse> future =
+          aiTestScrollHandler('ext.dusk.scroll', <String, String>{
+        'ref': ref,
+        'dy': '300',
+        'includeSnapshot': 'false',
+      });
+      for (int i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      final Map<String, dynamic> decoded =
+          jsonDecode((await future).result!) as Map<String, dynamic>;
+
+      final Map<String, dynamic> effect =
+          decoded['effect'] as Map<String, dynamic>;
+      expect(effect['kind'], equals('scrollOffset'));
+      expect(effect['before'], isNotNull, reason: 'measured the wrong object');
+      expect(effect['before'], equals(0.0));
+      expect(effect['after'], equals(300.0));
+      expect(effect['changed'], isTrue);
+    });
   });
 }

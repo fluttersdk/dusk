@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+import 'json_output.dart';
+
 /// `artisan dusk:navigate --route=<path>` — push a named route onto the
 /// active Navigator. Mirrors the `dusk_navigate` MCP tool surface.
 class DuskNavigateCommand extends ArtisanCommand {
@@ -17,6 +20,7 @@ class DuskNavigateCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption(
       'route',
       help: 'Route path to push, e.g. /forms.',
@@ -40,10 +44,12 @@ class DuskNavigateCommand extends ArtisanCommand {
       'ext.dusk.navigate',
       {'route': route, 'includeSnapshot': includeSnapshot.toString()},
     );
+    reportFrameWarning(ctx, response);
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Navigated to $route');
+      emitEnvelope(
+          ctx, response, () => ctx.output.success('Navigated to $route'));
     }
     return 0;
   }

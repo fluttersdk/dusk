@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/rendering.dart';
@@ -6,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
@@ -53,6 +53,7 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
     final String? containsText = _nonEmpty(params['contains']);
     final String? semanticsLabel = _nonEmpty(params['semanticsLabel']);
     final String? keyValue = _nonEmpty(params['key']);
+    final String? withinRef = _nonEmpty(params['within']);
 
     // 1. At least one predicate is required. Surface as extensionError so
     //    the MCP tool can hand the message back verbatim to the agent.
@@ -75,6 +76,7 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
       containsText: containsText,
       semanticsLabel: semanticsLabel,
       keyValue: keyValue,
+      withinRef: withinRef,
     );
 
     // 2. Verify the query resolves to a live node before minting. We do
@@ -84,12 +86,13 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
     final (RefEntry? entry, int matchCount, String? diagnostic) =
         resolveQueryWithCount(query);
     if (entry == null) {
-      return developer.ServiceExtensionResponse.result(
-        jsonEncode(<String, dynamic>{
-          'ref': null,
-          'matched': false,
-        }),
-      );
+      return duskResult(<String, dynamic>{
+        'ref': null,
+        'matched': false,
+        // Only populated on the unresolvable-scope path; a plain no-match
+        // has nothing to explain.
+        if (diagnostic != null) 'diagnostic': diagnostic,
+      });
     }
 
     // 3. Mint a fresh q-handle. The verification entry above is throwaway
@@ -106,7 +109,7 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
       payload['diagnostic'] = diagnostic;
     }
 
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.find error: $e\n$stackTrace',
@@ -164,9 +167,39 @@ RefEntry? resolveQuery(DuskQuery query) {
 /// callers that do not need ambiguity detection may use [resolveQuery]
 /// directly.
 (RefEntry?, int, String?) resolveQueryWithCount(DuskQuery query) {
+  // 0. Resolve the scope, when one was named. A scope that no longer
+  //    resolves is reported as a no-match WITH a diagnostic rather than
+  //    silently widening to the whole tree: widening would answer a
+  //    different question than the caller asked, and answer it plausibly.
+  Element? scopeElement;
+  SemanticsNode? scopeNode;
+  if (query.withinRef != null) {
+    final RefEntry? scope = RefRegistry.lookup(query.withinRef!);
+    if (scope == null) {
+      return (
+        null,
+        0,
+        'within ref \'${query.withinRef}\' no longer resolves; re-snapshot '
+            'and scope to a ref from that output',
+      );
+    }
+    scopeElement = scope.element;
+    scopeNode = scope.node;
+  }
+
+  // 0b. A scope entry carrying no semantics node cannot bound a semantics
+  //     walk, and `find_by_text` mints exactly that shape
+  //     (ext_wait_find.dart:433 registers without a node), so a ref taken
+  //     from a `dusk:wait` result arrives here that way. Running the walk
+  //     unscoped would search the whole tree and answer plausibly, which is
+  //     the failure the scope was passed to prevent. The element legs stay
+  //     available: those the entry's element does bound.
+  final bool semanticsScoped = query.withinRef == null || scopeNode != null;
+
   // 1. Key-based match: Element tree walk. Cheapest, most specific.
   if (query.keyValue != null) {
-    final Element? element = _findElementByKey(query.keyValue!);
+    final Element? element =
+        _findElementByKey(query.keyValue!, from: scopeElement);
     if (element == null) return (null, 0, null);
     if (!_elementMatchesOtherPredicates(element, query)) return (null, 0, null);
     return (_entryFromElement(element), 1, null);
@@ -176,8 +209,15 @@ RefEntry? resolveQuery(DuskQuery query) {
   //    surfaces merged accessibility labels (Button "Submit" with no
   //    Text descendant still resolves).
   if (query.semanticsLabel != null) {
-    final (SemanticsNode? node, int count) =
-        _findSemanticsNodeByLabelWithCount(query.semanticsLabel!);
+    // A semantics label has no element-tree fallback, so an unusable scope
+    // leaves nothing correct to search and the caller is told why.
+    if (!semanticsScoped) {
+      return (null, 0, _noSemanticsScope(query.withinRef!));
+    }
+    final (SemanticsNode? node, int count) = _findSemanticsNodeByLabelWithCount(
+      query.semanticsLabel!,
+      from: scopeNode,
+    );
     if (node == null) return (null, 0, null);
     final String? diagnostic = count > 1
         ? "label '${query.semanticsLabel}' matched $count nodes; "
@@ -190,8 +230,9 @@ RefEntry? resolveQuery(DuskQuery query) {
   //    where the visible text is the accessibility label), then Element-
   //    tree Text widget fallback.
   if (query.text != null) {
-    final (SemanticsNode? node, int count) =
-        _findSemanticsNodeByLabelWithCount(query.text!);
+    final (SemanticsNode? node, int count) = semanticsScoped
+        ? _findSemanticsNodeByLabelWithCount(query.text!, from: scopeNode)
+        : (null, 0);
     if (node != null) {
       final String? diagnostic = count > 1
           ? "label '${query.text}' matched $count nodes; "
@@ -199,7 +240,8 @@ RefEntry? resolveQuery(DuskQuery query) {
           : null;
       return (_entryFromSemanticsNode(node), count, diagnostic);
     }
-    final Element? element = _findElementByTextData(query.text!);
+    final Element? element =
+        _findElementByTextData(query.text!, from: scopeElement);
     if (element == null) return (null, 0, null);
     return (_entryFromElement(element), 1, null);
   }
@@ -208,12 +250,17 @@ RefEntry? resolveQuery(DuskQuery query) {
   //    Text widget data. Same precedence as [query.text] so dynamic labels
   //    still prefer the semantics-level hit.
   if (query.containsText != null) {
-    final SemanticsNode? node =
-        _findSemanticsNodeByLabelContains(query.containsText!);
+    final SemanticsNode? node = semanticsScoped
+        ? _findSemanticsNodeByLabelContains(
+            query.containsText!,
+            from: scopeNode,
+          )
+        : null;
     if (node != null) {
       return (_entryFromSemanticsNode(node), 1, null);
     }
-    final Element? element = _findElementByTextContains(query.containsText!);
+    final Element? element =
+        _findElementByTextContains(query.containsText!, from: scopeElement);
     if (element == null) return (null, 0, null);
     return (_entryFromElement(element), 1, null);
   }
@@ -225,15 +272,38 @@ RefEntry? resolveQuery(DuskQuery query) {
 // Private helpers — tree walks
 // ---------------------------------------------------------------------------
 
+/// The diagnostic for a scope that resolves but cannot bound a semantics
+/// walk. Names the recovery rather than the internal reason: an agent needs
+/// to know which ref to take next, not how the registry stores entries.
+String _noSemanticsScope(String ref) =>
+    "within ref '$ref' carries no semantics node, so it cannot scope a "
+    'label lookup; take the scope ref from a dusk:snap output instead of a '
+    'dusk:wait result';
+
 String? _nonEmpty(String? raw) {
   if (raw == null) return null;
   if (raw.isEmpty) return null;
   return raw;
 }
 
+/// Runs [visit] over [from]'s subtree when a scope was named, and over the
+/// whole Element tree otherwise.
+///
+/// [from] is visited itself, not just its children: the scope ref can name
+/// the very widget the caller is looking for. The unscoped branch keeps
+/// `visitChildElements` on the root, which is how the walk has always
+/// started.
+void _walkElements(void Function(Element) visit, {Element? from}) {
+  if (from != null) {
+    visit(from);
+    return;
+  }
+  WidgetsBinding.instance.rootElement?.visitChildElements(visit);
+}
+
 /// Walks the Element tree and returns the first element whose widget has a
 /// [Key] whose `toString()` matches [needle].
-Element? _findElementByKey(String needle) {
+Element? _findElementByKey(String needle, {Element? from}) {
   Element? found;
 
   void visit(Element element) {
@@ -252,13 +322,13 @@ Element? _findElementByKey(String needle) {
     element.visitChildElements(visit);
   }
 
-  WidgetsBinding.instance.rootElement?.visitChildElements(visit);
+  _walkElements(visit, from: from);
   return found;
 }
 
 /// Walks the Element tree and returns the first element whose widget is a
 /// [Text] with [Text.data] equal to [needle].
-Element? _findElementByTextData(String needle) {
+Element? _findElementByTextData(String needle, {Element? from}) {
   Element? found;
 
   void visit(Element element) {
@@ -273,13 +343,13 @@ Element? _findElementByTextData(String needle) {
     element.visitChildElements(visit);
   }
 
-  WidgetsBinding.instance.rootElement?.visitChildElements(visit);
+  _walkElements(visit, from: from);
   return found;
 }
 
 /// Walks the Element tree and returns the first element whose widget is a
 /// [Text] whose `data` CONTAINS [needle] as a substring.
-Element? _findElementByTextContains(String needle) {
+Element? _findElementByTextContains(String needle, {Element? from}) {
   Element? found;
 
   void visit(Element element) {
@@ -294,13 +364,16 @@ Element? _findElementByTextContains(String needle) {
     element.visitChildElements(visit);
   }
 
-  WidgetsBinding.instance.rootElement?.visitChildElements(visit);
+  _walkElements(visit, from: from);
   return found;
 }
 
 /// Substring variant of [_findSemanticsNodeByLabel] — matches the first
 /// node whose [SemanticsNode.label] contains [needle] as a substring.
-SemanticsNode? _findSemanticsNodeByLabelContains(String needle) {
+SemanticsNode? _findSemanticsNodeByLabelContains(
+  String needle, {
+  SemanticsNode? from,
+}) {
   SemanticsNode? found;
 
   void visit(SemanticsNode node) {
@@ -313,6 +386,11 @@ SemanticsNode? _findSemanticsNodeByLabelContains(String needle) {
       visit(child);
       return found == null;
     });
+  }
+
+  if (from != null) {
+    visit(from);
+    return found;
   }
 
   void visitOwner(PipelineOwner owner) {
@@ -339,7 +417,10 @@ SemanticsNode? _findSemanticsNodeByLabelContains(String needle) {
 /// The walk never stops early after finding the first node, so the returned
 /// count reflects ALL matches in the tree. When `count > 1` the caller
 /// should surface an ambiguity diagnostic to the agent.
-(SemanticsNode?, int) _findSemanticsNodeByLabelWithCount(String needle) {
+(SemanticsNode?, int) _findSemanticsNodeByLabelWithCount(
+  String needle, {
+  SemanticsNode? from,
+}) {
   SemanticsNode? firstMatch;
   SemanticsNode? firstInteractive;
   int count = 0;
@@ -357,13 +438,17 @@ SemanticsNode? _findSemanticsNodeByLabelContains(String needle) {
     });
   }
 
-  void visitOwner(PipelineOwner owner) {
-    final SemanticsNode? root = owner.semanticsOwner?.rootSemanticsNode;
-    if (root != null) visit(root);
-    owner.visitChildren(visitOwner);
-  }
+  if (from != null) {
+    visit(from);
+  } else {
+    void visitOwner(PipelineOwner owner) {
+      final SemanticsNode? root = owner.semanticsOwner?.rootSemanticsNode;
+      if (root != null) visit(root);
+      owner.visitChildren(visitOwner);
+    }
 
-  visitOwner(RendererBinding.instance.rootPipelineOwner);
+    visitOwner(RendererBinding.instance.rootPipelineOwner);
+  }
   // Prefer an interactive match (a button, switch, or text field) over a plain
   // node when one label collides across both: a visible label WText that names
   // an adjacent control, or a heading that repeats a button's text, would

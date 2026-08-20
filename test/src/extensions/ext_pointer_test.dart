@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -1236,7 +1237,7 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // D1 — live-rect re-resolve before dispatch + opt-in --verify effect check.
+  // D1 — live-rect re-resolve before dispatch + the always-on effect check.
   //
   // The bug: pointer verbs dispatched at the CACHED entry.rect.center captured
   // at gate time, not the element's live position after a rebuild. The fix is
@@ -1413,17 +1414,17 @@ void main() {
     );
   });
 
-  group('aiTestTapHandler verify', () {
+  group('aiTestTapHandler effect', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
     // -------------------------------------------------------------------------
-    // (d) verify:true returns changed:true when the target subtree changes
+    // (d) effect.changed is true when the target subtree changes
     // (a counter button whose own label increments).
     // -------------------------------------------------------------------------
 
     testWidgets(
-      '(d) verify:true returns changed:true when the target subtree changes',
+      '(d) reports changed:true when the target subtree changes',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
         tester.view.devicePixelRatio = 1.0;
@@ -1465,7 +1466,6 @@ void main() {
           'ext.dusk.tap',
           <String, String>{
             'ref': ref,
-            'verify': 'true',
             'includeSnapshot': 'false',
             // The timing-sensitive gates (stable/receives-events) are not
             // under test here; opt out so the gate's `await endOfFrame` does
@@ -1483,16 +1483,19 @@ void main() {
         expect(response.result, isNotNull);
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['changed'], isTrue);
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['kind'], equals('treeChanged'));
+        expect(effect['changed'], isTrue);
       },
     );
 
     // -------------------------------------------------------------------------
-    // (d) verify:true returns changed:false when nothing changes (inert button).
+    // (d) effect.changed is false when nothing changes (inert button).
     // -------------------------------------------------------------------------
 
     testWidgets(
-      '(d) verify:true returns changed:false when nothing changes',
+      '(d) reports changed:false when nothing changes',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
         tester.view.devicePixelRatio = 1.0;
@@ -1529,7 +1532,6 @@ void main() {
           'ext.dusk.tap',
           <String, String>{
             'ref': ref,
-            'verify': 'true',
             'includeSnapshot': 'false',
             // Gate timing is not under test here; opt out so the stable
             // gate's `await endOfFrame` does not outrun the fake-async pump
@@ -1546,17 +1548,20 @@ void main() {
         expect(response.result, isNotNull);
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['changed'], isFalse);
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['kind'], equals('treeChanged'));
+        expect(effect['changed'], isFalse);
       },
     );
 
     // -------------------------------------------------------------------------
-    // (d) default call (no verify) payload is byte-identical to before: no
-    // `changed` key, frozen success-shape preserved.
+    // (d) the block needs no opt-in: a default call carries it too, which
+    // is the point. An agent cannot forget to ask whether the tap landed.
     // -------------------------------------------------------------------------
 
     testWidgets(
-      '(d) default call (no verify) omits the changed field entirely',
+      '(d) a default call carries the effect block',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
         tester.view.devicePixelRatio = 1.0;
@@ -1594,8 +1599,17 @@ void main() {
         expect(response.result, isNotNull);
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded.keys.toList(), equals(<String>['ref']));
-        expect(decoded.containsKey('changed'), isFalse);
+        expect(
+          (decoded['effect'] as Map<String, dynamic>)['kind'],
+          equals('treeChanged'),
+        );
+        // This call opts out of the receives-events gate (synthetic rect),
+        // and the payload records that rather than letting a clean pass
+        // read as a confirmation the gate never made.
+        expect(
+          (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+          equals('skipped'),
+        );
       },
     );
   });
@@ -1711,6 +1725,414 @@ void main() {
         expect(decoded['untilMatched'], isFalse);
       },
     );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Gate reporting
+  // ---------------------------------------------------------------------------
+
+  group('aiTestTapHandler checks', () {
+    setUp(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'records an unprovable receives-events check on the payload',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // Nothing painted, so the hit-test reaches only the root render
+        // view. That is the shape Flutter Web's debug build produces for a
+        // real widget, and it used to pass as a silent clean gate.
+        await tester.pumpWidget(const SizedBox.shrink());
+
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 50, 50),
+          element: tester.element(find.byType(SizedBox)),
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestTapHandler(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'includeSnapshot': 'false',
+          },
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final Map<String, dynamic> checks =
+            decoded['checks'] as Map<String, dynamic>;
+        expect(checks['receivesEvents'], equals('indeterminate'));
+        expect(checks['why'], contains('root'));
+        expect(checks['hint'], contains('may have landed on something else'));
+      },
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Frame starvation — the hidden-page path
+  // ---------------------------------------------------------------------------
+
+  group('aiTestTapHandler under frame starvation', () {
+    setUp(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'tap resolves when the engine produces no frames',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('hello'))),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Scaffold));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 50, 50),
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        // `runAsync` swaps the fake clock for the real one AND stops the
+        // harness from pumping, which is exactly what a backgrounded Chrome
+        // tab does: `document.visibilityState: "hidden"` disables frame
+        // production, so every `endOfFrame` the handler awaits never
+        // completes. The handler must fall through on its own timer rather
+        // than block until the caller's shell timeout kills it.
+        final ServiceExtensionResponse? response =
+            await tester.runAsync<ServiceExtensionResponse?>(
+          () => aiTestTapHandler(
+            'ext.dusk.tap',
+            <String, String>{
+              'ref': ref,
+              'checkStable': 'false',
+              'checkReceivesEvents': 'false',
+              'includeSnapshot': 'false',
+            },
+          )
+              .then<ServiceExtensionResponse?>(
+                (ServiceExtensionResponse r) => r,
+              )
+              .timeout(
+                const Duration(seconds: 5),
+                onTimeout: () => null,
+              ),
+        );
+
+        expect(
+          response,
+          isNotNull,
+          reason: 'tap must not block forever when no frame is produced',
+        );
+        expect(response!.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['ref'], equals(ref));
+      },
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Right-click and triple-click: the two verbs whose handlers had no test.
+  // Both settle through the bounded frame awaits, so a starved engine returns
+  // instead of hanging, and both stamp the response through duskResult.
+  // ---------------------------------------------------------------------------
+
+  group('aiTestRightClickHandler', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('an actionable widget returns the right-button envelope', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: SizedBox(width: 100, height: 100)),
+        ),
+      );
+
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: tester.element(find.byType(Scaffold)),
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final Future<ServiceExtensionResponse> future = aiTestRightClickHandler(
+        'ext.dusk.right_click',
+        <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+          'includeSnapshot': 'false',
+        },
+      );
+      for (int i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      final ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['ref'], equals(ref));
+      expect(decoded['button'], equals('right'));
+    });
+
+    testWidgets('an unknown ref returns a stale envelope', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+
+      final ServiceExtensionResponse response = await aiTestRightClickHandler(
+        'ext.dusk.right_click',
+        const <String, String>{'ref': 'e999'},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, isNotNull);
+    });
+  });
+
+  group('aiTestTripleClickHandler', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('an actionable widget returns clickCount 3', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: SizedBox(width: 100, height: 100)),
+        ),
+      );
+
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: tester.element(find.byType(Scaffold)),
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final Future<ServiceExtensionResponse> future = aiTestTripleClickHandler(
+        'ext.dusk.triple_click',
+        <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+          'includeSnapshot': 'false',
+        },
+      );
+      for (int i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      final ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['ref'], equals(ref));
+      expect(decoded['clickCount'], equals(3));
+    });
+  });
+
+  group('the checks block reaches every verb that runs the gate', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    /// A tree with nothing painted at the ref's rect, so the hit-test
+    /// reaches only the root render view. That is the shape Flutter Web's
+    /// debug build produces for a real widget, and it is the state the
+    /// block exists to report.
+    Future<String> unprovableRef(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(const SizedBox.shrink());
+      return RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: tester.element(find.byType(SizedBox)),
+        groupId: 'g',
+        isTextField: false,
+      );
+    }
+
+    Future<Map<String, dynamic>> drive(
+      WidgetTester tester,
+      Future<ServiceExtensionResponse> Function() call,
+    ) async {
+      final Future<ServiceExtensionResponse> future = call();
+      for (int i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      return jsonDecode((await future).result!) as Map<String, dynamic>;
+    }
+
+    testWidgets('hover reports it', (WidgetTester tester) async {
+      final String ref = await unprovableRef(tester);
+      final Map<String, dynamic> decoded = await drive(
+        tester,
+        () => aiTestHoverHandler('ext.dusk.hover', <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'includeSnapshot': 'false',
+        }),
+      );
+
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('indeterminate'),
+      );
+    });
+
+    testWidgets('dblclick reports it', (WidgetTester tester) async {
+      final String ref = await unprovableRef(tester);
+      final Map<String, dynamic> decoded = await drive(
+        tester,
+        () => aiTestDoubleClickHandler('ext.dusk.dblclick', <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'includeSnapshot': 'false',
+        }),
+      );
+
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('indeterminate'),
+      );
+    });
+
+    testWidgets('right_click reports it', (WidgetTester tester) async {
+      final String ref = await unprovableRef(tester);
+      final Map<String, dynamic> decoded = await drive(
+        tester,
+        () => aiTestRightClickHandler('ext.dusk.right_click', <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'includeSnapshot': 'false',
+        }),
+      );
+
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('indeterminate'),
+      );
+    });
+
+    testWidgets('triple_click reports it', (WidgetTester tester) async {
+      final String ref = await unprovableRef(tester);
+      final Map<String, dynamic> decoded = await drive(
+        tester,
+        () =>
+            aiTestTripleClickHandler('ext.dusk.triple_click', <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'includeSnapshot': 'false',
+        }),
+      );
+
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('indeterminate'),
+      );
+    });
+
+    testWidgets('drag reports it for either end', (WidgetTester tester) async {
+      final String ref = await unprovableRef(tester);
+      final Map<String, dynamic> decoded = await drive(
+        tester,
+        () => aiTestDragHandler('ext.dusk.drag', <String, String>{
+          'startRef': ref,
+          'endRef': ref,
+          'checkStable': 'false',
+          'includeSnapshot': 'false',
+        }),
+      );
+
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('indeterminate'),
+      );
+    });
+
+    test('a confirmed gate stamps nothing', () {
+      // The healthy path carries no extra bytes, so the key's presence is
+      // itself the signal. Asserted on the shared helper rather than through
+      // a handler, because every verb reaches it the same way.
+      final Map<String, dynamic> payload = <String, dynamic>{'ref': 'e1'};
+      stampChecks(
+        payload,
+        const ActionabilityReport(receivesEvents: ReceivesEvents.confirmed),
+      );
+
+      expect(payload.containsKey('checks'), isFalse);
+    });
+
+    test('a skipped gate is still worth saying out loud', () {
+      // `--no-checkReceivesEvents` is a caller opting out, not a pass; a
+      // response that looked identical to a confirmed one would hide it.
+      final Map<String, dynamic> payload = <String, dynamic>{'ref': 'e1'};
+      stampChecks(
+        payload,
+        const ActionabilityReport(receivesEvents: ReceivesEvents.skipped),
+      );
+
+      expect(
+        (payload['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('skipped'),
+      );
+    });
+  });
+
+  group('aiTestTripleClickHandler gate refusal', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('a zero-rect target is refused with the frozen substring', (
+      WidgetTester tester,
+    ) async {
+      // Agents branch on the reason substring, so every verb that runs the
+      // gate has to surface it in the same envelope shape.
+      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+
+      final String ref = RefRegistry.registerForTesting(
+        rect: Rect.zero,
+        element: tester.element(find.byType(Scaffold)),
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final ServiceExtensionResponse response = await aiTestTripleClickHandler(
+        'ext.dusk.triple_click',
+        <String, String>{'ref': ref},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, contains('zero rect'));
+    });
   });
 }
 

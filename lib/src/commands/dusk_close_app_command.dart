@@ -1,5 +1,8 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+import 'json_output.dart';
+
 /// `artisan dusk:close_app` — gracefully close the running app. Mirrors
 /// the `dusk_close_app` MCP tool surface. The handler dispatches
 /// `SystemNavigator.pop()` (mobile / desktop) or the equivalent web
@@ -17,12 +20,19 @@ class DuskCloseAppCommand extends ArtisanCommand {
   CommandBoot get boot => CommandBoot.connected;
 
   @override
+  void configure(ArgParser parser) {
+    addJsonFlag(parser);
+  }
+
+  @override
   Future<int> handle(ArtisanContext ctx) async {
-    await ctx.callExtension<Map<String, dynamic>>(
+    final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.close_app',
       const <String, String>{},
     );
-    ctx.output.success('Close signal sent to the running app');
+    reportFrameWarning(ctx, response);
+    emitEnvelope(ctx, response,
+        () => ctx.output.success('Close signal sent to the running app'));
     return 0;
   }
 }

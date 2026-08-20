@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:fluttersdk_artisan/artisan.dart';
@@ -5,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/commands/dusk_doctor_command.dart';
 import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
+
+import '../cdp/fake_cdp_server.dart';
 
 /// Restore every static test seam between tests so per-test overrides do not
 /// leak. The doctor command leans on roughly eight injected probes; without
@@ -23,6 +26,9 @@ void _resetDoctorHooks() {
     final file = File(path);
     return file.existsSync() ? file.readAsStringSync() : null;
   };
+  DuskDoctorCommand.currentDirectoryProbe =
+      DuskDoctorCommand.defaultCurrentDirectory;
+  DuskDoctorCommand.cdpSessionProbe = (int port, int? webPort) async => null;
 }
 
 void main() {
@@ -623,6 +629,375 @@ Future<void> main() async {
         ),
         isNull,
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Check 6 — session ownership
+  // ---------------------------------------------------------------------------
+
+  group('DuskDoctorCommand session ownership', () {
+    test('passes when state.json names this project', () async {
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'projectRoot': '/repos/uptizm',
+          };
+      DuskDoctorCommand.currentDirectoryProbe = () => '/repos/uptizm';
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('Session ownership'));
+      expect(output.content, isNot(contains('another project')));
+    });
+
+    test('warns when state.json belongs to a different project', () async {
+      // The measured failure: a sibling worktree rewrote the shared state
+      // file mid-session and two dusk commands drove the wrong app, which
+      // produced a screenshot of an entirely different product.
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'projectRoot': '/repos/depools',
+          };
+      DuskDoctorCommand.currentDirectoryProbe = () => '/repos/uptizm';
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('Session ownership'));
+      expect(output.content, contains('/repos/depools'));
+      expect(output.content, contains('another project'));
+    });
+
+    test('skips when no state file exists', () async {
+      DuskDoctorCommand.stateFileReader = () async => null;
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('Session ownership: Skipped'));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Check 7 — CDP session health
+  // ---------------------------------------------------------------------------
+
+  group('DuskDoctorCommand CDP session', () {
+    test('skips when no cdpPort is recorded', () async {
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{};
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('CDP session: Skipped'));
+    });
+
+    test('warns when the recorded port is unreachable', () async {
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'cdpPort': 9333,
+            'webPort': 3100,
+          };
+      DuskDoctorCommand.cdpSessionProbe = (int port, int? webPort) async =>
+          const DuskCdpSessionReport(reachable: false);
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('CDP session'));
+      expect(output.content, contains('9333'));
+      expect(output.content, contains('unreachable'));
+    });
+
+    test('warns when no page serves this run web port', () async {
+      // The orphan-Chrome case: a killed flutter run leaves its browser up
+      // with the old build and its own debug port, so every capture comes
+      // back byte-identical and nothing says why.
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'cdpPort': 9333,
+            'webPort': 3100,
+          };
+      DuskDoctorCommand.cdpSessionProbe =
+          (int port, int? webPort) async => const DuskCdpSessionReport(
+                reachable: true,
+                pageUrls: <String>['http://localhost:9999/'],
+              );
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('CDP session'));
+      expect(output.content, contains('3100'));
+      expect(output.content, contains('no page'));
+    });
+
+    test('warns when the matching page is hidden', () async {
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'cdpPort': 9333,
+            'webPort': 3100,
+          };
+      DuskDoctorCommand.cdpSessionProbe =
+          (int port, int? webPort) async => const DuskCdpSessionReport(
+                reachable: true,
+                pageUrls: <String>['http://localhost:3100/'],
+                hidden: true,
+              );
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('hidden'));
+      expect(output.content, contains('bringToFront'));
+    });
+
+    test('passes when the page is visible and serves this run', () async {
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'cdpPort': 9333,
+            'webPort': 3100,
+          };
+      DuskDoctorCommand.cdpSessionProbe =
+          (int port, int? webPort) async => const DuskCdpSessionReport(
+                reachable: true,
+                pageUrls: <String>['http://localhost:3100/'],
+                hidden: false,
+              );
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('CDP session: port 9333'));
+      expect(output.content, isNot(contains('bringToFront')));
+    });
+  });
+
+  group('DuskDoctorCommand.defaultCdpSessionProbe', () {
+    // The seam every other doctor test swaps out, exercised against the CDP
+    // fake. Without this, the probe that decides "port dead / wrong browser
+    // / page hidden" has only ever run in production, which is precisely
+    // where a wrong answer is expensive.
+
+    test('a refused port reports unreachable rather than throwing', () async {
+      // A killed `flutter run` leaves the port in state.json and nothing
+      // behind it. The doctor has to DIAGNOSE that, not fail on it.
+      final DuskCdpSessionReport? report =
+          await DuskDoctorCommand.defaultCdpSessionProbe(1, 3210);
+
+      expect(report, isNotNull);
+      expect(report!.reachable, isFalse);
+    });
+
+    test('a live port reports the page URLs it serves', () async {
+      final FakeCdpServer server = await FakeCdpServer.start(
+        pageUrl: 'http://localhost:3210/',
+        handlers: <String,
+            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
+      );
+      addTearDown(server.stop);
+
+      final DuskCdpSessionReport? report =
+          await DuskDoctorCommand.defaultCdpSessionProbe(server.port, null);
+
+      expect(report!.reachable, isTrue);
+      expect(report.pageUrls, contains('http://localhost:3210/'));
+      expect(
+        report.hidden,
+        isNull,
+        reason: 'no webPort means no page to ask about visibility',
+      );
+    });
+
+    test('a matching page has its document.hidden read', () async {
+      final FakeCdpServer server = await FakeCdpServer.start(
+        pageUrl: 'http://localhost:3210/',
+        handlers: <String,
+            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{
+          'Runtime.evaluate': (Map<String, dynamic> params) async =>
+              <String, dynamic>{
+                'result': <String, dynamic>{'type': 'boolean', 'value': true},
+              },
+        },
+      );
+      addTearDown(server.stop);
+
+      final DuskCdpSessionReport? report =
+          await DuskDoctorCommand.defaultCdpSessionProbe(server.port, 3210);
+
+      expect(report!.reachable, isTrue);
+      expect(report.hidden, isTrue);
+    });
+
+    test('a page that does not answer leaves visibility unknown', () async {
+      // Runtime.evaluate is not configured, so the fake returns the JSON-RPC
+      // method-not-found envelope. Unknown is reported as unknown; guessing
+      // "visible" would hide the exact failure the probe exists for.
+      final FakeCdpServer server = await FakeCdpServer.start(
+        pageUrl: 'http://localhost:3210/',
+        handlers: <String,
+            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
+      );
+      addTearDown(server.stop);
+
+      final DuskCdpSessionReport? report =
+          await DuskDoctorCommand.defaultCdpSessionProbe(server.port, 3210);
+
+      expect(report!.reachable, isTrue);
+      expect(report.hidden, isNull);
+    });
+
+    test('a webPort no page carries leaves visibility unread', () async {
+      final FakeCdpServer server = await FakeCdpServer.start(
+        pageUrl: 'http://localhost:3210/',
+        handlers: <String,
+            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
+      );
+      addTearDown(server.stop);
+
+      final DuskCdpSessionReport? report =
+          await DuskDoctorCommand.defaultCdpSessionProbe(server.port, 9999);
+
+      expect(report!.reachable, isTrue);
+      expect(report.hidden, isNull);
+    });
+  });
+
+  group('DuskDoctorCommand seam defaults', () {
+    test('currentDirectoryProbe defaults to the working directory', () {
+      _resetDoctorHooks();
+      expect(
+        DuskDoctorCommand.currentDirectoryProbe(),
+        equals(Directory.current.path),
+      );
+    });
+
+    test('a probe that returns null renders a skipped row', () async {
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'pid': 1,
+            'cdpPort': 9333,
+            'webPort': 3210,
+            'projectRoot': Directory.current.path,
+            'startedAt': DateTime.now().toUtc().toIso8601String(),
+          };
+      DuskDoctorCommand.cdpSessionProbe =
+          (int port, int? webPort) async => null;
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('Skipped (probe unavailable)'));
+    });
+
+    test('a trailing separator does not read as a different project', () async {
+      // `artisan start` records the working directory; a shell that hands
+      // the doctor that path plus a separator would otherwise have the
+      // session reported as somebody else's.
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'pid': 1,
+            'projectRoot': Directory.current.path,
+            'startedAt': DateTime.now().toUtc().toIso8601String(),
+          };
+      DuskDoctorCommand.currentDirectoryProbe =
+          () => '${Directory.current.path}${Platform.pathSeparator}';
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('describes this project'));
+    });
+  });
+
+  group('DuskDoctorCommand session ownership from a subdirectory', () {
+    test('a working directory inside the project is not foreign', () async {
+      // Running from `backend/` or a package subdirectory is normal, and
+      // artisan's own guard lets it through. Comparing paths exactly made
+      // the doctor warn about a session artisan itself considers valid, so
+      // the two tools disagreed about the same state file.
+      final Directory root =
+          Directory.systemTemp.createTempSync('dusk_doctor_root_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final Directory nested = Directory('${root.path}/packages/app');
+      nested.createSync(recursive: true);
+
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'pid': 1,
+            'projectRoot': root.path,
+            'startedAt': DateTime.now().toUtc().toIso8601String(),
+          };
+      DuskDoctorCommand.currentDirectoryProbe = () => nested.path;
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('describes this project'));
+      expect(output.content, isNot(contains('another project')));
+    });
+
+    test('a sibling project is still reported as foreign', () async {
+      final Directory mine =
+          Directory.systemTemp.createTempSync('dusk_doctor_mine_');
+      final Directory sibling =
+          Directory.systemTemp.createTempSync('dusk_doctor_sibling_');
+      addTearDown(() {
+        mine.deleteSync(recursive: true);
+        sibling.deleteSync(recursive: true);
+      });
+
+      DuskDoctorCommand.stateFileReader = () async => <String, dynamic>{
+            'pid': 1,
+            'projectRoot': sibling.path,
+            'startedAt': DateTime.now().toUtc().toIso8601String(),
+          };
+      DuskDoctorCommand.currentDirectoryProbe = () => mine.path;
+
+      final output = BufferedOutput();
+      await DuskDoctorCommand().handle(
+        ArtisanContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('another project'));
+      expect(output.content, contains('--state='));
+    });
+  });
+
+  group('DuskDoctorCommand.defaultCdpSessionProbe on a hijacked port', () {
+    test('a port answering with non-CDP content reports unreachable', () async {
+      // The check's own docblock names this case: the recorded port has been
+      // taken over by something else. Decoding outside the guard turned the
+      // diagnosis into a crash of the whole doctor run.
+      final HttpServer server =
+          await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      unawaited(
+        server.forEach((HttpRequest request) async {
+          request.response.write('<html>not a devtools endpoint</html>');
+          await request.response.close();
+        }),
+      );
+
+      final DuskCdpSessionReport? report =
+          await DuskDoctorCommand.defaultCdpSessionProbe(server.port, 3210);
+
+      expect(report, isNotNull);
+      expect(report!.reachable, isFalse);
     });
   });
 }

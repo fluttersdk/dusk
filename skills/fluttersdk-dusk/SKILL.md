@@ -5,7 +5,7 @@ version: 0.0.9
 when_to_use: "Any task where the agent drives or inspects a running Flutter app via dusk: calling `dusk_*` MCP tools in a loop (snap, tap, type, screenshot, hot_reload_and_snap), invoking `./bin/fsa dusk:<verb>` from a shell, recovering from an actionability failure, choosing between `e<N>` and `q<N>` ref tokens, waiting for text or network idle, navigating routes, or filling a form."
 ---
 
-<!-- fluttersdk_dusk v0.0.9 | Skill updated: 2026-08-04 -->
+<!-- fluttersdk_dusk v0.0.9 | Skill updated: 2026-08-20 -->
 
 # fluttersdk_dusk
 
@@ -43,6 +43,14 @@ and verify with `./bin/fsa dusk:doctor`.
    accept `checkStable: false` / `checkReceivesEvents: false` overrides
    for flaky animations or known overlays. `scroll`, `select_option`, and
    `press_key` skip the gate by design.
+
+   **A clean gate is not always a confirmed one.** Step 5 can fail to
+   answer, which on Flutter Web is routine (DWDS pipes hit-tests through a
+   snapshot view that does not mirror the live tree). The gate proceeds and
+   the response carries `checks: {receivesEvents: "indeterminate", why,
+   overlapCandidates, hint}`. Read it: this is the state in which a fill
+   printed a green tick four times onto a row covered by a pinned footer.
+   The key is absent when the check confirmed.
 
 3. **Failure reasons are substring contracts.** On gate failure the
    response carries one of these exact substrings; branch on the
@@ -83,26 +91,77 @@ and verify with `./bin/fsa dusk:doctor`.
    same code path. Use MCP when the agent is wired through an MCP
    client; use the CLI from Bash when chaining shell logic or capturing
    output to a file. Two practical differences worth knowing:
-   (a) MCP responses are always JSON. The CLI splits by verb: read /
-   query verbs return JSON (`dusk:snap`, `dusk:observe`, `dusk:find`,
-   `dusk:get_routes`, `dusk:console`, `dusk:exceptions`, `dusk:wait`,
-   `dusk:wait_for_network_idle`, `dusk:hot_reload_and_snap`), and so does
-   `dusk:reset_overlays`, which acts on the app but still prints its
-   `{popped, escaped, dismissTapped}` object so you can see which layer
-   cleared the screen; the 19
-   side-effect verbs (`dusk:tap`, `dusk:hover`, `dusk:drag`, `dusk:type`,
-   `dusk:fill`, `dusk:clear`, `dusk:press_key`, `dusk:scroll`,
-   `dusk:focus`, `dusk:blur`, `dusk:dblclick`, `dusk:right_click`,
-   `dusk:triple_click`, `dusk:set_checkbox`, `dusk:select_option`,
-   `dusk:navigate`, `dusk:navigate_back`, `dusk:modal`,
-   `dusk:close_app`) print a
-   one-line success summary by default and only emit JSON when
-   `--includeSnapshot` is passed. `dusk:screenshot` writes bytes to disk
+   (a) MCP responses are always JSON. On the CLI, **`--json` prints the
+   raw envelope on any verb** and is what you want whenever the output
+   feeds a tool rather than a terminal; you do not have to know which
+   verbs happen to emit JSON by default. Without it, read / query verbs
+   (`dusk:snap`, `dusk:observe`, `dusk:find`, `dusk:get_routes`,
+   `dusk:console`, `dusk:exceptions`, `dusk:hot_reload_and_snap`) and
+   `dusk:reset_overlays` print JSON; the side-effect verbs and the two
+   waits print a one-line summary. `dusk:screenshot` writes bytes to disk
    and prints `Wrote N bytes...`; `dusk:install` / `dusk:doctor` print
-   categorised reports. Pipe through `jq` only on the JSON-returning
-   shapes. (b) `dusk_evaluate` is MCP-only (no CLI mirror); the
-   dusk-aware Dart REPL lives behind `./bin/fsa tinker` (one-shot form:
-   `./bin/fsa tinker --eval="<expression>"`).
+   categorised reports. (b) `dusk_evaluate` is MCP-only (no CLI mirror);
+   the dusk-aware Dart REPL lives behind `./bin/fsa tinker` (one-shot
+   form: `./bin/fsa tinker --eval="<expression>"`). (c) **`dusk:wait` and
+   `dusk:wait_for_network_idle` exit 1 when the wait never resolved.**
+   Both used to print their success line and exit 0 on timeout, so a
+   shell chain that depended on either proved nothing; if you carry a
+   workaround for that, drop it.
+
+7. **A `warnings` block means the result is not trustworthy.** When the
+   app stops producing frames (a backgrounded browser tab is the usual
+   cause; Flutter maps `document.visibilityState: "hidden"` to
+   `AppLifecycleState.hidden`, which disables frames), semantics labels
+   are never rebuilt and dispatched gestures cannot take effect. Every
+   payload then carries:
+
+   ```json
+   { "warnings": { "framesEnabled": false, "lifecycleState": "hidden", "hint": "..." } }
+   ```
+
+   Two symptoms follow and both look like product defects. `dusk_snap`
+   returns the buttons and none of the `- text` nodes, so a screen that
+   renders perfectly reads as completely empty. And an action returns a
+   clean success for a gesture that could not have landed. **Never
+   conclude "the screen is empty" or "the tap did nothing" while this
+   block is present.** Fix it with one CDP call, `Page.bringToFront`,
+   then retry. On the CLI the same condition prints a stderr banner,
+   because `dusk:snap` prints only the tree and `dusk:tap` prints
+   `✓ Tapped e7`, so neither would show you the block otherwise. The key
+   is absent on a healthy engine, so its presence is the whole signal.
+
+8. **`effect` is the post-condition, and it is always there.** Every
+   side-effect verb reports what the widget HOLDS afterwards, not what it
+   was asked to do. A green tick means the event was DISPATCHED; the
+   `effect` block is what says it was received.
+
+   | Verb | `kind` | Read this |
+   |---|---|---|
+   | `dusk_tap` | `treeChanged` | `changed: false` means the target's own route and semantics subtree are unchanged, so nothing observable happened |
+   | `dusk_type` / `dusk_clear` / `dusk_fill` | `text` | `value` is read back off the live controller; `verified: false` means a formatter or keyboard type filtered the write |
+   | `dusk_scroll` | `scrollOffset` | `before` == `after` means nothing moved (a ref that is not a scrollable, or a list already at the end) |
+   | `dusk_set_checkbox` | `checked` | `after` is re-read from the widget; `verified: false` means the control kept its old state |
+
+   **This replaces the act, re-snap, read-the-value-back, compare
+   diagnostic.** Do not run that by hand any more, and do not conclude the
+   app is broken from a green tick alone. A fill against a number field
+   once reported the text it had been handed while the field kept nothing,
+   and the defect-shaped story that followed survived two rewrites of a
+   widget that was correct the whole time.
+
+9. **Narrow the snapshot; the full tree is usually the wrong answer.**
+   `dusk_snap { within: "e12" }` walks one subtree, `interactiveOnly: true`
+   drops the prose, `grep: "<regex>"` keeps only matches plus the ancestors
+   carrying their refs. `dusk_find { within: "e12" }` scopes a query the
+   same way, and the scope becomes part of the `q<N>` handle so it survives
+   every re-resolve.
+
+   **The reason is not only context cost.** On a shell whose sidebar
+   repeats the labels of the pages it opens, an exact-label lookup resolves
+   the NAV ITEM, so the caller measures the sidebar and concludes two pages
+   differ. Deriving a content region from an x-coordinate does not fix it
+   either: the threshold is wrong at every other width, and there is no
+   sidebar at all on a phone. Scope by ref.
 
 ## 2. Tool surface (33 MCP tools, 34 CLI commands)
 
@@ -136,11 +195,15 @@ Full per-tool input schema, return shape, and example calls:
 3. dusk_tap { ref: "e7" }             Gate fires, gesture dispatches,
                                       response carries a post-action
                                       snapshot by default.
-4. dusk_wait_for { text: "Saved" }    Block on the expected post-condition.
-5. dusk_snap                          Re-snap and confirm.
+4. <read response.effect>             changed:false means the tap did
+                                      nothing observable. Stop here rather
+                                      than debugging the app.
+5. dusk_wait_for { text: "Saved" }    Block on the expected post-condition.
+6. dusk_snap                          Re-snap and confirm.
 ```
 
-The post-action snapshot in step 3 is usually enough to skip step 5 on
+Step 4 is a read of the response you already have, not a tool call. The
+post-action snapshot in step 3 is usually enough to skip step 6 on
 simple cases. Skip `dusk_wait_for` only when the action is synchronous
 (local state toggle); always wait when the action triggers HTTP, animation,
 or navigation.
@@ -222,7 +285,7 @@ debug port. The agent should:
 dart run fluttersdk_dusk dusk:install        # patches main.dart, scaffolds ./bin/fsa
 dart run fluttersdk_dusk mcp:install      # writes .mcp.json
 ./bin/fsa start --device=chrome              # or macos / linux / windows / <device-id>
-./bin/fsa dusk:doctor                        # 5 checks; only semanticsEnabled is hard fail
+./bin/fsa dusk:doctor                        # 7 checks; only semanticsEnabled is hard fail
 ./bin/fsa dusk:snap                          # confirm the agent can reach the app
 ```
 

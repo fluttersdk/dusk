@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/gestures.dart';
@@ -8,7 +7,10 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/dusk_response.dart';
+import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
 
 // ---------------------------------------------------------------------------
@@ -127,14 +129,17 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
 
   // 4. Idempotent: no-op when the current value already matches the target.
   if (effectiveCurrent == targetValue) {
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'ref': ref,
-        'previousValue': effectiveCurrent,
-        'value': effectiveCurrent,
-        'toggled': false,
-      }),
-    );
+    return duskResult(<String, dynamic>{
+      'ref': ref,
+      'previousValue': effectiveCurrent,
+      'value': effectiveCurrent,
+      'toggled': false,
+      'effect': checkedEffect(
+        expected: targetValue,
+        before: effectiveCurrent,
+        after: effectiveCurrent,
+      ),
+    });
   }
 
   // 5. Inject a tap to toggle the checkbox. Reuse the same
@@ -158,14 +163,23 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
     );
   }
 
-  return developer.ServiceExtensionResponse.result(
-    jsonEncode(<String, dynamic>{
-      'ref': ref,
-      'previousValue': effectiveCurrent,
-      'value': targetValue,
-      'toggled': true,
-    }),
-  );
+  // 6. Re-read the widget rather than reporting the value we asked for. A
+  //    control whose parent rejects the change, or one whose tap landed on
+  //    an overlay, keeps its old state, and `value: targetValue` would call
+  //    that a success.
+  final bool? settledValue = _readCheckboxValue(entry.element);
+
+  return duskResult(<String, dynamic>{
+    'ref': ref,
+    'previousValue': effectiveCurrent,
+    'value': targetValue,
+    'toggled': true,
+    'effect': checkedEffect(
+      expected: targetValue,
+      before: effectiveCurrent,
+      after: settledValue,
+    ),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +265,5 @@ Future<void> _injectTapAt(Offset center) async {
     ),
   );
 
-  await WidgetsBinding.instance.endOfFrame;
-  await WidgetsBinding.instance.endOfFrame;
+  await awaitFramesOrTimeout(2);
 }

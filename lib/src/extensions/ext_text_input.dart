@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
@@ -9,7 +8,10 @@ import 'package:flutter/widgets.dart';
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/dusk_response.dart';
+import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import 'ext_pointer.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
 import 'package:fluttersdk_artisan/artisan.dart';
@@ -145,7 +147,7 @@ class TestRefRegistry {
 /// handler ([aiTestTypeHandler]), two [WidgetsBinding.instance.endOfFrame]
 /// awaits are performed before returning the response.
 @visibleForTesting
-Future<void> typeIntoElement({
+Future<String?> typeIntoElement({
   required Element element,
   required String text,
   Rect? targetRect,
@@ -246,6 +248,11 @@ Future<void> typeIntoElement({
       );
     }
   }
+
+  // 5. Read the value back off the live state rather than echoing [text].
+  //    An input formatter or a keyboard type can filter the write, and the
+  //    caller has no way to tell that from a clean success otherwise.
+  return state.textEditingValue.text;
 }
 
 /// Resolves a [LogicalKeyboardKey] from an agent-facing [key] name string
@@ -344,6 +351,10 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
         wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
       );
     }
+    // Null when no entry resolved, so no gate ran and there is nothing to
+    // report. `fill` delegates here, which is the verb whose silent clean
+    // pass motivated the block in the first place.
+    ActionabilityReport? gate;
     if (entry != null) {
       // Step 3.1: stable + receives-events gates default on; opt-out via
       // params for tests with synthetic rect.
@@ -352,7 +363,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       final bool checkReceivesEvents =
           _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
       try {
-        await ensureActionable(
+        gate = await ensureActionable(
           entry,
           ref: ref,
           checkStable: checkStable,
@@ -383,7 +394,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       );
     }
 
-    await typeIntoElement(
+    final String? written = await typeIntoElement(
       element: element,
       text: text,
       targetRect: _localToGlobalRectForNode(entry?.node) ?? entry?.rect,
@@ -392,13 +403,21 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     // Wait two frames so ValueListenableBuilder listeners rebuild and paint
     // before the MCP client reads state (per Stage 3 mandate: every mutating
     // extension awaits endOfFrame before returning).
-    await WidgetsBinding.instance.endOfFrame;
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFramesOrTimeout(2);
 
-    // 2. Embed post-action snapshot (opt-out via includeSnapshot:'false').
+    // 2. Report what the field HOLDS, not what it was handed. `text` stays
+    //    for callers that read it, but `effect.value` is the one read back
+    //    off the live controller, and `effect.verified` is false when a
+    //    formatter or keyboard type filtered the write.
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'text': text,
+      'effect': textEffect(expected: text, actual: written),
+    };
+    if (gate != null) stampChecks(payload, gate);
+
+    // 3. Embed post-action snapshot (opt-out via includeSnapshot:'false').
     //    Snapshot-build noise must NOT convert a successful type into an
     //    error envelope: the text has already landed in the controller.
-    final Map<String, dynamic> payload = <String, dynamic>{'text': text};
     try {
       await _appendSnapshotIfRequested(payload, params);
     } catch (e) {
@@ -409,7 +428,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       );
     }
 
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.type error: $e\n$stackTrace',
@@ -470,8 +489,7 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
     // without a frame scheduler, so we skip the awaits and the snapshot
     // embed below. Mirrors the same guard in ext_navigation.dart.
     if (WidgetsBinding.instance.rootElement != null) {
-      await WidgetsBinding.instance.endOfFrame;
-      await WidgetsBinding.instance.endOfFrame;
+      await awaitFramesOrTimeout(2);
     }
 
     final Map<String, dynamic> payload = <String, dynamic>{
@@ -494,7 +512,7 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
       }
     }
 
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.press_key error: $e\n$stackTrace',
@@ -594,16 +612,20 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
       );
     }
     controller.clear();
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFrameOrTimeout();
+    // Read the controller back rather than asserting the clear worked. A
+    // field whose parent rewrites the value on change lands back where it
+    // was, and `text: ''` alone would report that as a clean clear.
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,
       'text': '',
+      'effect': textEffect(expected: '', actual: controller.text),
     };
     if (_parseBoolFlag(params, 'includeSnapshot', defaultValue: false)) {
       final snap = await duskSnapBuild();
       payload['snapshot'] = snap['snapshot'];
     }
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.clear error: $e\n$stackTrace',

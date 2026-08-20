@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+import 'json_output.dart';
+
 /// `artisan dusk:tap --ref=<eN>` — synthesize a tap on the element.
 class DuskTapCommand extends ArtisanCommand {
   @override
@@ -15,6 +18,7 @@ class DuskTapCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption(
       'ref',
       help: 'Snapshot ref token (e.g. e1).',
@@ -34,12 +38,6 @@ class DuskTapCommand extends ArtisanCommand {
       'checkReceivesEvents',
       help: 'Run the Receives-Events (front-most hit-test) actionability gate.',
       defaultsTo: true,
-    );
-    parser.addFlag(
-      'verify',
-      help: 'Capture a target-scoped before/after signal and add a `changed` '
-          'field reporting whether the tap produced an observable effect.',
-      defaultsTo: false,
     );
     parser.addOption(
       'until',
@@ -66,7 +64,6 @@ class DuskTapCommand extends ArtisanCommand {
     final checkStable = (ctx.input.option('checkStable') as bool?) ?? true;
     final checkReceivesEvents =
         (ctx.input.option('checkReceivesEvents') as bool?) ?? true;
-    final verify = (ctx.input.option('verify') as bool?) ?? false;
     final until = ctx.input.option('until') as String?;
     final untilTimeoutMs = ctx.input.option('untilTimeoutMs') as String?;
     final hasUntil = until != null && until.isNotEmpty;
@@ -75,7 +72,6 @@ class DuskTapCommand extends ArtisanCommand {
       'includeSnapshot': includeSnapshot.toString(),
       'checkStable': checkStable.toString(),
       'checkReceivesEvents': checkReceivesEvents.toString(),
-      'verify': verify.toString(),
       if (hasUntil) 'until': until,
       if (untilTimeoutMs != null && untilTimeoutMs.isNotEmpty)
         'untilTimeoutMs': untilTimeoutMs,
@@ -84,13 +80,23 @@ class DuskTapCommand extends ArtisanCommand {
       'ext.dusk.tap',
       params,
     );
-    // Print the JSON envelope whenever a field beyond `ref` may be present
-    // (snapshot, `changed`, or `untilMatched`) so the caller can read it.
-    if (includeSnapshot || verify || hasUntil) {
+    reportFrameWarning(ctx, response);
+    // Print the envelope when the caller asked for it, or when they asked
+    // for a field that only lives in it (a snapshot, an `untilMatched`).
+    if (wantsJson(ctx) || includeSnapshot || hasUntil) {
       ctx.output.writeln(jsonEncode(response));
-    } else {
-      ctx.output.success('Tapped $ref');
+      return 0;
     }
+
+    // The summary names the one field worth reading. `effect.changed` is
+    // false for a tap the gate accepted that moved nothing, and a bare
+    // `✓ Tapped e7` would hide exactly that case.
+    final effect = response['effect'] as Map<String, dynamic>?;
+    ctx.output.success(
+      effect?['changed'] == false
+          ? 'Tapped $ref (no observable change)'
+          : 'Tapped $ref',
+    );
     return 0;
   }
 }

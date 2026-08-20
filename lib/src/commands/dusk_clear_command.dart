@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+import 'json_output.dart';
+
 /// `artisan dusk:clear --ref=<eN>` — empty the TextEditingController under
 /// the resolved ref. Playwright parity: locator.clear().
 class DuskClearCommand extends ArtisanCommand {
@@ -17,6 +20,7 @@ class DuskClearCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption('ref',
         help: 'Widget ref token of the text field (e.g. e5).', mandatory: true);
     parser.addFlag('includeSnapshot',
@@ -37,10 +41,11 @@ class DuskClearCommand extends ArtisanCommand {
       'ext.dusk.clear',
       {'ref': ref, 'includeSnapshot': includeSnapshot.toString()},
     );
+    reportFrameWarning(ctx, response);
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Cleared $ref');
+      emitEnvelope(ctx, response, () => ctx.output.success('Cleared $ref'));
     }
     return 0;
   }

@@ -62,7 +62,7 @@ End-to-end testing on Flutter has always been a stitched-together ritual. `flutt
 | 🌳 | **Semantics Snapshot** | `dusk_snap` emits a YAML tree with stable `[ref=eN]` tokens; every action targets a ref, no brittle XPath or coordinate guessing |
 | 🛠️ | **34 CLI Commands** | snap, tap, type, fill, drag, scroll, hover, dblclick, right_click, triple_click, focus, blur, clear, set_checkbox, select_option, press_key, wait, find, observe, navigate, modal, reset_overlays, screenshot, hot_reload_and_snap, CDP resize + device, close_app, install, doctor |
 | 🤖 | **33 MCP Tools** | The full CLI surface plus `dusk_evaluate`, exposed as stdio JSON-RPC tools to Claude Code, Cursor, Windsurf, VS Code Copilot, and any MCP-compatible agent |
-| 🚪 | **6-Step Actionability Gate** | Every gesture passes defunct (preflight) → enabled → zero-rect → off-viewport (auto-scrolls) → stable (2-frame rect drift) → receives-events (hit-test path); no flaky taps |
+| 🚪 | **6-Step Actionability Gate** | Every gesture passes defunct (preflight) → enabled → zero-rect → off-viewport (auto-scrolls) → stable (2-frame rect drift) → receives-events (hit-test path); no flaky taps, and a `checks` block when the last one could not be proven rather than a silent pass |
 | 🔖 | **Playwright-style Locators** | `q<N>` re-resolvable handles via `dusk_find` walk the live Semantics tree on every action. Stale handles throw, never silently act on the wrong widget |
 | 🔄 | **Hot Reload + Snap Round-trip** | `dusk_hot_reload_and_snap` returns `{reloaded, durationMs, snapshot, screenshot, exceptions}` in one call |
 | 🖥️ | **CDP Device Emulation** | `dusk_resize_viewport` and `dusk_device_profile` (iphone-x, pixel-5, desktop-1440, plus 5 more) drive Chrome DevTools Protocol |

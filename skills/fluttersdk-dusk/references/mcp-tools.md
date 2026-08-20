@@ -37,6 +37,20 @@ Every tool returns a JSON object via `ServiceExtensionResponse.result` on
 success. Failures return a `DuskErrorEnvelope`: at minimum `{ message }`,
 often with `{ reason, ref, method }` for agent branching.
 
+One field is universal across all 33 success payloads: `warnings`. It is
+present only while the app has stopped producing frames, and it means the
+result cannot be trusted, because the semantics tree is not being rebuilt
+and dispatched gestures cannot take effect.
+
+```json
+{ "warnings": { "framesEnabled": false, "lifecycleState": "hidden", "hint": "..." } }
+```
+
+A backgrounded browser tab is the usual cause. Recover with one CDP call,
+`Page.bringToFront`, then retry. Never read an empty snapshot as an empty
+screen, or a clean action payload as an applied gesture, while this key is
+present. It is omitted entirely on a healthy engine.
+
 Prerequisites for every `dusk_*` MCP tool:
 
 1. The app is running (`./bin/fsa start --device=<dev>`).
@@ -67,6 +81,9 @@ with stable `[ref=eN]` tokens.
 | Param | Type | Required | Default | Note |
 |---|---|---|---|---|
 | `depth` | integer | no | unlimited | Maximum tree depth to walk |
+| `within` | string | no | whole tree | `e<N>` ref of the subtree to walk. `q<N>` handles are not addressable here |
+| `interactiveOnly` | boolean | no | false | Emit only ref-bearing nodes; drop the plain `- text` lines |
+| `grep` | string | no | none | Emit only nodes whose label or value matches this regex, plus the ancestors leading to them |
 
 **Returns.** `{ snapshot: "<yaml>", groupId: "snapshot-<timestamp>" }`.
 
@@ -77,6 +94,12 @@ followed by indented enricher lines (`magicFormField: email`, `magicRoute:
 **Use it.** As the first call of any new agent session, or whenever the
 UI mutates (navigation, modal open, hot-reload). Re-snap after each act
 to refresh `e<N>` tokens against the live tree.
+
+**Narrow after the first read.** One unfiltered snap to see the shape,
+then `within` + `interactiveOnly` for everything after it. A full tree
+costs context on any real screen, and on a shell whose sidebar repeats
+page labels it is also the misleading read: the unscoped lookup resolves
+the nav item and you end up measuring the sidebar.
 
 **Common pitfalls.** `e<N>` tokens become defunct when their node
 unmounts. After a route push or a list rebuild, an old `e<N>` will fail
@@ -161,6 +184,17 @@ correctness checks, snap is cheaper and faster than screenshot.
 clients this can be lossy. Prefer ref-targeted screenshots when only one
 widget matters.
 
+`rect` without `ref` is a hard error, not a full-frame capture: a sub-rect
+is meaningless without the widget it is relative to.
+
+On web the MCP tool can hang (CanvasKit + DWDS), so use the CLI
+`dusk:screenshot --ref=<ref> -o <path>` there. It resolves the region
+through the extension's geometry mode and clips a CDP
+`Page.captureScreenshot`, so `--ref` and `--rect` behave the same on both
+paths. Reaching for `--ref` also removes the resize dance: without it, a
+component below the fold means growing the viewport to a size no device
+has, capturing, and putting the height back.
+
 ---
 
 ## Find: query handles
@@ -178,6 +212,7 @@ Semantics tree on every action. Playwright Locator equivalent.
 | `contains` | string | Substring match (looser; use when label is dynamic) |
 | `semanticsLabel` | string | Exact match on `Semantics(label: ...)` only, ignores Text widgets |
 | `key` | string | Stringified widget Key (`Key('login-submit')`) |
+| `within` | string | `e<N>` ref of the subtree to search in. Becomes part of the handle, so the scope survives every re-resolve. Use a ref from `dusk_snap`: one minted by `dusk_wait` carries no semantics node and is refused for `semanticsLabel` |
 
 **Returns.** `{ ref: "q3", matched: true }` or `{ ref: null, matched: false }`.
 
@@ -187,7 +222,9 @@ The same `q<N>` works after the widget rebuilds, after a scroll, after
 a hot-reload (as long as the predicate still matches something).
 
 **Pitfalls.** `dusk_find` returns the first match. When a label is not
-unique, scope with `contains` plus another predicate, or use
+unique, reach for `within` first: a sidebar and the page it opens share
+their labels, and the unscoped match lands on the nav item. Otherwise
+scope with `contains` plus another predicate, or use
 `dusk_observe` to enumerate.
 
 ---
@@ -447,8 +484,17 @@ Empty when telescope is not wired.
 
 ### dusk_exceptions
 
-`limit` (default 20). Returns `{ exceptions: [{ exceptionType, message, time, stackTrace? }], count }`.
-Empty when telescope is not wired.
+`limit` (default 20), `since` (ISO8601, entries strictly after it),
+`clear` (empty the in-package buffer AFTER the read). Returns
+`{ exceptions: [{ exceptionType, message, time, stackTrace? }], count }`.
+Works without telescope: dusk keeps its own non-fatal FlutterError buffer.
+
+**The buffer is cumulative, so read it as a delta.** One real fault at boot
+rides along on every later read, and a per-route sweep then reports it
+against every route: a 12-of-12 "overflow on every screen" finding once
+turned out to be a single 4.8px transient. Pass `clear: true` between
+routes, or pin a `since` from before the action. An instrument with a
+permanent false positive stops being consulted.
 
 ---
 

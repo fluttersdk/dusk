@@ -1,5 +1,8 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+import 'json_output.dart';
+
 /// `artisan dusk:wait_for_network_idle [--timeoutMs=<ms>] [--idleMs=<ms>]
 /// [--pollIntervalMs=<ms>]` ; block until the running app reports zero
 /// in-flight HTTP requests for a contiguous [idleMs] window.
@@ -23,6 +26,7 @@ class DuskWaitForNetworkIdleCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption(
       'timeoutMs',
       help: 'Maximum total wait time in milliseconds (default 5000).',
@@ -58,11 +62,28 @@ class DuskWaitForNetworkIdleCommand extends ArtisanCommand {
       params['pollIntervalMs'] = pollIntervalMs;
     }
 
-    await ctx.callExtension<Map<String, dynamic>>(
+    final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.wait_for_network_idle',
       params,
     );
-    ctx.output.success('Network idle');
+    reportFrameWarning(ctx, response);
+
+    // Same shape as ext.dusk.wait_for: a timeout comes back as a SUCCESS
+    // envelope carrying `matched: false`, not as an error. Printing the
+    // success line regardless made this pass on exactly the case it exists
+    // to catch, and a CI script chains on the exit code.
+    if (response['matched'] == false) {
+      emitEnvelope(ctx, response, () {
+        ctx.output.error(
+          'Network did not go idle within the timeout. Requests were still '
+          'in flight, so treat anything that depended on this wait as '
+          'unproven.',
+        );
+      });
+      return 1;
+    }
+
+    emitEnvelope(ctx, response, () => ctx.output.success('Network idle'));
     return 0;
   }
 }

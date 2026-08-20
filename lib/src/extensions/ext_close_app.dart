@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
@@ -6,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 /// Signature for the function that performs the actual app-close operation.
@@ -71,11 +71,9 @@ Future<developer.ServiceExtensionResponse> extDuskCloseAppHandler(
 
     // 2. Return confirmation immediately. The agent reads this before the OS
     //    terminates the isolate, giving it a chance to record the outcome.
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'closed': true,
-      }),
-    );
+    return duskResult(<String, dynamic>{
+      'closed': true,
+    });
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.close_app error: $e\n$stackTrace',

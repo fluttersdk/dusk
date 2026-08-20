@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+import 'json_output.dart';
+
 /// `artisan dusk:triple_click --ref=<eN>` — three primary clicks with 100ms
 /// inter-click delay. Playwright parity: locator.click({ clickCount: 3 }).
 class DuskTripleClickCommand extends ArtisanCommand {
@@ -17,6 +20,7 @@ class DuskTripleClickCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption('ref',
         help: 'Widget ref token (e.g. e5).', mandatory: true);
     parser.addFlag('includeSnapshot',
@@ -49,10 +53,12 @@ class DuskTripleClickCommand extends ArtisanCommand {
         'checkReceivesEvents': checkReceivesEvents.toString(),
       },
     );
+    reportFrameWarning(ctx, response);
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Triple-clicked $ref');
+      emitEnvelope(
+          ctx, response, () => ctx.output.success('Triple-clicked $ref'));
     }
     return 0;
   }

@@ -98,5 +98,38 @@ void main() {
 
       expect(await DuskWaitForNetworkIdleCommand().handle(ctx), equals(0));
     });
+
+    test('returns 1 and says so when the network never went idle', () async {
+      // The handler answers a timeout with a SUCCESS envelope carrying
+      // `matched: false`, the same shape ext.dusk.wait_for uses. This is
+      // the command a CI script is most likely to chain on, so passing
+      // there proves nothing and stops nothing.
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: output,
+        response: const {'matched': false, 'reason': 'timeout'},
+      );
+
+      final int exit = await DuskWaitForNetworkIdleCommand().handle(ctx);
+
+      expect(exit, equals(1));
+      expect(output.content, contains('did not go idle'));
+      expect(output.content, isNot(contains('Network idle')));
+    });
+
+    test('returns 0 when the network did go idle', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: output,
+        response: const {'matched': true, 'elapsedMs': 120},
+      );
+
+      final int exit = await DuskWaitForNetworkIdleCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(output.content, contains('Network idle'));
+    });
   });
 }

@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+import 'json_output.dart';
+
 /// `artisan dusk:dblclick --ref=<ref>` — fire a double-click at the widget
 /// identified by a snapshot ref.
 ///
@@ -22,6 +25,7 @@ class DuskDblclickCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption(
       'ref',
       help: 'Widget ref token from a prior dusk:snap call (e.g. e5).',
@@ -58,10 +62,12 @@ class DuskDblclickCommand extends ArtisanCommand {
         'checkReceivesEvents': checkReceivesEvents.toString(),
       },
     );
+    reportFrameWarning(ctx, response);
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      ctx.output.success('Double-clicked ref $ref');
+      emitEnvelope(
+          ctx, response, () => ctx.output.success('Double-clicked ref $ref'));
     }
     return 0;
   }

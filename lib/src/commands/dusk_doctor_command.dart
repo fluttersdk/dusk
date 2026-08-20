@@ -1,13 +1,44 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:meta/meta.dart';
 
+import '../cdp/cdp_client.dart';
 import '../utils/chrome_reaper.dart';
+
+/// What a single probe of the recorded CDP port found.
+///
+/// Three questions, one round-trip, because they fail as one symptom: a
+/// screenshot that comes back byte-identical every time tells you nothing
+/// about which of them went wrong.
+@immutable
+final class DuskCdpSessionReport {
+  /// Builds a report. [reachable] false means the port refused entirely;
+  /// the remaining fields are then meaningless.
+  const DuskCdpSessionReport({
+    required this.reachable,
+    this.pageUrls = const <String>[],
+    this.hidden,
+  });
+
+  /// Whether `/json` answered at all. False for a stale port left behind by
+  /// a killed `flutter run` whose Chrome is gone.
+  final bool reachable;
+
+  /// The URL of every `type: "page"` tab the port serves. Used to tell this
+  /// run's browser apart from an orphan holding the old build.
+  final List<String> pageUrls;
+
+  /// `document.hidden` on the matching page, or null when it could not be
+  /// read. True stops frame production, which wedges both snapshots and
+  /// gestures.
+  final bool? hidden;
+}
 
 /// `artisan dusk:doctor` ; environment + runtime preflight for fluttersdk_dusk.
 ///
-/// Runs five lightweight checks and prints one row per check via the
+/// Runs seven lightweight checks and prints one row per check via the
 /// [ArtisanOutput] facade (so colored ✓ / ⚠ / ✗ tokens flow through
 /// [ConsoleStyle] in TTY mode and degrade to plain text under
 /// [BufferedOutput] / [NullOutput]):
@@ -41,6 +72,16 @@ import '../utils/chrome_reaper.dart';
 ///      the consumer wired `Magic.init(` alongside `MagicDuskIntegration.
 ///      install()`. INFO only ; never fails the doctor regardless of the
 ///      consumer stack.
+///   6. **Session ownership** ; compares `state.json`'s `projectRoot` against
+///      the working directory. `~/.artisan/state.json` is one global slot, so
+///      a sibling project's `artisan start` silently takes it and every
+///      `dusk:*` call from here drives that app instead. WARN.
+///   7. **CDP session health** ; probes the recorded `cdpPort` for three
+///      failures that all present as a capture which never changes: the port
+///      refuses (a killed run left the web port held and its Chrome gone), it
+///      serves no page on this run's `webPort` (an orphan browser holding the
+///      old build), or the matching page is hidden (frame production off, so
+///      snapshots lose their text and gestures cannot land). WARN.
 ///
 /// Test seams: every probe is a static field with a sensible default. Tests
 /// override per-check seams via `DuskDoctorCommand.<probe> = ...` in setUp
@@ -107,6 +148,115 @@ class DuskDoctorCommand extends ArtisanCommand {
   /// absent or unreadable so the check downgrades to an INFO "Skipped" row.
   static String? Function(String path) mainDartReader = _defaultMainDartReader;
 
+  /// Resolves the directory the command is running from, compared against
+  /// `state.json`'s `projectRoot` to catch a session that belongs to a
+  /// sibling project.
+  static String Function() currentDirectoryProbe = defaultCurrentDirectory;
+
+  /// Probes the recorded CDP port. Returns null when the probe itself could
+  /// not run, which downgrades the check to a skip rather than inventing a
+  /// verdict.
+  ///
+  /// [webPort] identifies which page belongs to this run; the visibility
+  /// read targets that page rather than whichever tab Chrome lists first.
+  static Future<DuskCdpSessionReport?> Function(int port, int? webPort)
+      cdpSessionProbe = defaultCdpSessionProbe;
+
+  /// Production probe, and the value tests restore [currentDirectoryProbe]
+  /// to. A reset that rebuilds the same closure by hand leaves the real one
+  /// unexercised, which is how a seam drifts from its default unnoticed.
+  static String defaultCurrentDirectory() => Directory.current.path;
+
+  /// Production probe, and the value tests restore [cdpSessionProbe] to.
+  /// Public for the same reason [CdpClient.defaultHttpGet] is: a seam a test
+  /// swaps needs a named default to swap back.
+  ///
+  /// One HTTP call for the tab list, one WebSocket for
+  /// `document.hidden` on the tab that belongs to this run.
+  ///
+  /// A refused port is a RESULT here, not an error to propagate: "the port
+  /// is dead" is exactly what the check reports, and turning it into a
+  /// thrown exception would make the doctor fail instead of diagnose.
+  static Future<DuskCdpSessionReport?> defaultCdpSessionProbe(
+    int port,
+    int? webPort,
+  ) async {
+    const Duration probeTimeout = Duration(seconds: 5);
+
+    final dynamic raw;
+    try {
+      // defaultHttpGet, not the cdpHttpGet seam: that one is
+      // @visibleForTesting, and this probe is itself the seam tests swap.
+      //
+      // The decode is inside the try on purpose. A port recorded in
+      // state.json that some other service has since taken answers with
+      // something that is not CDP JSON, which is one of the three cases
+      // this check exists to name; letting the decode throw took the whole
+      // doctor run down instead of reporting it.
+      final String body = await CdpClient.defaultHttpGet(
+        Uri.parse('http://localhost:$port/json'),
+      ).timeout(probeTimeout);
+      raw = jsonDecode(body);
+    } on Object {
+      return const DuskCdpSessionReport(reachable: false);
+    }
+
+    final List<String> pageUrls = <String>[];
+    if (raw is List<dynamic>) {
+      for (final dynamic entry in raw) {
+        if (entry is Map<String, dynamic> && entry['type'] == 'page') {
+          pageUrls.add(entry['url'] as String? ?? '');
+        }
+      }
+    }
+
+    // Visibility is only meaningful for the page under test, and only worth
+    // an extra socket once we know one exists.
+    bool? hidden;
+    final String? match = webPort == null ? null : ':$webPort';
+    if (match != null && pageUrls.any((String url) => url.contains(match))) {
+      hidden = await _probeHidden(port, match, probeTimeout);
+    }
+
+    return DuskCdpSessionReport(
+      reachable: true,
+      pageUrls: pageUrls,
+      hidden: hidden,
+    );
+  }
+
+  /// Reads `document.hidden` off the page whose URL contains [match].
+  /// Returns null when the evaluate could not complete; the caller then
+  /// reports the rest of the session rather than guessing.
+  static Future<bool?> _probeHidden(
+    int port,
+    String match,
+    Duration timeout,
+  ) async {
+    CdpClient? client;
+    try {
+      client = await CdpClient.connect(
+        port: port,
+        handshakeTimeout: timeout,
+        matchUrlSubstring: match,
+      );
+      final Map<String, dynamic> result = await client.send(
+        'Runtime.evaluate',
+        <String, dynamic>{
+          'expression': 'document.hidden',
+          'returnByValue': true,
+        },
+      );
+      final Object? value =
+          (result['result'] as Map<String, dynamic>?)?['value'];
+      return value is bool ? value : null;
+    } on DuskCdpException {
+      return null;
+    } finally {
+      await client?.close();
+    }
+  }
+
   static String _defaultMainDartPath() => 'lib/main.dart';
 
   static String? _defaultMainDartReader(String path) {
@@ -163,6 +313,12 @@ class DuskDoctorCommand extends ArtisanCommand {
 
     // 5. Magic-init detection (INFO-only; never fails).
     _renderMagicInit(ctx);
+
+    // 6. Session ownership: is the state file describing THIS project?
+    await _renderSessionOwnership(ctx);
+
+    // 7. CDP session: is the recorded port live, serving this run, visible?
+    await _renderCdpSession(ctx);
 
     return hasError ? 1 : 0;
   }
@@ -372,5 +528,125 @@ class DuskDoctorCommand extends ArtisanCommand {
     } catch (_) {
       return null;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Check 6 ; session ownership
+  // ---------------------------------------------------------------------------
+
+  /// Compares `state.json`'s `projectRoot` against the directory this
+  /// command is running from.
+  ///
+  /// `~/.artisan/state.json` is ONE global file. Two projects driven at
+  /// once share it, and the second `start` silently rewrites the first's
+  /// entry: the measured case had a sibling worktree take the file
+  /// mid-session, after which two `dusk:*` calls drove the wrong app and
+  /// produced a screenshot of an entirely different product. Nothing in the
+  /// output said so, because every command succeeded.
+  Future<void> _renderSessionOwnership(ArtisanContext ctx) async {
+    const String label = 'Session ownership';
+
+    final Map<String, dynamic>? state = await stateFileReader();
+    final Object? recorded = state?['projectRoot'];
+    if (state == null || recorded is! String || recorded.isEmpty) {
+      ctx.output.info('$label: Skipped (no projectRoot in state.json)');
+      return;
+    }
+
+    final String here = currentDirectoryProbe();
+    // artisan's own rule, not a second copy of it. The doctor used to
+    // compare the two paths for equality while `sessionOwnershipError`
+    // compares is-within, so a caller standing in a subdirectory was told
+    // the session belonged to somebody else while every artisan command
+    // happily drove it. Two tools disagreeing about one state file is worse
+    // than either answer alone.
+    if (sessionOwnershipError(
+          state: state,
+          workingDirectory: here,
+          explicitStatePath: StateFile.explicitPath(),
+        ) ==
+        null) {
+      ctx.output.success('$label: state.json describes this project');
+      return;
+    }
+
+    ctx.output.warning(
+      '$label: state.json describes another project ($recorded), not this '
+      'one ($here). `~/.artisan/state.json` is a shared pointer to whichever '
+      'app started last, so every dusk:* call from here would drive that app '
+      'instead. Re-run `artisan start` for this project, or pass '
+      '--state=<path> to name the session you mean.',
+    );
+  }
+
+  /// Probes the CDP port recorded in state and reports the three ways it
+  /// goes wrong, all of which present as a capture that never changes.
+  Future<void> _renderCdpSession(ArtisanContext ctx) async {
+    const String label = 'CDP session';
+
+    final Map<String, dynamic>? state = await stateFileReader();
+    final int? cdpPort = _asInt(state?['cdpPort']);
+    if (cdpPort == null) {
+      ctx.output.info(
+        '$label: Skipped (no cdpPort recorded; start with --cdp-port=N to '
+        'enable dusk:resize, dusk:device and clipped web screenshots)',
+      );
+      return;
+    }
+
+    final int? webPort = _asInt(state?['webPort']);
+    final DuskCdpSessionReport? report =
+        await cdpSessionProbe(cdpPort, webPort);
+    if (report == null) {
+      ctx.output.info('$label: Skipped (probe unavailable)');
+      return;
+    }
+
+    if (!report.reachable) {
+      ctx.output.warning(
+        '$label: port $cdpPort is unreachable. A killed `flutter run` can '
+        'leave its dart dev server holding the web port while its Chrome '
+        'is gone, so the recorded port points at nothing. Re-run '
+        '`artisan start --cdp-port=N`.',
+      );
+      return;
+    }
+
+    if (webPort != null &&
+        !report.pageUrls.any((String url) => url.contains(':$webPort'))) {
+      ctx.output.warning(
+        '$label: port $cdpPort serves no page on this run\'s web port '
+        '$webPort (found: ${report.pageUrls.join(", ")}). This is usually '
+        'an orphan browser left over from a killed run, holding the old '
+        'build; captures come back byte-identical from it and nothing else '
+        'says why.',
+      );
+      return;
+    }
+
+    if (report.hidden == true) {
+      ctx.output.warning(
+        '$label: the page on port $cdpPort is hidden '
+        '(document.visibilityState). Flutter stops producing frames there, '
+        'so snapshots lose their text nodes and gestures cannot take '
+        'effect. Send CDP Page.bringToFront and retry.',
+      );
+      return;
+    }
+
+    ctx.output.success(
+      '$label: port $cdpPort serving '
+      '${webPort == null ? "this run" : ":$webPort"}'
+      '${report.hidden == false ? ", page visible" : ""}',
+    );
+  }
+
+  /// Reads an int from a state field, tolerating `int`, `num`, or a numeric
+  /// `String` so a cross-version state file does not throw on a force-cast.
+  static int? _asInt(Object? raw) {
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    if (raw is String) return int.tryParse(raw);
+    return null;
   }
 }

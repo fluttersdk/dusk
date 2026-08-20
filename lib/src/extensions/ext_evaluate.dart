@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 /// Signature for the injectable evaluate function.
@@ -66,12 +66,10 @@ Future<developer.ServiceExtensionResponse> extDuskEvaluateHandler(
     final String result = await resolve(expression);
 
     // 3. Return the standard V3 envelope.
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'expression': expression,
-        'result': result,
-      }),
-    );
+    return duskResult(<String, dynamic>{
+      'expression': expression,
+      'result': result,
+    });
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.evaluate error: $e\n$stackTrace',

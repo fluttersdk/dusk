@@ -57,7 +57,9 @@ final class ChromeFinder {
       if (response.statusCode == 404) {
         throw ChromeFinderHttpNotFoundException(uri.port);
       }
-      return response.transform(utf8.decoder).join();
+      // Awaited, not returned bare: the `finally` closes the client, and an
+      // unawaited return lets that fire while the body is still streaming.
+      return await response.transform(utf8.decoder).join();
     } finally {
       client.close();
     }

@@ -11,6 +11,47 @@ Sections are ordered alphabetically. Every section names the dispatch surface
 example payloads show the `params.arguments` object inside the `tools/call` JSON-RPC
 request; the substrate MCP server wraps the response as `CallToolResult` text content.
 
+## Universal response field: `warnings`
+
+Every tool's success payload gains a `warnings` block while the app has stopped producing
+frames (a backgrounded browser tab is the usual cause). In that state the semantics tree is
+not rebuilt and dispatched gestures cannot take effect, so a snapshot reads as empty and an
+action reports a success that could not have landed.
+
+```json
+{
+  "warnings": {
+    "framesEnabled": false,
+    "lifecycleState": "hidden",
+    "hint": "... Bring the page to front (CDP Page.bringToFront) and retry ..."
+  }
+}
+```
+
+The block is omitted entirely on a healthy engine, so its presence is the signal. See
+[Frame production](../reference/frame-production.md) for the full picture and the fix.
+
+## Universal response field: `effect`
+
+Every side-effect verb reports what the widget HOLDS afterwards, not what it was asked to
+do. A dusk action confirms that it DISPATCHED; the `effect` block is what confirms the
+widget received.
+
+| Verb | `kind` | Fields |
+|---|---|---|
+| `dusk_tap` | `treeChanged` | `changed` |
+| `dusk_type`, `dusk_clear`, `dusk_fill` | `text` | `verified`, `value` (read back off the live controller) |
+| `dusk_scroll` | `scrollOffset` | `changed`, `before`, `after` |
+| `dusk_set_checkbox` | `checked` | `verified`, `before`, `after` |
+
+```json
+{ "ref": "e5", "effect": { "kind": "text", "verified": false, "value": "" } }
+```
+
+That example is the real case it exists for: a fill against a number field reported the
+text it had been handed while the widget kept nothing, and the resulting defect-shaped
+story survived two rewrites of the widget before anyone read the field back.
+
 ## Table of contents
 
 - [`dusk_blur`](#dusk_blur)
@@ -402,6 +443,7 @@ predicates still match.
 | `contains` | string | no | Substring match against accessibility label first, then `Text.data` (case-sensitive). Use when the visible label is dynamic (counters, timestamps, plurals). |
 | `semanticsLabel` | string | no | Exact match against `SemanticsNode.label` only (no Text fallback). |
 | `key` | string | no | Match against a widget `Key`. For `ValueKey`, pass the inner value's `toString()`. |
+| `within` | string | no | Evaluate the predicates inside one subtree: the `e<N>` ref of the region to search. The scope becomes part of the minted `q<N>` handle, so it survives every re-resolve; once the scope stops resolving the handle reports `matched: false` with a diagnostic naming it. |
 
 At least one of the four must be supplied. When multiple are passed they form an
 intersection.
@@ -744,8 +786,8 @@ always dispatches the in-isolate `ext.dusk.screenshot` extension.
 **Web limitation:** the in-isolate path can hang under CanvasKit+DWDS (the `toImage()`
 future never completes). For reliable web screenshots, use the CLI command
 `dusk:screenshot --output=<path>`: when artisan was started with `--cdp-port`, the CLI
-falls back to CDP `Page.captureScreenshot` for a full-viewport capture. That fallback is
-CLI-only and does not apply to this MCP tool.
+falls back to CDP `Page.captureScreenshot`, honouring `--ref` / `--rect` there too. That
+fallback is CLI-only and does not apply to this MCP tool.
 
 ### Input schema
 
@@ -753,17 +795,33 @@ CLI-only and does not apply to this MCP tool.
 |---|---|---|---|
 | `format` | string | no | `jpeg` or `png`. Default `jpeg`. |
 | `quality` | integer | no | JPEG quality 0-100 (higher is better). Default `70`. Ignored when format is `png`. |
+| `ref` | string | no | Capture only this widget: an `e<N>` from `dusk_snap` or a `q<N>` from `dusk_find`. Omit for the whole viewport. |
+| `rect` | string | no | Sub-rect `"x,y,w,h"` in logical pixels, relative to the ref's top-left. Requires `ref`. |
+
+Reach for `ref` whenever the question is about one component. A full-screen capture of a
+tall page costs far more tokens than the region under review and buries the thing you are
+checking, and it forces the resize dance for anything below the fold.
+
+`rect` alone is a hard error rather than a silent full-frame capture: a sub-rect is
+meaningless without the widget it is relative to.
 
 ### Returns
 
-Success: `{ format: "<jpeg|png>", base64: "<base64>", width: <int>, height: <int> }`. The
-in-isolate path captures the app-root viewport (the `RepaintBoundary` the host wraps the
-app in under `kDebugMode`).
+Success: `{ format: "<jpeg|png>", base64: "<base64>", width: <int>, height: <int> }`.
+
+Without `ref` the capture is the app-root viewport (the `RepaintBoundary` the host wraps
+the app in under `kDebugMode`). With `ref` it is the widget's own render-object region,
+rasterised out of its nearest repaint-boundary ancestor.
+
+A third mode, `geometry: "true"`, returns
+`{ rect: {x, y, width, height}, devicePixelRatio: <double> }` and skips rasterising
+altogether. It exists so the CLI can build a CDP clip on web, where rasterising is the
+step that hangs; agents normally want the pixels instead.
 
 ### Example call
 
 ```json
-{ "name": "dusk_screenshot", "arguments": { "format": "jpeg", "quality": 70 } }
+{ "name": "dusk_screenshot", "arguments": { "ref": "e42", "format": "png" } }
 ```
 
 ---
@@ -877,6 +935,14 @@ carrying `typeable: true` when calling `dusk_type`.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `depth` | integer | no | Max tree-traversal depth from the root. Omit for full tree. |
+| `within` | string | no | Scope the walk to one subtree: the `e<N>` ref of the region to read. `q<N>` handles are not addressable here. An unknown ref is an error, not a silent widening. |
+| `interactiveOnly` | boolean | no | Emit only nodes carrying a ref; drop the plain `- text` lines. Default `false`. |
+| `grep` | string | no | Emit only nodes whose label or value matches this regular expression, plus the ancestors leading to them. |
+
+A full tree is the wrong default answer to most questions. It costs context on any real
+screen, and on a shell whose sidebar repeats the labels of the pages it opens it is also
+the misleading answer: the unscoped lookup resolves the nav item. `within` +
+`interactiveOnly` is the usual shape before an action.
 
 ### Returns
 
@@ -932,16 +998,16 @@ detached render objects). A button whose host rebuilt it into a shifted slot bet
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
-| `verify` | boolean | no | Capture a target-scoped before/after signal (route + semantics-subtree hash) and add a `changed` boolean to the response reporting whether the tap had an observable effect. Default `false`, which keeps the response shape unchanged. |
 | `until` | string | no | After the tap settles, poll the live element tree for a `Text` equal to this value (up to `untilTimeoutMs`) and add an `untilMatched` boolean. Confirms a navigation / state change in one call. Default off, which keeps the response shape unchanged. |
 | `untilTimeoutMs` | integer | no | Poll ceiling for `until`, in milliseconds. Default `3000`. |
 
 ### Returns
 
-Success: `{ ref: "<ref>" }`. With `verify: true` the response also carries
-`changed: true|false` (true when the target's route or semantics subtree changed, false
-when nothing observable did). With `until` set the response carries
-`untilMatched: true|false` (true when the expected text appeared within the window).
+Success: `{ ref: "<ref>", effect: {kind: "treeChanged", changed: bool} }`. The `effect`
+block is always present: `changed` is true when the target's own route or semantics
+subtree differed after the tap, false when nothing observable happened. With `until` set
+the response also carries `untilMatched: true|false` (true when the expected text appeared
+within the window).
 
 Error: actionability gate failure (`"not enabled"` / `"zero rect"` / `"off-viewport"`) or
 stale-handle.
@@ -949,7 +1015,7 @@ stale-handle.
 ### Example call
 
 ```json
-{ "name": "dusk_tap", "arguments": { "ref": "e5", "verify": true } }
+{ "name": "dusk_tap", "arguments": { "ref": "e5" } }
 ```
 
 ---

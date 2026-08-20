@@ -144,6 +144,15 @@ void main() {
             jsonDecode(response.result!) as Map<String, dynamic>;
         expect(json['text'], equals('retry value'));
         expect(controller.text, equals('retry value'));
+
+        // The type step read the controller back; fill carries that verdict
+        // up rather than restating `filled: true`, which only says the
+        // focus + clear + type sequence ran.
+        final Map<String, dynamic> effect =
+            json['effect'] as Map<String, dynamic>;
+        expect(effect['kind'], equals('text'));
+        expect(effect['verified'], isTrue);
+        expect(effect['value'], equals('retry value'));
       },
     );
 

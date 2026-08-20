@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/widgets.dart';
@@ -6,7 +5,10 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/dusk_response.dart';
+import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import 'ext_find.dart' show resolveQuery;
 import 'ext_snapshot.dart' show duskSnapBuild;
 
@@ -95,10 +97,21 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       targetContext = _resolveRefContext(ref);
     }
 
-    // 3. Perform the scroll operation.
+    // 3. Perform the scroll operation. The starting offset is read first so
+    //    the response can say whether anything actually moved: a ref that is
+    //    not a scrollable, and a list already at its end, both report a clean
+    //    success today and neither moves a pixel.
     double finalOffset = 0.0;
+    // Read per branch, AFTER each has resolved its own scrollable. Reading
+    // it here through `Scrollable.maybeOf` alone measured the ANCESTOR while
+    // the delta branch went on to drive the target itself or a descendant,
+    // so passing a ListView's own ref reported `before: null, changed: true`
+    // for exactly the "ref is not a scrollable" case this block exists to
+    // catch.
+    double? startOffset;
 
     if (intoView && targetContext != null) {
+      startOffset = Scrollable.maybeOf(targetContext)?.position.pixels;
       // Scroll into view — ensureVisible handles the math.
       await aiTestScrollEnsureVisible(
         targetContext,
@@ -149,18 +162,20 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
         );
       }
 
-      final double target = scrollable.position.pixels + dy + dx;
+      startOffset = scrollable.position.pixels;
+      final double target = startOffset + dy + dx;
       await aiTestScrollByDelta(scrollable, target);
       finalOffset = scrollable.position.pixels;
     }
 
     // 4. Wait for the UI to settle before returning.
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFrameOrTimeout();
 
     // 5. Embed post-action snapshot (opt-out via includeSnapshot:'false').
     final Map<String, dynamic> payload = <String, dynamic>{
       'scrolled': true,
       'finalOffset': finalOffset,
+      'effect': scrollOffsetEffect(before: startOffset, after: finalOffset),
     };
     try {
       await _appendSnapshotIfRequested(payload, params);
@@ -172,7 +187,7 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       );
     }
 
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.scroll error: $e\n$stackTrace',
@@ -355,14 +370,12 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
     }
 
     // 4. Wait for the UI to settle.
-    await WidgetsBinding.instance.endOfFrame;
+    await awaitFrameOrTimeout();
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{
-        'selected': true,
-        'value': value,
-      }),
-    );
+    return duskResult(<String, dynamic>{
+      'selected': true,
+      'value': value,
+    });
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.select_option error: $e\n$stackTrace',

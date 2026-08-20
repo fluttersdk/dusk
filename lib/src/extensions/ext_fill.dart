@@ -6,7 +6,9 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import 'ext_focus.dart' show aiTestFocusHandler;
 import 'ext_pointer.dart' show resolveRefForAction;
 import 'ext_snapshot.dart' show duskSnapBuild;
@@ -126,6 +128,10 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
       'ref': ref,
       'text': typed['text'] ?? params['text'],
       'filled': true,
+      // The type step read the value back off the live controller; carry
+      // that verdict up rather than restating `filled: true`, which only
+      // says the sequence ran.
+      if (typed['effect'] != null) 'effect': typed['effect'],
     };
     if (_parseBoolFlag(params, 'includeSnapshot', defaultValue: true)) {
       try {
@@ -139,7 +145,7 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
         );
       }
     }
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.fill error: $e\n$stackTrace',
@@ -199,13 +205,13 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
   final developer.ServiceExtensionResponse focus =
       await aiTestFocusHandler('ext.dusk.focus', stepParams);
   if (focus.errorCode != null) return focus;
-  await WidgetsBinding.instance.endOfFrame;
+  await awaitFrameOrTimeout();
 
   // 2. Clear the existing value so the type below is a replace, not an append.
   final developer.ServiceExtensionResponse clear =
       await aiTestClearHandler('ext.dusk.clear', stepParams);
   if (clear.errorCode != null) return clear;
-  await WidgetsBinding.instance.endOfFrame;
+  await awaitFrameOrTimeout();
 
   // 3. Type the new value. The gated type handler awaits two frames itself.
   return aiTestTypeHandler('ext.dusk.type', <String, String>{

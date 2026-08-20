@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:ui' show CheckedState;
 
@@ -7,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
@@ -153,7 +153,7 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
       );
     }
 
-    return developer.ServiceExtensionResponse.result(jsonEncode(result));
+    return duskResult(result);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.wait_for error: $e\n$stackTrace',
@@ -215,9 +215,7 @@ Future<developer.ServiceExtensionResponse> aiTestFindByTextHandler(
       groupId: groupId,
     );
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{'refs': refs}),
-    );
+    return duskResult(<String, dynamic>{'refs': refs});
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.find_by_text error: $e\n$stackTrace',
@@ -278,9 +276,7 @@ Future<developer.ServiceExtensionResponse> aiTestFindByLabelHandler(
       groupId: groupId,
     );
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode(<String, dynamic>{'refs': refs}),
-    );
+    return duskResult(<String, dynamic>{'refs': refs});
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.find_by_label error: $e\n$stackTrace',
@@ -656,7 +652,7 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForNetworkIdleHandler(
     );
 
     if (result['matched'] == true) {
-      return developer.ServiceExtensionResponse.result(jsonEncode(result));
+      return duskResult(result);
     }
 
     // 1. Timeout path: surface the free-form `errorDetail` message alongside

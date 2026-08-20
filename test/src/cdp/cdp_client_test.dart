@@ -223,5 +223,44 @@ void main() {
         expect(client.isConnected, isFalse);
       },
     );
+
+    test('matchUrlSubstring picks the tab whose URL contains it', () async {
+      // A developer routinely has several Chrome tabs on one debugging port,
+      // and `connect` used to take the first `type: page` it saw. Naming the
+      // app's own port is what stops a command driving somebody else's tab.
+      final FakeCdpServer server = await FakeCdpServer.start(
+        handlers: <String,
+            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
+      );
+      addTearDown(server.stop);
+
+      final CdpClient client = await CdpClient.connect(
+        port: server.port,
+        matchUrlSubstring: 'blank',
+      );
+      addTearDown(client.close);
+
+      expect(client, isNotNull);
+    });
+
+    test('a substring that matches no tab names the port in the error',
+        () async {
+      final FakeCdpServer server = await FakeCdpServer.start(
+        handlers: <String,
+            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
+      );
+      addTearDown(server.stop);
+
+      await expectLater(
+        CdpClient.connect(port: server.port, matchUrlSubstring: ':65535'),
+        throwsA(
+          isA<DuskCdpException>().having(
+            (DuskCdpException e) => e.toString(),
+            'message',
+            allOf(contains(':65535'), contains('different browser')),
+          ),
+        ),
+      );
+    });
   });
 }

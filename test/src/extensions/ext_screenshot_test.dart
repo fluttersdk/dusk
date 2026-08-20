@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
@@ -6,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img_lib;
 
 import 'package:fluttersdk_dusk/src/extensions/ext_screenshot.dart';
+import 'package:fluttersdk_dusk/src/ref_registry.dart';
 
 bool _isError(developer.ServiceExtensionResponse response) =>
     response.errorCode != null;
@@ -243,6 +245,232 @@ void main() {
 
       expect(_isError(response!), isFalse);
       expect(response!.result, contains('"format":"jpeg"'));
+    });
+  });
+
+  group('screenshotHandler — geometry mode', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('reports the viewport rect when no ref is supplied',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 200);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(const SizedBox.expand());
+
+      final developer.ServiceExtensionResponse response =
+          await screenshotHandler(
+        'ext.dusk.screenshot',
+        const <String, String>{'geometry': 'true'},
+      );
+
+      expect(_isError(response), isFalse);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final Map<String, dynamic> rect = decoded['rect'] as Map<String, dynamic>;
+      // Logical pixels, so the physical 400x200 at DPR 2 is 200x100.
+      expect(rect['x'], equals(0.0));
+      expect(rect['y'], equals(0.0));
+      expect(rect['width'], equals(200.0));
+      expect(rect['height'], equals(100.0));
+      expect(decoded['devicePixelRatio'], equals(2.0));
+    });
+
+    testWidgets('reports the ref rect in viewport coordinates',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const Align(
+          alignment: Alignment.topLeft,
+          child: Padding(
+            padding: EdgeInsets.only(left: 30, top: 40),
+            child: SizedBox(width: 100, height: 50, child: Placeholder()),
+          ),
+        ),
+      );
+
+      final Element element = tester.element(find.byType(Placeholder));
+      final String ref = RefRegistry.register(
+        rect: const Rect.fromLTWH(0, 0, 1, 1),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final developer.ServiceExtensionResponse response =
+          await screenshotHandler(
+        'ext.dusk.screenshot',
+        <String, String>{'ref': ref, 'geometry': 'true'},
+      );
+
+      expect(_isError(response), isFalse);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final Map<String, dynamic> rect = decoded['rect'] as Map<String, dynamic>;
+      // The stale cached rect on the RefEntry is ignored: geometry re-reads
+      // the live render box, which is where the widget actually is.
+      expect(rect['x'], equals(30.0));
+      expect(rect['y'], equals(40.0));
+      expect(rect['width'], equals(100.0));
+      expect(rect['height'], equals(50.0));
+    });
+
+    testWidgets('offsets a sub-rect by the ref origin',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const Align(
+          alignment: Alignment.topLeft,
+          child: Padding(
+            padding: EdgeInsets.only(left: 30, top: 40),
+            child: SizedBox(width: 100, height: 50, child: Placeholder()),
+          ),
+        ),
+      );
+
+      final Element element = tester.element(find.byType(Placeholder));
+      final String ref = RefRegistry.register(
+        rect: const Rect.fromLTWH(0, 0, 1, 1),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final developer.ServiceExtensionResponse response =
+          await screenshotHandler(
+        'ext.dusk.screenshot',
+        <String, String>{'ref': ref, 'rect': '5,10,20,15', 'geometry': 'true'},
+      );
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final Map<String, dynamic> rect = decoded['rect'] as Map<String, dynamic>;
+      expect(rect['x'], equals(35.0));
+      expect(rect['y'], equals(50.0));
+      expect(rect['width'], equals(20.0));
+      expect(rect['height'], equals(15.0));
+    });
+
+    testWidgets('errors on an unknown ref instead of guessing a region',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox.expand());
+
+      final developer.ServiceExtensionResponse response =
+          await screenshotHandler(
+        'ext.dusk.screenshot',
+        const <String, String>{'ref': 'e999', 'geometry': 'true'},
+      );
+
+      expect(_isError(response), isTrue);
+      expect(response.errorDetail ?? '', contains('e999'));
+    });
+  });
+
+  group('screenshotHandler — geometry refusals', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('a ref whose render object is not a RenderBox is refused', (
+      WidgetTester tester,
+    ) async {
+      // A sliver has no localToGlobal answer worth clipping to, and a clip
+      // computed from a stale cached rect would crop the wrong region of the
+      // screen while still returning a plausible PNG.
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: CustomScrollView(
+            slivers: <Widget>[
+              SliverToBoxAdapter(child: SizedBox(height: 40)),
+            ],
+          ),
+        ),
+      );
+
+      final Element sliver = tester.element(
+        find.byType(SliverToBoxAdapter, skipOffstage: false),
+      );
+      final String ref = RefRegistry.register(
+        rect: const Rect.fromLTWH(0, 0, 100, 40),
+        element: sliver,
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final developer.ServiceExtensionResponse response =
+          await screenshotHandler(
+        'ext.dusk.screenshot',
+        <String, String>{'ref': ref, 'geometry': 'true'},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, contains('no live rect'));
+    });
+  });
+
+  group('screenshotHandler ref resolution', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('a q-handle resolves, as both surfaces promise it does', (
+      WidgetTester tester,
+    ) async {
+      // The CLI help and the MCP schema both say `ref` takes "an e<N> token
+      // from dusk_snap or a q<N> handle from dusk_find", but the resolver
+      // only ever consulted the e space, so a q handle came back with "not
+      // found in RefRegistry. Call ext.dusk.snapshot first", which is the
+      // wrong recovery for a query handle.
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(child: Text('Capture me')),
+        ),
+      );
+
+      final String ref = RefRegistry.registerQuery(
+        const DuskQuery(text: 'Capture me'),
+      );
+      expect(ref, startsWith('q'));
+
+      final developer.ServiceExtensionResponse response =
+          await screenshotHandler(
+        'ext.dusk.screenshot',
+        <String, String>{'ref': ref, 'geometry': 'true'},
+      );
+
+      expect(
+        response.result,
+        isNotNull,
+        reason: 'q-handle rejected: ${response.errorDetail}',
+      );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['rect'], isA<Map<String, dynamic>>());
+    });
+
+    testWidgets('an unknown ref names both token spaces in the recovery', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final developer.ServiceExtensionResponse response =
+          await screenshotHandler(
+        'ext.dusk.screenshot',
+        const <String, String>{'ref': 'e999', 'geometry': 'true'},
+      );
+
+      expect(response.errorDetail, contains('ext.dusk.find'));
     });
   });
 }

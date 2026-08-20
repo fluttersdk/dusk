@@ -1,5 +1,8 @@
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+import 'json_output.dart';
+
 /// `artisan dusk:select_option --ref=<eN> --value=<string>` — pick an
 /// option from a DropdownButton / PopupMenuButton. Mirrors the
 /// `dusk_select_option` MCP tool surface.
@@ -16,6 +19,7 @@ class DuskSelectOptionCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption(
       'ref',
       help: 'Snapshot ref token of the parent dropdown / popup widget.',
@@ -41,11 +45,13 @@ class DuskSelectOptionCommand extends ArtisanCommand {
       return 1;
     }
 
-    await ctx.callExtension<Map<String, dynamic>>(
+    final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.select_option',
       {'ref': ref, 'value': value},
     );
-    ctx.output.success('Selected "$value" on $ref');
+    reportFrameWarning(ctx, response);
+    emitEnvelope(
+        ctx, response, () => ctx.output.success('Selected "$value" on $ref'));
     return 0;
   }
 }

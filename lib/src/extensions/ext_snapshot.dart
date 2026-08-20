@@ -11,6 +11,7 @@ import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostic
 import '../dusk_error_capture.dart';
 import '../dusk_plugin.dart';
 import '../ref_registry.dart';
+import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
 /// `ext.dusk.snap` — Playwright-MCP-shaped accessibility snapshot.
@@ -78,11 +79,20 @@ Future<developer.ServiceExtensionResponse> duskSnapHandler(
     // act; enricher payload triples snapshot size on rich app pages.
     final bool includeEnrichers =
         (params['includeEnrichers'] ?? 'false') == 'true';
+    // Narrowing. Unset by default: an unfiltered walk stays byte-identical
+    // to what it was.
+    final String? within = params['within'];
+    final bool interactiveOnly = params['interactiveOnly'] == 'true';
+    final String? grep = params['grep'];
+
     final Map<String, dynamic> payload = await duskSnapBuild(
       maxDepth: depth,
       includeEnrichers: includeEnrichers,
+      within: (within != null && within.isNotEmpty) ? within : null,
+      interactiveOnly: interactiveOnly,
+      grep: (grep != null && grep.isEmpty) ? null : grep,
     );
-    return developer.ServiceExtensionResponse.result(jsonEncode(payload));
+    return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.snap error: $e\n$stackTrace',
@@ -106,8 +116,15 @@ Future<developer.ServiceExtensionResponse> duskSnapHandler(
 Future<Map<String, dynamic>> duskSnapBuild({
   int? maxDepth,
   bool includeEnrichers = false,
+  String? within,
+  bool interactiveOnly = false,
+  String? grep,
 }) async {
   final String groupId = 'snapshot-${DateTime.now().microsecondsSinceEpoch}';
+  final _SnapFilter filter = _SnapFilter(
+    interactiveOnly: interactiveOnly,
+    grep: (grep == null || grep.isEmpty) ? null : RegExp(grep),
+  );
   final SemanticsHandle handle = WidgetsBinding.instance.ensureSemantics();
   try {
     final Map<RenderObject, Element> elementByRenderObject =
@@ -120,23 +137,40 @@ Future<Map<String, dynamic>> duskSnapBuild({
     // root-only walk emits an empty buffer. Mirrors the child-walk fix
     // already in place at ext_find.dart for the q-handle re-resolver.
     final StringBuffer buffer = StringBuffer();
-    void walkOwner(PipelineOwner owner) {
-      final SemanticsNode? root = owner.semanticsOwner?.rootSemanticsNode;
-      if (root != null) {
-        _emitNode(
-          node: root,
-          depth: 0,
-          maxDepth: maxDepth,
-          buffer: buffer,
-          groupId: groupId,
-          elementByRenderObject: elementByRenderObject,
-          includeEnrichers: includeEnrichers,
-        );
-      }
-      owner.visitChildren(walkOwner);
-    }
 
-    walkOwner(RendererBinding.instance.rootPipelineOwner);
+    // `within` replaces the root walk outright rather than filtering it: the
+    // caller has already named the subtree, so there is nothing to search.
+    if (within != null && within.isNotEmpty) {
+      _emitNode(
+        node: _resolveWithinNode(within),
+        depth: 0,
+        maxDepth: maxDepth,
+        buffer: buffer,
+        groupId: groupId,
+        elementByRenderObject: elementByRenderObject,
+        includeEnrichers: includeEnrichers,
+        filter: filter,
+      );
+    } else {
+      void walkOwner(PipelineOwner owner) {
+        final SemanticsNode? root = owner.semanticsOwner?.rootSemanticsNode;
+        if (root != null) {
+          _emitNode(
+            node: root,
+            depth: 0,
+            maxDepth: maxDepth,
+            buffer: buffer,
+            groupId: groupId,
+            elementByRenderObject: elementByRenderObject,
+            includeEnrichers: includeEnrichers,
+            filter: filter,
+          );
+        }
+        owner.visitChildren(walkOwner);
+      }
+
+      walkOwner(RendererBinding.instance.rootPipelineOwner);
+    }
 
     // Surface captured non-fatal render/build FlutterErrors (ParentDataWidget
     // misuse, overflow, etc.) directly in the snapshot. A widget that throws at
@@ -170,6 +204,66 @@ Future<Map<String, dynamic>> duskSnapBuild({
   }
 }
 
+/// The three ways a snapshot walk can be narrowed.
+///
+/// A full tree is the wrong default answer to most questions. It costs
+/// context on a large screen, and on a shell whose sidebar repeats the
+/// labels of the pages it opens it actively misleads: an unscoped lookup
+/// resolves the nav item and the caller concludes two pages differ.
+@immutable
+final class _SnapFilter {
+  const _SnapFilter({required this.interactiveOnly, required this.grep});
+
+  /// Emit only nodes that carry a ref (button, textbox, link, header,
+  /// image, anything with a tap action). Plain `- text` lines are dropped.
+  final bool interactiveOnly;
+
+  /// Emit only nodes whose own label or value matches, plus every ancestor
+  /// on the path to one. Ancestors are kept because they carry the refs an
+  /// agent acts on: a matching `- text` line has none of its own.
+  final RegExp? grep;
+}
+
+/// True when [node] or any node beneath it matches [pattern].
+bool _subtreeMatches(SemanticsNode node, RegExp pattern) {
+  final SemanticsData data = node.getSemanticsData();
+  if (pattern.hasMatch(data.label) || pattern.hasMatch(data.value)) {
+    return true;
+  }
+  bool found = false;
+  node.visitChildren((SemanticsNode child) {
+    if (found) return false;
+    found = _subtreeMatches(child, pattern);
+    return !found;
+  });
+  return found;
+}
+
+/// Resolves the `within` ref to the semantics node its subtree starts at.
+///
+/// Throws [StateError] when the ref is unknown or carries no node: falling
+/// back to the whole tree would answer a different question than the one
+/// asked, silently.
+SemanticsNode _resolveWithinNode(String ref) {
+  final RefEntry? entry = RefRegistry.lookup(ref);
+  if (entry == null) {
+    throw StateError(
+      'duskSnapBuild: within ref "$ref" not found. Take it from the ref '
+      'tokens of a prior snapshot; q<N> query handles are not addressable '
+      'here (they re-resolve per action and have no fixed subtree).',
+    );
+  }
+  final SemanticsNode? node = entry.node;
+  if (node == null) {
+    throw StateError(
+      'duskSnapBuild: within ref "$ref" carries no semantics node, so it '
+      'has no subtree to scope to. Re-snapshot and use a ref from that '
+      'output.',
+    );
+  }
+  return node;
+}
+
 Map<RenderObject, Element> _buildElementByRenderObject() {
   final Map<RenderObject, Element> index = <RenderObject, Element>{};
   final Element? root = WidgetsBinding.instance.rootElement;
@@ -195,6 +289,7 @@ void _emitNode({
   required String groupId,
   required Map<RenderObject, Element> elementByRenderObject,
   required bool includeEnrichers,
+  _SnapFilter filter = const _SnapFilter(interactiveOnly: false, grep: null),
   RenderObject? enclosingTextboxRenderObject,
 }) {
   if (maxDepth != null && depth > maxDepth) return;
@@ -204,6 +299,12 @@ void _emitNode({
   final String value = data.value;
   final String? role = _roleFor(data);
   final bool interactive = _isInteractive(data);
+
+  // A filtered-out node still descends: a match can live below it, and the
+  // depth it passes down is its own, so the surviving lines close up rather
+  // than sitting at the indentation of a parent that is no longer printed.
+  final bool onGrepPath =
+      filter.grep == null || _subtreeMatches(node, filter.grep!);
 
   // The render object threaded into the children walk for the next textbox
   // containment check. Defaults to the value received from the parent; an
@@ -237,6 +338,7 @@ void _emitNode({
           groupId: groupId,
           elementByRenderObject: elementByRenderObject,
           includeEnrichers: includeEnrichers,
+          filter: filter,
           enclosingTextboxRenderObject: enclosingTextboxRenderObject,
         );
         return true;
@@ -244,7 +346,7 @@ void _emitNode({
       return;
     }
 
-    if (renderObject != null && element != null) {
+    if (renderObject != null && element != null && onGrepPath) {
       final Rect rect = _globalRectFor(renderObject);
       final String token = RefRegistry.register(
         rect: rect,
@@ -321,7 +423,9 @@ void _emitNode({
 
       childDepth = depth + 1;
     }
-  } else if (label.isNotEmpty || value.isNotEmpty) {
+  } else if ((label.isNotEmpty || value.isNotEmpty) &&
+      !filter.interactiveOnly &&
+      onGrepPath) {
     final String textValue = value.isNotEmpty ? value : label;
     buffer.writeln('${_indent(depth)}- text "${_escape(textValue)}"');
     childDepth = depth + 1;
@@ -336,6 +440,7 @@ void _emitNode({
       groupId: groupId,
       elementByRenderObject: elementByRenderObject,
       includeEnrichers: includeEnrichers,
+      filter: filter,
       enclosingTextboxRenderObject: childEnclosingTextbox,
     );
     return true;

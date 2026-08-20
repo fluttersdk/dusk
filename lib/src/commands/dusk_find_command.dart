@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import 'frame_warning_output.dart';
+
 /// `artisan dusk:find [--text=...] [--semanticsLabel=...] [--key=...]` —
 /// mint a re-resolvable `q<N>` handle backed by the supplied predicates.
 /// Mirrors the `dusk_find` MCP tool surface (Playwright Locator
@@ -37,6 +39,12 @@ class DuskFindCommand extends ArtisanCommand {
       'key',
       help: 'Match the widget\'s ValueKey identifier.',
     );
+    parser.addOption(
+      'within',
+      help: 'Evaluate the predicates inside one subtree: the e<N> ref of '
+          'the region to search. Reach for it when a label repeats across '
+          'the shell, which a sidebar and the page it opens usually do.',
+    );
   }
 
   @override
@@ -53,6 +61,8 @@ class DuskFindCommand extends ArtisanCommand {
     }
     if (keyValue != null && keyValue.isNotEmpty) params['key'] = keyValue;
 
+    // Checked for emptiness BEFORE `within` joins the map: a scope is not a
+    // predicate, so `--within` alone is still a usage error.
     if (params.isEmpty) {
       ctx.output.error(
         'Provide at least one of --text / --contains / --semanticsLabel / --key.',
@@ -60,10 +70,14 @@ class DuskFindCommand extends ArtisanCommand {
       return 1;
     }
 
+    final within = ctx.input.option('within') as String?;
+    if (within != null && within.isNotEmpty) params['within'] = within;
+
     final result = await ctx.callExtension<Map<String, dynamic>>(
       'ext.dusk.find',
       params,
     );
+    reportFrameWarning(ctx, result);
     ctx.output.writeln(const JsonEncoder.withIndent('  ').convert(result));
     return 0;
   }
