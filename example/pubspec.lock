@@ -116,13 +116,12 @@ packages:
     source: sdk
     version: "0.0.0"
   fluttersdk_artisan:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: fluttersdk_artisan
-      sha256: c439ab7cdc9c7341c423e31b0fa1d303133d401e2aa0ab2e516086eb7fc7be5f
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.0.9"
+      path: "../../artisan"
+      relative: true
+    source: path
+    version: "0.0.10"
   fluttersdk_dusk:
     dependency: "direct main"
     description:
@@ -131,12 +130,11 @@ packages:
     source: path
     version: "0.0.9"
   fluttersdk_wind_diagnostics_contracts:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: fluttersdk_wind_diagnostics_contracts
-      sha256: "5d6b324dc334da9ab0b4b4703a551af5b080c4f659f57209a5516cf94e04f1f1"
-      url: "https://pub.dev"
-    source: hosted
+      path: "../../wind_diagnostics_contracts"
+      relative: true
+    source: path
     version: "1.0.0"
   image:
     dependency: transitive
@@ -190,10 +188,10 @@ packages:
     dependency: transitive
     description:
       name: matcher
-      sha256: dc0b7dc7651697ea4ff3e69ef44b0407ea32c487a39fff6a4004fa585e901861
+      sha256: "31bd099b47c10cd1aeb55146a2d46ce0277630ecef3f7dae54ad7873f36696cd"
       url: "https://pub.dev"
     source: hosted
-    version: "0.12.19"
+    version: "0.12.20"
   material_color_utilities:
     dependency: transitive
     description:
@@ -206,10 +204,10 @@ packages:
     dependency: transitive
     description:
       name: meta
-      sha256: "1741988757a65eb6b36abe716829688cf01910bbf91c34354ff7ec1c3de2b349"
+      sha256: "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9"
       url: "https://pub.dev"
     source: hosted
-    version: "1.18.0"
+    version: "1.19.0"
   path:
     dependency: transitive
     description:
@@ -291,10 +289,10 @@ packages:
     dependency: transitive
     description:
       name: test_api
-      sha256: "949a932224383300f01be9221c39180316445ecb8e7547f70a41a35bf421fb9e"
+      sha256: "2a122cbe059f8b610d3a5415f42e255b6c17b1f21eee1d960f31080237fb4f11"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.11"
+    version: "0.7.12"
   typed_data:
     dependency: transitive
     description:
@@ -307,10 +305,10 @@ packages:
     dependency: transitive
     description:
       name: vector_math
-      sha256: d530bd74fea330e6e364cda7a85019c434070188383e1cd8d9777ee586914c5b
+      sha256: f36f9f3be64c6198714492bb455c11056e33e2f85d9a0b676a48301e44fdcf47
       url: "https://pub.dev"
     source: hosted
-    version: "2.2.0"
+    version: "2.4.2"
   vm_service:
     dependency: transitive
     description:
@@ -345,4 +343,4 @@ packages:
     version: "2.2.4"
 sdks:
   dart: ">=3.12.0 <4.0.0"
-  flutter: ">=3.27.0"
+  flutter: ">=3.22.0"

@@ -554,7 +554,18 @@ class DuskDoctorCommand extends ArtisanCommand {
     }
 
     final String here = currentDirectoryProbe();
-    if (_isWithinProject(here, recorded)) {
+    // artisan's own rule, not a second copy of it. The doctor used to
+    // compare the two paths for equality while `sessionOwnershipError`
+    // compares is-within, so a caller standing in a subdirectory was told
+    // the session belonged to somebody else while every artisan command
+    // happily drove it. Two tools disagreeing about one state file is worse
+    // than either answer alone.
+    if (sessionOwnershipError(
+          state: state,
+          workingDirectory: here,
+          explicitStatePath: StateFile.explicitPath(),
+        ) ==
+        null) {
       ctx.output.success('$label: state.json describes this project');
       return;
     }
@@ -628,37 +639,6 @@ class DuskDoctorCommand extends ArtisanCommand {
       '${webPort == null ? "this run" : ":$webPort"}'
       '${report.hidden == false ? ", page visible" : ""}',
     );
-  }
-
-  /// Whether [here] is [recorded] or sits beneath it.
-  ///
-  /// IS-WITHIN, not equality: running from `backend/` or a package
-  /// subdirectory is normal, and artisan's own `sessionOwnershipError` lets
-  /// it through. Comparing exactly made the doctor warn about a session
-  /// artisan itself considers this project's.
-  ///
-  /// Duplicated from artisan rather than imported because
-  /// `sessionOwnershipError` is not in the published `fluttersdk_artisan`
-  /// this package resolves against; fold the two together at the next
-  /// coordinated bump.
-  ///
-  /// Trailing separators and symlinks are normalised first: a git worktree
-  /// checkout is routinely a symlink and would otherwise read as a mismatch
-  /// on an identical directory.
-  static bool _isWithinProject(String here, String recorded) {
-    String normalise(String raw) {
-      final String trimmed =
-          raw.endsWith(Platform.pathSeparator) && raw.length > 1
-              ? raw.substring(0, raw.length - 1)
-              : raw;
-      final Directory dir = Directory(trimmed);
-      return dir.existsSync() ? dir.resolveSymbolicLinksSync() : trimmed;
-    }
-
-    final String child = normalise(here);
-    final String parent = normalise(recorded);
-    return child == parent ||
-        child.startsWith('$parent${Platform.pathSeparator}');
   }
 
   /// Reads an int from a state field, tolerating `int`, `num`, or a numeric
