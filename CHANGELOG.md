@@ -6,6 +6,18 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **A `--within` scope ref that no longer lived was walked anyway, and answered.** Registry membership is not liveness: nothing calls `disposeGroup` in production, so a token outlives the widget it was minted from, and both a detached `SemanticsNode` and a defunct `Element` still answer their visit methods. `dusk:snap --within=<stale ref>` therefore returned an EMPTY tree, which an agent reads as "this region is empty" rather than "your ref is stale", and `dusk:find --within=<stale ref>` returned a match from the screen that had already been replaced. Both now check `SemanticsNode.attached` and `Element.mounted` and report the ref as no longer resolving. Touches `lib/src/extensions/ext_snapshot.dart`, `lib/src/extensions/ext_find.dart`.
+
+- **`ext.dusk.select_option` echoed the value it was handed back to the caller.** `{selected: true, value: <requested>}` is the request, not the result, which is the exact pattern the `effect` block was introduced to kill and the one verb it had not reached. A dropdown whose parent refuses the change kept its old value and still reported a clean success. It now re-reads the control after the frame and returns `effect: {kind: 'selected', verified, value}`, resolving the ref again rather than reusing a `BuildContext` from before the await. Touches `lib/src/extensions/ext_scroll.dart`, `lib/src/utils/effect_report.dart`.
+
+### Documentation
+
+- **The CDP clip docblock described the opposite of what the code does.** It claimed `scale: 1` "keeps the output at the page's own device pixel ratio"; it keeps it at CSS resolution. Measured against this package's example under `dusk:device --preset=ipad-pro-12.9` (1024x1366 @ 2.0x): full frame 1024x1266, clipped 992x32, both CSS. No code change: an unclipped `Page.captureScreenshot` returns CSS resolution too, so the two paths agree and a caller switching between them gets one scale. The measurement is recorded in the docblock so the next reader does not re-derive it.
+
 ## [0.0.10] - 2026-08-20
 
 ### Added

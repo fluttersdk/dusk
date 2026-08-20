@@ -261,6 +261,19 @@ SemanticsNode _resolveWithinNode(String ref) {
       'output.',
     );
   }
+  // Membership in the registry is not liveness. Nothing calls disposeGroup
+  // in production, so a token outlives the widget it was minted from, and a
+  // detached SemanticsNode still answers visitChildren: scoping to one
+  // walked a subtree that is no longer on screen and returned an EMPTY tree
+  // with no error, which an agent reads as "this region is empty" rather
+  // than "your ref is stale".
+  if (!node.attached || !entry.element.mounted) {
+    throw StateError(
+      'duskSnapBuild: within ref "$ref" no longer resolves; the widget it '
+      'named has left the tree. Re-snapshot and scope to a ref from that '
+      'output.',
+    );
+  }
   return node;
 }
 

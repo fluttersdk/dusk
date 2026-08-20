@@ -628,4 +628,92 @@ void main() {
       expect(effect['changed'], isTrue);
     });
   });
+
+  group('aiTestSelectOptionHandler effect', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets('reports the value the dropdown settled on', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: _StatefulDropdown()));
+
+      final Future<developer.ServiceExtensionResponse> future =
+          aiTestSelectOptionHandler(
+        'ext.dusk.select_option',
+        const <String, String>{'value': 'two'},
+      );
+      for (int i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final Map<String, dynamic> decoded =
+          jsonDecode((await future).result!) as Map<String, dynamic>;
+
+      final Map<String, dynamic> effect =
+          decoded['effect'] as Map<String, dynamic>;
+      expect(effect['kind'], equals('selected'));
+      expect(effect['verified'], isTrue);
+      expect(effect['value'], equals('two'));
+    });
+
+    testWidgets('reports verified:false when the app rejects the change', (
+      WidgetTester tester,
+    ) async {
+      // The whole point of the block: `selected: true, value: two` was the
+      // request echoed back, so a control whose parent refuses the change
+      // reported a clean success and changed nothing.
+      await tester.pumpWidget(
+        const MaterialApp(home: _StatefulDropdown(accept: false)),
+      );
+
+      final Future<developer.ServiceExtensionResponse> future =
+          aiTestSelectOptionHandler(
+        'ext.dusk.select_option',
+        const <String, String>{'value': 'two'},
+      );
+      for (int i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final Map<String, dynamic> decoded =
+          jsonDecode((await future).result!) as Map<String, dynamic>;
+
+      final Map<String, dynamic> effect =
+          decoded['effect'] as Map<String, dynamic>;
+      expect(effect['verified'], isFalse);
+      expect(effect['value'], equals('one'), reason: 'it never moved');
+    });
+  });
+}
+
+/// A dropdown that actually rebuilds on selection, so the widget's `value`
+/// reflects what it settled on. With [accept] false it swallows the change,
+/// which is the control-rejects-the-write case the effect block exists for.
+class _StatefulDropdown extends StatefulWidget {
+  const _StatefulDropdown({this.accept = true});
+
+  final bool accept;
+
+  @override
+  State<_StatefulDropdown> createState() => _StatefulDropdownState();
+}
+
+class _StatefulDropdownState extends State<_StatefulDropdown> {
+  String _value = 'one';
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: DropdownButton<String>(
+        value: _value,
+        items: const <DropdownMenuItem<String>>[
+          DropdownMenuItem<String>(value: 'one', child: Text('One')),
+          DropdownMenuItem<String>(value: 'two', child: Text('Two')),
+        ],
+        onChanged: (String? v) {
+          if (!widget.accept || v == null) return;
+          setState(() => _value = v);
+        },
+      ),
+    );
+  }
 }

@@ -175,7 +175,15 @@ RefEntry? resolveQuery(DuskQuery query) {
   SemanticsNode? scopeNode;
   if (query.withinRef != null) {
     final RefEntry? scope = RefRegistry.lookup(query.withinRef!);
-    if (scope == null) {
+    // Membership in the registry is not liveness: nothing calls disposeGroup
+    // in production, so a token outlives the widget it names. A stale scope
+    // used to pass this guard and then have its detached subtree walked,
+    // which still matches, so the caller got a hit from a screen that is no
+    // longer there.
+    final bool live = scope != null &&
+        scope.element.mounted &&
+        (scope.node?.attached ?? true);
+    if (!live) {
       return (
         null,
         0,
