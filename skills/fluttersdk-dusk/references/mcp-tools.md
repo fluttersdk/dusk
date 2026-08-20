@@ -212,7 +212,7 @@ Semantics tree on every action. Playwright Locator equivalent.
 | `contains` | string | Substring match (looser; use when label is dynamic) |
 | `semanticsLabel` | string | Exact match on `Semantics(label: ...)` only, ignores Text widgets |
 | `key` | string | Stringified widget Key (`Key('login-submit')`) |
-| `within` | string | `e<N>` ref of the subtree to search in. Becomes part of the handle, so the scope survives every re-resolve |
+| `within` | string | `e<N>` ref of the subtree to search in. Becomes part of the handle, so the scope survives every re-resolve. Use a ref from `dusk_snap`: one minted by `dusk_wait` carries no semantics node and is refused for `semanticsLabel` |
 
 **Returns.** `{ ref: "q3", matched: true }` or `{ ref: null, matched: false }`.
 

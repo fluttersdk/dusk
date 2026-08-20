@@ -28,6 +28,29 @@ Widget _shell() {
   );
 }
 
+/// Same two regions, with a keyed row and a distinctive substring parked in
+/// the sidebar only, so a scope that fails to bind still finds them.
+Widget _keyedShell() {
+  return const MaterialApp(
+    home: Scaffold(
+      body: Row(
+        children: <Widget>[
+          _Region(
+            label: 'sidebar',
+            child: Column(
+              children: <Widget>[
+                SizedBox(key: Key('sidebar-row'), width: 10, height: 10),
+                Text('Sidebar copy here'),
+              ],
+            ),
+          ),
+          _Region(label: 'content', child: _Button(label: 'Monitors')),
+        ],
+      ),
+    ),
+  );
+}
+
 class _Region extends StatelessWidget {
   const _Region({required this.label, required this.child});
 
@@ -140,6 +163,121 @@ void main() {
           jsonDecode(response.result!) as Map<String, dynamic>;
       expect(decoded['matched'], isFalse);
       expect(decoded['diagnostic'], contains('e999'));
+    });
+
+    testWidgets('a scope with no semantics node does not widen to the tree', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(_shell());
+
+      // `find_by_text` mints an element-only entry (ext_wait_find.dart:433
+      // registers without a `node`), so a ref taken from a `dusk:wait`
+      // result arrives here carrying no semantics node. The scope still has
+      // to hold: falling back to a whole-tree semantics walk would answer a
+      // different question than the caller asked, and answer it plausibly.
+      final Element scope = tester.element(find.byType(Scaffold));
+      final String ref = RefRegistry.register(
+        rect: const Rect.fromLTWH(0, 0, 300, 40),
+        element: scope,
+        groupId: 'element-only',
+        isTextField: false,
+      );
+
+      final developer.ServiceExtensionResponse response =
+          await extDuskFindHandler(
+        'ext.dusk.find',
+        <String, String>{'semanticsLabel': 'Monitors', 'within': ref},
+      );
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['matched'], isFalse);
+      expect(decoded['diagnostic'], contains('no semantics node'));
+    });
+
+    testWidgets('a text scope with no semantics node still searches elements', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Row(
+              children: <Widget>[
+                SizedBox(width: 300, child: Text('Monitors')),
+                SizedBox(width: 300, child: Text('Uptime')),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // The semantics leg is unusable without a scope node, but the element
+      // leg is scoped by the entry's element, so a text lookup still has a
+      // correct answer to give rather than a refusal.
+      final Element scope = tester.element(find.text('Uptime').first);
+      final String ref = RefRegistry.register(
+        rect: const Rect.fromLTWH(0, 0, 300, 40),
+        element: scope,
+        groupId: 'element-only',
+        isTextField: false,
+      );
+
+      final developer.ServiceExtensionResponse hit = await extDuskFindHandler(
+        'ext.dusk.find',
+        <String, String>{'text': 'Uptime', 'within': ref},
+      );
+      expect(
+        (jsonDecode(hit.result!) as Map<String, dynamic>)['matched'],
+        isTrue,
+      );
+
+      final developer.ServiceExtensionResponse miss = await extDuskFindHandler(
+        'ext.dusk.find',
+        <String, String>{'text': 'Monitors', 'within': ref},
+      );
+      expect(
+        (jsonDecode(miss.result!) as Map<String, dynamic>)['matched'],
+        isFalse,
+        reason: 'Monitors sits outside the scoped element subtree',
+      );
+    });
+
+    testWidgets('within bounds a key lookup', (WidgetTester tester) async {
+      await tester.pumpWidget(_keyedShell());
+
+      final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+      final String contentRef = _refFor(snapshot, 'content');
+
+      final developer.ServiceExtensionResponse response =
+          await extDuskFindHandler(
+        'ext.dusk.find',
+        <String, String>{'key': 'sidebar-row', 'within': contentRef},
+      );
+
+      expect(
+        (jsonDecode(response.result!) as Map<String, dynamic>)['matched'],
+        isFalse,
+        reason: 'the key lives in the sidebar, outside the named scope',
+      );
+    });
+
+    testWidgets('within bounds a contains lookup', (WidgetTester tester) async {
+      await tester.pumpWidget(_keyedShell());
+
+      final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+      final String contentRef = _refFor(snapshot, 'content');
+
+      final developer.ServiceExtensionResponse response =
+          await extDuskFindHandler(
+        'ext.dusk.find',
+        <String, String>{'contains': 'Sidebar copy', 'within': contentRef},
+      );
+
+      expect(
+        (jsonDecode(response.result!) as Map<String, dynamic>)['matched'],
+        isFalse,
+        reason: 'the substring only appears in the sidebar',
+      );
     });
   });
 }
