@@ -13,7 +13,7 @@ import '../utils/chrome_reaper.dart';
 /// screenshot that comes back byte-identical every time tells you nothing
 /// about which of them went wrong.
 @immutable
-class DuskCdpSessionReport {
+final class DuskCdpSessionReport {
   /// Builds a report. [reachable] false means the port refused entirely;
   /// the remaining fields are then meaningless.
   const DuskCdpSessionReport({
@@ -151,7 +151,7 @@ class DuskDoctorCommand extends ArtisanCommand {
   /// Resolves the directory the command is running from, compared against
   /// `state.json`'s `projectRoot` to catch a session that belongs to a
   /// sibling project.
-  static String Function() currentDirectoryProbe = _defaultCurrentDirectory;
+  static String Function() currentDirectoryProbe = defaultCurrentDirectory;
 
   /// Probes the recorded CDP port. Returns null when the probe itself could
   /// not run, which downgrades the check to a skip rather than inventing a
@@ -160,17 +160,24 @@ class DuskDoctorCommand extends ArtisanCommand {
   /// [webPort] identifies which page belongs to this run; the visibility
   /// read targets that page rather than whichever tab Chrome lists first.
   static Future<DuskCdpSessionReport?> Function(int port, int? webPort)
-      cdpSessionProbe = _defaultCdpSessionProbe;
+      cdpSessionProbe = defaultCdpSessionProbe;
 
-  static String _defaultCurrentDirectory() => Directory.current.path;
+  /// Production probe, and the value tests restore [currentDirectoryProbe]
+  /// to. A reset that rebuilds the same closure by hand leaves the real one
+  /// unexercised, which is how a seam drifts from its default unnoticed.
+  static String defaultCurrentDirectory() => Directory.current.path;
 
-  /// Production probe: one HTTP call for the tab list, one WebSocket for
+  /// Production probe, and the value tests restore [cdpSessionProbe] to.
+  /// Public for the same reason [CdpClient.defaultHttpGet] is: a seam a test
+  /// swaps needs a named default to swap back.
+  ///
+  /// One HTTP call for the tab list, one WebSocket for
   /// `document.hidden` on the tab that belongs to this run.
   ///
   /// A refused port is a RESULT here, not an error to propagate: "the port
   /// is dead" is exactly what the check reports, and turning it into a
   /// thrown exception would make the doctor fail instead of diagnose.
-  static Future<DuskCdpSessionReport?> _defaultCdpSessionProbe(
+  static Future<DuskCdpSessionReport?> defaultCdpSessionProbe(
     int port,
     int? webPort,
   ) async {

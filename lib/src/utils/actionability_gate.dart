@@ -33,7 +33,7 @@ enum ReceivesEvents {
 /// carries the other half: what it could not prove either way, so a caller
 /// never reads a clean pass as a confirmation the gate never made.
 @immutable
-class ActionabilityReport {
+final class ActionabilityReport {
   /// Builds a report.
   const ActionabilityReport({
     required this.receivesEvents,
@@ -77,6 +77,13 @@ class ActionabilityReport {
 
 /// Guards an action tool against firing on a widget that cannot accept the
 /// action.
+///
+/// Returns an [ActionabilityReport] describing what the gate could NOT
+/// establish, which is the half a thrown exception cannot carry. Check 5 is
+/// the only one that can pass without proving anything (see
+/// [ReceivesEvents]), so the report is effectively its outcome; callers
+/// stamp `report.toPayload()` onto the response under `checks` and it is
+/// null on the fully-confirmed path.
 ///
 /// Throws [DuskActionabilityException] when ANY of the following hold (checked
 /// in this exact order; agents branch on the substring inside [reason]):
@@ -349,15 +356,12 @@ Future<ActionabilityReport> ensureActionableForViews(
 }
 
 /// Recognises the framework-level RenderView wrappers that legitimately
-/// sit at the top of every Flutter hit-test path. The class names are
-/// matched on `runtimeType` so the gate stays portable across the
-/// `RenderView` (mobile + desktop) and `_ReusableRenderView` (web debug
-/// build) variants without taking a hard import on the private symbol.
+/// sit at the top of every Flutter hit-test path: `RenderView` on mobile and
+/// desktop, `_ReusableRenderView` in the web debug build. The suffix is
+/// matched on `runtimeType` rather than importing the private symbol, so the
+/// gate stays portable across both.
 bool _isRootRenderView(HitTestTarget target) {
-  final String name = target.runtimeType.toString();
-  return name == 'RenderView' ||
-      name == '_ReusableRenderView' ||
-      name.endsWith('RenderView');
+  return target.runtimeType.toString().endsWith('RenderView');
 }
 
 /// Re-resolves the live global-coordinate bounding rect of [entry]'s element,

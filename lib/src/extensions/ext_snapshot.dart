@@ -211,7 +211,7 @@ Future<Map<String, dynamic>> duskSnapBuild({
 /// labels of the pages it opens it actively misleads: an unscoped lookup
 /// resolves the nav item and the caller concludes two pages differ.
 @immutable
-class _SnapFilter {
+final class _SnapFilter {
   const _SnapFilter({required this.interactiveOnly, required this.grep});
 
   /// Emit only nodes that carry a ref (button, textbox, link, header,
@@ -222,8 +222,6 @@ class _SnapFilter {
   /// on the path to one. Ancestors are kept because they carry the refs an
   /// agent acts on: a matching `- text` line has none of its own.
   final RegExp? grep;
-
-  bool get isActive => interactiveOnly || grep != null;
 }
 
 /// True when [node] or any node beneath it matches [pattern].
