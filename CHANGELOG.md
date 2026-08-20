@@ -6,7 +6,7 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ---
 
-## [Unreleased]
+## [0.0.10] - 2026-08-20
 
 ### Added
 
@@ -309,7 +309,9 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.8...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.10...HEAD
+[0.0.10]: https://github.com/fluttersdk/dusk/compare/0.0.9...0.0.10
+[0.0.9]: https://github.com/fluttersdk/dusk/compare/0.0.8...0.0.9
 [0.0.8]: https://github.com/fluttersdk/dusk/compare/0.0.7...0.0.8
 [0.0.7]: https://github.com/fluttersdk/dusk/compare/0.0.6...0.0.7
 [0.0.6]: https://github.com/fluttersdk/dusk/compare/0.0.5...0.0.6
