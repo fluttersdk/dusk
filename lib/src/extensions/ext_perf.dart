@@ -36,7 +36,6 @@ final class _PerfSession {
   _PerfSession({
     required this.token,
     required this.phases,
-    required this.livenessBaseline,
     required this.priorCollectionEnabled,
     required this.priorProfileBuilds,
     required this.priorProfileUserWidgets,
@@ -49,7 +48,17 @@ final class _PerfSession {
 
   /// The liveness counter as it read at `perf_begin`. `perf_end` reports
   /// rather than refuses only when the counter has moved past this.
-  final int livenessBaseline;
+  ///
+  /// Mutable, and set after the session is already installed in [_session].
+  /// Reading it means calling `framePerfReader`, which is assigned in another
+  /// package and can therefore throw; if the session only came into existence
+  /// after that call, a throw would leave the profiling flags switched on with
+  /// nothing holding their prior values, and no `perf_end` could ever put them
+  /// back. The session has to exist before anything that can fail.
+  ///
+  /// Zero until that read succeeds, which is the safe direction: a session
+  /// stranded at zero refuses rather than reports.
+  int livenessBaseline = 0;
 
   // The five flags this session touches, as they read BEFORE it touched
   // them. Restoring these values rather than forcing `false` is deliberate:
@@ -157,6 +166,24 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
     final bool priorProfileLayouts = debugProfileLayoutsEnabled;
     final bool priorProfilePaints = debugProfilePaintsEnabled;
 
+    // 4. Install the session BEFORE touching a single flag. Everything below
+    //    can throw: two of the calls are function pointers another package
+    //    assigns, and a throw between the flag writes and the session's
+    //    creation would strand profiling switched on with nowhere to read its
+    //    prior values from. `perf_end` would then have no session to restore,
+    //    and only a hot restart would clear it. The session is the receipt for
+    //    the flags, so it has to exist before they change.
+    final _PerfSession session = _PerfSession(
+      token: 'perf-${++_sessionCounter}',
+      phases: phases,
+      priorCollectionEnabled: priorCollectionEnabled,
+      priorProfileBuilds: priorProfileBuilds,
+      priorProfileUserWidgets: priorProfileUserWidgets,
+      priorProfileLayouts: priorProfileLayouts,
+      priorProfilePaints: priorProfilePaints,
+    );
+    _session = session;
+
     FlutterTimeline.debugCollectionEnabled = true;
     // Builds live in package:flutter/widgets.dart, layouts and paints in
     // package:flutter/rendering.dart. Two libraries, one session.
@@ -167,23 +194,12 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
       debugProfilePaintsEnabled = true;
     }
 
-    // 4. Zero the counters dusk cannot reach itself, then read the baseline
+    // 5. Zero the counters dusk cannot reach itself, then read the baseline
     //    the refusal is judged against. Reading after the hook keeps the
     //    baseline on the same side of the reset as everything else.
     perfSessionBeginHook();
     final int livenessBaseline = _asInt(framePerfReader()['livenessCounter']);
-
-    final _PerfSession session = _PerfSession(
-      token: 'perf-${++_sessionCounter}',
-      phases: phases,
-      livenessBaseline: livenessBaseline,
-      priorCollectionEnabled: priorCollectionEnabled,
-      priorProfileBuilds: priorProfileBuilds,
-      priorProfileUserWidgets: priorProfileUserWidgets,
-      priorProfileLayouts: priorProfileLayouts,
-      priorProfilePaints: priorProfilePaints,
-    );
-    _session = session;
+    session.livenessBaseline = livenessBaseline;
 
     return duskResult(<String, dynamic>{
       'sessionToken': session.token,
@@ -358,8 +374,14 @@ void _closeSession(_PerfSession session) {
   debugProfileBuildsEnabledUserWidgets = session.priorProfileUserWidgets;
   debugProfileLayoutsEnabled = session.priorProfileLayouts;
   debugProfilePaintsEnabled = session.priorProfilePaints;
-  perfSessionEndHook();
+  // Session dropped BEFORE the host hook runs. That hook is assigned in
+  // another repository and can throw; from `perf_end`'s `finally` a throw
+  // would replace the response and cross the VM Service boundary, which this
+  // package never does, and it would leave a session that a later
+  // `perf_begin` would report as restarted when it had already been closed.
+  // The flags are back either way, which is the part that cannot be deferred.
   _session = null;
+  perfSessionEndHook();
 }
 
 /// The frame list out of a [framePerfReader] result.

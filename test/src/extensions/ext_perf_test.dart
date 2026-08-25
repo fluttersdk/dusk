@@ -278,6 +278,32 @@ void main() {
       expect(payload.containsKey('magic'), isFalse);
     });
 
+    test('a throwing begin hook still leaves a session that can restore the '
+        'flags', () async {
+      // `perfSessionBeginHook` and `framePerfReader` are both assigned in
+      // another package, so both can throw. If the session were only created
+      // after them, a throw would strand profiling switched on with nothing
+      // holding the prior values and no session for perf_end to restore from:
+      // unrecoverable short of a hot restart, and a direct violation of the
+      // plan's "do not leave the profile flags on" rule.
+      FlutterTimeline.debugCollectionEnabled = false;
+      debugProfileBuildsEnabled = false;
+      perfSessionBeginHook = () => throw StateError('host wiring is broken');
+
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+
+      // The flags are on right now, which is exactly why the session must
+      // exist: perf_end is what puts them back.
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      expect(payload.containsKey('sessionToken'), isTrue);
+      expect(FlutterTimeline.debugCollectionEnabled, isFalse);
+      expect(debugProfileBuildsEnabled, isFalse);
+      expect(debugProfileBuildsEnabledUserWidgets, isFalse);
+    });
+
     test('refuses when the counter advanced by exactly one, which is what a '
         'backgrounded page produces', () async {
       // Measured, not hypothesised. Driving a scroll against a hidden Chrome
