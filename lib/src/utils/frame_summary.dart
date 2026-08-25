@@ -44,8 +44,18 @@ Map<String, Object?> summarizeFramePerf(
   final List<int> rasterMicros = frames
       .map((Map<String, Object?> f) => _micros(f['rasterMicros']))
       .toList();
+  // Dropped ENTRIES, not zeroed ones. `buildMicros` and `rasterMicros` degrade
+  // gracefully at 0, because a missing duration reads as a frame that cost
+  // nothing. A sequence POSITION does not: `_droppedFrameCount` derives its
+  // answer from gaps between consecutive numbers, so substituting 0 for a
+  // missing frame number manufactures a gap the size of the number before it.
+  // One malformed row mid-session reported 101 drops against a truth of 1,
+  // and that is the metric an agent reads to decide whether the app is janky.
+  // A row with no usable position simply leaves the sequence.
   final List<int> frameNumbers = frames
-      .map((Map<String, Object?> f) => _micros(f['frameNumber']))
+      .map((Map<String, Object?> f) => f['frameNumber'])
+      .whereType<num>()
+      .map((num n) => n.toInt())
       .toList();
 
   final List<int> sortedBuildMicros = List<int>.from(buildMicros)..sort();

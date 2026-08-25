@@ -203,6 +203,35 @@ void main() {
       expect(summary['worst_frame_build_time_millis'], 8.0);
     });
 
+    test('a null frameNumber mid-sequence does not manufacture drops', () {
+      // The single-element version of this test could not show the bug: with
+      // no adjacent pair there is no gap to compute. Zeroing a sequence
+      // POSITION is not the graceful degradation that zeroing a duration is,
+      // and this reported 101 drops against a truth of 1 before the fix.
+      final Map<String, Object?> summary = summarizeFramePerf(
+        <Map<String, Object?>>[
+          <String, Object?>{
+            'frameNumber': 100,
+            'buildMicros': 1000,
+            'rasterMicros': 500,
+          },
+          <String, Object?>{
+            'frameNumber': null,
+            'buildMicros': 1000,
+            'rasterMicros': 500,
+          },
+          <String, Object?>{
+            'frameNumber': 102,
+            'buildMicros': 1000,
+            'rasterMicros': 500,
+          },
+        ],
+      );
+
+      expect(summary['dropped_frame_count'], 1);
+      expect(summary['frame_count'], 3);
+    });
+
     test('a frame with a null frameNumber does not throw', () {
       final Map<String, Object?> summary = summarizeFramePerf(
         <Map<String, Object?>>[
