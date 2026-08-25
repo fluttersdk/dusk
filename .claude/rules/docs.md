@@ -32,7 +32,7 @@ When a change touches two or more surfaces, batch the doc edits into the same co
 
 ### `README.md`
 
-Front-page marketing copy plus the feature table, badges, Quick Start, Compared-to table, and pointers to `doc/` and `fluttersdk.com/dusk`. Length budget: keep under 200 lines. Counts in the feature table are hard numbers (32 CLI, 31 MCP, 28 `ext.dusk.*`); update them every time `DuskArtisanProvider.commands()` or `mcpTools()` changes shape.
+Front-page marketing copy plus the feature table, badges, Quick Start, Compared-to table, and pointers to `doc/` and `fluttersdk.com/dusk`. Length budget: keep under 200 lines. Counts in the feature table are hard numbers (36 CLI, 35 MCP, 32 `ext.dusk.*`); update them every time `DuskArtisanProvider.commands()` or `mcpTools()` changes shape.
 
 ### `ARCHITECTURE.md`
 

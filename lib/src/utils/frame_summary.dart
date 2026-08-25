@@ -90,8 +90,6 @@ Map<String, Object?> summarizeFramePerf(
   };
 }
 
-/// Average of [micros] in milliseconds. Returns 0.0 for an empty list rather
-/// than dividing by zero.
 /// Reads one numeric field out of a frame map.
 ///
 /// Tolerant on purpose, and for a reason this file cannot see from the inside:
@@ -104,6 +102,8 @@ Map<String, Object?> summarizeFramePerf(
 /// crashing the report they are one row of.
 int _micros(Object? value) => value is num ? value.toInt() : 0;
 
+/// Average of [micros] in milliseconds. Returns 0.0 for an empty list rather
+/// than dividing by zero.
 double _averageMillis(List<int> micros) {
   if (micros.isEmpty) return 0.0;
   final int sum = micros.reduce((int a, int b) => a + b);
