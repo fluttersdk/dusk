@@ -5,7 +5,7 @@ version: 0.0.13
 when_to_use: "Any task where the agent drives or inspects a running Flutter app via dusk: calling `dusk_*` MCP tools in a loop (snap, tap, type, screenshot, hot_reload_and_snap), invoking `./bin/fsa dusk:<verb>` from a shell, recovering from an actionability failure, choosing between `e<N>` and `q<N>` ref tokens, waiting for text or network idle, navigating routes, or filling a form."
 ---
 
-<!-- fluttersdk_dusk v0.0.11 | Skill updated: 2026-08-20 -->
+<!-- fluttersdk_dusk v0.0.13 | Skill updated: 2026-08-25 -->
 
 # fluttersdk_dusk
 
