@@ -8,6 +8,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+---
+
+## [0.0.12] - 2026-08-25
+
 ### Added
 
 - **`dusk:perf_begin` / `dusk:perf_end`: frame attribution around a driven interaction.** A dusk session could tell you a screen was slow and nothing about why. The pair brackets an interaction: `perf_begin` turns `FlutterTimeline` collection on (first, because `startSync` and `finishSync` both read that flag and enabling the build flags ahead of it pushes a finish with no matching start), then `debugProfileBuildsEnabled` + `debugProfileBuildsEnabledUserWidgets`, and on `--phases` also `debugProfileLayoutsEnabled` + `debugProfilePaintsEnabled`. The flags live in two different libraries, `package:flutter/widgets.dart` and `package:flutter/rendering.dart`. `perf_end` returns the frame summary under Flutter's own metric names, a session-wide block ranking naming the widget and RenderObject types that ran, wind's cache hit/miss/bypass counters and magic's controller-notify counts, then puts every flag back to the value it had BEFORE the session rather than to `false`, because a host that had build profiling on for its own reasons must get it back. A `perf_begin` on an already-open session restarts it, restoring before it re-saves, so a dropped connection cannot strand the profiling flags on. New: `lib/src/extensions/ext_perf.dart`, `lib/src/commands/dusk_perf_begin_command.dart`, `lib/src/commands/dusk_perf_end_command.dart`, plus the `dusk_perf_begin` / `dusk_perf_end` MCP descriptors. 36 CLI commands, 35 MCP tools, 32 `ext.dusk.*` extensions.
