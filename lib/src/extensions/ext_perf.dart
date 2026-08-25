@@ -306,28 +306,24 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
     final int livenessFinal = _asInt(perf['livenessCounter']);
     final int? baseline = session.livenessBaseline;
 
-    // A session with no baseline is one whose `perf_begin` threw after
-    // installing the session but before reading the counter. It exists only so
-    // the flags can be handed back, which the `finally` below does. There is
-    // nothing to compare against and the buffer was never cleared, so the
-    // frames in it predate the session entirely.
+    // A session with no baseline never finished opening. `perf_begin` reads
+    // the counter as its last act and closes the session itself if anything
+    // before that throws, so this is not reachable through either verb; the
+    // nullable type is what makes the old zero sentinel unrepresentable, and
+    // this is the obligation that type creates rather than a state the product
+    // can be in. Answered with the same error envelope as a missing session,
+    // deliberately NOT as a `refused` report: a refusal is a measurement
+    // outcome and this is not one.
     if (baseline == null) {
-      return duskResult(<String, dynamic>{
-        'sessionToken': session.token,
-        'refused': true,
-        'phases': session.phases,
-        'liveness': <String, dynamic>{
-          'baseline': null,
-          'final': livenessFinal,
-          'advanced': null,
-        },
-        'reason': 'perf_begin never completed its baseline read, so this '
-            'session exists only to hand the instrumentation flags back. The '
-            'frame buffer was not cleared either, because the same failure cut '
-            'the session-begin hook short, so every frame in it predates this '
-            'session. There is nothing here that was driven. Run perf_begin '
-            'again; the flags are already restored.',
-      });
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.perf_end: the open session never completed its baseline '
+          'read, so there is nothing to judge a run against. Call '
+          'ext.dusk.perf_begin again.',
+          DuskErrorEnvelope.unexpected(),
+        ),
+      );
     }
 
     final int advanced = livenessFinal - baseline;
