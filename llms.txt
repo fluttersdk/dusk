@@ -1,8 +1,8 @@
 # fluttersdk_dusk
 
-> E2E driver for Flutter apps targeting LLM agents and CI. 34 CLI commands and 33 MCP tools drive a running Flutter app over 30 `ext.dusk.*` VM Service extensions plus 3 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). Debug-only at the consumer call site; release builds tree-shake the entire subsystem.
+> E2E driver for Flutter apps targeting LLM agents and CI. 36 CLI commands and 35 MCP tools drive a running Flutter app over 32 `ext.dusk.*` VM Service extensions plus 3 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). Debug-only at the consumer call site; release builds tree-shake the entire subsystem.
 
-**MCP tools (33)**, see `doc/mcp/tool-reference.md` for full input schemas. The 30 `ext.dusk.*` and 3 `artisan:dusk:*` (substrate-routed) tools are listed below.
+**MCP tools (35)**, see `doc/mcp/tool-reference.md` for full input schemas. The 32 `ext.dusk.*` and 3 `artisan:dusk:*` (substrate-routed) tools are listed below.
 
 *Snapshot / Screenshot*
 - `dusk_snap` (`ext.dusk.snap`): Capture Semantics tree YAML with stable `[ref=eN]` tokens. Narrow instead of reading everything: `within: "e12"` walks one subtree, `interactiveOnly: true` drops the prose, `grep: "<regex>"` keeps only matches plus the ancestors carrying their refs. A full tree costs context, and on a shell whose sidebar repeats page labels the unscoped read is also the misleading one. Nodes inside a currently-overflowing ancestor carry an `overflow: true` sub-line. Nested `textbox` nodes collapse by render-object containment to a single ref tagged `typeable: true` (the node `dusk_type` resolves); sibling fields sharing a label stay distinct. When non-fatal render/build FlutterErrors are in the capture buffer, the response includes a `renderErrors: {count, recent: [{type, message}], hint}` block so a silently-broken screen is visible without a separate `dusk_exceptions` call. A `warnings: {framesEnabled, lifecycleState, hint}` block appears on EVERY tool's payload while the app is not producing frames, which is when a rendering screen reads as empty.
@@ -43,6 +43,10 @@
 - `dusk_exceptions` (`ext.dusk.exceptions`): Read recent exception entries. Returns merged union of in-package non-fatal `FlutterError` capture buffer (incl. overflow tagged `type: "overflow"`) and telescope reader; deduped, newest-first. Optional `since` ISO8601 param filters to entries strictly after that timestamp, and `clear: true` empties the in-package buffer AFTER the read. The buffer is cumulative, so one boot-time fault otherwise rides along on every later read and a per-route sweep reports it against every route.
 - `dusk_observe` (`ext.dusk.observe`): Return structured candidate list of every interactive widget on screen.
 
+*Performance*
+- `dusk_perf_begin` (`ext.dusk.perf_begin`): Open a measurement session around an interaction you are about to drive. Switches `FlutterTimeline` collection plus `debugProfileBuildsEnabled` on (and, with `phases: true`, layout and paint), zeroes wind's counters and telescope's frame buffer, and records the liveness baseline. Returns `{sessionToken, phases, livenessBaseline, restartedPreviousSession}`; a begin on an open session restarts it rather than failing.
+- `dusk_perf_end` (`ext.dusk.perf_end`): Close the session and read the attribution: `frameSummary` under `flutter_driver`'s own metric names plus a gap-derived `dropped_frame_count`, a session-wide `blockAttribution` ranking `{name, micros, count, frames}`, wind's cache hit/miss/bypass counters and magic's controller notifies. Restores every profiling flag to its PRIOR value. Check `refused` first: a session the engine did not render through returns `refused: true` with a reason and NO metrics, because a table of zeros reads as "fast"; the liveness counter is the authority there, not `SchedulerBinding.framesEnabled`, which was measured reporting `true` on a hidden page. Per-type durations are indicative, not representative.
+
 *Keyboard / Input*
 - `dusk_press_key` (`ext.dusk.press_key`): Press hardware key with optional modifiers (control, shift, alt, meta).
 - `dusk_focus` (`ext.dusk.focus`): Request keyboard focus on widget identified by ref.
@@ -77,6 +81,8 @@
 - [dusk:find](https://fluttersdk.com/dusk/commands/dusk-find.md)
 - [dusk:observe](https://fluttersdk.com/dusk/commands/dusk-observe.md)
 - [dusk:screenshot](https://fluttersdk.com/dusk/commands/dusk-screenshot.md)
+- [dusk:perf_begin](https://fluttersdk.com/dusk/commands/dusk-perf-begin.md)
+- [dusk:perf_end](https://fluttersdk.com/dusk/commands/dusk-perf-end.md)
 - [dusk:doctor](https://fluttersdk.com/dusk/commands/dusk-doctor.md)
 - [dusk:install](https://fluttersdk.com/dusk/commands/dusk-install.md)
 - [Actionability gate](https://fluttersdk.com/dusk/reference/actionability-gate.md)
@@ -85,7 +91,7 @@
 ## MCP
 - [MCP overview](https://fluttersdk.com/dusk/mcp/overview.md)
 - [MCP setup (.mcp.json wiring)](https://fluttersdk.com/dusk/mcp/setup.md): when fastcli is absent, `mcp:install` auto-selects `dart run fluttersdk_dusk mcp:serve` as the plugin-aware fallback (no manual edit needed).
-- [MCP tool reference (33 tools)](https://fluttersdk.com/dusk/mcp/tool-reference.md)
+- [MCP tool reference (35 tools)](https://fluttersdk.com/dusk/mcp/tool-reference.md)
 
 ## Plugins
 - [Magic integration](https://fluttersdk.com/dusk/plugins/magic-integration.md)

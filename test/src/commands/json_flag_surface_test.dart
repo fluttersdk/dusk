@@ -39,6 +39,8 @@ void main() {
     'dusk:close_app',
     'dusk:wait',
     'dusk:wait_for_network_idle',
+    'dusk:perf_begin',
+    'dusk:perf_end',
   };
 
   group('DuskArtisanProvider --json surface', () {

@@ -13,8 +13,8 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 34 commands', () {
-      expect(cmds, hasLength(34));
+    test('returns exactly 36 commands', () {
+      expect(cmds, hasLength(36));
     });
 
     test(
@@ -63,6 +63,9 @@ void main() {
           // D7: harness workarounds promoted to first-class commands.
           'DuskFillCommand',
           'DuskResetOverlaysCommand',
+          // Perf session pair.
+          'DuskPerfBeginCommand',
+          'DuskPerfEndCommand',
         ]),
       );
     });
@@ -79,15 +82,15 @@ void main() {
     // Length
     // -------------------------------------------------------------------------
 
-    test('returns exactly 33 descriptors', () {
-      expect(tools, hasLength(33));
+    test('returns exactly 35 descriptors', () {
+      expect(tools, hasLength(35));
     });
 
     // -------------------------------------------------------------------------
     // Names
     // -------------------------------------------------------------------------
 
-    test('contains all 26 expected tool names', () {
+    test('contains all 30 expected tool names', () {
       final names = tools.map((t) => t.name).toList();
       expect(
         names,
@@ -129,6 +132,9 @@ void main() {
           // D7: harness workarounds promoted to first-class tools.
           'dusk_fill',
           'dusk_reset_overlays',
+          // Perf session pair.
+          'dusk_perf_begin',
+          'dusk_perf_end',
         ]),
       );
     });
@@ -205,6 +211,28 @@ void main() {
       // D7.
       expect(byName['dusk_fill'], equals('ext.dusk.fill'));
       expect(byName['dusk_reset_overlays'], equals('ext.dusk.reset_overlays'));
+      // Perf session pair.
+      expect(byName['dusk_perf_begin'], equals('ext.dusk.perf_begin'));
+      expect(byName['dusk_perf_end'], equals('ext.dusk.perf_end'));
+    });
+
+    test('dusk_perf_begin declares the phases flag and requires nothing', () {
+      final begin = tools.firstWhere((t) => t.name == 'dusk_perf_begin');
+      expect(begin.inputSchema.containsKey('required'), isFalse);
+      final properties =
+          begin.inputSchema['properties'] as Map<String, dynamic>;
+      // Step 11 drives the session by this exact param name; a rename here
+      // breaks the driven run with no compile error anywhere.
+      expect(properties.keys, contains('phases'));
+      expect(
+        (properties['phases'] as Map<String, dynamic>)['type'],
+        equals('boolean'),
+      );
+    });
+
+    test('dusk_perf_end does not declare required params', () {
+      final end = tools.firstWhere((t) => t.name == 'dusk_perf_end');
+      expect(end.inputSchema.containsKey('required'), isFalse);
     });
 
     test('dusk_fill declares ref and text as required', () {

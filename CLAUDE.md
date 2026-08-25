@@ -6,7 +6,7 @@ Guidance for Claude Code working inside the `fluttersdk_dusk` repo. Path-scoped 
 
 ## Stack
 
-Flutter SDK package (Dart 3.4+, Flutter 3.22+). Plugin of `fluttersdk_artisan ^0.0.10`: contributes `DuskArtisanProvider` with 34 CLI commands and 33 MCP tool descriptors backed by 30 `ext.dusk.*` VM Service extensions plus 3 `artisan:dusk:*` substrate-routed tools.
+Flutter SDK package (Dart 3.4+, Flutter 3.22+). Plugin of `fluttersdk_artisan ^0.0.10`: contributes `DuskArtisanProvider` with 36 CLI commands and 35 MCP tool descriptors backed by 32 `ext.dusk.*` VM Service extensions plus 3 `artisan:dusk:*` substrate-routed tools.
 
 Production deps (hosted only): `fluttersdk_artisan ^0.0.10`, `image ^4.0.0`, `meta ^1.16.0`, `fluttersdk_wind_diagnostics_contracts ^1.0.0`. Dev deps: `flutter_test`, `flutter_lints >=5.0.0 <7.0.0`, `yaml ^3.1.0`. Debug-only at the consumer call site: the consumer wraps `DuskPlugin.install()` in `if (kDebugMode)` so release builds tree-shake the subsystem on dart2js (web) and dart2native (mobile/desktop AOT).
 
@@ -59,7 +59,7 @@ Single barrel: `lib/dusk.dart` re-exports the public API. Subsystem layout under
 
 ## VM Service surface
 
-30 `ext.dusk.*` extensions registered via `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety: `snap`, `tap`, `hover`, `drag`, `dblclick`, `right_click`, `triple_click`, `type`, `fill`, `clear`, `press_key`, `focus`, `blur`, `scroll`, `select_option`, `set_checkbox`, `screenshot`, `wait_for`, `wait_for_network_idle`, `find`, `observe`, `dismiss_modals`, `reset_overlays`, `navigate`, `navigate_back`, `get_routes`, `evaluate`, `close_app`, `console`, `exceptions`. Two internal helpers (`find_by_text`, `find_by_label`) back the `dusk:wait` polling loop and are not MCP-surfaced. Handler signature: `Future<ServiceExtensionResponse> Function(String method, Map<String, String> params)`. Parse integers via `int.tryParse(params['key'] ?? '')`. Return `.result(jsonEncode(payload))` or `.error(ServiceExtensionResponse.extensionError, msg)` with JSON-encoded `errorDetail` (Flutter framework convention).
+32 `ext.dusk.*` extensions registered via `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety: `snap`, `tap`, `hover`, `drag`, `dblclick`, `right_click`, `triple_click`, `type`, `fill`, `clear`, `press_key`, `focus`, `blur`, `scroll`, `select_option`, `set_checkbox`, `screenshot`, `wait_for`, `wait_for_network_idle`, `find`, `observe`, `dismiss_modals`, `reset_overlays`, `navigate`, `navigate_back`, `get_routes`, `evaluate`, `close_app`, `console`, `exceptions`, `perf_begin`, `perf_end`. Two internal helpers (`find_by_text`, `find_by_label`) back the `dusk:wait` polling loop and are not MCP-surfaced. Handler signature: `Future<ServiceExtensionResponse> Function(String method, Map<String, String> params)`. Parse integers via `int.tryParse(params['key'] ?? '')`. Return `.result(jsonEncode(payload))` or `.error(ServiceExtensionResponse.extensionError, msg)` with JSON-encoded `errorDetail` (Flutter framework convention).
 
 Three MCP tools route through the `artisan:dusk:*` substrate prefix instead of a VM extension because they need out-of-isolate execution: `dusk_hot_reload_and_snap` (in-isolate self-reload would deadlock), `dusk_resize_viewport`, `dusk_device_profile` (both drive Chrome DevTools Protocol from a non-Flutter Dart context).
 

@@ -22,6 +22,8 @@ import 'commands/dusk_modal_command.dart';
 import 'commands/dusk_navigate_back_command.dart';
 import 'commands/dusk_navigate_command.dart';
 import 'commands/dusk_observe_command.dart';
+import 'commands/dusk_perf_begin_command.dart';
+import 'commands/dusk_perf_end_command.dart';
 import 'commands/dusk_press_key_command.dart';
 import 'commands/dusk_reset_overlays_command.dart';
 import 'commands/dusk_resize_command.dart';
@@ -124,6 +126,10 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         // dusk:reset_overlays = dismiss + Escape + Cancel-tap fallback.
         DuskFillCommand(),
         DuskResetOverlaysCommand(),
+        // Performance attribution: one session, opened and closed around a
+        // driven interaction.
+        DuskPerfBeginCommand(),
+        DuskPerfEndCommand(),
       ];
 
   @override
@@ -1638,6 +1644,72 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             'properties': <String, dynamic>{},
           },
           extensionMethod: 'ext.dusk.reset_overlays',
+        ),
+        // -------------------------------------------------------------------
+        // 29. Perf begin: open a measurement session.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_perf_begin',
+          description: 'Open a performance measurement session around an '
+              'interaction you are about to drive.\n'
+              '\n'
+              'Switches Flutter\'s build profiling on, zeroes the frame '
+              'buffer and the wind counters, and records the liveness '
+              'baseline the report is judged against. Nothing is measured '
+              'until you call this, and the instrumentation costs real time, '
+              'so keep the session tight: begin, drive one interaction, end. '
+              'Pair every call with dusk_perf_end, which is what turns the '
+              'profiling back off.\n'
+              '\n'
+              'Usage:\n'
+              '- Call with no params for build attribution.\n'
+              '- Set phases=true to also profile layout and paint; the span '
+              'volume multiplies, so reach for it when builds alone did not '
+              'explain the cost.\n'
+              '- Returns `{sessionToken, phases, livenessBaseline, '
+              'restartedPreviousSession}`. A begin on an already-open session '
+              'restarts it rather than failing.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'phases': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Also profile layout and paint, not just '
+                    'builds (optional; default false).',
+              },
+            },
+          },
+          extensionMethod: 'ext.dusk.perf_begin',
+        ),
+        // -------------------------------------------------------------------
+        // 30. Perf end: close the session and report, or refuse.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_perf_end',
+          description: 'Close the performance session and read the '
+              'attribution: which widget types ran, how often, and for how '
+              'long.\n'
+              '\n'
+              'Returns the frame summary under Flutter\'s own metric names '
+              '(average / 90th / 99th / worst build and rasterizer millis, '
+              'missed-budget counts, dropped frames), the session-wide block '
+              'ranking, wind\'s cache hit/miss/bypass counters and the magic '
+              'controller-notify counts. Restores every profiling flag to the '
+              'value it had before the session.\n'
+              '\n'
+              'Usage:\n'
+              '- No parameters. Requires a prior dusk_perf_begin.\n'
+              '- Check `refused` FIRST. When the liveness counter did not '
+              'advance, the engine rendered nothing, the response carries no '
+              'metrics at all, and a zero report would have read as "fast". A '
+              'backgrounded browser tab is the usual cause.\n'
+              '- Treat per-type millisecond values as indicative, not as '
+              'facts about production; the payload\'s own `note` says why.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{},
+          },
+          extensionMethod: 'ext.dusk.perf_end',
         ),
       ];
 }

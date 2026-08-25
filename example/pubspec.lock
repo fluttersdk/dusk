@@ -121,7 +121,7 @@ packages:
       path: "../../artisan"
       relative: true
     source: path
-    version: "0.0.11"
+    version: "0.0.13"
   fluttersdk_dusk:
     dependency: "direct main"
     description:
@@ -135,7 +135,7 @@ packages:
       path: "../../wind_diagnostics_contracts"
       relative: true
     source: path
-    version: "1.0.0"
+    version: "1.1.0"
   image:
     dependency: transitive
     description:

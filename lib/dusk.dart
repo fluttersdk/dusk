@@ -23,3 +23,9 @@ export 'src/extensions/ext_console.dart' show recentLogsReader;
 export 'src/extensions/ext_exceptions.dart' show recentExceptionsReader;
 export 'src/extensions/ext_wait_find.dart' show pendingHttpCountReader;
 export 'src/ref_registry.dart';
+export 'src/utils/perf_readers.dart'
+    show
+        framePerfReader,
+        perfExtrasReader,
+        perfSessionBeginHook,
+        perfSessionEndHook;
