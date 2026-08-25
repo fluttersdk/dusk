@@ -278,30 +278,51 @@ void main() {
       expect(payload.containsKey('magic'), isFalse);
     });
 
-    test('a throwing begin hook still leaves a session that can restore the '
-        'flags', () async {
-      // `perfSessionBeginHook` and `framePerfReader` are both assigned in
-      // another package, so both can throw. If the session were only created
-      // after them, a throw would strand profiling switched on with nothing
-      // holding the prior values and no session for perf_end to restore from:
-      // unrecoverable short of a hot restart, and a direct violation of the
-      // plan's "do not leave the profile flags on" rule.
+    test('a throwing begin hook restores the flags immediately, without '
+        'waiting for a perf_end', () async {
+      // Both `perfSessionBeginHook` and `framePerfReader` are assigned in
+      // another repository, so both can throw. The session is installed before
+      // any flag is written precisely so the catch can hand the
+      // instrumentation straight back: waiting for a `perf_end` that a crashed
+      // agent may never send would leave profiling on with no recovery short
+      // of a hot restart, which the plan forbids outright.
       FlutterTimeline.debugCollectionEnabled = false;
       debugProfileBuildsEnabled = false;
       perfSessionBeginHook = () => throw StateError('host wiring is broken');
 
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      final developer.ServiceExtensionResponse begin =
+          await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
 
-      // The flags are on right now, which is exactly why the session must
-      // exist: perf_end is what puts them back.
-      final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
-      );
-
-      expect(payload.containsKey('sessionToken'), isTrue);
+      expect(begin.result, isNull, reason: 'the failure must surface');
       expect(FlutterTimeline.debugCollectionEnabled, isFalse);
       expect(debugProfileBuildsEnabled, isFalse);
       expect(debugProfileBuildsEnabledUserWidgets, isFalse);
+      expect(debugProfileLayoutsEnabled, isFalse);
+      expect(debugProfilePaintsEnabled, isFalse);
+    });
+
+    test('a failed begin leaves NO session, so a later perf_end cannot report '
+        'over an uncleared buffer', () async {
+      // The mutant this replaces: with a session left open carrying a baseline
+      // of 0, `advanced = final - 0` equals the absolute counter, which is in
+      // the thousands on a real app. It sails past the stalled-engine
+      // threshold and reports frames nobody drove, out of a buffer the
+      // throwing hook never reached `clearFramePerf()` to empty. A stub pinned
+      // to a counter of 0 cannot express that; this one is deliberately live.
+      framePerfReader = () => <String, Object?>{
+            'frames': <Map<String, Object?>>[
+              _frame(frameNumber: 900, buildMicros: 5000, rasterMicros: 2000),
+            ],
+            'livenessCounter': 4213,
+          };
+      perfSessionBeginHook = () => throw StateError('host wiring is broken');
+
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      final developer.ServiceExtensionResponse end =
+          await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+
+      expect(end.result, isNull, reason: 'no session is open to report on');
+      expect(end.errorDetail, contains('perf_begin'));
     });
 
     test('refuses when the counter advanced by exactly one, which is what a '

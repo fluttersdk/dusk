@@ -56,9 +56,15 @@ final class _PerfSession {
   /// nothing holding their prior values, and no `perf_end` could ever put them
   /// back. The session has to exist before anything that can fail.
   ///
-  /// Zero until that read succeeds, which is the safe direction: a session
-  /// stranded at zero refuses rather than reports.
-  int livenessBaseline = 0;
+  /// NULL until that read succeeds, and null is the only safe sentinel. Zero
+  /// is not: `perf_end` computes `final - baseline`, the counter is monotonic
+  /// since install and is never reset in production, so a baseline of zero
+  /// MAXIMISES the apparent advance instead of zeroing it. A session stranded
+  /// by a throwing hook would then sail past the stalled-engine refusal and
+  /// report frames nobody drove, out of a buffer the hook never got as far as
+  /// clearing. Null cannot collide with a real counter value, and `perf_end`
+  /// refuses on it explicitly.
+  int? livenessBaseline;
 
   // The five flags this session touches, as they read BEFORE it touched
   // them. Restoring these values rather than forcing `false` is deliberate:
@@ -212,6 +218,12 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
       '[fluttersdk_dusk] ext.dusk.perf_begin: unexpected error: $e\n$st',
       name: 'fluttersdk_dusk',
     );
+    // Hand the instrumentation back immediately rather than leaving it on
+    // until a `perf_end` that may never come. The session was installed before
+    // the flags precisely so this is possible; without it a throw from either
+    // host closure leaves profiling running with no automatic recovery.
+    final _PerfSession? open = _session;
+    if (open != null) _closeSession(open);
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
@@ -292,9 +304,35 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
     //    computing if the engine actually rendered.
     final Map<String, Object?> perf = framePerfReader();
     final int livenessFinal = _asInt(perf['livenessCounter']);
-    final int advanced = livenessFinal - session.livenessBaseline;
+    final int? baseline = session.livenessBaseline;
+
+    // A session with no baseline is one whose `perf_begin` threw after
+    // installing the session but before reading the counter. It exists only so
+    // the flags can be handed back, which the `finally` below does. There is
+    // nothing to compare against and the buffer was never cleared, so the
+    // frames in it predate the session entirely.
+    if (baseline == null) {
+      return duskResult(<String, dynamic>{
+        'sessionToken': session.token,
+        'refused': true,
+        'phases': session.phases,
+        'liveness': <String, dynamic>{
+          'baseline': null,
+          'final': livenessFinal,
+          'advanced': null,
+        },
+        'reason': 'perf_begin never completed its baseline read, so this '
+            'session exists only to hand the instrumentation flags back. The '
+            'frame buffer was not cleared either, because the same failure cut '
+            'the session-begin hook short, so every frame in it predates this '
+            'session. There is nothing here that was driven. Run perf_begin '
+            'again; the flags are already restored.',
+      });
+    }
+
+    final int advanced = livenessFinal - baseline;
     final Map<String, dynamic> liveness = <String, dynamic>{
-      'baseline': session.livenessBaseline,
+      'baseline': baseline,
       'final': livenessFinal,
       'advanced': advanced,
     };
@@ -381,7 +419,21 @@ void _closeSession(_PerfSession session) {
   // `perf_begin` would report as restarted when it had already been closed.
   // The flags are back either way, which is the part that cannot be deferred.
   _session = null;
-  perfSessionEndHook();
+  // Deliberately handled, not swallowed: this hook is assigned in another
+  // repository, and a throw here would escape `perf_end`'s `finally`, replace
+  // the response and cross the VM Service boundary, which no extension in this
+  // package does. The flags are already back by this point, so the session is
+  // closed either way; the failure is reported the same way perf_begin reports
+  // its own.
+  try {
+    perfSessionEndHook();
+  } catch (e, st) {
+    developer.log(
+      '[fluttersdk_dusk] perfSessionEndHook threw while closing a perf '
+      'session; the instrumentation flags were already restored: $e\n$st',
+      name: 'fluttersdk_dusk',
+    );
+  }
 }
 
 /// The frame list out of a [framePerfReader] result.
