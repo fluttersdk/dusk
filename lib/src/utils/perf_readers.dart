@@ -61,23 +61,62 @@ Map<String, Object?> Function() perfExtrasReader = () => <String, Object?>{
       'routeTransitions': <Map<String, Object?>>[],
     };
 
-/// Command that clears wind's perf counters and telescope's frame buffer at
-/// the start of a new measurement session.
+/// Command that opens a measurement session in the packages dusk cannot
+/// import: it zeroes wind's counters and telescope's frame buffer, and turns
+/// wind's counting ON.
 ///
-/// Defaults to a no-op: a host without the perf integration wired has
-/// nothing to reset. Without this hook `ext.dusk.perf_begin` would have no
-/// way to zero anything and every session would report the sum of all
-/// previous ones.
+/// The enabling half is not incidental. `WindPerfCounters.enabled` defaults to
+/// false and lives in `fluttersdk_wind`, which dusk does not depend on and
+/// cannot reach: dusk sees wind only through
+/// `fluttersdk_wind_diagnostics_contracts`, and the contract exposes `stats()`
+/// and nothing that could flip a flag. So without this hook doing it,
+/// `ext.dusk.perf_begin` would produce a report whose wind section reads all
+/// zeros while every other section is populated, with no error anywhere to say
+/// why. Zeroing without enabling is the same bug wearing a tidier name.
 ///
-/// Hosts wire the real reset by writing:
+/// Defaults to a no-op: a host without the perf integration wired has nothing
+/// to open.
+///
+/// Hosts wire the real thing by writing:
 ///
 /// ```dart
-/// perfSessionResetHook = () {
+/// perfSessionBeginHook = () {
 ///   WindPerfCounters.reset();
+///   WindPerfCounters.enabled = true;
 ///   TelescopeStore.clearFramePerf();
 /// };
 /// ```
 ///
 /// **Contract**: set-once-per-isolate from `MagicPerfIntegration.install()`.
 /// Reset to this no-op default by `MagicPerfIntegration.resetForTesting()`.
-void Function() perfSessionResetHook = () {};
+/// Always paired with [perfSessionEndHook]; see there for why.
+void Function() perfSessionBeginHook = () {};
+
+/// Command that closes a measurement session, turning wind's counting back
+/// off.
+///
+/// It exists because [perfSessionBeginHook] turns counting on, and something
+/// has to turn it off again. `WindParser.parse` is the hottest path in the
+/// framework and runs on every build of every W-widget, so leaving counting
+/// enabled after a session would tax every later frame in the app for numbers
+/// nobody asked for. It is the same discipline `ext.dusk.perf_end` already
+/// applies to the `debugProfile*` flags it restores.
+///
+/// Counters are deliberately NOT zeroed here: `perf_end` reads them to build
+/// its report, and a hook that cleared them would have to run after the read,
+/// which is a coupling worth avoiding. The next session's
+/// [perfSessionBeginHook] zeroes them instead.
+///
+/// Defaults to a no-op.
+///
+/// Hosts wire the real thing by writing:
+///
+/// ```dart
+/// perfSessionEndHook = () {
+///   WindPerfCounters.enabled = false;
+/// };
+/// ```
+///
+/// **Contract**: set-once-per-isolate from `MagicPerfIntegration.install()`.
+/// Reset to this no-op default by `MagicPerfIntegration.resetForTesting()`.
+void Function() perfSessionEndHook = () {};

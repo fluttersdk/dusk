@@ -14,7 +14,8 @@ void main() {
           'controllerNotifies': <String, int>{},
           'routeTransitions': <Map<String, Object?>>[],
         };
-    perfSessionResetHook = () {};
+    perfSessionBeginHook = () {};
+    perfSessionEndHook = () {};
   });
 
   group('framePerfReader default', () {
@@ -35,14 +36,15 @@ void main() {
     });
   });
 
-  group('perfSessionResetHook default', () {
-    test('is a no-op that does not throw', () {
-      expect(perfSessionResetHook, returnsNormally);
+  group('the session hooks default', () {
+    test('both are no-ops that do not throw', () {
+      expect(perfSessionBeginHook, returnsNormally);
+      expect(perfSessionEndHook, returnsNormally);
     });
   });
 
   group('pointer isolation', () {
-    test('assigning framePerfReader does not disturb perfExtrasReader or perfSessionResetHook', () {
+    test('assigning framePerfReader disturbs neither the extras reader nor the hooks', () {
       bool resetCalled = false;
       framePerfReader = () => <String, Object?>{
             'frames': <Map<String, Object?>>[
@@ -55,16 +57,19 @@ void main() {
       expect(extras['controllerNotifies'], <String, int>{});
       expect(extras['routeTransitions'], <Map<String, Object?>>[]);
 
-      perfSessionResetHook();
+      perfSessionBeginHook();
+      perfSessionEndHook();
       expect(resetCalled, isFalse);
 
       final Map<String, Object?> frames = framePerfReader();
       expect(frames['livenessCounter'], 7);
     });
 
-    test('assigning perfSessionResetHook does not disturb the two readers', () {
-      bool called = false;
-      perfSessionResetHook = () => called = true;
+    test('assigning the session hooks does not disturb the two readers', () {
+      bool began = false;
+      bool ended = false;
+      perfSessionBeginHook = () => began = true;
+      perfSessionEndHook = () => ended = true;
 
       final Map<String, Object?> frames = framePerfReader();
       expect(frames['frames'], <Map<String, Object?>>[]);
@@ -73,8 +78,10 @@ void main() {
       final Map<String, Object?> extras = perfExtrasReader();
       expect(extras['controllerNotifies'], <String, int>{});
 
-      perfSessionResetHook();
-      expect(called, isTrue);
+      perfSessionBeginHook();
+      perfSessionEndHook();
+      expect(began, isTrue);
+      expect(ended, isTrue);
     });
   });
 }
