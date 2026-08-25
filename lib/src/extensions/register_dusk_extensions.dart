@@ -9,6 +9,7 @@ import 'ext_focus.dart';
 import 'ext_modal_router.dart';
 import 'ext_navigation.dart';
 import 'ext_observe.dart';
+import 'ext_perf.dart';
 import 'ext_pointer.dart';
 import 'ext_screenshot.dart';
 import 'ext_scroll.dart';
@@ -47,6 +48,12 @@ import 'ext_wait_find.dart';
 /// - [registerExceptionsExtensions]: ext.dusk.exceptions — telescope exception reader.
 /// - `ext.dusk.dblclick` is registered INSIDE [registerPointerExtensions].
 /// - [registerCheckboxExtensions]: ext.dusk.set_checkbox — checkbox setter.
+///
+/// Perf pair:
+/// - [registerPerfExtensions]: ext.dusk.perf_begin / ext.dusk.perf_end, the
+///   measurement session that switches Flutter's profiling flags on, reads
+///   the frame, wind and magic counters back through the pointers in
+///   `lib/src/utils/perf_readers.dart`, and restores every flag afterwards.
 void registerAllDuskExtensions() {
   registerSnapExtension();
   registerPointerExtensions();
@@ -67,4 +74,5 @@ void registerAllDuskExtensions() {
   // D7: ext.dusk.fill (focus + clear + type + settle + stale-retry).
   // ext.dusk.reset_overlays registers inside registerModalRouterExtension.
   registerFillExtension();
+  registerPerfExtensions();
 }

@@ -1,7 +1,7 @@
 # Dusk MCP Tool Reference
 
 Per-tool input schema, return shape, and example payload for every `dusk_*` MCP tool
-contributed by `DuskArtisanProvider`. 33 tools total: 30 dispatch through `ext.dusk.*` VM
+contributed by `DuskArtisanProvider`. 35 tools total: 32 dispatch through `ext.dusk.*` VM
 Service extensions and 3 (`dusk_hot_reload_and_snap`, `dusk_resize_viewport`,
 `dusk_device_profile`) route through the `artisan:dusk:*` substrate path to a CLI command
 because the orchestration cannot run inside the target isolate.
@@ -73,6 +73,8 @@ story survived two rewrites of the widget before anyone read the field back.
 - [`dusk_navigate`](#dusk_navigate)
 - [`dusk_navigate_back`](#dusk_navigate_back)
 - [`dusk_observe`](#dusk_observe)
+- [`dusk_perf_begin`](#dusk_perf_begin)
+- [`dusk_perf_end`](#dusk_perf_end)
 - [`dusk_press_key`](#dusk_press_key)
 - [`dusk_reset_overlays`](#dusk_reset_overlays)
 - [`dusk_resize_viewport`](#dusk_resize_viewport)
@@ -654,6 +656,83 @@ default.
 
 ```json
 { "name": "dusk_observe", "arguments": { "intent": "login form", "roles": "textbox,button", "limit": 20 } }
+```
+
+---
+
+## dusk_perf_begin
+
+Dispatch: `ext.dusk.perf_begin`
+
+Open a performance measurement session around an interaction you are about to
+drive. Switches `FlutterTimeline` collection and Flutter's build profiling on,
+zeroes the frame buffer and wind's counters, and records the liveness baseline
+`dusk_perf_end` judges the run against. The instrumentation costs real time, so
+keep the session tight: begin, drive one interaction, end.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `phases` | boolean | no | Also profile layout and paint, not just builds. Default `false`; the span volume multiplies. |
+
+### Returns
+
+Success: `{ sessionToken: "perf-1", phases: bool, livenessBaseline: <int>,
+restartedPreviousSession: bool }`.
+
+A begin on an already-open session RESTARTS it rather than failing, restoring
+the previous session's flags before saving the current ones, so a `perf_end`
+that never landed cannot strand the profiling flags on.
+
+### Example call
+
+```json
+{ "name": "dusk_perf_begin", "arguments": { "phases": true } }
+```
+
+---
+
+## dusk_perf_end
+
+Dispatch: `ext.dusk.perf_end`
+
+Close the session and read the attribution: which widget and RenderObject types
+ran, how often and for how long, next to wind's cache hit/miss/bypass counters
+and magic's controller-notify counts. Restores every profiling flag to the value
+it had BEFORE the session, not to `false`.
+
+### Input schema
+
+No parameters. Requires a prior `dusk_perf_begin`; without one the call returns
+a typed error rather than an empty report.
+
+### Returns
+
+Success: `{ sessionToken, refused: false, phases, liveness: {baseline, final,
+advanced}, frameSummary, blockAttribution, wind, magic, note }`.
+`frameSummary` uses `flutter_driver`'s metric-name strings verbatim (average /
+90th / 99th / worst build and rasterizer millis, missed-budget counts) plus a
+`dropped_frame_count` derived from gaps in the frame-number sequence.
+`blockAttribution` ranks blocks across the whole session as
+`{name, micros, count, frames}`. `wind` is `null` when no wind perf resolver
+registered, which is a different finding from a wind section of zeros.
+
+Check `refused` FIRST. When the liveness counter did not advance, the engine
+rendered nothing, the response carries NO metrics block at all, and the reason
+says so. A zero report would have read as "fast"; that is the reading a live
+probe produced three times against a tab that was merely behind another window.
+The liveness counter is the authority rather than the `warnings` block on the
+same response, because `SchedulerBinding.framesEnabled` was measured reporting
+`true` on a hidden page.
+
+Treat per-type millisecond values as indicative, not as facts about production;
+the payload's own `note` says why.
+
+### Example call
+
+```json
+{ "name": "dusk_perf_end", "arguments": {} }
 ```
 
 ---
