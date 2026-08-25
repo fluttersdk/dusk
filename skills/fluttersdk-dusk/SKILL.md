@@ -1,11 +1,11 @@
 ---
 name: fluttersdk-dusk
 description: "fluttersdk_dusk: E2E driver for Flutter apps that lets an LLM agent see (snap, observe, screenshot) and act (tap, type, drag, scroll, navigate) on a running Flutter app via 35 MCP tools (`dusk_*`) and 36 matching CLI commands (`./bin/fsa dusk:*`). Snapshots emit a YAML Semantics tree with stable `[ref=eN]` tokens; `dusk_find` and `dusk_observe` mint re-resolvable `q<N>` query handles. Every gesture passes a 6-step actionability gate with substring-parseable failure reasons (`not enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured by`, `defunct`). TRIGGER when: any `dusk_*` MCP tool call, any `dusk:*` CLI command, `./bin/fsa` invocation, the user asks the agent to drive / inspect / test / debug a running Flutter app, the user mentions snap / observe / actionability / ref / eN / qN, or the conversation touches end-to-end testing of a Flutter UI. DO NOT TRIGGER when: only authoring `flutter_test` widget tests, only reading telescope ring buffers without driving the UI (use fluttersdk-telescope), or only modifying Dart source without running it."
-version: 0.0.12
+version: 0.0.13
 when_to_use: "Any task where the agent drives or inspects a running Flutter app via dusk: calling `dusk_*` MCP tools in a loop (snap, tap, type, screenshot, hot_reload_and_snap), invoking `./bin/fsa dusk:<verb>` from a shell, recovering from an actionability failure, choosing between `e<N>` and `q<N>` ref tokens, waiting for text or network idle, navigating routes, or filling a form."
 ---
 
-<!-- fluttersdk_dusk v0.0.11 | Skill updated: 2026-08-20 -->
+<!-- fluttersdk_dusk v0.0.13 | Skill updated: 2026-08-25 -->
 
 # fluttersdk_dusk
 
