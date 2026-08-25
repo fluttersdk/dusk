@@ -66,6 +66,19 @@ final class _PerfSession {
 _PerfSession? _session;
 int _sessionCounter = 0;
 
+/// The most frames a session can produce and still be a stalled engine rather
+/// than a measurement.
+///
+/// Zero is the wrong threshold and was measured being wrong: a backgrounded
+/// Chrome page produces exactly ONE frame, not none. Driving a scroll against a
+/// hidden page and closing the session read `advanced: 1`, which the first
+/// implementation reported on as though the engine were healthy, producing the
+/// table of near-zeros this refusal exists to prevent.
+///
+/// One frame is also not a measurement even when the page is visible: every
+/// percentile in the summary would be that single sample.
+const int _kStalledEngineFrames = 1;
+
 /// How many ranked block entries the report carries. The tail of a real
 /// session is thousands of one-off widget types; the ranking is what directs
 /// a fix, and everything past the head of it is noise in an agent's context.
@@ -270,16 +283,20 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
       'advanced': advanced,
     };
 
-    if (advanced <= 0) {
+    if (advanced <= _kStalledEngineFrames) {
       return duskResult(<String, dynamic>{
         'sessionToken': session.token,
         'refused': true,
         'phases': session.phases,
         'liveness': liveness,
-        'reason': 'The liveness counter did not advance between perf_begin '
-            'and perf_end (baseline ${session.livenessBaseline}, final '
-            '$livenessFinal), so the engine rendered nothing during the '
-            'session and every metric would be a zero that reads as "fast". '
+        'reason': 'The liveness counter advanced by $advanced between '
+            'perf_begin and perf_end (baseline ${session.livenessBaseline}, '
+            'final $livenessFinal), which is a stalled engine rather than a '
+            'measurement: nothing was driven, so every metric would be a zero '
+            'or a single-sample average that reads as "fast". '
+            'A backgrounded page is the usual cause, and it produces exactly '
+            'one frame, not zero, which is why the threshold is '
+            '$_kStalledEngineFrames rather than 0. '
             'That counter is the authority here, not the `warnings` block on '
             'this response and not the SchedulerBinding.framesEnabled reading '
             'behind it: framesEnabled was measured reporting true, with '

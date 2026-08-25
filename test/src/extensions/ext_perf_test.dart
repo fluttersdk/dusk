@@ -278,6 +278,44 @@ void main() {
       expect(payload.containsKey('magic'), isFalse);
     });
 
+    test('refuses when the counter advanced by exactly one, which is what a '
+        'backgrounded page produces', () async {
+      // Measured, not hypothesised. Driving a scroll against a hidden Chrome
+      // page and closing the session read `advanced: 1`: the engine emits one
+      // frame at the moment it is backgrounded and then nothing. A threshold
+      // of zero reported on that as though the page were healthy, which is
+      // the exact table of near-zeros this refusal exists to prevent.
+      //
+      // Stubbing the reader to a CONSTANT is what let the defect through the
+      // first time: it can only ever produce advanced == 0, so it never met
+      // the value a real stalled engine actually returns.
+      int reads = 0;
+      framePerfReader = () => <String, Object?>{
+            'frames': <Map<String, Object?>>[
+              <String, Object?>{
+                'frameNumber': 1,
+                'buildMicros': 5000,
+                'rasterMicros': 2000,
+                'vsyncOverheadMicros': 1000,
+                'totalSpanMicros': 8000,
+                'blocks': <String, Object?>{},
+              },
+            ],
+            'livenessCounter': 40 + (reads++ > 0 ? 1 : 0),
+          };
+
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      expect(payload['refused'], isTrue);
+      expect((payload['liveness']! as Map<String, dynamic>)['advanced'], 1);
+      // The frame list was NOT empty, so this cannot pass by accident on an
+      // empty-buffer check: the refusal has to come from the counter.
+      expect(payload.containsKey('frameSummary'), isFalse);
+    });
+
     test('the refusal is its own field, independent of the warnings block',
         () async {
       // `duskResult` stamps `warnings` from SchedulerBinding.framesEnabled,
