@@ -1,4 +1,4 @@
-/// Three settable cross-package pointers that let dusk read and reset perf
+/// Four settable cross-package pointers that let dusk read and reset perf
 /// state in packages it cannot depend on (frozen contract #10 limits dusk to
 /// `fluttersdk_artisan`, `image`, `meta`, `fluttersdk_wind_diagnostics_contracts`;
 /// it must not import telescope, wind or magic).

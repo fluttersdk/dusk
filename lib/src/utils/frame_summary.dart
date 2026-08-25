@@ -39,16 +39,13 @@ Map<String, Object?> summarizeFramePerf(
   int worstFrameCount = 5,
 }) {
   final List<int> buildMicros = frames
-      .map(
-          (Map<String, Object?> frame) => (frame['buildMicros'] as num).toInt())
+      .map((Map<String, Object?> f) => _micros(f['buildMicros']))
       .toList();
   final List<int> rasterMicros = frames
-      .map((Map<String, Object?> frame) =>
-          (frame['rasterMicros'] as num).toInt())
+      .map((Map<String, Object?> f) => _micros(f['rasterMicros']))
       .toList();
   final List<int> frameNumbers = frames
-      .map(
-          (Map<String, Object?> frame) => (frame['frameNumber'] as num).toInt())
+      .map((Map<String, Object?> f) => _micros(f['frameNumber']))
       .toList();
 
   final List<int> sortedBuildMicros = List<int>.from(buildMicros)..sort();
@@ -85,6 +82,18 @@ Map<String, Object?> summarizeFramePerf(
 
 /// Average of [micros] in milliseconds. Returns 0.0 for an empty list rather
 /// than dividing by zero.
+/// Reads one numeric field out of a frame map.
+///
+/// Tolerant on purpose, and for a reason this file cannot see from the inside:
+/// these maps are built in another repository and arrive over a function
+/// pointer, so a renamed or absent key does not fail to compile. An `as num`
+/// cast on a missing key throws a TypeError that `perf_end` turns into an
+/// opaque error envelope, which costs the WHOLE report rather than the one row
+/// that was malformed. The callers on the other side of this boundary already
+/// take the tolerant posture: `_readFrames` skips non-map entries rather than
+/// crashing the report they are one row of.
+int _micros(Object? value) => value is num ? value.toInt() : 0;
+
 double _averageMillis(List<int> micros) {
   if (micros.isEmpty) return 0.0;
   final int sum = micros.reduce((int a, int b) => a + b);
@@ -165,8 +174,8 @@ List<Map<String, Object?>> _worstFrames(
   final List<Map<String, Object?>> sorted =
       List<Map<String, Object?>>.from(frames)
         ..sort((Map<String, Object?> a, Map<String, Object?> b) {
-          final int aBuild = (a['buildMicros'] as num).toInt();
-          final int bBuild = (b['buildMicros'] as num).toInt();
+          final int aBuild = _micros(a['buildMicros']);
+          final int bBuild = _micros(b['buildMicros']);
           return bBuild.compareTo(aBuild);
         });
   return sorted.take(count).toList();

@@ -182,4 +182,40 @@ void main() {
       expect(second['blocks'], isNotEmpty);
     });
   });
+  group('a malformed frame costs its row, not the report', () {
+    test('a frame missing buildMicros does not throw', () {
+      // These maps are built in another repository and arrive over a function
+      // pointer, so a renamed or absent key does not fail to compile. An
+      // `as num` cast used to turn one bad row into a TypeError that perf_end
+      // reported as an opaque error envelope, losing the whole session.
+      final Map<String, Object?> summary = summarizeFramePerf(
+        <Map<String, Object?>>[
+          <String, Object?>{'frameNumber': 1, 'rasterMicros': 2000},
+          <String, Object?>{
+            'frameNumber': 2,
+            'buildMicros': 8000,
+            'rasterMicros': 2000,
+          },
+        ],
+      );
+
+      expect(summary['frame_count'], 2);
+      expect(summary['worst_frame_build_time_millis'], 8.0);
+    });
+
+    test('a frame with a null frameNumber does not throw', () {
+      final Map<String, Object?> summary = summarizeFramePerf(
+        <Map<String, Object?>>[
+          <String, Object?>{
+            'frameNumber': null,
+            'buildMicros': 1000,
+            'rasterMicros': 500,
+          },
+        ],
+      );
+
+      expect(summary['frame_count'], 1);
+      expect(summary['dropped_frame_count'], 0);
+    });
+  });
 }
