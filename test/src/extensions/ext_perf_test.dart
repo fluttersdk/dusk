@@ -474,6 +474,84 @@ void main() {
       expect(payload['note'], contains('indicative'));
     });
 
+    test('says so when the summary covers fewer frames than the engine drew',
+        () async {
+      // Measured driving uptizm on Chrome: a theme toggle drew 4 frames and
+      // Flutter reported timings for 2 of them, so the report printed "2
+      // frames, worst build 114ms" with an EMPTY blockAttribution and read as
+      // "measured, no hot blocks". The frames carrying the work were simply
+      // never reported. Both numbers were already in this payload and nothing
+      // compared them, which is the whole defect: an honest subset that does
+      // not say it is a subset is indistinguishable from a complete answer.
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      framePerfReader = () => <String, Object?>{
+            'frames': _fixtureFrames, // two frames
+            'livenessCounter': 44, // forty-four drawn
+          };
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      final Map<String, dynamic> coverage =
+          payload['coverage'] as Map<String, dynamic>;
+      expect(coverage['framesDrawn'], 44);
+      expect(coverage['framesSummarized'], 2);
+      expect(coverage['complete'], isFalse);
+      expect(
+        coverage['detail'],
+        contains('subset'),
+        reason: 'the reader has to be told the ranking may miss the worst work',
+      );
+    });
+
+    test('reports complete coverage when every drawn frame was summarized',
+        () async {
+      // The other half of the contract: a session that DID report every frame
+      // must say so, or `complete: false` degrades into background noise that
+      // a reader learns to ignore.
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      framePerfReader = () => <String, Object?>{
+            'frames': _fixtureFrames, // two frames
+            'livenessCounter': 2, // two drawn
+          };
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      final Map<String, dynamic> coverage =
+          payload['coverage'] as Map<String, dynamic>;
+      expect(coverage['framesDrawn'], 2);
+      expect(coverage['framesSummarized'], 2);
+      expect(coverage['complete'], isTrue);
+      expect(coverage.containsKey('detail'), isFalse);
+    });
+
+    test('the refusal names the idle-app cause before the hidden-page one',
+        () async {
+      // On Flutter web the ordinary reason a session sees no frames is that
+      // the app is idle: nothing schedules a frame when nothing is dirty. The
+      // message used to lead with a backgrounded page, which sent a reader
+      // hunting for a visibility problem that was not there.
+      framePerfReader = () => <String, Object?>{
+            'frames': <Map<String, Object?>>[],
+            'livenessCounter': 7,
+          };
+
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      final String reason = payload['reason'] as String;
+      expect(reason, contains('idle'));
+      expect(reason, contains('hidden'));
+      expect(
+        reason.indexOf('idle') < reason.indexOf('hidden'),
+        isTrue,
+        reason: 'the likelier cause has to be read first',
+      );
+    });
+
     test('ranks block attribution across the whole session, not per frame',
         () async {
       await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});

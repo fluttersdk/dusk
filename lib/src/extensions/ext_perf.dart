@@ -343,11 +343,16 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
         'liveness': liveness,
         'reason': 'The liveness counter advanced by $advanced between '
             'perf_begin and perf_end (baseline ${session.livenessBaseline}, '
-            'final $livenessFinal), which is a stalled engine rather than a '
-            'measurement: nothing was driven, so every metric would be a zero '
-            'or a single-sample average that reads as "fast". '
-            'A backgrounded page is the usual cause, and it produces exactly '
-            'one frame, not zero, which is why the threshold is '
+            'final $livenessFinal), so there is nothing to measure: every '
+            'metric would be a zero or a single-sample average that reads as '
+            '"fast". '
+            'The ordinary cause is an idle app rather than a broken one. '
+            'Flutter schedules a frame only when something is dirty, so a '
+            'session that opens, sleeps and closes legitimately draws no '
+            'frames at all; drive an interaction inside the session, and aim '
+            'a scroll at something that actually scrolls. '
+            'The other cause is a hidden or backgrounded page, which produces '
+            'exactly one frame rather than zero, and is why the threshold is '
             '$_kStalledEngineFrames rather than 0. '
             'That counter is the authority here, not the `warnings` block on '
             'this response and not the SchedulerBinding.framesEnabled reading '
@@ -369,6 +374,7 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
       'refused': false,
       'phases': session.phases,
       'liveness': liveness,
+      'coverage': _coverage(advanced, frames.length),
       'frameSummary': summarizeFramePerf(frames),
       'blockAttribution': _rankBlocks(frames),
       // Null rather than a map of zeros: "wind never registered a perf
@@ -443,6 +449,44 @@ List<Map<String, Object?>> _readFrames(Map<String, Object?> perf) {
   final Object? raw = perf['frames'];
   if (raw is! List<Object?>) return const <Map<String, Object?>>[];
   return raw.whereType<Map<String, Object?>>().toList();
+}
+
+/// Whether the frame summary describes every frame the engine drew.
+///
+/// The two counters behind this answer different questions and are collected by
+/// different machinery. `framesDrawn` comes from the liveness counter, which a
+/// post-frame callback increments once per frame and therefore cannot miss one.
+/// `framesSummarized` counts the records Flutter's `onReportTimings` delivered,
+/// and Flutter batches those: a session that ends shortly after the work can
+/// close before the last frames' timings arrive.
+///
+/// The gap is not an error, and this deliberately does not refuse. It is
+/// reported because a summary over a subset LOOKS exactly like a summary over
+/// everything. Measured driving uptizm on Chrome: a theme toggle drew 4 frames,
+/// 2 were reported, and the two block maps that joined were the pre-tap frames,
+/// which were empty. The report read "2 frames, worst build 114ms" with an
+/// empty `blockAttribution`, which an agent reads as "measured, nothing hot"
+/// when the truth is that the frames doing the work never arrived. Both numbers
+/// were already in the payload; nothing compared them.
+///
+/// `detail` is present only on the incomplete case, so a reader can branch on
+/// its absence rather than parsing prose for a negation.
+Map<String, Object?> _coverage(int framesDrawn, int framesSummarized) {
+  final bool complete = framesSummarized >= framesDrawn;
+  return <String, Object?>{
+    'framesDrawn': framesDrawn,
+    'framesSummarized': framesSummarized,
+    'complete': complete,
+    if (!complete)
+      'detail': 'The engine drew $framesDrawn frames and Flutter reported '
+          'timings for $framesSummarized of them, so frameSummary and '
+          'blockAttribution describe a subset of this session rather than all '
+          'of it. The frames missing from the summary may be the expensive '
+          'ones: treat an empty or thin blockAttribution as "not reported" '
+          'rather than as "nothing was slow". Driving more work inside the '
+          'session, or leaving a longer settle before perf_end, gives Flutter '
+          'time to deliver the outstanding batches.',
+  };
 }
 
 /// Aggregates every frame's block map into one session-wide ranking.
