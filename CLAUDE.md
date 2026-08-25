@@ -8,7 +8,7 @@ Guidance for Claude Code working inside the `fluttersdk_dusk` repo. Path-scoped 
 
 Flutter SDK package (Dart 3.4+, Flutter 3.22+). Plugin of `fluttersdk_artisan ^0.0.10`: contributes `DuskArtisanProvider` with 36 CLI commands and 35 MCP tool descriptors backed by 32 `ext.dusk.*` VM Service extensions plus 3 `artisan:dusk:*` substrate-routed tools.
 
-Production deps (hosted only): `fluttersdk_artisan ^0.0.10`, `image ^4.0.0`, `meta ^1.16.0`, `fluttersdk_wind_diagnostics_contracts ^1.0.0`. Dev deps: `flutter_test`, `flutter_lints >=5.0.0 <7.0.0`, `yaml ^3.1.0`. Debug-only at the consumer call site: the consumer wraps `DuskPlugin.install()` in `if (kDebugMode)` so release builds tree-shake the subsystem on dart2js (web) and dart2native (mobile/desktop AOT).
+Production deps (hosted only): `fluttersdk_artisan ^0.0.10`, `image ^4.0.0`, `meta ^1.16.0`, `fluttersdk_wind_diagnostics_contracts ^1.1.0`. Dev deps: `flutter_test`, `flutter_lints >=5.0.0 <7.0.0`, `yaml ^3.1.0`. Debug-only at the consumer call site: the consumer wraps `DuskPlugin.install()` in `if (kDebugMode)` so release builds tree-shake the subsystem on dart2js (web) and dart2native (mobile/desktop AOT).
 
 Two CLI surfaces. `bin/fluttersdk_dusk.dart` is the Flutter-free wrapper (`dart run fluttersdk_dusk <cmd>`); `lib/cli.dart` exports `FluttersdkDuskArtisanProvider` (typedef alias of `DuskArtisanProvider`) for consumer-side `lib/app/_plugins.g.dart` auto-discovery. `install.yaml` at the package root drives `plugin:install fluttersdk_dusk` via the artisan PluginInstaller. After install the consumer's `./bin/fsa` (~110ms warm AOT) is the recommended entry point.
 
@@ -44,15 +44,15 @@ Single barrel: `lib/dusk.dart` re-exports the public API. Subsystem layout under
 
 | Path | Purpose |
 |---|---|
-| `extensions/` | 18 files: `ext_snapshot`, `ext_pointer`, `ext_text_input`, `ext_screenshot`, `ext_scroll`, `ext_wait_find`, `ext_modal_router`, `ext_navigation`, `ext_evaluate`, `ext_close_app`, `ext_find`, `ext_fill`, `ext_console`, `ext_exceptions`, `ext_checkbox`, `ext_observe`, `ext_focus`, plus `register_dusk_extensions` aggregator. See `.claude/rules/extensions.md`. |
-| `commands/` | 34 `ArtisanCommand` subclasses (one file each). See `.claude/rules/commands.md`. |
+| `extensions/` | 19 files: `ext_snapshot`, `ext_pointer`, `ext_text_input`, `ext_screenshot`, `ext_scroll`, `ext_wait_find`, `ext_modal_router`, `ext_navigation`, `ext_evaluate`, `ext_close_app`, `ext_find`, `ext_fill`, `ext_console`, `ext_exceptions`, `ext_checkbox`, `ext_observe`, `ext_focus`, `ext_perf`, plus `register_dusk_extensions` aggregator. See `.claude/rules/extensions.md`. |
+| `commands/` | 36 `ArtisanCommand` subclasses (one file each) plus two shared output helpers (`json_output.dart`, `frame_warning_output.dart`), 38 files in all. See `.claude/rules/commands.md`. |
 | `cdp/` | `cdp_client.dart` (JSON-RPC over `/json` + WebSocket, 30s timeout), `chrome_finder.dart`, `device_presets.dart` (8 named presets). |
-| `utils/` | `actionability_gate.dart` (6-check gate), `dusk_exceptions.dart`, `error_envelope.dart`, `chrome_reaper.dart`. |
+| `utils/` | `actionability_gate.dart` (6-check gate), `dusk_exceptions.dart`, `error_envelope.dart`, `chrome_reaper.dart`, `frame_summary.dart` (pure frame-metric summarizer), `perf_readers.dart` (the four settable cross-package perf pointers). |
 | `dusk_plugin.dart` | `DuskPlugin.install()` entry, enricher list, navigate adapter hook. Idempotent. Wraps the app root in a `RepaintBoundary` (no `GlobalKey`) so `ext.dusk.screenshot` finds it via render-tree walk. |
 | `ref_registry.dart` | `e<N>` (snapshot-frozen, dedup-by-`node.id`) + `q<N>` (re-resolvable predicate handles) dual token system. |
 | `dusk_snapshot_enricher.dart` | FROZEN typedef: `String? Function(Element element, RefRegistry refs)`. |
 | `dusk_navigate_adapter.dart` | FROZEN typedef: `Future<bool> Function(String route)`. |
-| `dusk_artisan_provider.dart` | `DuskArtisanProvider extends ArtisanServiceProvider`: `commands()` returns 34 entries, `mcpTools()` returns 33 const `McpToolDescriptor`s. |
+| `dusk_artisan_provider.dart` | `DuskArtisanProvider extends ArtisanServiceProvider`: `commands()` returns 36 entries, `mcpTools()` returns 35 const `McpToolDescriptor`s. |
 | `bin/fluttersdk_dusk.dart` | Flutter-free CLI wrapper (no `dart:ui` import). |
 | `lib/cli.dart` | Codegen barrel exporting `FluttersdkDuskArtisanProvider` typedef alias for consumer-side `_plugins.g.dart` auto-discovery. |
 | `install.yaml` | V1 plugin manifest (zero stubs, post-install bootstrap message, `executables:` anchor). |
