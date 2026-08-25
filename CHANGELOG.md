@@ -8,6 +8,8 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.0.13] - 2026-08-25
+
 ### Fixed
 
 - **`dusk:perf_end` printed a complete-looking report over a subset of the session's frames, so an empty attribution read as "nothing was slow".** Two counters in the payload measure different things and nothing compared them: `liveness.advanced` comes from a post-frame callback and cannot miss a frame, while `frameSummary.frame_count` counts what Flutter's `onReportTimings` delivered, and Flutter batches those. Measured driving a real app on Chrome, a theme toggle drew 4 frames, 2 were reported, and the 2 block maps that joined were the pre-tap frames, which were empty. The report said "2 frames, worst build 114ms" with `blockAttribution: []`, which is exactly what a session with no hot blocks looks like; the frames carrying the work had simply never arrived. The payload now carries `coverage: {framesDrawn, framesSummarized, complete}` plus a `detail` string on the incomplete case, and the CLI prints a `Partial:` line beside the human summary rather than leaving the caveat in the JSON. It reports rather than refuses, because a subset is still a measurement. (`lib/src/extensions/ext_perf.dart`, `lib/src/commands/dusk_perf_end_command.dart`, `doc/commands/dusk-perf-end.md`, `doc/mcp/tool-reference.md`)
@@ -343,7 +345,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.12...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.13...HEAD
+[0.0.13]: https://github.com/fluttersdk/dusk/compare/0.0.12...0.0.13
 [0.0.12]: https://github.com/fluttersdk/dusk/compare/0.0.11...0.0.12
 [0.0.11]: https://github.com/fluttersdk/dusk/compare/0.0.10...0.0.11
 [0.0.10]: https://github.com/fluttersdk/dusk/compare/0.0.9...0.0.10
