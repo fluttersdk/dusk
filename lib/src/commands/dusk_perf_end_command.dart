@@ -51,6 +51,20 @@ class DuskPerfEndCommand extends ArtisanCommand {
         'Performance session closed: $frameCount frames, worst build '
         '${worstBuild}ms. Pass --json for the full attribution.',
       );
+
+      // The sentence above is what a human acts on, so the subset caveat has
+      // to live beside it and not only in the JSON. Without this a session
+      // that drew 4 frames and summarized 2 reads as a complete measurement,
+      // and an empty attribution reads as "nothing was slow".
+      final coverage = response['coverage'] as Map<String, dynamic>?;
+      if (coverage != null && coverage['complete'] == false) {
+        ctx.output.warning(
+          'Partial: the engine drew ${coverage['framesDrawn']} frames and '
+          '${coverage['framesSummarized']} were summarized, so this is a '
+          'subset. An empty attribution here means "not reported", not '
+          '"nothing was slow".',
+        );
+      }
     });
     return 0;
   }

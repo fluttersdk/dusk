@@ -710,7 +710,12 @@ a typed error rather than an empty report.
 ### Returns
 
 Success: `{ sessionToken, refused: false, phases, liveness: {baseline, final,
-advanced}, frameSummary, blockAttribution, wind, magic, note }`.
+advanced}, coverage, frameSummary, blockAttribution, wind, magic, note }`.
+`coverage` is `{framesDrawn, framesSummarized, complete}` plus a `detail` string
+when incomplete. Flutter batches `onReportTimings`, so a session can close
+before the last frames' timings arrive; when `complete` is `false` the summary
+and the attribution describe a SUBSET, and an empty attribution then means "not
+reported" rather than "nothing was slow". Read it before the numbers.
 `frameSummary` uses `flutter_driver`'s metric-name strings verbatim (average /
 90th / 99th / worst build and rasterizer millis, missed-budget counts) plus a
 `dropped_frame_count` derived from gaps in the frame-number sequence.
