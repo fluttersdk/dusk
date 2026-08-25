@@ -39,13 +39,16 @@ Map<String, Object?> summarizeFramePerf(
   int worstFrameCount = 5,
 }) {
   final List<int> buildMicros = frames
-      .map((Map<String, Object?> frame) => (frame['buildMicros'] as num).toInt())
+      .map(
+          (Map<String, Object?> frame) => (frame['buildMicros'] as num).toInt())
       .toList();
   final List<int> rasterMicros = frames
-      .map((Map<String, Object?> frame) => (frame['rasterMicros'] as num).toInt())
+      .map((Map<String, Object?> frame) =>
+          (frame['rasterMicros'] as num).toInt())
       .toList();
   final List<int> frameNumbers = frames
-      .map((Map<String, Object?> frame) => (frame['frameNumber'] as num).toInt())
+      .map(
+          (Map<String, Object?> frame) => (frame['frameNumber'] as num).toInt())
       .toList();
 
   final List<int> sortedBuildMicros = List<int>.from(buildMicros)..sort();
@@ -56,8 +59,10 @@ Map<String, Object?> summarizeFramePerf(
 
   return <String, Object?>{
     'average_frame_build_time_millis': averageBuildMillis,
-    '90th_percentile_frame_build_time_millis': _percentileMillis(sortedBuildMicros, 0.90),
-    '99th_percentile_frame_build_time_millis': _percentileMillis(sortedBuildMicros, 0.99),
+    '90th_percentile_frame_build_time_millis':
+        _percentileMillis(sortedBuildMicros, 0.90),
+    '99th_percentile_frame_build_time_millis':
+        _percentileMillis(sortedBuildMicros, 0.99),
     'worst_frame_build_time_millis': _worstMillis(sortedBuildMicros),
     'missed_frame_build_budget_count': _missedBudgetCount(buildMicros),
     'average_frame_rasterizer_time_millis': averageRasterMillis,
@@ -65,8 +70,10 @@ Map<String, Object?> summarizeFramePerf(
       rasterMicros,
       averageRasterMillis,
     ),
-    '90th_percentile_frame_rasterizer_time_millis': _percentileMillis(sortedRasterMicros, 0.90),
-    '99th_percentile_frame_rasterizer_time_millis': _percentileMillis(sortedRasterMicros, 0.99),
+    '90th_percentile_frame_rasterizer_time_millis':
+        _percentileMillis(sortedRasterMicros, 0.90),
+    '99th_percentile_frame_rasterizer_time_millis':
+        _percentileMillis(sortedRasterMicros, 0.99),
     'worst_frame_rasterizer_time_millis': _worstMillis(sortedRasterMicros),
     'missed_frame_rasterizer_budget_count': _missedBudgetCount(rasterMicros),
     'frame_count': frames.length,
@@ -155,11 +162,12 @@ List<Map<String, Object?>> _worstFrames(
   List<Map<String, Object?>> frames,
   int count,
 ) {
-  final List<Map<String, Object?>> sorted = List<Map<String, Object?>>.from(frames)
-    ..sort((Map<String, Object?> a, Map<String, Object?> b) {
-      final int aBuild = (a['buildMicros'] as num).toInt();
-      final int bBuild = (b['buildMicros'] as num).toInt();
-      return bBuild.compareTo(aBuild);
-    });
+  final List<Map<String, Object?>> sorted =
+      List<Map<String, Object?>>.from(frames)
+        ..sort((Map<String, Object?> a, Map<String, Object?> b) {
+          final int aBuild = (a['buildMicros'] as num).toInt();
+          final int bBuild = (b['buildMicros'] as num).toInt();
+          return bBuild.compareTo(aBuild);
+        });
   return sorted.take(count).toList();
 }

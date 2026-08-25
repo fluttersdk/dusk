@@ -19,7 +19,8 @@ void main() {
   });
 
   group('framePerfReader default', () {
-    test('returns an empty frame list and a zero liveness counter, not null', () {
+    test('returns an empty frame list and a zero liveness counter, not null',
+        () {
       final Map<String, Object?> result = framePerfReader();
 
       expect(result['frames'], <Map<String, Object?>>[]);
@@ -44,7 +45,9 @@ void main() {
   });
 
   group('pointer isolation', () {
-    test('assigning framePerfReader disturbs neither the extras reader nor the hooks', () {
+    test(
+        'assigning framePerfReader disturbs neither the extras reader nor the hooks',
+        () {
       bool resetCalled = false;
       framePerfReader = () => <String, Object?>{
             'frames': <Map<String, Object?>>[

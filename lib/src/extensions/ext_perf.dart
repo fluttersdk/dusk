@@ -63,7 +63,9 @@ final class _PerfSession {
   /// by a throwing hook would then sail past the stalled-engine refusal and
   /// report frames nobody drove, out of a buffer the hook never got as far as
   /// clearing. Null cannot collide with a real counter value, and `perf_end`
-  /// refuses on it explicitly.
+  /// answers it with an error envelope rather than a `refused` report, since
+  /// a refusal is a measurement outcome and a session that never opened is
+  /// not one.
   int? livenessBaseline;
 
   // The five flags this session touches, as they read BEFORE it touched

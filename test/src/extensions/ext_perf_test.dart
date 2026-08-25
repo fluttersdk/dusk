@@ -278,7 +278,8 @@ void main() {
       expect(payload.containsKey('magic'), isFalse);
     });
 
-    test('a throwing begin hook restores the flags immediately, without '
+    test(
+        'a throwing begin hook restores the flags immediately, without '
         'waiting for a perf_end', () async {
       // Both `perfSessionBeginHook` and `framePerfReader` are assigned in
       // another repository, so both can throw. The session is installed before
@@ -301,7 +302,8 @@ void main() {
       expect(debugProfilePaintsEnabled, isFalse);
     });
 
-    test('a failed begin leaves NO session, so a later perf_end cannot report '
+    test(
+        'a failed begin leaves NO session, so a later perf_end cannot report '
         'over an uncleared buffer', () async {
       // The mutant this replaces: with a session left open carrying a baseline
       // of 0, `advanced = final - 0` equals the absolute counter, which is in
@@ -325,7 +327,8 @@ void main() {
       expect(end.errorDetail, contains('perf_begin'));
     });
 
-    test('refuses when the counter advanced by exactly one, which is what a '
+    test(
+        'refuses when the counter advanced by exactly one, which is what a '
         'backgrounded page produces', () async {
       // Measured, not hypothesised. Driving a scroll against a hidden Chrome
       // page and closing the session read `advanced: 1`: the engine emits one

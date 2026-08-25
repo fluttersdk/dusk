@@ -72,8 +72,10 @@ void main() {
   });
 
   group('summarizeFramePerf empty input', () {
-    test('an empty list returns zeros rather than throwing or dividing by zero', () {
-      final Map<String, Object?> summary = summarizeFramePerf(<Map<String, Object?>>[]);
+    test('an empty list returns zeros rather than throwing or dividing by zero',
+        () {
+      final Map<String, Object?> summary =
+          summarizeFramePerf(<Map<String, Object?>>[]);
 
       expect(summary['average_frame_build_time_millis'], 0.0);
       expect(summary['90th_percentile_frame_build_time_millis'], 0.0);
@@ -94,7 +96,9 @@ void main() {
   });
 
   group('summarizeFramePerf dropped-frame detection', () {
-    test('a gap in the frameNumber sequence [10, 11, 13, 14] reports exactly one dropped frame', () {
+    test(
+        'a gap in the frameNumber sequence [10, 11, 13, 14] reports exactly one dropped frame',
+        () {
       final List<Map<String, Object?>> frames = <Map<String, Object?>>[
         _frame(frameNumber: 10, buildMicros: 1000),
         _frame(frameNumber: 11, buildMicros: 1000),
@@ -119,7 +123,8 @@ void main() {
       expect(summary['dropped_frame_count'], 0);
     });
 
-    test('a non-monotonic or duplicate sequence never reports a negative count', () {
+    test('a non-monotonic or duplicate sequence never reports a negative count',
+        () {
       final List<Map<String, Object?>> frames = <Map<String, Object?>>[
         _frame(frameNumber: 5, buildMicros: 1000),
         _frame(frameNumber: 5, buildMicros: 1000),
@@ -133,7 +138,9 @@ void main() {
   });
 
   group('summarizeFramePerf worst-N attribution', () {
-    test('the worst-N list carries each frame\'s block attribution, ranked by build time', () {
+    test(
+        'the worst-N list carries each frame\'s block attribution, ranked by build time',
+        () {
       final List<Map<String, Object?>> frames = <Map<String, Object?>>[
         _frame(
           frameNumber: 1,
@@ -158,7 +165,8 @@ void main() {
         ),
       ];
 
-      final Map<String, Object?> summary = summarizeFramePerf(frames, worstFrameCount: 2);
+      final Map<String, Object?> summary =
+          summarizeFramePerf(frames, worstFrameCount: 2);
 
       final List<Object?> worst = summary['worst_frames'] as List<Object?>;
       expect(worst.length, 2);
