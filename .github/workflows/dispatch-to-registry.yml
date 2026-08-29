@@ -18,8 +18,12 @@
 name: Dispatch skill update to registry
 
 on:
-    release:
-        types: [published]
+    workflow_call:
+        secrets:
+            REGISTRY_BOT_APP_ID:
+                required: true
+            REGISTRY_BOT_PRIVATE_KEY:
+                required: true
     workflow_dispatch:
 
 permissions:
