@@ -15,6 +15,15 @@
 # to `.claude/worktrees/magic`, which does not exist, and version solving fails on
 # the first path dependency.
 #
+# One thing this layout costs, which no file here can fix because the rule lives
+# upstream in artisan: `sessionOwnershipError` treats a working directory INSIDE
+# `projectRoot` as owning the session (`state_file.dart:262`, `_isWithin` at `:282`),
+# and a worktree now sits under the main checkout. So a `dusk:*` call from a worktree
+# that has no session of its own falls back to the main checkout's app, drives THAT,
+# and reports success. The old sibling layout tripped the guard instead. Run
+# `artisan start` in the worktree, or pass `--state=<path>`, before any dusk command
+# there.
+#
 # NOT processed when a WorktreeCreate hook replaces the default git logic; such a
 # hook has to copy these itself.
 
