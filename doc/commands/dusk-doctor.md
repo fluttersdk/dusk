@@ -100,6 +100,8 @@ Compares `state.json`'s `projectRoot` against the directory the command is runni
 
 WARN, naming both paths. Skipped when no `projectRoot` is recorded. Paths are compared after resolving symlinks, so a worktree checkout does not read as a mismatch on the same directory.
 
+That last property cuts the other way now that worktrees live at `<repo>/.claude/worktrees/<slug>` rather than beside the checkout. A worktree is INSIDE `projectRoot`, so the check reads it as the owner and stays silent, while a `dusk:*` call from a worktree with no session of its own drives the app started from the main checkout and succeeds. The layout that used to trip this check no longer exists, so the check no longer covers the case it was written for. Start a session in the worktree, or pass `--state=<path>`.
+
 ### 7. CDP session health
 
 Probes the `cdpPort` recorded in state for three failures. They matter together because they present as one symptom, a capture that never changes, and nothing else in the output distinguishes them:
