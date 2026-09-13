@@ -36,6 +36,9 @@ coverage/
 # Repo CI configuration, not package content: it tells Codecov which floor
 # to judge this repo against and means nothing to a consumer.
 codecov.yml
+# MCP registry manifest, published by hand to registry.modelcontextprotocol.io.
+# Same category as codecov.yml: a consumer of the pub package never reads it.
+server.json
 .dart_tool/
 **/doc/api/
 .flutter-plugins-dependencies
