@@ -8,6 +8,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- **`server.json`, the manifest that lists this package on the official MCP registry.** The ecosystem was absent from every MCP directory while three competing Flutter MCP servers were listed, so an agent looking for a Flutter E2E driver found them and not this one. The entry carries `repository` and `websiteUrl` and deliberately no `packages` block: `registryType` documents npm, pypi, oci, nuget and mcpb with no pub equivalent, and both `packages` and `remotes` are optional on `ServerDetail`, which requires only name, description and version. Nothing in the package reads the file and no workflow publishes it, so `test/server_json_version_test.dart` guards the version against `pubspec.yaml`, along with the schema's 100 character description cap. Excluded from the pub archive for the same reason `codecov.yml` is. (`server.json`, `.pubignore`, `test/server_json_version_test.dart`)
+
 ## [0.0.13] - 2026-08-25
 
 ### Fixed
