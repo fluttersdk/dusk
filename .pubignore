@@ -39,6 +39,10 @@ codecov.yml
 # MCP registry manifest, published by hand to registry.modelcontextprotocol.io.
 # Same category as codecov.yml: a consumer of the pub package never reads it.
 server.json
+# The guard for the manifest above travels with it: it reads server.json
+# off disk, so shipping the test without the file leaves a test in the
+# archive that can only throw.
+test/server_json_version_test.dart
 .dart_tool/
 **/doc/api/
 .flutter-plugins-dependencies
