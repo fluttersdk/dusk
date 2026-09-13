@@ -1,0 +1,12 @@
+{
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "name": "io.github.fluttersdk/dusk",
+    "title": "FlutterSDK Dusk",
+    "description": "Drive live Flutter apps: snapshot the Semantics tree, tap, type, scroll and screenshot.",
+    "version": "0.0.13",
+    "repository": {
+        "url": "https://github.com/fluttersdk/dusk",
+        "source": "github"
+    },
+    "websiteUrl": "https://fluttersdk.com/dusk"
+}
