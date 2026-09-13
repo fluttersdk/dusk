@@ -38,7 +38,8 @@ void main() {
     });
 
     test('description fits the registry limit of 100 characters', () {
-      expect((manifest['description'] as String).length, lessThanOrEqualTo(100));
+      expect(
+          (manifest['description'] as String).length, lessThanOrEqualTo(100));
     });
 
     test('name is the registry namespace for this package', () {
