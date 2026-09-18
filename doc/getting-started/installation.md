@@ -44,7 +44,7 @@ Alternatively, add it manually to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  fluttersdk_dusk: ^0.0.13
+  fluttersdk_dusk: ^0.0.14
 ```
 
 Then fetch dependencies:

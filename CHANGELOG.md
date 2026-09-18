@@ -8,6 +8,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+---
+
+## [0.0.14] - 2026-09-19
+
 ### Added
 
 - **`server.json`, the manifest that lists this package on the official MCP registry.** The ecosystem was absent from every MCP directory while three competing Flutter MCP servers were listed, so an agent looking for a Flutter E2E driver found them and not this one. The entry carries `repository` and `websiteUrl` and deliberately no `packages` block: `registryType` documents npm, pypi, oci, nuget and mcpb with no pub equivalent, and both `packages` and `remotes` are optional on `ServerDetail`, which requires only name, description and version. Nothing in the package reads the file and no workflow publishes it, so `test/server_json_version_test.dart` guards the version against `pubspec.yaml`, along with the schema's 100 character description cap. Excluded from the pub archive for the same reason `codecov.yml` is. (`server.json`, `.pubignore`, `test/server_json_version_test.dart`)
@@ -350,6 +354,7 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
 [Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.13...HEAD
+[0.0.14]: https://github.com/fluttersdk/dusk/compare/0.0.13...0.0.14
 [0.0.13]: https://github.com/fluttersdk/dusk/compare/0.0.12...0.0.13
 [0.0.12]: https://github.com/fluttersdk/dusk/compare/0.0.11...0.0.12
 [0.0.11]: https://github.com/fluttersdk/dusk/compare/0.0.10...0.0.11
