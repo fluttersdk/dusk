@@ -222,6 +222,12 @@ the UI is static, when the action is one-shot.
   first match, dispatch against it. Survive snap disposal, navigation,
   hot-reload (as long as something still matches).
 - Throw `DuskStaleHandleException` when predicates match nothing live.
+- A `dusk_observe` handle also carries its position among the nodes
+  that label matched, so several candidates sharing one label stay
+  distinct and a list of rows offering the same action can be worked
+  row by row. A `dusk_find` handle has no such index: it names the
+  first match and tells you the total, and a repeated label is a
+  signal to refine the predicate or scope it with `within`.
 
 When to use them: across multi-step flows, retry loops, animated UI,
 async-loading content. Default to `q<N>` whenever the agent will hold a

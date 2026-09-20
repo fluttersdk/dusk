@@ -97,6 +97,8 @@ The Stagehand pattern that gives `dusk:observe` its name:
 1. **Observe once.** A single `dusk:observe` call enumerates the interactive surface of the current screen, mints `qN` handles, and returns them in one JSON payload.
 2. **Act many.** The agent issues a sequence of `dusk:tap --ref=qN`, `dusk:type --ref=qN`, `dusk:set_checkbox --ref=qN`, etc. against the minted refs WITHOUT re-observing between actions. Each action re-resolves the `qN` handle against the live tree, so the refs survive intermediate rebuilds.
 
+Candidates sharing one label stay distinct through that re-resolution. Each handle carries its position among the nodes that label matched, which is what makes a list of rows offering the same action safe to work row by row; a handle whose node is gone reports a stale handle rather than acting on its neighbour. `dusk:find` is deliberately different, because there the predicate is one you chose: it answers the first match and reports the total so you can refine it or scope it with `--within`.
+
 The "no server-side LLM" property is the second half of the pattern: Stagehand-the-product runs an LLM server-side to rank candidates by intent. `dusk:observe` returns the raw candidate list and lets the agent's own LLM rank, so no model context is consumed on the server, and the response is deterministic.
 
 Re-observe only when:
