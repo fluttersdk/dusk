@@ -605,14 +605,16 @@ void main() {
         // `mergeAllDescendantsIntoThisNode` is set
         // (`semantics.dart:3801-3804`). So under a `MergeSemantics` whose own
         // label is empty and whose descendant supplies `Favourite`, the
-        // container REPORTS `Favourite` while the resolver, which counts
-        // `node.label`, never sees it. Measured on this exact tree: the walk
-        // yields node labels (empty), (empty), `Favourite`, `Favourite`, and
-        // data labels `Favourite`, (empty), `Favourite`, `Favourite`.
+        // boundary REPORTS `Favourite` while the resolver, which counts
+        // `node.label`, never sees it there.
         //
         // Counted on the data label, that files three nodes under `Favourite`
-        // and hands the last button index 2, which the resolver cannot reach,
-        // while the button before it takes index 1 and lands on its neighbour.
+        // where the resolver sees two: the plain button takes an index nothing
+        // can reach and the inner one takes an index that lands on it.
+        //
+        // The padding is load bearing. Without it the boundary, the inner
+        // button and the plain button share a y, and an assertion comparing
+        // positions passes whichever node it is handed. Three distinct tops.
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
@@ -622,11 +624,14 @@ void main() {
                     child: Semantics(
                       container: true,
                       explicitChildNodes: true,
-                      child: Semantics(
-                        container: true,
-                        button: true,
-                        label: 'Favourite',
-                        child: const SizedBox(width: 100, height: 40),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Semantics(
+                          container: true,
+                          button: true,
+                          label: 'Favourite',
+                          child: const SizedBox(width: 100, height: 40),
+                        ),
                       ),
                     ),
                   ),
@@ -647,27 +652,42 @@ void main() {
           'ext.dusk.observe',
           <String, String>{},
         );
-        final List<dynamic> candidates = (jsonDecode(response.result!)
-            as Map<String, dynamic>)['candidates'] as List<dynamic>;
+        final List<Map<String, dynamic>> candidates = <Map<String, dynamic>>[
+          for (final dynamic entry in (jsonDecode(response.result!)
+              as Map<String, dynamic>)['candidates'] as List<dynamic>)
+            entry as Map<String, dynamic>,
+        ];
 
-        // Every candidate that resolves at all resolves to ITS OWN rect. A
-        // candidate that cannot resolve is acceptable here and always was:
-        // the merging container's own label is empty, so the label walk has
-        // never been able to reach it. What is not acceptable is one
-        // candidate answering with another's node.
-        for (final dynamic entry in candidates) {
-          final Map<String, dynamic> candidate = entry as Map<String, dynamic>;
-          final RefEntry? resolved = resolveQuery(
-            RefRegistry.lookupQuery(candidate['ref'] as String)!,
-          );
-          if (resolved == null) continue;
+        double topOf(Map<String, dynamic> candidate) =>
+            (candidate['bounds'] as Map<String, dynamic>)['y'] as double;
 
-          expect(
-            resolved.rect.top,
-            (candidate['bounds'] as Map<String, dynamic>)['y'] as double,
-            reason: 'candidate ${candidate['ref']} resolved to another node',
-          );
-        }
+        RefEntry? resolve(Map<String, dynamic> candidate) => resolveQuery(
+              RefRegistry.lookupQuery(candidate['ref'] as String)!,
+            );
+
+        expect(candidates.map(topOf), <double>[0, 8, 56]);
+
+        // The two nodes that own their label resolve to themselves. These are
+        // the assertions the Major broke: counted on the merged label the
+        // middle one landed on the last and the last resolved to nothing.
+        expect(resolve(candidates[1])!.rect.top, 8);
+        expect(resolve(candidates[2])!.rect.top, 56);
+
+        // And the boundary, which is the case this fix deliberately does not
+        // cover, written down rather than left to pass quietly. Its own label
+        // is empty, so it is minted UNINDEXED against the merged data label
+        // and the resolver answers it with the first interactive match, which
+        // is its own descendant. That is the behaviour it had before this
+        // branch; what the index changes is that it can no longer drag its
+        // neighbours along with it.
+        expect(
+            RefRegistry.lookupQuery(candidates[0]['ref'] as String)!.matchIndex,
+            isNull);
+        expect(
+          resolve(candidates[0])!.rect.top,
+          8,
+          reason: 'the unindexed boundary still answers with its descendant',
+        );
       },
     );
   });
