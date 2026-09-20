@@ -580,6 +580,98 @@ void main() {
     );
   });
 
+  group('extDuskObserveHandler — merged semantics', () {
+    setUp(() {
+      RefRegistry.resetForTesting();
+      DuskPlugin.enrichers.clear();
+    });
+
+    tearDown(() {
+      RefRegistry.resetForTesting();
+      DuskPlugin.enrichers.clear();
+    });
+
+    testWidgets(
+      '(k) a merging container whose data label is borrowed from a descendant '
+      'does not shift the indices of the nodes that own theirs',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        // The two walks that have to agree read different strings.
+        // `SemanticsNode.label` is the node's own, while `getSemanticsData()`
+        // concatenates every merged descendant's label when
+        // `mergeAllDescendantsIntoThisNode` is set
+        // (`semantics.dart:3801-3804`). So under a `MergeSemantics` whose own
+        // label is empty and whose descendant supplies `Favourite`, the
+        // container REPORTS `Favourite` while the resolver, which counts
+        // `node.label`, never sees it. Measured on this exact tree: the walk
+        // yields node labels (empty), (empty), `Favourite`, `Favourite`, and
+        // data labels `Favourite`, (empty), `Favourite`, `Favourite`.
+        //
+        // Counted on the data label, that files three nodes under `Favourite`
+        // and hands the last button index 2, which the resolver cannot reach,
+        // while the button before it takes index 1 and lands on its neighbour.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: <Widget>[
+                  MergeSemantics(
+                    child: Semantics(
+                      container: true,
+                      explicitChildNodes: true,
+                      child: Semantics(
+                        container: true,
+                        button: true,
+                        label: 'Favourite',
+                        child: const SizedBox(width: 100, height: 40),
+                      ),
+                    ),
+                  ),
+                  Semantics(
+                    container: true,
+                    button: true,
+                    label: 'Favourite',
+                    child: const SizedBox(width: 100, height: 40),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final response = await extDuskObserveHandler(
+          'ext.dusk.observe',
+          <String, String>{},
+        );
+        final List<dynamic> candidates = (jsonDecode(response.result!)
+            as Map<String, dynamic>)['candidates'] as List<dynamic>;
+
+        // Every candidate that resolves at all resolves to ITS OWN rect. A
+        // candidate that cannot resolve is acceptable here and always was:
+        // the merging container's own label is empty, so the label walk has
+        // never been able to reach it. What is not acceptable is one
+        // candidate answering with another's node.
+        for (final dynamic entry in candidates) {
+          final Map<String, dynamic> candidate = entry as Map<String, dynamic>;
+          final RefEntry? resolved = resolveQuery(
+            RefRegistry.lookupQuery(candidate['ref'] as String)!,
+          );
+          if (resolved == null) continue;
+
+          expect(
+            resolved.rect.top,
+            (candidate['bounds'] as Map<String, dynamic>)['y'] as double,
+            reason: 'candidate ${candidate['ref']} resolved to another node',
+          );
+        }
+      },
+    );
+  });
+
   group('extDuskObserveHandler — empty tree', () {
     setUp(() {
       RefRegistry.resetForTesting();

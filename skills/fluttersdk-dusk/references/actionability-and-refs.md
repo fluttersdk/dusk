@@ -228,6 +228,10 @@ the UI is static, when the action is one-shot.
   row by row. A `dusk_find` handle has no such index: it names the
   first match and tells you the total, and a repeated label is a
   signal to refine the predicate or scope it with `within`.
+- That position is not an identity. A row leaving is reported as a
+  stale handle; a row ARRIVING above the list is not, and it shifts
+  every handle you are holding down by one. Re-observe after anything
+  that can prepend to a list.
 
 When to use them: across multi-step flows, retry loops, animated UI,
 async-loading content. Default to `q<N>` whenever the agent will hold a
