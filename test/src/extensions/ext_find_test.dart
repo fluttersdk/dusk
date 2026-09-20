@@ -919,6 +919,136 @@ void main() {
     );
   });
 
+  group('matchIndex picks among the nodes a label matched', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets(
+      '(n) each index names its own node and overrides the interactive '
+      'preference',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // A plain node first, then two buttons, all carrying one label. The
+        // unindexed resolver prefers the first INTERACTIVE match, so it
+        // answers the second node; an index names whichever one it says,
+        // including the inert first, because the caller counted the same
+        // walk.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: <Widget>[
+                  Semantics(
+                    label: 'Favourite',
+                    container: true,
+                    child: const SizedBox(width: 100, height: 40),
+                  ),
+                  Semantics(
+                    label: 'Favourite',
+                    button: true,
+                    container: true,
+                    child: const SizedBox(width: 100, height: 40),
+                  ),
+                  Semantics(
+                    label: 'Favourite',
+                    button: true,
+                    container: true,
+                    child: const SizedBox(width: 100, height: 40),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final List<double> tops = <double>[
+          for (int index = 0; index < 3; index++)
+            resolveQuery(
+              DuskQuery(semanticsLabel: 'Favourite', matchIndex: index),
+            )!
+                .rect
+                .top,
+        ];
+
+        expect(tops, <double>[0, 40, 80]);
+        expect(
+          resolveQuery(const DuskQuery(semanticsLabel: 'Favourite'))!.rect.top,
+          40,
+          reason: 'an unindexed query still prefers the first interactive node',
+        );
+      },
+    );
+
+    testWidgets(
+      '(o) an index past the last match reports no match rather than the '
+      'first one',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Semantics(
+                label: 'Favourite',
+                button: true,
+                container: true,
+                child: const SizedBox(width: 100, height: 40),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          resolveQuery(
+            const DuskQuery(semanticsLabel: 'Favourite', matchIndex: 1),
+          ),
+          isNull,
+        );
+      },
+    );
+
+    testWidgets(
+      '(p) an indexed text query does not fall through to the Element tree',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        // The `text` leg searches labels first and then the Element tree for a
+        // `Text` whose data reads the same. That second walk answers the first
+        // hit and cannot honour an index, so an indexed query that missed the
+        // label walk has to stop rather than be handed a widget that merely
+        // reads alike.
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Text('Favourite')),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          resolveQuery(const DuskQuery(text: 'Favourite')),
+          isNotNull,
+          reason: 'the unindexed query still reaches the Element-tree leg',
+        );
+        expect(
+          resolveQuery(const DuskQuery(text: 'Favourite', matchIndex: 1)),
+          isNull,
+        );
+      },
+    );
+  });
+
   group('RefRegistry query store', () {
     setUp(RefRegistry.resetForTesting);
 

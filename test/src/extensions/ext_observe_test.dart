@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
+import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_observe.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
 import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
@@ -385,6 +386,195 @@ void main() {
               stored.semanticsLabel != null ||
               stored.keyValue != null,
           isTrue,
+        );
+      },
+    );
+  });
+
+  group('extDuskObserveHandler — candidates sharing one label', () {
+    setUp(() {
+      RefRegistry.resetForTesting();
+      DuskPlugin.enrichers.clear();
+    });
+
+    tearDown(() {
+      RefRegistry.resetForTesting();
+      DuskPlugin.enrichers.clear();
+    });
+
+    testWidgets(
+      '(h) each candidate re-resolves to the node it was minted from, not to '
+      'the first node carrying that label',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        // Three buttons with one label, which is what a list of rows carrying
+        // the same action looks like. Before `matchIndex` every candidate's
+        // handle carried the label alone, so all three resolved to the first
+        // and an agent acting on the third moved the first.
+        final List<int> pressed = <int>[];
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: <Widget>[
+                  for (int index = 0; index < 3; index++)
+                    ElevatedButton(
+                      onPressed: () => pressed.add(index),
+                      child: const Text('Favourite'),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final response = await extDuskObserveHandler(
+          'ext.dusk.observe',
+          <String, String>{},
+        );
+        final List<dynamic> candidates = (jsonDecode(response.result!)
+            as Map<String, dynamic>)['candidates'] as List<dynamic>;
+
+        expect(candidates.length, 3);
+
+        // Every candidate resolves, and to its own node: the three entries
+        // differ by their vertical position, so a handle that collapsed onto
+        // the first would report the first's rect three times.
+        final List<double> observed = <double>[
+          for (final dynamic entry in candidates)
+            ((entry as Map<String, dynamic>)['bounds']
+                as Map<String, dynamic>)['y'] as double,
+        ];
+
+        final List<double> resolved = <double>[
+          for (final dynamic entry in candidates)
+            resolveQuery(
+              RefRegistry.lookupQuery(
+                (entry as Map<String, dynamic>)['ref'] as String,
+              )!,
+            )!
+                .rect
+                .top,
+        ];
+
+        expect(resolved, observed);
+      },
+    );
+
+    testWidgets(
+      '(i) a handle whose node is gone resolves to nothing rather than to a '
+      'surviving sibling with the same label',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        // The stale case the index has to keep honest. Observe three, drop one,
+        // and the handle for the third must report no match: answering with
+        // whichever sibling moved up would be the same silent substitution
+        // this index exists to prevent, one rebuild later.
+        int count = 3;
+        late StateSetter setCount;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (BuildContext context, StateSetter setState) {
+                  setCount = setState;
+
+                  return Column(
+                    children: <Widget>[
+                      for (int index = 0; index < count; index++)
+                        ElevatedButton(
+                          onPressed: () {},
+                          child: const Text('Favourite'),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final response = await extDuskObserveHandler(
+          'ext.dusk.observe',
+          <String, String>{},
+        );
+        final List<dynamic> candidates = (jsonDecode(response.result!)
+            as Map<String, dynamic>)['candidates'] as List<dynamic>;
+        final String last =
+            (candidates.last as Map<String, dynamic>)['ref'] as String;
+
+        setCount(() => count = 2);
+        await tester.pumpAndSettle();
+
+        expect(resolveQuery(RefRegistry.lookupQuery(last)!), isNull);
+      },
+    );
+
+    testWidgets(
+      '(j) the index counts nodes observe does not emit, because the resolver '
+      'does',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        // An inert node carrying the button's label, ahead of it in the walk.
+        // Observe does not emit it, the resolver counts it, and a counter
+        // living inside observe's own filter would call the button index 0
+        // and resolve it to the label.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: <Widget>[
+                  Semantics(
+                    label: 'Favourite',
+                    container: true,
+                    child: const SizedBox(width: 120, height: 40),
+                  ),
+                  Semantics(
+                    label: 'Favourite',
+                    button: true,
+                    container: true,
+                    child: const SizedBox(width: 120, height: 40),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final response = await extDuskObserveHandler(
+          'ext.dusk.observe',
+          <String, String>{},
+        );
+        final List<dynamic> candidates = (jsonDecode(response.result!)
+            as Map<String, dynamic>)['candidates'] as List<dynamic>;
+
+        expect(candidates.length, 1, reason: 'only the button is interactive');
+
+        final Map<String, dynamic> only =
+            candidates.single as Map<String, dynamic>;
+        final double observed =
+            (only['bounds'] as Map<String, dynamic>)['y'] as double;
+
+        expect(observed, 40, reason: 'the button is the second row');
+        expect(
+          resolveQuery(RefRegistry.lookupQuery(only['ref'] as String)!)!
+              .rect
+              .top,
+          observed,
         );
       },
     );

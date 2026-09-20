@@ -89,6 +89,7 @@ class DuskQuery {
     this.semanticsLabel,
     this.keyValue,
     this.withinRef,
+    this.matchIndex,
   });
 
   /// Exact match against [SemanticsNode.label] (preferred for accessibility-
@@ -118,6 +119,34 @@ class DuskQuery {
   /// scoped locators behave the same way, including the part where a handle
   /// stops resolving once its scope is gone.
   final String? withinRef;
+
+  /// Which of the nodes matching the label predicate this handle names,
+  /// counting from zero in Semantics walk order.
+  ///
+  /// Null on a handle minted from a predicate the caller wrote: `ext.dusk.find`
+  /// answers the first match, reports the total, and tells the caller to refine
+  /// the query, which is the right shape when a human or an agent chose the
+  /// predicate.
+  ///
+  /// Set on every handle `ext.dusk.observe` mints, because there the predicate
+  /// is DERIVED from a node the walk already has in hand rather than chosen.
+  /// Without it, N candidates sharing a label get N handles that all resolve to
+  /// the first, which contradicts the one-candidate-per-node contract observe
+  /// documents: an agent acting on the third row moved the first, and both
+  /// calls reported success. A screen only has to repeat a label for this to
+  /// fire, and a list of rows carrying the same action always does.
+  ///
+  /// An index alone would name a moving target, so the two are read together:
+  /// the label still has to match, and the index picks among the nodes that
+  /// matched. Playwright's `locator.nth(i)` is the same pair.
+  ///
+  /// Counted over EVERY node whose label matches, not over the interactive
+  /// subset, because the two walks that have to agree apply different
+  /// interactivity predicates ([_isInteractive] in `ext_observe.dart` admits a
+  /// header and an image; [_isInteractiveNode] in `ext_find.dart` does not).
+  /// Counting the raw label matches is the one universe both can compute
+  /// identically.
+  final int? matchIndex;
 }
 
 /// Static registry mapping `[ref=eN]` tokens to [RefEntry] records.
