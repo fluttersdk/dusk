@@ -3,7 +3,7 @@
     "name": "io.github.fluttersdk/dusk",
     "title": "FlutterSDK Dusk",
     "description": "Drive live Flutter apps: snapshot the Semantics tree, tap, type, scroll and screenshot.",
-    "version": "0.0.14",
+    "version": "0.0.15",
     "repository": {
         "url": "https://github.com/fluttersdk/dusk",
         "source": "github"
