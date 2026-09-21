@@ -225,6 +225,7 @@ RefEntry? resolveQuery(DuskQuery query) {
     final (SemanticsNode? node, int count) = _findSemanticsNodeByLabelWithCount(
       query.semanticsLabel!,
       from: scopeNode,
+      index: query.matchIndex,
     );
     if (node == null) return (null, 0, null);
     final String? diagnostic = count > 1
@@ -239,7 +240,11 @@ RefEntry? resolveQuery(DuskQuery query) {
   //    tree Text widget fallback.
   if (query.text != null) {
     final (SemanticsNode? node, int count) = semanticsScoped
-        ? _findSemanticsNodeByLabelWithCount(query.text!, from: scopeNode)
+        ? _findSemanticsNodeByLabelWithCount(
+            query.text!,
+            from: scopeNode,
+            index: query.matchIndex,
+          )
         : (null, 0);
     if (node != null) {
       final String? diagnostic = count > 1
@@ -248,6 +253,12 @@ RefEntry? resolveQuery(DuskQuery query) {
           : null;
       return (_entryFromSemanticsNode(node), count, diagnostic);
     }
+    // The Element-tree fallback covers a `Text` with no semantics label of its
+    // own, and it cannot honour an index: it searches a different tree and
+    // answers the first hit. So an indexed handle whose node is gone stops
+    // here rather than falling through to a widget that merely reads the same,
+    // which would reintroduce the substitution the index prevents.
+    if (query.matchIndex != null) return (null, count, null);
     final Element? element =
         _findElementByTextData(query.text!, from: scopeElement);
     if (element == null) return (null, 0, null);
@@ -428,13 +439,16 @@ SemanticsNode? _findSemanticsNodeByLabelContains(
 (SemanticsNode?, int) _findSemanticsNodeByLabelWithCount(
   String needle, {
   SemanticsNode? from,
+  int? index,
 }) {
   SemanticsNode? firstMatch;
   SemanticsNode? firstInteractive;
+  SemanticsNode? indexed;
   int count = 0;
 
   void visit(SemanticsNode node) {
     if (node.label == needle) {
+      if (count == index) indexed = node;
       count += 1;
       firstMatch ??= node;
       firstInteractive ??= _isInteractiveNode(node) ? node : null;
@@ -457,6 +471,14 @@ SemanticsNode? _findSemanticsNodeByLabelContains(
 
     visitOwner(RendererBinding.instance.rootPipelineOwner);
   }
+  // An index names one node, so it overrides the preference below rather than
+  // being filtered by it: the caller that supplied it counted the same matches
+  // in the same order and already knows which one it wants. A null here when
+  // an index WAS asked for is a real no-match (the tree shrank), and it is
+  // returned as one: answering with a surviving sibling would be the silent
+  // substitution the index exists to prevent, one rebuild later.
+  if (index != null) return (indexed, count);
+
   // Prefer an interactive match (a button, switch, or text field) over a plain
   // node when one label collides across both: a visible label WText that names
   // an adjacent control, or a heading that repeats a button's text, would

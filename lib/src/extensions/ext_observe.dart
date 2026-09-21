@@ -132,9 +132,70 @@ Future<developer.ServiceExtensionResponse> extDuskObserveHandler(
           _buildElementByRenderObject();
       final List<Map<String, dynamic>> candidates = <Map<String, dynamic>>[];
 
+      // How many nodes carrying each label the walk has passed so far, which
+      // is the [DuskQuery.matchIndex] the next one gets.
+      //
+      // Counted BEFORE the role filter and before the interactive check, and
+      // that placement is the whole reason it is correct. The resolver counts
+      // every node whose label matches, so a counter that skipped the nodes
+      // observe declines to emit would hand out indices into a shorter list
+      // and every one past the first skip would name the wrong node. It is
+      // also why the two interactivity predicates being different
+      // ([_isInteractive] here admits a header and an image, `ext_find.dart`'s
+      // [_isInteractiveNode] does not) costs nothing.
+      //
+      // `limit` and `roles` are safe for the same reason in reverse: they only
+      // ever stop the walk or drop an entry, and an index already handed out
+      // stays valid.
+      //
+      // **Keyed on `node.label` and NOT on `data.label`, which are different
+      // strings.** `SemanticsNode.label` is the node's own, while
+      // `getSemanticsData()` concatenates every merged descendant's label when
+      // `mergeAllDescendantsIntoThisNode` is set (`semantics.dart:3801-3804`),
+      // and `ext_find.dart`'s resolver counts `node.label`. So a `MergeSemantics`
+      // whose own label is empty and whose descendant supplies `Favourite`
+      // REPORTS `Favourite` while the resolver never counts it there: filing it
+      // under the data label put three nodes in a bucket the resolver saw two
+      // in, which handed the last button an index nothing could reach and the
+      // one before it an index that landed on its neighbour.
+      //
+      // Labels only. A candidate with no label of its own falls back to a
+      // `text` predicate carrying its VALUE, and the resolver's text leg
+      // searches labels first and then the Element tree: a node with an empty
+      // label is unreachable through the label walk by construction, so an
+      // index into it would name nothing. Those candidates keep the unindexed
+      // behaviour they have always had.
+      final Map<String, int> seenByLabel = <String, int>{};
+
       void visitNode(SemanticsNode node) {
         if (candidates.length >= limit) return;
         final SemanticsData data = node.getSemanticsData();
+        final String ownLabel = node.label;
+        final int? ownIndex = ownLabel.isEmpty
+            ? null
+            : seenByLabel.update(
+                ownLabel,
+                (int seen) => seen + 1,
+                ifAbsent: () => 0,
+              );
+        // An index is only handed over when the predicate that will be
+        // searched IS the key it was counted under. A merging container's
+        // predicate comes from the merged data and its count from its own
+        // label, and where those disagree there is no honest index to give:
+        // it keeps the first-match behaviour it has always had, which for a
+        // node whose own label is empty means it does not resolve, exactly as
+        // before.
+        //
+        // **Untested, because the shape it guards could not be constructed
+        // through public widgets.** Both `MergeSemantics` forms were measured:
+        // without `explicitChildNodes` the merge happens at config time and
+        // the two labels agree, and with it the boundary node carries no label
+        // of its own, so `ownLabel` is empty and the branch is already taken
+        // by the emptiness test above. This is the invariant written as code
+        // rather than a guard against an observed failure, and it is one
+        // comparison: the index means nothing unless the counted key and the
+        // searched key are the same string.
+        final int? matchIndex = data.label == ownLabel ? ownIndex : null;
         final String? role = _roleFor(data);
         if (role != null && _isInteractive(data)) {
           if (roleFilter == null || roleFilter.contains(role)) {
@@ -144,6 +205,7 @@ Future<developer.ServiceExtensionResponse> extDuskObserveHandler(
               role: role,
               elementByRenderObject: elementByRenderObject,
               mode: mode,
+              matchIndex: matchIndex,
             );
             if (entry != null) {
               candidates.add(entry);
@@ -202,6 +264,7 @@ Map<String, dynamic>? _buildCandidate({
   required String role,
   required Map<RenderObject, Element> elementByRenderObject,
   required _EnricherMode mode,
+  required int? matchIndex,
 }) {
   final RenderObject? renderObject = _renderObjectFor(node);
   if (renderObject == null) return null;
@@ -218,9 +281,18 @@ Map<String, dynamic>? _buildCandidate({
   // available, the predicate carries an empty text — the action handler will
   // then surface a stale-handle error when it re-walks, which is the correct
   // behaviour (the candidate had no stable identity to begin with).
+  //
+  // [matchIndex] is what separates this candidate from its namesakes, and it
+  // is not optional here the way it is on a hand-written `ext.dusk.find`
+  // query. The predicate is DERIVED from a node the walk already holds rather
+  // than chosen by a caller who could refine it, so without the index every
+  // candidate sharing a label re-resolves to the first and the one-candidate-
+  // per-node contract above is false: an agent acting on the third row of a
+  // list moves the first, and both calls report success.
   final DuskQuery query = DuskQuery(
     semanticsLabel: data.label.isNotEmpty ? data.label : null,
     text: data.label.isEmpty && data.value.isNotEmpty ? data.value : null,
+    matchIndex: matchIndex,
   );
   final String ref = RefRegistry.registerQuery(query);
 

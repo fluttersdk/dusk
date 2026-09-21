@@ -32,7 +32,12 @@ and verify with `./bin/fsa dusk:doctor`.
    minted them when the UI is static. Reach for `q<N>` whenever the
    action might retry, the UI animates, or the agent holds the ref
    across a navigation. Never mix the spaces (no `e<N>` from find, no
-   `q<N>` from snap).
+   `q<N>` from snap). A `dusk_observe` handle also carries its position
+   among the nodes its label matched, so candidates sharing a label
+   stay distinct and a list of rows offering the same action can be
+   worked row by row; that position is not an identity, so a row
+   inserted ABOVE the list after you observed shifts every held handle
+   down by one with no staleness signal.
 
 2. **The 6-step actionability gate is mandatory.** Every `tap`, `hover`,
    `drag`, `dblclick`, `right_click`, `triple_click`, and `type` is
