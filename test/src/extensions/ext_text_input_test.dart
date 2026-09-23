@@ -676,43 +676,139 @@ void main() {
       );
 
       testWidgets(
-        '(rect) an unmuted field elsewhere does not win by distance',
+        '(rect) a label target on a pushed lookalike never reaches the '
+        'covered field',
         (WidgetTester tester) async {
-          // A muted visible form holds the target; an unmuted search box sits
-          // above it. The unmuted pass finds only the search box, and only by
-          // distance, so the overlap in the muted form has to outrank it.
-          final TextEditingController search = TextEditingController();
-          final TextEditingController target = TextEditingController();
-          addTearDown(search.dispose);
-          addTearDown(target.dispose);
+          // A handle found by label text carries the LABEL's rect. On a screen
+          // pushed over a lookalike, that rect can overlap the covered route's
+          // field and no visible one; the visible field must still win.
+          final TextEditingController covered = TextEditingController();
+          final TextEditingController visible = TextEditingController();
+          addTearDown(covered.dispose);
+          addTearDown(visible.dispose);
 
+          final GlobalKey<NavigatorState> navigator =
+              GlobalKey<NavigatorState>();
           await tester.pumpWidget(
             MaterialApp(
+              navigatorKey: navigator,
               home: Scaffold(
                 body: Column(
                   children: <Widget>[
-                    TextField(controller: search),
-                    const SizedBox(height: 200),
-                    TickerMode(
-                      enabled: false,
-                      child: TextField(controller: target),
-                    ),
+                    const SizedBox(height: 112),
+                    TextField(controller: covered),
                   ],
                 ),
               ),
             ),
           );
+          navigator.currentState!.push(
+            PageRouteBuilder<void>(
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) => Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    // The label sits level with the covered field and well
+                    // above the visible one, so its rect overlaps only the
+                    // field nobody can see.
+                    const SizedBox(height: 120),
+                    const Text('Name'),
+                    const SizedBox(height: 100),
+                    TextField(controller: visible),
+                  ],
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
 
-          final Rect rect = tester.getRect(find.byType(EditableText).at(1));
+          final Rect label = tester.getRect(find.text('Name'));
+          final Rect visibleRect = tester.getRect(find.byType(EditableText));
+          expect(label.overlaps(visibleRect), isFalse);
           await typeIntoElement(
             element: WidgetsBinding.instance.rootElement!,
-            text: 'hit',
-            targetRect: rect,
+            text: 'x',
+            targetRect: label,
           );
           await tester.pump();
 
-          expect(target.text, equals('hit'));
-          expect(search.text, isEmpty);
+          expect(visible.text, equals('x'));
+          expect(covered.text, isEmpty);
+        },
+      );
+
+      testWidgets(
+        '(rect) an enabled TickerMode inside a covered route is still muted',
+        (WidgetTester tester) async {
+          // Hero re-enables tickers under its own TickerMode; the covered
+          // route's disabling ancestor still wins, as it does in Flutter.
+          final TextEditingController covered = TextEditingController();
+          final TextEditingController visible = TextEditingController();
+          addTearDown(covered.dispose);
+          addTearDown(visible.dispose);
+
+          final GlobalKey<NavigatorState> navigator =
+              GlobalKey<NavigatorState>();
+          await tester.pumpWidget(
+            MaterialApp(
+              navigatorKey: navigator,
+              home: Scaffold(
+                body: TickerMode(
+                  enabled: true,
+                  child: TextField(controller: covered),
+                ),
+              ),
+            ),
+          );
+          navigator.currentState!.push(
+            PageRouteBuilder<void>(
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) =>
+                  Scaffold(body: TextField(controller: visible)),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'y',
+            targetRect: tester.getRect(find.byType(EditableText)),
+          );
+          await tester.pump();
+
+          expect(visible.text, equals('y'));
+          expect(covered.text, isEmpty);
+        },
+      );
+
+      testWidgets(
+        '(no rect) a lone muted field is still written',
+        (WidgetTester tester) async {
+          // The rect-less fallback's second pass: with every field muted, the
+          // first one is the answer rather than none at all.
+          final TextEditingController only = TextEditingController();
+          addTearDown(only.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: TickerMode(
+                  enabled: false,
+                  child: TextField(controller: only),
+                ),
+              ),
+            ),
+          );
+
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'z',
+          );
+          await tester.pump();
+
+          expect(only.text, equals('z'));
         },
       );
 

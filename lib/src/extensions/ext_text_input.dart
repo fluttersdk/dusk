@@ -687,13 +687,22 @@ EditableTextState? _firstEditableTextState(
 /// tree, and prefers the visible on-screen editable over any zero-sized
 /// off-stage accessibility proxy (whose empty rect is skipped).
 EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
+  // Any unmuted field beats every muted one, overlap or not. A covered route's
+  // field overlapping a target that no visible field overlaps (a label handle
+  // on a screen pushed over a lookalike) must still lose to the visible field,
+  // and ranking a muted overlap above an unmuted nearest reopened exactly that.
+  // The muted pass runs only when nothing unmuted exists, which is the app that
+  // mutes a visible form on purpose; with an unmuted field elsewhere on screen
+  // that app gets the unmuted one, a gap left open because nothing in the
+  // ecosystem mutes a visible subtree and closing it needs a hit test, which
+  // this package already documents as unreliable on web debug builds.
   final live = _rankEditableTextStates(targetRect, skipMuted: true);
-  final all = _rankEditableTextStates(targetRect, skipMuted: false);
+  if (live.overlap != null || live.nearest != null) {
+    return live.overlap ?? live.nearest;
+  }
 
-  // An overlap beats a nearest-center guess whichever pass found it, so an
-  // unmuted field elsewhere on screen (a search box in an app bar) cannot win
-  // by distance over the targeted field in a form the app muted on purpose.
-  return live.overlap ?? all.overlap ?? live.nearest ?? all.nearest;
+  final all = _rankEditableTextStates(targetRect, skipMuted: false);
+  return all.overlap ?? all.nearest;
 }
 
 /// One ranking pass for [_findEditableTextStateByRect], skipping fields under
