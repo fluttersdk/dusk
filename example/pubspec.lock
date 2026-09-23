@@ -116,11 +116,12 @@ packages:
     source: sdk
     version: "0.0.0"
   fluttersdk_artisan:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "../../artisan"
-      relative: true
-    source: path
+      name: fluttersdk_artisan
+      sha256: "1b905fa27f746120829fee8970412af8f21b8fb7005f4886da5f2e84960db0bc"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.0.16"
   fluttersdk_dusk:
     dependency: "direct main"
@@ -128,13 +129,14 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "0.0.15"
+    version: "0.0.16"
   fluttersdk_wind_diagnostics_contracts:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "../../wind_diagnostics_contracts"
-      relative: true
-    source: path
+      name: fluttersdk_wind_diagnostics_contracts
+      sha256: "3c302f7504c9e8037072b4d2be2c266fb5488aa907eda1ce9321f1ee8556c972"
+      url: "https://pub.dev"
+    source: hosted
     version: "1.1.0"
   image:
     dependency: transitive
@@ -343,4 +345,4 @@ packages:
     version: "2.2.4"
 sdks:
   dart: ">=3.12.0 <4.0.0"
-  flutter: ">=3.22.0"
+  flutter: ">=3.27.0"
