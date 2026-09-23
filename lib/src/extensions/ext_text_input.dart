@@ -689,7 +689,9 @@ EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
   double nearestDist = double.infinity;
 
   void visit(Element element) {
-    if (element is StatefulElement && element.state is EditableTextState) {
+    if (element is StatefulElement &&
+        element.state is EditableTextState &&
+        !_isUnderMutedTickers(element)) {
       final RenderObject? renderObject = element.renderObject;
       if (renderObject is RenderBox &&
           renderObject.attached &&
@@ -718,6 +720,31 @@ EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
 
   root.visitChildElements(visit);
   return bestOverlap ?? nearest;
+}
+
+/// Whether [element] sits under a `TickerMode(enabled: false)`.
+///
+/// A route covered by an opaque one is kept alive and laid out at its old
+/// rect, so a second instance of the same screen (a login pushed over a
+/// redirected login) ties with the visible field on overlap and, visited
+/// first, used to win: the write landed in a form nobody could see while the
+/// read-back still verified. `Overlay` wraps exactly those entries in a muted
+/// `TickerMode`, which is the signal read here.
+///
+/// An ancestor walk rather than `TickerMode.of`, which would subscribe the
+/// field to ticker changes from outside build, or `getValuesNotifier`, which
+/// needs Flutter 3.35 against this package's 3.22 floor.
+bool _isUnderMutedTickers(Element element) {
+  bool muted = false;
+  element.visitAncestorElements((Element ancestor) {
+    final Widget widget = ancestor.widget;
+    if (widget is TickerMode && !widget.enabled) {
+      muted = true;
+      return false;
+    }
+    return true;
+  });
+  return muted;
 }
 
 /// The global rect of the render object that contributes [node] to the

@@ -588,6 +588,54 @@ void main() {
       );
 
       testWidgets(
+        '(rect) skips an identical field on a route covered by the target',
+        (WidgetTester tester) async {
+          // Two instances of one screen stacked on the navigator (a login
+          // route pushed over a redirected login route): the covered one is
+          // kept alive and laid out at the same rect, so it ties on overlap
+          // and, visited first, used to win. The write then landed in a form
+          // nobody could see while the read-back still said `verified`.
+          final TextEditingController covered = TextEditingController();
+          final TextEditingController visible = TextEditingController();
+          addTearDown(covered.dispose);
+          addTearDown(visible.dispose);
+
+          final GlobalKey<NavigatorState> navigator =
+              GlobalKey<NavigatorState>();
+          await tester.pumpWidget(
+            MaterialApp(
+              navigatorKey: navigator,
+              home: Scaffold(body: TextField(controller: covered)),
+            ),
+          );
+          // No transition, as go_router's `NoTransitionPage` (what magic builds
+          // on web): the covered page keeps its exact rect. A zoom or slide
+          // transition would leave it displaced and hide the tie.
+          navigator.currentState!.push(
+            PageRouteBuilder<void>(
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) =>
+                  Scaffold(body: TextField(controller: visible)),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          final Rect target = tester.getRect(find.byType(EditableText));
+
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'demo@uptizm.test',
+            targetRect: target,
+          );
+          await tester.pump();
+
+          expect(visible.text, equals('demo@uptizm.test'));
+          expect(covered.text, isEmpty);
+        },
+      );
+
+      testWidgets(
         '(rect) clear empties the field matching targetRect, not the first',
         (WidgetTester tester) async {
           tester.view.physicalSize = const Size(800, 600);

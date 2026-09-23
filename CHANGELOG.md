@@ -8,6 +8,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`dusk:fill`, `dusk:type` and `dusk:clear` no longer write into a field on a route the visible one covers.** The field is chosen by the largest overlap between each `EditableText`'s rect and the ref's rect, over every editable in the tree. A route under an opaque one stays alive and laid out at its old rect, so a second instance of the same screen ties with the visible field and, visited first, won the tie. Reported from a consumer's login screen, where a login route sat on top of a redirected one: `fill` answered `verified: true` with the typed value while the visible field stayed empty, because the read-back came off the covered field's own controller; popping the top route showed the value in the form underneath. Only reproducible when the pages keep their exact rects, which is go_router's `NoTransitionPage` (what magic builds on web); a zoom or slide transition displaces the covered page and hides the tie. An editable under a `TickerMode(enabled: false)`, which is how `Overlay` marks an entry below an opaque one, is no longer a candidate. Read by walking the ancestors rather than through `TickerMode.of`, which would subscribe the field to ticker changes from outside build, or `getValuesNotifier`, which needs Flutter 3.35 against this package's 3.22 floor. (`lib/src/extensions/ext_text_input.dart`, `test/src/extensions/ext_text_input_test.dart`)
+
 ---
 
 ## [0.0.15] - 2026-09-21
