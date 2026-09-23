@@ -648,9 +648,20 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
 /// This handles both the case where [element] IS the [EditableText]'s element
 /// and the case where it is a parent (e.g. [TextField]) that hosts the
 /// [EditableText] as a descendant.
-EditableTextState? _resolveEditableTextState(Element element) {
+EditableTextState? _resolveEditableTextState(Element element) =>
+    _firstEditableTextState(element, skipMuted: true) ??
+    _firstEditableTextState(element, skipMuted: false);
+
+/// The first [EditableTextState] at or under [element], skipping fields under
+/// muted tickers when [skipMuted] is set (see [_isUnderMutedTickers]).
+EditableTextState? _firstEditableTextState(
+  Element element, {
+  required bool skipMuted,
+}) {
   // Direct hit: the element itself is the EditableText element.
-  if (element is StatefulElement && element.state is EditableTextState) {
+  if (element is StatefulElement &&
+      element.state is EditableTextState &&
+      !(skipMuted && _isUnderMutedTickers(element))) {
     return element.state as EditableTextState;
   }
 
@@ -658,7 +669,7 @@ EditableTextState? _resolveEditableTextState(Element element) {
   EditableTextState? found;
   element.visitChildren((Element child) {
     if (found != null) return;
-    found = _resolveEditableTextState(child);
+    found = _firstEditableTextState(child, skipMuted: skipMuted);
   });
   return found;
 }
@@ -676,8 +687,38 @@ EditableTextState? _resolveEditableTextState(Element element) {
 /// tree, and prefers the visible on-screen editable over any zero-sized
 /// off-stage accessibility proxy (whose empty rect is skipped).
 EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
+  // Any unmuted field beats every muted one, overlap or not. A covered route's
+  // field overlapping a target that no visible field overlaps (a label handle
+  // on a screen pushed over a lookalike) must still lose to the visible field,
+  // and ranking a muted overlap above an unmuted nearest reopened exactly that.
+  // The muted pass runs only when nothing unmuted exists, which is the app that
+  // mutes a visible form on purpose; with an unmuted field elsewhere on screen
+  // that app gets the unmuted one, a gap left open because nothing in the
+  // ecosystem mutes a visible subtree and closing it needs a hit test, which
+  // this package already documents as unreliable on web debug builds.
+  final live = _rankEditableTextStates(targetRect, skipMuted: true);
+  if (live.overlap != null || live.nearest != null) {
+    return live.overlap ?? live.nearest;
+  }
+
+  final all = _rankEditableTextStates(targetRect, skipMuted: false);
+  return all.overlap ?? all.nearest;
+}
+
+/// One ranking pass for [_findEditableTextStateByRect], skipping fields under
+/// muted tickers when [skipMuted] is set.
+///
+/// Two passes rather than one filter: a covered route is the common reason a
+/// field sits under muted tickers, but an app may mute a VISIBLE subtree on
+/// purpose, and there the filter alone would leave no candidate and send every
+/// write to the first field in the tree.
+({EditableTextState? overlap, EditableTextState? nearest})
+    _rankEditableTextStates(
+  Rect targetRect, {
+  required bool skipMuted,
+}) {
   final Element? root = WidgetsBinding.instance.rootElement;
-  if (root == null) return null;
+  if (root == null) return (overlap: null, nearest: null);
   final Offset target = targetRect.center;
   // Prefer the editable whose rect OVERLAPS the target the most (a field's own
   // editable sits inside the field's semantics rect, which also spans its label
@@ -689,7 +730,9 @@ EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
   double nearestDist = double.infinity;
 
   void visit(Element element) {
-    if (element is StatefulElement && element.state is EditableTextState) {
+    if (element is StatefulElement &&
+        element.state is EditableTextState &&
+        !(skipMuted && _isUnderMutedTickers(element))) {
       final RenderObject? renderObject = element.renderObject;
       if (renderObject is RenderBox &&
           renderObject.attached &&
@@ -717,7 +760,32 @@ EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
   }
 
   root.visitChildElements(visit);
-  return bestOverlap ?? nearest;
+  return (overlap: bestOverlap, nearest: nearest);
+}
+
+/// Whether [element] sits under a `TickerMode(enabled: false)`.
+///
+/// A route covered by an opaque one is kept alive and laid out at its old
+/// rect, so a second instance of the same screen (a login pushed over a
+/// redirected login) ties with the visible field on overlap and, visited
+/// first, used to win: the write landed in a form nobody could see while the
+/// read-back still verified. `Overlay` wraps exactly those entries in a muted
+/// `TickerMode`, which is the signal read here.
+///
+/// An ancestor walk rather than `TickerMode.of`, which would subscribe the
+/// field to ticker changes from outside build, or `getValuesNotifier`, which
+/// needs Flutter 3.35, above what this package resolves against.
+bool _isUnderMutedTickers(Element element) {
+  bool muted = false;
+  element.visitAncestorElements((Element ancestor) {
+    final Widget widget = ancestor.widget;
+    if (widget is TickerMode && !widget.enabled) {
+      muted = true;
+      return false;
+    }
+    return true;
+  });
+  return muted;
 }
 
 /// The global rect of the render object that contributes [node] to the

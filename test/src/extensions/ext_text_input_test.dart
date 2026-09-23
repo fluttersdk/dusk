@@ -588,6 +588,268 @@ void main() {
       );
 
       testWidgets(
+        '(rect) skips an identical field on a route covered by the target',
+        (WidgetTester tester) async {
+          // Two instances of one screen stacked on the navigator (a login
+          // route pushed over a redirected login route): the covered one is
+          // kept alive and laid out at the same rect, so it ties on overlap
+          // and, visited first, used to win. The write then landed in a form
+          // nobody could see while the read-back still said `verified`.
+          final TextEditingController covered = TextEditingController();
+          final TextEditingController visible = TextEditingController();
+          addTearDown(covered.dispose);
+          addTearDown(visible.dispose);
+
+          final GlobalKey<NavigatorState> navigator =
+              GlobalKey<NavigatorState>();
+          await tester.pumpWidget(
+            MaterialApp(
+              navigatorKey: navigator,
+              home: Scaffold(body: TextField(controller: covered)),
+            ),
+          );
+          // No transition, as go_router's `NoTransitionPage` (what magic builds
+          // on web): the covered page keeps its exact rect. A zoom or slide
+          // transition would leave it displaced and hide the tie.
+          navigator.currentState!.push(
+            PageRouteBuilder<void>(
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) =>
+                  Scaffold(body: TextField(controller: visible)),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          final Rect target = tester.getRect(find.byType(EditableText));
+
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'demo@uptizm.test',
+            targetRect: target,
+          );
+          await tester.pump();
+
+          expect(visible.text, equals('demo@uptizm.test'));
+          expect(covered.text, isEmpty);
+        },
+      );
+
+      testWidgets(
+        '(rect) a visible form under muted tickers still targets by rect',
+        (WidgetTester tester) async {
+          // An app may mute tickers over a visible subtree on purpose. The
+          // covered-route filter must not leave such a form with no candidate,
+          // which would send every write to its first field.
+          final TextEditingController email = TextEditingController();
+          final TextEditingController password = TextEditingController();
+          addTearDown(email.dispose);
+          addTearDown(password.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: TickerMode(
+                  enabled: false,
+                  child: Column(
+                    children: <Widget>[
+                      TextField(controller: email),
+                      TextField(controller: password),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+
+          final Rect target = tester.getRect(find.byType(EditableText).at(1));
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'secret',
+            targetRect: target,
+          );
+          await tester.pump();
+
+          expect(password.text, equals('secret'));
+          expect(email.text, isEmpty);
+        },
+      );
+
+      testWidgets(
+        '(rect) a label target on a pushed lookalike never reaches the '
+        'covered field',
+        (WidgetTester tester) async {
+          // A handle found by label text carries the LABEL's rect. On a screen
+          // pushed over a lookalike, that rect can overlap the covered route's
+          // field and no visible one; the visible field must still win.
+          final TextEditingController covered = TextEditingController();
+          final TextEditingController visible = TextEditingController();
+          addTearDown(covered.dispose);
+          addTearDown(visible.dispose);
+
+          final GlobalKey<NavigatorState> navigator =
+              GlobalKey<NavigatorState>();
+          await tester.pumpWidget(
+            MaterialApp(
+              navigatorKey: navigator,
+              home: Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    const SizedBox(height: 112),
+                    TextField(controller: covered),
+                  ],
+                ),
+              ),
+            ),
+          );
+          navigator.currentState!.push(
+            PageRouteBuilder<void>(
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) => Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    // The label sits level with the covered field and well
+                    // above the visible one, so its rect overlaps only the
+                    // field nobody can see.
+                    const SizedBox(height: 120),
+                    const Text('Name'),
+                    const SizedBox(height: 100),
+                    TextField(controller: visible),
+                  ],
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          final Rect label = tester.getRect(find.text('Name'));
+          final Rect visibleRect = tester.getRect(find.byType(EditableText));
+          expect(label.overlaps(visibleRect), isFalse);
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'x',
+            targetRect: label,
+          );
+          await tester.pump();
+
+          expect(visible.text, equals('x'));
+          expect(covered.text, isEmpty);
+        },
+      );
+
+      testWidgets(
+        '(rect) an enabled TickerMode inside a covered route is still muted',
+        (WidgetTester tester) async {
+          // Hero re-enables tickers under its own TickerMode; the covered
+          // route's disabling ancestor still wins, as it does in Flutter.
+          final TextEditingController covered = TextEditingController();
+          final TextEditingController visible = TextEditingController();
+          addTearDown(covered.dispose);
+          addTearDown(visible.dispose);
+
+          final GlobalKey<NavigatorState> navigator =
+              GlobalKey<NavigatorState>();
+          await tester.pumpWidget(
+            MaterialApp(
+              navigatorKey: navigator,
+              home: Scaffold(
+                body: TickerMode(
+                  enabled: true,
+                  child: TextField(controller: covered),
+                ),
+              ),
+            ),
+          );
+          navigator.currentState!.push(
+            PageRouteBuilder<void>(
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) =>
+                  Scaffold(body: TextField(controller: visible)),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'y',
+            targetRect: tester.getRect(find.byType(EditableText)),
+          );
+          await tester.pump();
+
+          expect(visible.text, equals('y'));
+          expect(covered.text, isEmpty);
+        },
+      );
+
+      testWidgets(
+        '(no rect) a lone muted field is still written',
+        (WidgetTester tester) async {
+          // The rect-less fallback's second pass: with every field muted, the
+          // first one is the answer rather than none at all.
+          final TextEditingController only = TextEditingController();
+          addTearDown(only.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: TickerMode(
+                  enabled: false,
+                  child: TextField(controller: only),
+                ),
+              ),
+            ),
+          );
+
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'z',
+          );
+          await tester.pump();
+
+          expect(only.text, equals('z'));
+        },
+      );
+
+      testWidgets(
+        '(no rect) the fallback skips a field on a covered route',
+        (WidgetTester tester) async {
+          final TextEditingController covered = TextEditingController();
+          final TextEditingController visible = TextEditingController();
+          addTearDown(covered.dispose);
+          addTearDown(visible.dispose);
+
+          final GlobalKey<NavigatorState> navigator =
+              GlobalKey<NavigatorState>();
+          await tester.pumpWidget(
+            MaterialApp(
+              navigatorKey: navigator,
+              home: Scaffold(body: TextField(controller: covered)),
+            ),
+          );
+          navigator.currentState!.push(
+            PageRouteBuilder<void>(
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) =>
+                  Scaffold(body: TextField(controller: visible)),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'typed',
+          );
+          await tester.pump();
+
+          expect(visible.text, equals('typed'));
+          expect(covered.text, isEmpty);
+        },
+      );
+
+      testWidgets(
         '(rect) clear empties the field matching targetRect, not the first',
         (WidgetTester tester) async {
           tester.view.physicalSize = const Size(800, 600);
