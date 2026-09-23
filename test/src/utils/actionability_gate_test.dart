@@ -29,6 +29,20 @@ RefEntry _buildEntry({
 
 void main() {
   group('DuskActionabilityException', () {
+    test('reasonKind names the contract substring of the reason', () {
+      const DuskActionabilityException obscured = DuskActionabilityException(
+        ref: 'e2',
+        reason: 'obscured by other widget (top=ModalBarrier)',
+      );
+      const DuskActionabilityException unknown = DuskActionabilityException(
+        ref: 'e3',
+        reason: 'something new',
+      );
+
+      expect(obscured.reasonKind, equals('obscured by'));
+      expect(unknown.reasonKind, isNull);
+    });
+
     test('extends DuskException and exposes ref + reason + message', () {
       const DuskActionabilityException exception = DuskActionabilityException(
         ref: 'e1',

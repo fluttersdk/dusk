@@ -60,6 +60,22 @@ class DuskActionabilityException extends DuskException {
   /// The `eN` token whose underlying widget failed the actionability check.
   final String ref;
 
+  /// The contract substring [reason] starts with, or null for a reason
+  /// outside the documented five.
+  String? get reasonKind {
+    for (final String kind in const <String>[
+      'not enabled',
+      'zero rect',
+      'off-viewport',
+      'not stable',
+      'obscured by',
+    ]) {
+      if (reason.startsWith(kind)) return kind;
+    }
+
+    return null;
+  }
+
   /// Short, machine-readable cause. Substring is the agent-parseable
   /// contract: one of `"not enabled"`, `"zero rect"`, `"off-viewport"`,
   /// `"not stable"`, or `"obscured by"`.
