@@ -8,11 +8,13 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+---
+
+## [0.0.16] - 2026-09-23
+
 ### Fixed
 
 - **`dusk:fill`, `dusk:type` and `dusk:clear` no longer write into a field on a route the visible one covers.** The field is chosen by the largest overlap between each `EditableText`'s rect and the ref's rect, over every editable in the tree. A route under an opaque one stays alive and laid out at its old rect, so a second instance of the same screen ties with the visible field and, visited first, won the tie. Reported from a consumer's login screen, where a login route sat on top of a redirected one: `fill` answered `verified: true` with the typed value while the visible field stayed empty, because the read-back came off the covered field's own controller; popping the top route showed the value in the form underneath. Only reproducible when the pages keep their exact rects, which is go_router's `NoTransitionPage` (what magic builds on web); a zoom or slide transition displaces the covered page and hides the tie. An editable under a `TickerMode(enabled: false)`, which is how `Overlay` marks an entry below an opaque one, now ranks below every unmuted editable, overlapping or not: a handle found by its label carries the label's rect, and on a screen pushed over a lookalike that rect can overlap only the covered field. The muted fields are ranked only when nothing unmuted exists, so an app that mutes a visible form keeps its targeting. One gap is left open on purpose: such an app with an unmuted field elsewhere on screen (a search box) gets that field, because nothing in the ecosystem mutes a visible subtree and telling the two apart needs a hit test, which this package already documents as unreliable on web debug builds. `type`'s actionability gate checks the ref's own rect, not the field this ranking resolves, so it does not refuse a wrong field either. Read by walking the ancestors rather than through `TickerMode.of`, which would subscribe the field to ticker changes from outside build, or `getValuesNotifier`, which needs Flutter 3.35. (`lib/src/extensions/ext_text_input.dart`, `test/src/extensions/ext_text_input_test.dart`) (#45)
-
----
 
 ## [0.0.15] - 2026-09-21
 
@@ -367,7 +369,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.15...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.16...HEAD
+[0.0.16]: https://github.com/fluttersdk/dusk/compare/0.0.15...0.0.16
 [0.0.15]: https://github.com/fluttersdk/dusk/compare/0.0.14...0.0.15
 [0.0.14]: https://github.com/fluttersdk/dusk/compare/0.0.13...0.0.14
 [0.0.13]: https://github.com/fluttersdk/dusk/compare/0.0.12...0.0.13
