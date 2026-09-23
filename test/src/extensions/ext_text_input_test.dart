@@ -636,6 +636,83 @@ void main() {
       );
 
       testWidgets(
+        '(rect) a visible form under muted tickers still targets by rect',
+        (WidgetTester tester) async {
+          // An app may mute tickers over a visible subtree on purpose. The
+          // covered-route filter must not leave such a form with no candidate,
+          // which would send every write to its first field.
+          final TextEditingController email = TextEditingController();
+          final TextEditingController password = TextEditingController();
+          addTearDown(email.dispose);
+          addTearDown(password.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: TickerMode(
+                  enabled: false,
+                  child: Column(
+                    children: <Widget>[
+                      TextField(controller: email),
+                      TextField(controller: password),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+
+          final Rect target = tester.getRect(find.byType(EditableText).at(1));
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'secret',
+            targetRect: target,
+          );
+          await tester.pump();
+
+          expect(password.text, equals('secret'));
+          expect(email.text, isEmpty);
+        },
+      );
+
+      testWidgets(
+        '(no rect) the fallback skips a field on a covered route',
+        (WidgetTester tester) async {
+          final TextEditingController covered = TextEditingController();
+          final TextEditingController visible = TextEditingController();
+          addTearDown(covered.dispose);
+          addTearDown(visible.dispose);
+
+          final GlobalKey<NavigatorState> navigator =
+              GlobalKey<NavigatorState>();
+          await tester.pumpWidget(
+            MaterialApp(
+              navigatorKey: navigator,
+              home: Scaffold(body: TextField(controller: covered)),
+            ),
+          );
+          navigator.currentState!.push(
+            PageRouteBuilder<void>(
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) =>
+                  Scaffold(body: TextField(controller: visible)),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'typed',
+          );
+          await tester.pump();
+
+          expect(visible.text, equals('typed'));
+          expect(covered.text, isEmpty);
+        },
+      );
+
+      testWidgets(
         '(rect) clear empties the field matching targetRect, not the first',
         (WidgetTester tester) async {
           tester.view.physicalSize = const Size(800, 600);

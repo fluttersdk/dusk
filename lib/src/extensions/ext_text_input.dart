@@ -648,9 +648,20 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
 /// This handles both the case where [element] IS the [EditableText]'s element
 /// and the case where it is a parent (e.g. [TextField]) that hosts the
 /// [EditableText] as a descendant.
-EditableTextState? _resolveEditableTextState(Element element) {
+EditableTextState? _resolveEditableTextState(Element element) =>
+    _firstEditableTextState(element, skipMuted: true) ??
+    _firstEditableTextState(element, skipMuted: false);
+
+/// The first [EditableTextState] at or under [element], skipping fields under
+/// muted tickers when [skipMuted] is set (see [_isUnderMutedTickers]).
+EditableTextState? _firstEditableTextState(
+  Element element, {
+  required bool skipMuted,
+}) {
   // Direct hit: the element itself is the EditableText element.
-  if (element is StatefulElement && element.state is EditableTextState) {
+  if (element is StatefulElement &&
+      element.state is EditableTextState &&
+      !(skipMuted && _isUnderMutedTickers(element))) {
     return element.state as EditableTextState;
   }
 
@@ -658,7 +669,7 @@ EditableTextState? _resolveEditableTextState(Element element) {
   EditableTextState? found;
   element.visitChildren((Element child) {
     if (found != null) return;
-    found = _resolveEditableTextState(child);
+    found = _firstEditableTextState(child, skipMuted: skipMuted);
   });
   return found;
 }
@@ -675,7 +686,21 @@ EditableTextState? _resolveEditableTextState(Element element) {
 /// the field the agent actually targeted rather than the first editable in the
 /// tree, and prefers the visible on-screen editable over any zero-sized
 /// off-stage accessibility proxy (whose empty rect is skipped).
-EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
+EditableTextState? _findEditableTextStateByRect(Rect targetRect) =>
+    _rankEditableTextStates(targetRect, skipMuted: true) ??
+    _rankEditableTextStates(targetRect, skipMuted: false);
+
+/// One ranking pass for [_findEditableTextStateByRect], skipping fields under
+/// muted tickers when [skipMuted] is set.
+///
+/// Two passes rather than one filter: a covered route is the common reason a
+/// field sits under muted tickers, but an app may mute a VISIBLE subtree on
+/// purpose, and there the filter alone would leave no candidate and send every
+/// write to the first field in the tree.
+EditableTextState? _rankEditableTextStates(
+  Rect targetRect, {
+  required bool skipMuted,
+}) {
   final Element? root = WidgetsBinding.instance.rootElement;
   if (root == null) return null;
   final Offset target = targetRect.center;
@@ -691,7 +716,7 @@ EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
   void visit(Element element) {
     if (element is StatefulElement &&
         element.state is EditableTextState &&
-        !_isUnderMutedTickers(element)) {
+        !(skipMuted && _isUnderMutedTickers(element))) {
       final RenderObject? renderObject = element.renderObject;
       if (renderObject is RenderBox &&
           renderObject.attached &&
@@ -733,7 +758,7 @@ EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
 ///
 /// An ancestor walk rather than `TickerMode.of`, which would subscribe the
 /// field to ticker changes from outside build, or `getValuesNotifier`, which
-/// needs Flutter 3.35 against this package's 3.22 floor.
+/// needs Flutter 3.35, above what this package resolves against.
 bool _isUnderMutedTickers(Element element) {
   bool muted = false;
   element.visitAncestorElements((Element ancestor) {
