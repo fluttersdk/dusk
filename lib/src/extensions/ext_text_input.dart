@@ -686,9 +686,15 @@ EditableTextState? _firstEditableTextState(
 /// the field the agent actually targeted rather than the first editable in the
 /// tree, and prefers the visible on-screen editable over any zero-sized
 /// off-stage accessibility proxy (whose empty rect is skipped).
-EditableTextState? _findEditableTextStateByRect(Rect targetRect) =>
-    _rankEditableTextStates(targetRect, skipMuted: true) ??
-    _rankEditableTextStates(targetRect, skipMuted: false);
+EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
+  final live = _rankEditableTextStates(targetRect, skipMuted: true);
+  final all = _rankEditableTextStates(targetRect, skipMuted: false);
+
+  // An overlap beats a nearest-center guess whichever pass found it, so an
+  // unmuted field elsewhere on screen (a search box in an app bar) cannot win
+  // by distance over the targeted field in a form the app muted on purpose.
+  return live.overlap ?? all.overlap ?? live.nearest ?? all.nearest;
+}
 
 /// One ranking pass for [_findEditableTextStateByRect], skipping fields under
 /// muted tickers when [skipMuted] is set.
@@ -697,12 +703,13 @@ EditableTextState? _findEditableTextStateByRect(Rect targetRect) =>
 /// field sits under muted tickers, but an app may mute a VISIBLE subtree on
 /// purpose, and there the filter alone would leave no candidate and send every
 /// write to the first field in the tree.
-EditableTextState? _rankEditableTextStates(
+({EditableTextState? overlap, EditableTextState? nearest})
+    _rankEditableTextStates(
   Rect targetRect, {
   required bool skipMuted,
 }) {
   final Element? root = WidgetsBinding.instance.rootElement;
-  if (root == null) return null;
+  if (root == null) return (overlap: null, nearest: null);
   final Offset target = targetRect.center;
   // Prefer the editable whose rect OVERLAPS the target the most (a field's own
   // editable sits inside the field's semantics rect, which also spans its label
@@ -744,7 +751,7 @@ EditableTextState? _rankEditableTextStates(
   }
 
   root.visitChildElements(visit);
-  return bestOverlap ?? nearest;
+  return (overlap: bestOverlap, nearest: nearest);
 }
 
 /// Whether [element] sits under a `TickerMode(enabled: false)`.

@@ -676,6 +676,47 @@ void main() {
       );
 
       testWidgets(
+        '(rect) an unmuted field elsewhere does not win by distance',
+        (WidgetTester tester) async {
+          // A muted visible form holds the target; an unmuted search box sits
+          // above it. The unmuted pass finds only the search box, and only by
+          // distance, so the overlap in the muted form has to outrank it.
+          final TextEditingController search = TextEditingController();
+          final TextEditingController target = TextEditingController();
+          addTearDown(search.dispose);
+          addTearDown(target.dispose);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    TextField(controller: search),
+                    const SizedBox(height: 200),
+                    TickerMode(
+                      enabled: false,
+                      child: TextField(controller: target),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+
+          final Rect rect = tester.getRect(find.byType(EditableText).at(1));
+          await typeIntoElement(
+            element: WidgetsBinding.instance.rootElement!,
+            text: 'hit',
+            targetRect: rect,
+          );
+          await tester.pump();
+
+          expect(target.text, equals('hit'));
+          expect(search.text, isEmpty);
+        },
+      );
+
+      testWidgets(
         '(no rect) the fallback skips a field on a covered route',
         (WidgetTester tester) async {
           final TextEditingController covered = TextEditingController();
