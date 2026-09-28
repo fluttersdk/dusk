@@ -53,6 +53,7 @@ setup:                            # runs before EVERY repeat
   - navigate: /monitors
   - wait_for_text: Monitors       # or {text: Monitors, timeout_ms: 20000}
   - wait_for_network_idle
+  - tap: {target: {text: perf-monitor-0000}}   # a gesture, unmeasured
 steps:                            # the timed window
   - wheel: {target: {key: monitor-list}, dy: 1200}
     only: [chrome]
@@ -66,13 +67,15 @@ thresholds: {warn: 10, error: 25}  # percent, per metric
 
 Steps: `tap`, `fill` (`text`), `type` (`text`), `press_key` (`key`), `scroll` (`dx`/`dy`), `wheel` (`dx`/`dy`), `drag` (`dx`/`dy` from the target's center), `navigate` (a route), `resize` (`width`/`height`) and `wait` (ms). A step may carry `only: [...]`.
 
+Setup takes `hot_restart`, `navigate`, `wait_for_text` and `wait_for_network_idle`, and also the gestures `tap`, `fill`, `type`, `press_key`, `wheel`, `drag` and `wait`, written and validated exactly as steps are (targets, `only`, the Chrome-only rule). They run before `perf_begin`, so the path to the measured screen is not measured: navigate to `/monitors`, tap the row `perf-monitor-0000`, then time only the tab switches, rather than baking a seeded id into `navigate: /monitors/<uuid>`. `only` is refused on the four setup verbs, which run everywhere.
+
 A target is resolved on the live screen right before its step, never written as a ref: an `e12` from one run is stale after the next navigate, and the file is rejected if it names one. Exactly one of:
 
 | Target | Resolves through |
 |---|---|
 | `{text: ...}` | `ext.dusk.find --text`; with `index > 0`, the `index`-th of `ext.dusk.find_by_text` |
-| `{label: ...}` | `ext.dusk.find --semanticsLabel`; with `index > 0`, `ext.dusk.find_by_label` |
-| `{role: ..., name: ...}` | `ext.dusk.find_by_label` filtered by the role flag (`button`, `textField`, `checkbox`, `link`, `image`) |
+| `{label: ...}` | `ext.dusk.find --semanticsLabel`; no `index` (nothing can serve one: name the control as `{role, name, index}` instead) |
+| `{role: ..., name: ...}` | the `index`-th `ext.dusk.observe` candidate with that role whose label is `name`: what `dusk:snap` prints as `- button "Add monitor"`. Roles are snap's: `button`, `textbox`, `checkbox`, `link`, `heading`, `image` |
 | `{key: ...}` | `ext.dusk.find --key`; a key names one widget, so no `index` |
 
 `wheel` is a CDP mouseWheel, because `dusk:scroll` moves the parent scrollable programmatically and some screens only respond to the wheel. `wheel` and `resize` are Chrome only, and the file is rejected when one could run elsewhere: on android and ios scroll with a `drag`. Every problem in the file is reported at once.
@@ -84,7 +87,7 @@ A target is resolved on the live screen right before its step, never written as 
 
 Each repeat is one unit: the scenario's setup, `Page.bringToFront` on Chrome, `perf_begin`, the steps, a 300 ms settle (Flutter delivers frame timings in batches of about 100 ms), then `perf_end` with `full=true`. Setup runs before every repeat so each starts from the same state: the controllers are singletons, and a search term left by one repeat would filter every later one.
 
-`hot_restart` is a hot restart on a debug build. A profile build cannot hot restart, so there it is a full relaunch through `artisan restart`, carrying the session's flags; `env.restartMode` says which (`none` when the setup has no restart). Either way the runner waits until a new isolate answers `ext.dusk.*`.
+`hot_restart` is a hot restart on a debug build. A profile build cannot hot restart, so there it is a full relaunch through `artisan restart`, carrying the session's flags; `env.restartMode` says which (`none` when the setup has no restart). Either way the runner reads `ext.dusk.boot_id` first and waits, up to 90 s after a hot restart, until it answers with a different id, which `DuskPlugin.install()` mints on every run of `main()` and registers last. Not a new isolate: on Flutter web DWDS keeps isolate `"1"` across a hot restart, and on the VM the old isolate answers until the new one replaces it. The errors the app answers while it restarts (DWDS's -32603 for an extension not registered yet) are waited out, and the last one is named if the 90 s run out. An app that does not answer `ext.dusk.boot_id` at all runs an older dusk: relaunch it.
 
 With `--timing`, `--against` or both, each round runs every unit once and the next round reverses the order, so drift in the app (a warming cache, a growing heap) lands on both sides alike.
 

@@ -13,6 +13,7 @@
 ///   - navigate: /monitors
 ///   - wait_for_text: Monitors                # or {text: Monitors, timeout_ms: 20000}
 ///   - wait_for_network_idle
+///   - tap: {target: {text: perf-monitor-0000}}   # a gesture, unmeasured
 /// steps:
 ///   - wheel: {target: {key: monitor-list}, dy: 1200}
 ///     only: [chrome]
@@ -45,7 +46,8 @@ enum PerfTargetKind {
   /// `{label: ...}`: `dusk:find --semanticsLabel`.
   label,
 
-  /// `{role: ..., name: ...}`: the labelled node carrying that role flag.
+  /// `{role: ..., name: ...}`: the node `dusk:snap` prints as that role
+  /// and name, listed through `ext.dusk.observe`.
   role,
 
   /// `{key: ...}`: `dusk:find --key`.
@@ -60,7 +62,12 @@ enum PerfSetupVerb {
   /// that cannot hot restart.
   hotRestart('hot_restart'),
   waitForText('wait_for_text'),
-  waitForNetworkIdle('wait_for_network_idle');
+  waitForNetworkIdle('wait_for_network_idle'),
+
+  /// One of [kPerfSetupGestures], written with the steps' own grammar and
+  /// carried in [PerfSetupStep.gesture]. Its wire is never read from YAML:
+  /// the entry is spelled with the gesture's verb.
+  gesture('gesture');
 
   const PerfSetupVerb(this.wire);
 
@@ -69,7 +76,7 @@ enum PerfSetupVerb {
 
   static PerfSetupVerb? tryParse(String wire) {
     for (final PerfSetupVerb verb in values) {
-      if (verb.wire == wire) return verb;
+      if (verb != gesture && verb.wire == wire) return verb;
     }
     return null;
   }
@@ -113,14 +120,29 @@ enum PerfStepVerb {
   }
 }
 
-/// The `role` values a `{role, name}` target accepts: the role flags
-/// `ext.dusk.find_by_label` filters on.
+/// The `role` values a `{role, name}` target accepts: the roles `dusk:snap`
+/// prints and `ext.dusk.observe` filters on.
 const Set<String> kPerfTargetRoles = <String>{
   'button',
-  'textField',
+  'textbox',
   'checkbox',
   'link',
+  'heading',
   'image',
+};
+
+/// The step verbs a `setup` entry may use. They run before `perf_begin`, so
+/// the path to the measured screen (a row tapped, a field filled) is not
+/// measured. `navigate` is a setup verb of its own; `scroll` and `resize`
+/// are left to the steps, and the viewport to `viewport`.
+const Set<PerfStepVerb> kPerfSetupGestures = <PerfStepVerb>{
+  PerfStepVerb.tap,
+  PerfStepVerb.fill,
+  PerfStepVerb.type,
+  PerfStepVerb.pressKey,
+  PerfStepVerb.wheel,
+  PerfStepVerb.drag,
+  PerfStepVerb.wait,
 };
 
 /// Timeout for `wait_for_text` when the setup entry names none. A hot restart
@@ -177,9 +199,19 @@ final class PerfTarget {
 
 /// One setup entry.
 final class PerfSetupStep {
-  const PerfSetupStep(this.verb, {this.argument, this.timeoutMs});
+  const PerfSetupStep(this.verb, {this.argument, this.timeoutMs})
+      : gesture = null;
+
+  /// A gesture from the steps' grammar, run unmeasured before the window.
+  const PerfSetupStep.gesture(PerfStep this.gesture)
+      : verb = PerfSetupVerb.gesture,
+        argument = null,
+        timeoutMs = null;
 
   final PerfSetupVerb verb;
+
+  /// The gesture, set only for [PerfSetupVerb.gesture].
+  final PerfStep? gesture;
 
   /// The route for `navigate`, the text for `wait_for_text`.
   final String? argument;
@@ -198,6 +230,7 @@ final class PerfSetupStep {
             },
           },
         PerfSetupVerb.navigate => <String, Object?>{verb.wire: argument},
+        PerfSetupVerb.gesture => gesture!.toJson(),
       };
 }
 
@@ -388,7 +421,7 @@ final class _ScenarioReader {
     final PerfThresholds thresholds = _thresholds(document['thresholds']);
 
     // 2. The lists. Steps are checked against the platforms read above.
-    final List<PerfSetupStep> setup = _setup(document['setup']);
+    final List<PerfSetupStep> setup = _setup(document['setup'], platforms);
     final List<PerfStep> steps = _steps(document['steps'], platforms);
 
     for (final Object? key in document.keys) {
@@ -461,7 +494,7 @@ final class _ScenarioReader {
     return thresholds;
   }
 
-  List<PerfSetupStep> _setup(Object? raw) {
+  List<PerfSetupStep> _setup(Object? raw, Set<PerfPlatform> platforms) {
     if (raw == null) return const <PerfSetupStep>[];
     if (raw is! List<Object?>) {
       problems.add('setup must be a list.');
@@ -469,25 +502,48 @@ final class _ScenarioReader {
     }
     final List<PerfSetupStep> setup = <PerfSetupStep>[];
     for (int i = 0; i < raw.length; i++) {
-      final PerfSetupStep? step = _setupStep(raw[i], 'setup[$i]');
+      final PerfSetupStep? step = _setupStep(raw[i], 'setup[$i]', platforms);
       if (step != null) setup.add(step);
     }
     return setup;
   }
 
-  PerfSetupStep? _setupStep(Object? raw, String where) {
+  PerfSetupStep? _setupStep(
+    Object? raw,
+    String where,
+    Set<PerfPlatform> platforms,
+  ) {
     final (String? wire, Object? args) =
-        _verbEntry(raw, where, const <String>{});
+        _verbEntry(raw, where, const <String>{'only'});
     if (wire == null) return null;
+
+    // 1. A gesture is read exactly as a step is, `only` and all.
+    final PerfStepVerb? gesture = PerfStepVerb.tryParse(wire);
+    if (gesture != null && kPerfSetupGestures.contains(gesture)) {
+      final PerfStep? step = _step(raw, where, platforms);
+      return step == null ? null : PerfSetupStep.gesture(step);
+    }
+
+    // 2. Anything else is a setup verb, which runs everywhere.
     final PerfSetupVerb? verb = PerfSetupVerb.tryParse(wire);
     if (verb == null) {
+      final Iterable<String> allowed = <String>[
+        for (final PerfSetupVerb v in PerfSetupVerb.values)
+          if (v != PerfSetupVerb.gesture) v.wire,
+        for (final PerfStepVerb v in kPerfSetupGestures) v.wire,
+      ];
       problems.add(
-        '$where: unknown setup verb "$wire"; allowed: '
-        '${PerfSetupVerb.values.map((PerfSetupVerb v) => v.wire).join(', ')}.',
+        '$where: unknown setup verb "$wire"; allowed: ${allowed.join(', ')}.',
       );
       return null;
     }
+    if (raw is Map<Object?, Object?> && raw.containsKey('only')) {
+      problems.add('$where: only limits a gesture; ${verb.wire} runs on every '
+          'platform the scenario lists.');
+    }
     switch (verb) {
+      case PerfSetupVerb.gesture:
+        throw StateError('PerfSetupVerb.tryParse never answers gesture.');
       case PerfSetupVerb.hotRestart:
       case PerfSetupVerb.waitForNetworkIdle:
         return PerfSetupStep(verb);
@@ -662,6 +718,14 @@ final class _ScenarioReader {
       problems.add('$at.index: a key names one widget, so an index is not '
           'supported on a key target.');
     }
+    // `ext.dusk.find` takes no index, and the list extension behind a label
+    // index walks only the root pipeline owner, which holds no semantics
+    // tree in a running app: an index here would match nothing, every time.
+    if (kind == PerfTargetKind.label && index != 0) {
+      problems.add('$at.index: a label target cannot be indexed; name the '
+          'control as {role, name, index} with the role dusk:snap prints, or '
+          'use {text, index}.');
+    }
     if (kind != PerfTargetKind.role) {
       final String? value = _string(raw[kind.name], '$at.${kind.name}');
       return value == null
@@ -671,7 +735,9 @@ final class _ScenarioReader {
     final Object? role = raw['role'];
     if (!kPerfTargetRoles.contains(role)) {
       problems.add(
-          '$at.role "$role" is not one of ${kPerfTargetRoles.join(', ')}.');
+        '$at.role "$role" is not one of ${kPerfTargetRoles.join(', ')}, the '
+        'roles dusk:snap prints.',
+      );
     }
     final String? name = _string(raw['name'], '$at.name');
     if (name == null || !kPerfTargetRoles.contains(role)) return null;

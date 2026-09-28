@@ -3,6 +3,7 @@ import 'dart:io';
 
 // `hide Error`: the installer's `Error` result would shadow dart:core's.
 import 'package:fluttersdk_artisan/artisan.dart' hide Error;
+import 'package:meta/meta.dart';
 
 import '../cdp/cdp_client.dart';
 import '../perf/scenario.dart';
@@ -24,6 +25,13 @@ const Duration _kHotRestartTimeout = Duration(seconds: 90);
 
 /// How long a relaunch may take: a profile build compiles from scratch.
 const Duration _kRelaunchTimeout = Duration(seconds: 420);
+
+/// How often the restart wait asks the app for its boot id.
+const Duration _kBootPollInterval = Duration(milliseconds: 500);
+
+/// How many candidates a role target asks `ext.dusk.observe` for: every
+/// interactive node on a screen, so an index deep in a list still resolves.
+const int _kObserveLimit = 5000;
 
 /// A run that cannot go on, with the sentence to print.
 final class PerfRunException implements Exception {
@@ -775,9 +783,20 @@ final class _PerfRunner {
 
   Future<void> _prepare(PerfScenario scenario) async {
     await _viewport(scenario);
-    for (final PerfSetupStep step in scenario.setup) {
+    for (final (int i, PerfSetupStep step) in scenario.setup.indexed) {
       final String where = '${scenario.name} setup ${step.verb.wire}';
       switch (step.verb) {
+        case PerfSetupVerb.gesture:
+          final PerfStep gesture = step.gesture!;
+          if (!gesture.runsOn(env.platform)) continue;
+          try {
+            await _drive(gesture, record: false);
+          } on Exception catch (e) {
+            throw PerfRunException(
+              '${scenario.name} setup[$i] (${gesture.verb.wire}): '
+              '${e is PerfRunException ? e.message : e}',
+            );
+          }
         case PerfSetupVerb.hotRestart:
           await driver.restart();
           await _viewport(scenario);
@@ -847,7 +866,8 @@ final class _PerfRunner {
       if (series == _Series.semanticsOff) {
         await _replay(run, index, step);
       } else {
-        await _drive(run, index, step, record: record);
+        final Map<String, dynamic>? points = await _drive(step, record: record);
+        if (points != null) run.points[index] = points;
       }
     } on Exception catch (e) {
       throw PerfRunException(
@@ -855,9 +875,10 @@ final class _PerfRunner {
     }
   }
 
-  Future<void> _drive(
-    _ScenarioRun run,
-    int index,
+  /// Drives [step] through the live tree. Returns the dispatch points when
+  /// [record] asks for them and the verb has any, for the semantics pass to
+  /// replay; null otherwise.
+  Future<Map<String, dynamic>?> _drive(
     PerfStep step, {
     required bool record,
   }) async {
@@ -877,9 +898,7 @@ final class _PerfRunner {
             ...report,
           },
         );
-        if (record) {
-          run.points[index] = <String, dynamic>{'point': result['point']};
-        }
+        return record ? <String, dynamic>{'point': result['point']} : null;
       case PerfStepVerb.wheel:
         // The hover is what a mouse does before it wheels, and it answers
         // the point to wheel at.
@@ -893,7 +912,7 @@ final class _PerfRunner {
         );
         final Map<String, dynamic> point = _map(hovered['point']);
         await _wheel(point, step);
-        if (record) run.points[index] = <String, dynamic>{'point': point};
+        return record ? <String, dynamic>{'point': point} : null;
       case PerfStepVerb.drag:
         final Map<String, dynamic> result = await driver.call(
           'ext.dusk.drag',
@@ -905,12 +924,9 @@ final class _PerfRunner {
             ...report,
           },
         );
-        if (record) {
-          run.points[index] = <String, dynamic>{
-            'from': result['from'],
-            'to': result['to'],
-          };
-        }
+        return record
+            ? <String, dynamic>{'from': result['from'], 'to': result['to']}
+            : null;
       case PerfStepVerb.fill:
       case PerfStepVerb.type:
         await driver.call(
@@ -937,6 +953,7 @@ final class _PerfRunner {
       case PerfStepVerb.wait:
         await _untargeted(step);
     }
+    return null;
   }
 
   /// Replays a step by the points [_drive] recorded. Nothing here resolves a
@@ -1018,9 +1035,12 @@ final class _PerfRunner {
   /// Resolves [target] against the live tree, right before its step: a ref
   /// from an earlier repeat is stale after the restart.
   ///
-  /// Index 0 of text, label and key goes through `ext.dusk.find`, the
-  /// re-resolvable handle; a higher index, and a role, go through the lists
-  /// `ext.dusk.find_by_text` / `find_by_label` return.
+  /// Text, label and key go through `ext.dusk.find`, the re-resolvable
+  /// handle; a text index through the list `ext.dusk.find_by_text` returns.
+  /// A role goes through `ext.dusk.observe`, which lists every interactive
+  /// node with the role and the merged label `dusk:snap` prints, each behind
+  /// a `q<N>` handle already pinned to its own node. Scenario validation
+  /// refuses an index on a label, since nothing can serve one.
   Future<String> _resolve(PerfTarget target) async {
     final String? ref = switch ((target.kind, target.index)) {
       (PerfTargetKind.text, 0) => (await driver.call(
@@ -1042,18 +1062,19 @@ final class _PerfRunner {
           ),
           index,
         ),
-      (PerfTargetKind.label, final int index) => _at(
-          await driver.call(
-            'ext.dusk.find_by_label',
-            <String, String>{'label': target.value},
-          ),
-          index,
+      (PerfTargetKind.label, _) => throw StateError(
+          'PerfScenario.parse refuses an index on a label target.',
         ),
-      (PerfTargetKind.role, final int index) => _at(
+      (PerfTargetKind.role, final int index) => _named(
           await driver.call(
-            'ext.dusk.find_by_label',
-            <String, String>{'label': target.value, 'role': target.role!},
+            'ext.dusk.observe',
+            <String, String>{
+              'roles': target.role!,
+              'includeEnrichers': 'false',
+              'limit': '$_kObserveLimit',
+            },
           ),
+          target.value,
           index,
         ),
     };
@@ -1204,6 +1225,16 @@ String? _at(Map<String, dynamic> result, int index) {
   return index < refs.length ? refs[index] as String? : null;
 }
 
+/// The ref of the [index]th `ext.dusk.observe` candidate labelled [name],
+/// in walk order; null when there are not that many.
+String? _named(Map<String, dynamic> result, String name, int index) {
+  final List<String?> refs = <String?>[
+    for (final Object? candidate in _list(result['candidates']))
+      if (_map(candidate)['label'] == name) _map(candidate)['ref'] as String?,
+  ];
+  return index < refs.length ? refs[index] : null;
+}
+
 // ---------------------------------------------------------------------------
 // The artisan driver
 // ---------------------------------------------------------------------------
@@ -1260,18 +1291,31 @@ final class _ArtisanPerfRunDriver implements PerfRunDriver {
   Future<void> restart() async {
     final BufferedOutput output = BufferedOutput();
 
-    // 1. A debug build hot restarts in place; wait for a NEW isolate, since
-    //    the old one keeps answering until the restart replaces it.
+    // 1. A debug build hot restarts in place; wait for a NEW boot id. Not a
+    //    new isolate: DWDS keeps isolate "1" across a web hot restart, and on
+    //    the VM the old isolate keeps answering until the new one replaces it.
     if (!relaunch) {
-      final String before = await _client.getMainIsolateId();
+      final String before;
+      try {
+        before = await readDuskBootId(_client);
+      } on Exception catch (e) {
+        throw PerfRunException(
+          'the app does not answer ext.dusk.boot_id ($e), so a restart '
+          'cannot be told apart from the app before it. Relaunch the app so '
+          'it runs the dusk this CLI ships with.',
+        );
+      }
       final int code = await HotRestartCommand().handle(
         ArtisanContext.bare(MapInput(const <String, dynamic>{}), output),
       );
       if (code != 0) {
         throw PerfRunException('hot restart failed: ${output.content.trim()}');
       }
-      await _awaitDusk(_client,
-          replacing: before, timeout: _kHotRestartTimeout);
+      await awaitDuskBoot(
+        _client,
+        replacing: before,
+        timeout: _kHotRestartTimeout,
+      );
       return;
     }
 
@@ -1299,7 +1343,7 @@ final class _ArtisanPerfRunDriver implements PerfRunDriver {
     _client = VmServiceClient(uri);
     await _client.connect();
     _ownsClient = true;
-    await _awaitDusk(_client, replacing: null, timeout: _kRelaunchTimeout);
+    await awaitDuskBoot(_client, replacing: null, timeout: _kRelaunchTimeout);
   }
 
   @override
@@ -1313,32 +1357,55 @@ final class _ArtisanPerfRunDriver implements PerfRunDriver {
   }
 }
 
-/// Polls until an isolate other than [replacing] has `ext.dusk.perf_begin`
-/// registered, which is when `main()` has run `DuskPlugin.install()` again.
+/// The boot id the running app's `DuskPlugin.install()` minted, read from
+/// `ext.dusk.boot_id` on the main isolate.
 ///
-/// While the app restarts the VM answers with errors (no isolate yet, an
-/// isolate going away); those are the state being waited out, retried until
-/// [timeout], and the last one is named when it runs out.
-Future<void> _awaitDusk(
+/// Throws whatever the VM Service throws when the extension does not answer:
+/// an RPC error while the app restarts, or on an app built with a dusk older
+/// than this one.
+@visibleForTesting
+Future<String> readDuskBootId(VmServiceClient client) async {
+  final String isolateId = await client.getMainIsolateId();
+  final Map<String, dynamic> result =
+      await client.callServiceExtension<Map<String, dynamic>>(
+    'ext.dusk.boot_id',
+    isolateId: isolateId,
+  );
+  return result['bootId'] as String;
+}
+
+/// Polls until `ext.dusk.boot_id` answers with an id other than [replacing]
+/// (any id when [replacing] is null, after a relaunch), which is when
+/// `main()` has run `DuskPlugin.install()` again. The boot id registers last,
+/// so every other `ext.dusk.*` answers by then.
+///
+/// The isolate id proves nothing: DWDS keeps `"1"` across a web hot restart.
+/// While the app restarts the extension answers with errors (DWDS -32603 for
+/// one not registered yet, no isolate, an isolate going away); those are the
+/// state being waited out, retried every [pollInterval] until [timeout], and
+/// the last one is named when it runs out. A read that hangs is cut at the
+/// time left, so [timeout] holds.
+@visibleForTesting
+Future<void> awaitDuskBoot(
   VmServiceClient client, {
   required String? replacing,
   required Duration timeout,
+  Duration pollInterval = _kBootPollInterval,
 }) async {
   final Stopwatch clock = Stopwatch()..start();
   Object? last;
   while (clock.elapsed < timeout) {
     try {
-      final String id = await client.getMainIsolateId();
-      if (id != replacing &&
-          (await client.getExtensionRPCs(id)).contains('ext.dusk.perf_begin')) {
-        return;
-      }
+      final String id =
+          await readDuskBootId(client).timeout(timeout - clock.elapsed);
+      if (id != replacing) return;
+      last = null;
     } on Exception catch (e) {
       last = e;
     } on StateError catch (e) {
       last = e;
     }
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await Future<void>.delayed(pollInterval);
   }
   throw PerfRunException(
     'the app did not come back within ${timeout.inSeconds} s of the restart'

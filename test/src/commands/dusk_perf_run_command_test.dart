@@ -20,7 +20,12 @@ final class _FakeDriver implements PerfRunDriver {
   _FakeDriver({
     List<Map<String, dynamic>>? perfEnds,
     this.unresolved = const <String>{},
+    this.observed = _kObserved,
   }) : perfEnds = perfEnds ?? <Map<String, dynamic>>[];
+
+  /// The interactive nodes `ext.dusk.observe` lists, as `dusk:snap` shows
+  /// them: a role and the merged label.
+  final List<Map<String, dynamic>> observed;
 
   /// Answers to successive `ext.dusk.perf_end` calls; the last repeats.
   final List<Map<String, dynamic>> perfEnds;
@@ -52,9 +57,20 @@ final class _FakeDriver implements PerfRunDriver {
           'matched': !miss,
         };
       case 'ext.dusk.find_by_label':
+        // What the live app answers: find_by_label walks only the root
+        // pipeline owner, which holds no semantics tree, so it finds nothing.
+        return <String, dynamic>{'refs': <String>[]};
       case 'ext.dusk.find_by_text':
         return <String, dynamic>{
           'refs': <String>['e1', 'e2', 'e3'],
+        };
+      case 'ext.dusk.observe':
+        final Set<String> roles = (params['roles'] ?? '').split(',').toSet();
+        return <String, dynamic>{
+          'candidates': <Map<String, dynamic>>[
+            for (final Map<String, dynamic> c in observed)
+              if (roles.contains(c['role'])) c,
+          ],
         };
       case 'ext.dusk.tap':
       case 'ext.dusk.hover':
@@ -113,6 +129,14 @@ final class _FakeDriver implements PerfRunDriver {
     closed = true;
   }
 }
+
+/// A screen with a heading and three buttons, two of them named `Row`.
+const List<Map<String, dynamic>> _kObserved = <Map<String, dynamic>>[
+  <String, dynamic>{'ref': 'q1', 'role': 'heading', 'label': 'Row'},
+  <String, dynamic>{'ref': 'q2', 'role': 'button', 'label': 'Row'},
+  <String, dynamic>{'ref': 'q3', 'role': 'button', 'label': 'Add'},
+  <String, dynamic>{'ref': 'q4', 'role': 'button', 'label': 'Row'},
+];
 
 /// A bounded-shape `perf_end` report with a block and a wind counter whose
 /// per-frame values are derived from [painted].
@@ -603,11 +627,94 @@ void main() {
 
       expect(driver.callsTo('cdp:Input.dispatchMouseEvent'), isEmpty);
       expect(driver.callsTo('cdp:Page.bringToFront'), isEmpty);
-      final _Call label = driver.callsTo('ext.dusk.find_by_label').single;
-      expect(label.params, <String, dynamic>{'label': 'Row', 'role': 'button'});
+      final _Call observe = driver.callsTo('ext.dusk.observe').single;
+      expect(observe.params['roles'], 'button');
+      expect(observe.params['includeEnrichers'], 'false');
       final _Call drag = driver.callsTo('ext.dusk.drag').single;
-      expect(drag.params['startRef'], 'e2');
+      // The second button named Row: the heading shares the name, not the
+      // role, and the Add button shares neither.
+      expect(drag.params['startRef'], 'q4');
       expect(drag.params['dy'], '-300.0');
+    });
+
+    test('a role target matching no role and name fails naming the target',
+        () async {
+      final _FakeDriver driver = _FakeDriver(
+        observed: const <Map<String, dynamic>>[
+          <String, dynamic>{'ref': 'q1', 'role': 'button', 'label': 'Row'},
+        ],
+      );
+
+      final (int code, String out) = await _run(
+        driver,
+        options(<String, dynamic>{'repeat': '1'}),
+        platform: PerfPlatform.android,
+      );
+
+      expect(code, 1);
+      expect(out, contains('"role":"button","name":"Row","index":1'));
+      expect(out, contains('matched nothing'));
+    });
+
+    test('a gesture in setup runs before perf_begin, outside the window',
+        () async {
+      await File(scenarioPath).writeAsString(
+        _scenario.replaceFirst(
+          '  - wait_for_text: Monitors\n',
+          '  - wait_for_text: Monitors\n'
+              '  - tap: {target: {text: perf-monitor-0000}}\n'
+              '  - wait: 150\n',
+        ),
+      );
+      final _FakeDriver driver = _FakeDriver();
+
+      final (int code, _) =
+          await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+      expect(code, 0);
+      final List<String> m = driver.methods;
+      final int begin = m.indexOf('ext.dusk.perf_begin');
+      expect(
+        m.sublist(0, begin),
+        <String>[
+          'cdp:Emulation.setDeviceMetricsOverride',
+          'restart',
+          'cdp:Emulation.setDeviceMetricsOverride',
+          'ext.dusk.navigate',
+          'ext.dusk.wait_for',
+          'ext.dusk.find',
+          'ext.dusk.tap',
+          'pause',
+          'cdp:Page.bringToFront',
+        ],
+      );
+      expect(
+        driver.callsTo('ext.dusk.find').first.params,
+        <String, dynamic>{'text': 'perf-monitor-0000'},
+      );
+      expect(
+        driver.callsTo('ext.dusk.tap').first.params['includeSnapshot'],
+        'false',
+      );
+    });
+
+    test('a setup gesture that matches nothing fails before perf_begin',
+        () async {
+      await File(scenarioPath).writeAsString(
+        _scenario.replaceFirst(
+          '  - wait_for_text: Monitors\n',
+          '  - wait_for_text: Monitors\n'
+              '  - tap: {target: {text: Gone}}\n',
+        ),
+      );
+      final _FakeDriver driver = _FakeDriver(unresolved: <String>{'Gone'});
+
+      final (int code, String out) = await _run(driver, options());
+
+      expect(code, 1);
+      expect(out, contains('list-scroll setup[3] (tap)'));
+      expect(out, contains('Gone'));
+      expect(driver.callsTo('ext.dusk.perf_begin'), isEmpty);
     });
 
     test('a refused repeat is recorded, not averaged, and the run exits 0',
@@ -907,6 +1014,141 @@ void main() {
       });
     });
   });
+
+  // -------------------------------------------------------------------------
+  // The restart wait
+  // -------------------------------------------------------------------------
+
+  group('awaitDuskBoot()', () {
+    const Duration tick = Duration(milliseconds: 1);
+
+    test(
+        'returns once the boot id changes, though the isolate id stays "1" '
+        'as it does under DWDS', () async {
+      final _FakeVmClient vm = _FakeVmClient(<Object>[
+        'boot-a',
+        Exception('RPCError -32603: ext.dusk.boot_id is not registered'),
+        StateError('VM Service reported no isolates'),
+        'boot-b',
+      ]);
+
+      await awaitDuskBoot(
+        vm,
+        replacing: 'boot-a',
+        timeout: const Duration(seconds: 5),
+        pollInterval: tick,
+      );
+
+      expect(vm.isolateIds.toSet(), <String>{'1'});
+      expect(vm.answered, 4);
+    });
+
+    test('times out with the restart message while the boot id never changes',
+        () async {
+      final _FakeVmClient vm = _FakeVmClient(<Object>['boot-a']);
+
+      await expectLater(
+        awaitDuskBoot(
+          vm,
+          replacing: 'boot-a',
+          timeout: const Duration(milliseconds: 50),
+          pollInterval: tick,
+        ),
+        throwsA(
+          isA<PerfRunException>().having(
+            (PerfRunException e) => e.message,
+            'message',
+            contains('the app did not come back within 0 s of the restart'),
+          ),
+        ),
+      );
+    });
+
+    test('names the last error when the app never answers', () async {
+      final _FakeVmClient vm = _FakeVmClient(<Object>[
+        Exception('RPCError -32601: method not found'),
+      ]);
+
+      await expectLater(
+        awaitDuskBoot(
+          vm,
+          replacing: 'boot-a',
+          timeout: const Duration(milliseconds: 50),
+          pollInterval: tick,
+        ),
+        throwsA(
+          isA<PerfRunException>().having(
+            (PerfRunException e) => e.message,
+            'message',
+            contains('-32601'),
+          ),
+        ),
+      );
+    });
+
+    test('after a relaunch the first boot id that answers is enough', () async {
+      final _FakeVmClient vm = _FakeVmClient(<Object>[
+        StateError('VM Service reported no isolates'),
+        'boot-z',
+      ]);
+
+      await awaitDuskBoot(
+        vm,
+        replacing: null,
+        timeout: const Duration(seconds: 5),
+        pollInterval: tick,
+      );
+
+      expect(vm.answered, 2);
+    });
+  });
+
+  group('readDuskBootId()', () {
+    test('asks the main isolate for ext.dusk.boot_id', () async {
+      final _FakeVmClient vm = _FakeVmClient(<Object>['boot-a']);
+
+      expect(await readDuskBootId(vm), 'boot-a');
+      expect(vm.methods.single, 'ext.dusk.boot_id');
+    });
+  });
+}
+
+/// A VM Service client whose main isolate is always `"1"`, as DWDS reports
+/// it across a hot restart, and whose `ext.dusk.boot_id` answers come from
+/// a script: a String is a boot id, anything else is thrown. The last entry
+/// repeats.
+final class _FakeVmClient implements VmServiceClient {
+  _FakeVmClient(this.script);
+
+  final List<Object> script;
+  final List<String> isolateIds = <String>[];
+  final List<String> methods = <String>[];
+  int answered = 0;
+
+  @override
+  Future<String> getMainIsolateId() async => '1';
+
+  @override
+  Future<List<String>> getExtensionRPCs(String isolateId) async =>
+      const <String>['ext.dusk.perf_begin', 'ext.dusk.boot_id'];
+
+  @override
+  Future<T> callServiceExtension<T>(
+    String method, {
+    required String isolateId,
+    Map<String, dynamic>? params,
+  }) async {
+    methods.add(method);
+    isolateIds.add(isolateId);
+    final Object next =
+        script[answered < script.length ? answered : script.length - 1];
+    answered++;
+    if (next is String) return <String, dynamic>{'bootId': next} as T;
+    throw next;
+  }
+
+  @override
+  Object? noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// Fails the re-acquire at the end of the semantics window.

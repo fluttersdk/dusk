@@ -1,6 +1,6 @@
 # fluttersdk_dusk
 
-> E2E driver for Flutter apps targeting LLM agents and CI. 40 CLI commands and 39 MCP tools drive a running Flutter app over 37 `ext.dusk.*` VM Service extensions, 33 of which are reached directly by an MCP tool, plus 6 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). Debug-only at the consumer call site; release builds tree-shake the entire subsystem.
+> E2E driver for Flutter apps targeting LLM agents and CI. 40 CLI commands and 39 MCP tools drive a running Flutter app over 38 `ext.dusk.*` VM Service extensions, 33 of which are reached directly by an MCP tool, plus 6 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). Debug-only at the consumer call site; release builds tree-shake the entire subsystem.
 
 **MCP tools (39)**, see `doc/mcp/tool-reference.md` for full input schemas. The 33 `ext.dusk.*` and 6 `artisan:dusk:*` (substrate-routed) tools are listed below.
 

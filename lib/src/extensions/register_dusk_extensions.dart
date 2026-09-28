@@ -1,3 +1,4 @@
+import 'ext_boot.dart';
 import 'ext_checkbox.dart';
 import 'ext_close_app.dart';
 import 'ext_console.dart';
@@ -63,6 +64,11 @@ import 'ext_wait_find.dart';
 /// - [registerSemanticsHoldExtension]: ext.dusk.semantics_hold, which releases
 ///   dusk's semantics handle for one timed window of `dusk:perf_run
 ///   --semantics-pass` and re-acquires it before perf_end.
+///
+/// Last, and it has to stay last: [registerBootExtension], ext.dusk.boot_id,
+/// the id `DuskPlugin.install()` minted for this boot. `dusk:perf_run` waits
+/// for a new one after a hot restart, and reads an answer as every extension
+/// above being registered again.
 void registerAllDuskExtensions() {
   registerSnapExtension();
   registerPointerExtensions();
@@ -86,4 +92,5 @@ void registerAllDuskExtensions() {
   registerPerfExtensions();
   registerPerfTraceExtension();
   registerSemanticsHoldExtension();
+  registerBootExtension();
 }

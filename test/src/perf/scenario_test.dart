@@ -195,6 +195,40 @@ steps:
       expect(problems.join('\n'), contains('slider'));
     });
 
+    test('accepts the roles dusk:snap prints, textbox and heading included',
+        () {
+      for (final String role in <String>['textbox', 'heading']) {
+        final PerfScenario scenario = PerfScenario.parse('''
+name: roles
+steps:
+  - tap: {target: {role: $role, name: Search}}
+''');
+
+        expect(scenario.steps.single.target!.role, role);
+      }
+    });
+
+    test('rejects textField, which is not a role dusk:snap prints', () {
+      final List<String> problems = _problems(
+        _valid.replaceFirst(
+          '{role: button, name: Row, index: 2}',
+          '{role: textField, name: Row}',
+        ),
+      );
+
+      expect(problems.join('\n'), contains('textField'));
+      expect(problems.join('\n'), contains('textbox'));
+    });
+
+    test('rejects an index on a label target', () {
+      final List<String> problems = _problems(
+        _valid.replaceFirst('{label: Search}', '{label: Search, index: 1}'),
+      );
+
+      expect(problems.join('\n'), contains('steps[1].fill.target.index'));
+      expect(problems.join('\n'), contains('role, name, index'));
+    });
+
     test('rejects an index on a key target, since a key names one widget', () {
       final List<String> problems = _problems(
         _valid.replaceFirst('{key: monitor-list}', '{key: k, index: 1}'),
@@ -230,6 +264,113 @@ steps:
 ''');
 
       expect(problems.length, greaterThanOrEqualTo(3));
+    });
+
+    group('a gesture in setup', () {
+      test('parses with the steps grammar and keeps its place in the list', () {
+        final PerfScenario scenario = PerfScenario.parse('''
+name: detail-tabs
+platforms: [chrome]
+setup:
+  - hot_restart
+  - navigate: /monitors
+  - tap: {target: {text: perf-monitor-0000}}
+  - wheel: {target: {key: list}, dy: 300}
+  - fill: {target: {label: Search}, text: api}
+  - press_key: {key: Enter}
+  - drag: {target: {role: button, name: Row}, dy: -100}
+  - wait: 250
+steps:
+  - tap: {target: {text: Checks}}
+''');
+
+        expect(
+          scenario.setup.map((PerfSetupStep s) => s.verb).toList(),
+          <PerfSetupVerb>[
+            PerfSetupVerb.hotRestart,
+            PerfSetupVerb.navigate,
+            PerfSetupVerb.gesture,
+            PerfSetupVerb.gesture,
+            PerfSetupVerb.gesture,
+            PerfSetupVerb.gesture,
+            PerfSetupVerb.gesture,
+            PerfSetupVerb.gesture,
+          ],
+        );
+        final PerfStep tap = scenario.setup[2].gesture!;
+        expect(tap.verb, PerfStepVerb.tap);
+        expect(tap.target!.kind, PerfTargetKind.text);
+        expect(tap.target!.value, 'perf-monitor-0000');
+        expect(scenario.setup[7].gesture!.ms, 250);
+        expect(
+          (scenario.toJson()['setup']! as List<Object?>)[2],
+          <String, Object?>{
+            'tap': <String, Object?>{
+              'target': <String, Object?>{'text': 'perf-monitor-0000'},
+            },
+          },
+        );
+      });
+
+      test('rejects a wheel that could run on android', () {
+        final List<String> problems = _problems(
+          _valid.replaceFirst(
+            '  - wait_for_network_idle\n',
+            '  - wait_for_network_idle\n'
+                '  - wheel: {target: {text: List}, dy: 300}\n',
+          ),
+        );
+
+        expect(problems.join('\n'), contains('setup[4]'));
+        expect(problems.join('\n'), contains('android'));
+      });
+
+      test('accepts that wheel once it is limited to chrome', () {
+        final PerfScenario scenario = PerfScenario.parse(
+          _valid.replaceFirst(
+            '  - wait_for_network_idle\n',
+            '  - wait_for_network_idle\n'
+                '  - wheel: {target: {text: List}, dy: 300}\n'
+                '    only: [chrome]\n',
+          ),
+        );
+
+        expect(
+          scenario.setup.last.gesture!.only,
+          <PerfPlatform>{PerfPlatform.chrome},
+        );
+      });
+
+      test('rejects a literal ref, as a step does', () {
+        final List<String> problems = _problems(
+          _valid.replaceFirst(
+            '  - wait_for_network_idle\n',
+            '  - wait_for_network_idle\n'
+                '  - tap: {target: e12}\n',
+          ),
+        );
+
+        expect(problems.join('\n'), contains('setup[4]'));
+        expect(problems.join('\n'), contains('e12'));
+      });
+
+      test('rejects a step verb setup does not run and only on a setup verb',
+          () {
+        final List<String> problems = _problems(
+          _valid.replaceFirst(
+            '  - wait_for_network_idle\n',
+            '  - wait_for_network_idle\n'
+                '  - scroll: {target: {text: List}, dy: 300}\n'
+                '  - navigate: /monitors\n'
+                '    only: [chrome]\n',
+          ),
+        );
+
+        expect(problems.join('\n'), contains('setup[4]'));
+        expect(problems.join('\n'), contains('scroll'));
+        expect(problems.join('\n'), contains('setup[5]'));
+        expect(problems.join('\n'), contains('only'));
+      });
     });
 
     test('rejects a document that is not a map', () {

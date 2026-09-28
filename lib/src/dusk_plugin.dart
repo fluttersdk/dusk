@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -78,6 +79,10 @@ class DuskPlugin {
     }
     _installCount++;
 
+    // A fresh id for this run of main(), minted before the extension that
+    // reports it registers: dusk:perf_run tells a restarted app by it.
+    _bootId = mintBootId();
+
     // Force Semantics tree on for snapshot extension.
     _semanticsHandle ??= RendererBinding.instance.ensureSemantics();
 
@@ -99,6 +104,23 @@ class DuskPlugin {
   }
 
   static int _installCount = 0;
+
+  /// The id [install] minted for this run of `main()`, answered by
+  /// `ext.dusk.boot_id`; null before [install].
+  ///
+  /// A hot restart re-runs `main()` and so mints a new one, on the web too,
+  /// where the isolate id does not change.
+  static String? get bootId => _bootId;
+  static String? _bootId;
+
+  /// A boot id: the wall clock in microseconds and a random suffix, base 36,
+  /// so two boots in the same microsecond still differ.
+  @visibleForTesting
+  static String mintBootId() =>
+      '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-'
+      '${_random.nextInt(1 << 30).toRadixString(36)}';
+
+  static final Random _random = Random();
 
   /// Exposes [_installCount] for tests.
   @visibleForTesting

@@ -78,6 +78,21 @@ void main() {
       expect(source, contains('registerSemanticsHoldExtension();'));
     });
 
+    test('registers ext.dusk.boot_id last, so it answers only after the rest',
+        () {
+      expect(source, contains("import 'ext_boot.dart';"));
+      final String body = source.substring(
+        source.indexOf('void registerAllDuskExtensions() {'),
+      );
+      expect(
+        body.trim(),
+        endsWith('registerBootExtension();\n}'),
+        reason: 'dusk:perf_run reads the boot id as proof that install() '
+            'finished; an extension registered after it could still be '
+            'missing when the id answers',
+      );
+    });
+
     test('preserves the pre-existing alpha-1 aggregator calls', () {
       expect(source, contains('registerSnapExtension();'));
       expect(source, contains('registerPointerExtensions();'));

@@ -11,7 +11,7 @@ lib/
 ├── dusk.dart                    # Public barrel: DuskPlugin, RefRegistry, DuskArtisanProvider, DuskSnapshotEnricher
 ├── cli.dart                     # Flutter-free codegen barrel (FluttersdkDuskArtisanProvider typedef)
 └── src/
-    ├── extensions/              # 21 files: 20 ext_*.dart (snapshot/pointer/text_input/screenshot/scroll/wait_find/modal_router/navigation/evaluate/close_app/find/console/exceptions/checkbox/observe/focus/fill/perf/perf_trace/semantics_hold) + register_dusk_extensions.dart aggregator
+    ├── extensions/              # 22 files: 21 ext_*.dart (snapshot/pointer/text_input/screenshot/scroll/wait_find/modal_router/navigation/evaluate/close_app/find/console/exceptions/checkbox/observe/focus/fill/perf/perf_trace/semantics_hold/boot) + register_dusk_extensions.dart aggregator
     ├── commands/                # 40 ArtisanCommand subclasses (one file each)
     ├── utils/                   # actionability_gate (6-step: defunct/enabled/zero-rect/off-viewport/stable/receives-events), error_envelope, chrome_reaper, dusk_exceptions, dusk_response, frame_sync, frame_summary, perf_readers
     ├── cdp/                     # cdp_client + chrome_finder + 8 device_presets
@@ -33,7 +33,7 @@ Wrap app root in RepaintBoundary (no GlobalKey; render-tree walk finds it for sc
     ↓
 WidgetsBinding.instance.ensureSemantics()                # force semantics on
     ↓
-registerAllDuskExtensions()                              # 37 ext.dusk.* via registerExtensionIdempotent (across 20 aggregator register functions)
+registerAllDuskExtensions()                              # 38 ext.dusk.* via registerExtensionIdempotent (across 21 aggregator register functions; ext.dusk.boot_id last)
     ↓
 installErrorCapture()                                    # chains FlutterError.onError; records non-fatal errors (incl. overflow) into bounded ring buffer; prior handler preserved
     ↓
@@ -78,7 +78,7 @@ The 39 `McpToolDescriptor` entries in `dusk_artisan_provider.dart:mcpTools()`. 3
 
 `dusk_evaluate` is MCP-only (no CLI mirror) so `magic_tinker` owns the connected REPL surface.
 
-## VM Service extension surface (37 ext.dusk.*)
+## VM Service extension surface (38 ext.dusk.*)
 
 ```
 ext.dusk.snap                  ext.dusk.screenshot          ext.dusk.tap
@@ -93,7 +93,7 @@ ext.dusk.dblclick              ext.dusk.triple_click        ext.dusk.set_checkbo
 ext.dusk.console               ext.dusk.exceptions          ext.dusk.observe
 ext.dusk.perf_begin            ext.dusk.perf_end            ext.dusk.perf_insight
 ext.dusk.perf_trace            ext.dusk.semantics_hold      ext.dusk.find_by_text
-ext.dusk.find_by_label
+ext.dusk.find_by_label         ext.dusk.boot_id
 ```
 
 Every registration routes through `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety.
