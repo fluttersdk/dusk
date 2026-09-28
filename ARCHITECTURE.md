@@ -142,8 +142,8 @@ These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:
 | 0 | `findRenderObject()` returns non-null | `defunct (...)` | Element no longer attached after a rebuild |
 | 1 | `node.flagsCollection.isEnabled != Tristate.isFalse` | `not enabled` | `Tristate.none` (default) passes |
 | 2 | `rect.width > 0 && rect.height > 0` | `zero rect` | Collapsed or detached widget |
-| 3 | rect overlaps viewport | `off-viewport (rect=..., viewport=...)` | Auto-scrolls via `showOnScreen` first if a `Scrollable` ancestor exists |
-| 4 | 2-frame rect drift ≤ 0.5px | `not stable (rect changed by Xpx)` | Skipped when `--no-checkStable` |
+| 3 | rect overlaps the visible viewport (view minus `viewInsets`) | `off-viewport (rect=..., viewport=...)` | Auto-scrolls via `showOnScreen` first when the center is outside it and a `Scrollable` ancestor exists |
+| 4 | live rect drift ≤ 0.5px across one frame | `not stable (rect changed by Xpx)` | Skipped when `--no-checkStable` |
 | 5 | hit-test path at `rect.center` includes the target render object or a descendant | `obscured by other widget (top=...)` | Skipped when `--no-checkReceivesEvents` |
 
 The gate returns an `ActionabilityReport` alongside throwing. Step 5 has three outcomes, not two: `confirmed`, `indeterminate` (the hit-test could not answer), and `skipped` (`--no-checkReceivesEvents`). Only the first is silent; the other two surface as a `checks` block on the response, because a clean pass used to be indistinguishable from a confirmed one and that is how a fill printed a green tick four times onto a row covered by a pinned footer.

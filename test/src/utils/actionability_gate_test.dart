@@ -977,6 +977,173 @@ void main() {
       expect(report.receivesEvents, equals(ReceivesEvents.skipped));
     });
   });
+
+  group('ensureActionable after the layout moved under the ref', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'passes the stable check on a widget that moved before the gate ran '
+      'and holds still now',
+      (WidgetTester tester) async {
+        // The soft keyboard opening between `snap` and `tap` reflows the page
+        // once. The widget is still by the time the gate runs, so measuring
+        // it against the snapshot rect reports motion that is already over.
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  key: ValueKey<String>('settled-box'),
+                  width: 100,
+                  height: 100,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(
+          find.byKey(const ValueKey<String>('settled-box')),
+        );
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final Rect liveRect = box.localToGlobal(Offset.zero) & box.size;
+
+        final Future<ActionabilityReport> future = ensureActionable(
+          _buildEntry(
+            rect: liveRect.translate(0, 76),
+            element: element,
+          ),
+          ref: 'e20',
+          checkReceivesEvents: false,
+        );
+        await tester.pump();
+
+        await expectLater(future, completes);
+      },
+    );
+
+    testWidgets(
+      'scrolls a target hidden under the soft keyboard into view before '
+      'hit-testing it',
+      (WidgetTester tester) async {
+        // The Android failure: the keyboard shrinks the Scaffold body, the
+        // submit button stays laid out below it, and a hit-test at its center
+        // lands in the inset on the Scaffold's own Material. The gate
+        // reported `obscured by other widget (top=_RenderInkFeatures)` for a
+        // button one scroll away from reachable.
+        tester.view.physicalSize = const Size(1050, 1050);
+        tester.view.devicePixelRatio = 2.625;
+        tester.view.viewInsets = const FakeViewPadding(bottom: 525);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: Column(
+                  children: <Widget>[
+                    const SizedBox(height: 300),
+                    GestureDetector(
+                      onTap: () {},
+                      child: Container(
+                        key: const ValueKey<String>('submit'),
+                        color: const Color(0xFF2196F3),
+                        width: 200,
+                        height: 50,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(
+          find.byKey(const ValueKey<String>('submit')),
+        );
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final Rect underKeyboard = box.localToGlobal(Offset.zero) & box.size;
+        // Logical viewport 400x400, keyboard covers the bottom 200.
+        expect(underKeyboard.top, greaterThanOrEqualTo(200));
+
+        final Future<ActionabilityReport> future = ensureActionable(
+          _buildEntry(rect: underKeyboard, element: element),
+          ref: 'e21',
+        );
+        await tester.pump();
+        await tester.pump();
+        await tester.pump();
+
+        final ActionabilityReport report = await future;
+        expect(report.receivesEvents, equals(ReceivesEvents.confirmed));
+        final Rect revealed = box.localToGlobal(Offset.zero) & box.size;
+        expect(revealed.bottom, lessThanOrEqualTo(200));
+      },
+    );
+
+    testWidgets(
+      'refuses a target under the soft keyboard as off-viewport when nothing '
+      'can scroll it into view',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1050, 1050);
+        tester.view.devicePixelRatio = 2.625;
+        tester.view.viewInsets = const FakeViewPadding(bottom: 525);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              resizeToAvoidBottomInset: false,
+              body: Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  key: const ValueKey<String>('covered'),
+                  color: const Color(0xFF2196F3),
+                  width: 200,
+                  height: 50,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(
+          find.byKey(const ValueKey<String>('covered')),
+        );
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+
+        await expectLater(
+          ensureActionable(
+            _buildEntry(
+              rect: box.localToGlobal(Offset.zero) & box.size,
+              element: element,
+            ),
+            ref: 'e22',
+            checkStable: false,
+          ),
+          throwsA(
+            isA<DuskActionabilityException>().having(
+              (DuskActionabilityException e) => e.reason,
+              'reason',
+              startsWith('off-viewport'),
+            ),
+          ),
+        );
+      },
+    );
+  });
 }
 
 /// Stateful widget used by the stable-gate tests. Holds an

@@ -40,20 +40,24 @@ substring, so adding, removing, or reordering checks is a breaking change.
    always indicates the widget has been collapsed or detached between snapshot
    and action.
 3. **Off-viewport**; the entry's rect does not intersect the active
-   `FlutterView`'s logical viewport (recomputed every call from
+   `FlutterView`'s visible logical viewport (recomputed every call from
    `WidgetsBinding.instance.platformDispatcher.views.firstOrNull` so window
-   resizes between actions are honored). The gate first attempts
-   `RenderObject.showOnScreen` to bring the element into view, then re-checks;
-   it fails only when scroll-into-view cannot place the target inside the
-   viewport. Skipped gracefully when no `FlutterView` is attached (headless
-   test harnesses, multi-view race).
-4. **Stable** (Wave 3 addition); the entry's bounding box, re-resolved from
-   the live `RenderBox` after one frame, has not drifted by more than 0.5
-   logical pixels on any side. Animated widgets (sliding sheets, expanding
-   tiles, page transitions) fail this gate so the agent waits for the
-   animation to settle before retrying. Baseline is the post-auto-scroll
-   rect from step 3, not the original entry rect, so deliberate scroll motion
-   does not trip this check. Opt out via `checkStable: false`.
+   resizes between actions are honored). Visible means the view minus its
+   `viewInsets`: the app keeps laying out under a soft keyboard, but a
+   pointer there never reaches it. When the rect's center lies outside the
+   visible viewport the gate first attempts `RenderObject.showOnScreen` to
+   bring the element into view, then re-checks; it fails only when
+   scroll-into-view cannot place the target inside the viewport. Skipped
+   gracefully when no `FlutterView` is attached (headless test harnesses,
+   multi-view race).
+4. **Stable** (Wave 3 addition); the entry's bounding box, sampled from the
+   live `RenderBox` before and after one frame, has not drifted by more than
+   0.5 logical pixels on any side. Animated widgets (sliding sheets,
+   expanding tiles, page transitions) fail this gate so the agent waits for
+   the animation to settle before retrying. Both samples are live, so a
+   layout change that finished before the gate ran (the soft keyboard
+   opening, the step 3 auto-scroll) does not trip this check. Opt out via
+   `checkStable: false`.
 5. **Receives events** (Wave 3 addition); a hit-test at `rect.center` on the
    active view confirms the entry's render object (or a descendant) appears
    in the hit-test path. If the topmost target is anything else, an overlay,
@@ -143,8 +147,8 @@ against `$reason` to branch their recovery. **The substring list is FROZEN**:
 | `defunct (...)`    | `findRenderObject()` returns null OR Element is in `_ElementLifecycle.defunct` lifecycle state | Re-snap; the widget was deactivated. |
 | `not enabled`      | `flagsCollection.isEnabled == Tristate.isFalse`                             | Re-snap; the widget may enable later.         |
 | `zero rect`        | `rect.width == 0 \|\| rect.height == 0`                                     | Re-snap or re-find; layout has shifted.       |
-| `off-viewport`     | rect does not overlap the viewport even after `showOnScreen` + one frame    | `dusk_scroll_to_ref` then retry.              |
-| `not stable`       | live rect drifted > 0.5 logical pixels on any side after one frame          | `dusk_wait_for_network_idle` or settle delay. |
+| `off-viewport`     | rect does not overlap the visible viewport (view minus `viewInsets`) even after `showOnScreen` + one frame | `dusk_scroll_to_ref` then retry. |
+| `not stable`       | live rect drifted > 0.5 logical pixels on any side across one frame         | `dusk_wait_for_network_idle` or settle delay. |
 | `obscured by`      | hit-test at `rect.center` resolves to a non-descendant render object first  | Dismiss the obscurer (modal, scrim, overlay). |
 
 The off-viewport reason carries the rect and viewport
