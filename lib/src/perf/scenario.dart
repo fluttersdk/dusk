@@ -149,6 +149,10 @@ const Set<PerfStepVerb> kPerfSetupGestures = <PerfStepVerb>{
 /// on Flutter web recompiles, so the first text can take several seconds.
 const int kPerfWaitForTextTimeoutMs = 15000;
 
+/// The most events one `wheel` step may send: at one frame apart, 200 ticks
+/// is about three seconds of scrolling, longer than any single gesture.
+const int _kMaxWheelTicks = 200;
+
 /// Whether [name] may become part of a file name: `[a-z0-9_-]` only, which
 /// also rules out `/`, `..` and an empty string.
 bool isSafePerfName(String name) => RegExp(r'^[a-z0-9_-]+$').hasMatch(name);
@@ -244,6 +248,7 @@ final class PerfStep {
     this.route,
     this.dx = 0,
     this.dy = 0,
+    this.ticks = 1,
     this.width,
     this.height,
     this.ms,
@@ -265,6 +270,11 @@ final class PerfStep {
   /// Logical pixels for `scroll`, `wheel` and `drag`.
   final double dx;
   final double dy;
+
+  /// How many wheel events `wheel` sends, each of [dx]/[dy], at the one
+  /// point it resolved. A real wheel is many small ticks; one large event
+  /// jumps the scroll in a single frame and measures almost nothing.
+  final int ticks;
 
   /// The viewport `resize` sets, in CSS pixels.
   final int? width;
@@ -293,6 +303,7 @@ final class PerfStep {
           if (text != null) 'text': text,
           if (dx != 0) 'dx': dx,
           if (dy != 0) 'dy': dy,
+          if (ticks != 1) 'ticks': ticks,
         },
     };
     return <String, Object?>{
@@ -680,6 +691,21 @@ final class _ScenarioReader {
     if (moves && dx == 0 && dy == 0) {
       problems.add('$at needs a non-zero dx or dy.');
     }
+    int ticks = 1;
+    if (args.containsKey('ticks')) {
+      if (verb != PerfStepVerb.wheel) {
+        problems.add('$at: ticks applies to wheel only.');
+      } else {
+        final Object? raw = args['ticks'];
+        if (raw is int && raw >= 1 && raw <= _kMaxWheelTicks) {
+          ticks = raw;
+        } else {
+          problems.add(
+            '$at.ticks must be a whole number from 1 to $_kMaxWheelTicks.',
+          );
+        }
+      }
+    }
     if (target == null || (typing && text == null)) return null;
     return PerfStep(
       verb,
@@ -687,6 +713,7 @@ final class _ScenarioReader {
       text: text,
       dx: dx,
       dy: dy,
+      ticks: ticks,
       only: only,
     );
   }

@@ -65,7 +65,7 @@ repeat: 3
 thresholds: {warn: 10, error: 25}  # percent, per metric
 ```
 
-Steps: `tap`, `fill` (`text`), `type` (`text`), `press_key` (`key`), `scroll` (`dx`/`dy`), `wheel` (`dx`/`dy`), `drag` (`dx`/`dy` from the target's center), `navigate` (a route), `resize` (`width`/`height`) and `wait` (ms). A step may carry `only: [...]`.
+Steps: `tap`, `fill` (`text`), `type` (`text`), `press_key` (`key`), `scroll` (`dx`/`dy`), `wheel` (`dx`/`dy`, and `ticks`: how many events of that size to send one frame apart at the one resolved point, 1 to 200, default 1; a real wheel is many small ticks, and one large event jumps a list in a single frame), `drag` (`dx`/`dy` from the target's center), `navigate` (a route), `resize` (`width`/`height`) and `wait` (ms). A step may carry `only: [...]`.
 
 Setup takes `hot_restart`, `navigate`, `wait_for_text` and `wait_for_network_idle`, and also the gestures `tap`, `fill`, `type`, `press_key`, `wheel`, `drag` and `wait`, written and validated exactly as steps are (targets, `only`, the Chrome-only rule). They run before `perf_begin`, so the path to the measured screen is not measured: navigate to `/monitors`, tap the row `perf-monitor-0000`, then time only the tab switches, rather than baking a seeded id into `navigate: /monitors/<uuid>`. `only` is refused on the four setup verbs, which run everywhere.
 

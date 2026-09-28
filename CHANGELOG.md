@@ -10,6 +10,7 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- **A scenario `wheel` can scroll like a wheel.** `ticks: N` sends N events of `dx`/`dy`, one frame apart, at the one point the step resolved. A single 1200 px event jumped the uptizm monitor list in one frame and the session measured five.
 - **`perf_end` no longer loses the frames a session drew last.** The web engine hands frame timings over only from inside a later frame, 100 ms after the previous hand-over, so the tail of a session stayed parked and a list scroll reported 1 of 5 frames. `perf_end` now waits past that interval and draws one idle frame (after the liveness verdict, so a hidden page still refuses) before it reads.
 
 ### Added

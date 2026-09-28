@@ -620,6 +620,27 @@ void main() {
       );
     });
 
+    test('a wheel with ticks sends that many events at one resolved point',
+        () async {
+      await File(scenarioPath).writeAsString('''
+name: list-scroll
+viewport: {width: 1440, height: 900}
+platforms: [chrome]
+steps:
+  - wheel: {target: {text: List}, dy: 120, ticks: 4}
+repeat: 1
+''');
+      final _FakeDriver driver = _FakeDriver();
+
+      await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+      final List<_Call> wheels = driver.callsTo('cdp:Input.dispatchMouseEvent');
+      expect(wheels, hasLength(4));
+      expect(wheels.map((_Call c) => c.params['deltaY']).toSet(), <num>{120.0});
+      expect(wheels.map((_Call c) => c.params['x']).toSet(), hasLength(1));
+      expect(driver.callsTo('ext.dusk.find'), hasLength(1));
+    });
+
     test('on android the drag resolves its role target and runs by offset',
         () async {
       final _FakeDriver driver = _FakeDriver();

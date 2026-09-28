@@ -33,6 +33,9 @@ const Duration _kBootPollInterval = Duration(milliseconds: 500);
 /// interactive node on a screen, so an index deep in a list still resolves.
 const int _kObserveLimit = 5000;
 
+/// The gap between two ticks of one `wheel` step: one frame at 60 Hz.
+const Duration _kWheelTickInterval = Duration(milliseconds: 16);
+
 /// A run that cannot go on, with the sentence to print.
 final class PerfRunException implements Exception {
   PerfRunException(this.message);
@@ -1026,7 +1029,13 @@ final class _PerfRunner {
     }
   }
 
-  Future<void> _wheel(Map<String, dynamic> point, PerfStep step) => driver.cdp(
+  /// Sends [PerfStep.ticks] wheel events at [point], one frame apart, the
+  /// way a real wheel scrolls: a single large event jumps the list in one
+  /// frame, and a session built on it measured five frames.
+  Future<void> _wheel(Map<String, dynamic> point, PerfStep step) async {
+    for (int tick = 0; tick < step.ticks; tick++) {
+      if (tick > 0) await driver.pause(_kWheelTickInterval);
+      await driver.cdp(
         'Input.dispatchMouseEvent',
         <String, dynamic>{
           'type': 'mouseWheel',
@@ -1036,6 +1045,8 @@ final class _PerfRunner {
           'deltaY': step.dy,
         },
       );
+    }
+  }
 
   /// Resolves [target] against the live tree, right before its step: a ref
   /// from an earlier repeat is stale after the restart.

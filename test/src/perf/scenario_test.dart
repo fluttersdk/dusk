@@ -153,6 +153,30 @@ steps:
 ''');
 
       expect(scenario.steps.single.verb, PerfStepVerb.wheel);
+      expect(scenario.steps.single.ticks, 1);
+    });
+
+    test('reads wheel ticks and refuses them anywhere else or out of range',
+        () {
+      final PerfScenario scenario = PerfScenario.parse('''
+name: web-only
+platforms: [chrome]
+steps:
+  - wheel: {target: {text: List}, dy: 120, ticks: 20}
+''');
+      expect(scenario.steps.single.ticks, 20);
+      expect(
+          scenario.steps.single.toJson()['wheel'], containsPair('ticks', 20));
+
+      final String problems = _problems('''
+name: web-only
+platforms: [chrome]
+steps:
+  - wheel: {target: {text: List}, dy: 120, ticks: 0}
+  - tap: {target: {text: List}, ticks: 3}
+''').join('\n');
+      expect(problems, contains('steps[0].wheel.ticks must be a whole number'));
+      expect(problems, contains('steps[1].tap: ticks applies to wheel only'));
     });
 
     test('rejects a resize step that could run on ios', () {
