@@ -926,6 +926,33 @@ void main() {
     });
   });
 
+  group('timings flush', () {
+    test('perf_end reads frames again after flushing the parked tail batch',
+        () async {
+      // The web engine hands timings over only when a LATER frame lands, so
+      // the frames that matter arrive after perf_end's own flush frame. The
+      // fake answers the pre-flush read with none of them.
+      int reads = 0;
+      framePerfReader = () {
+        reads++;
+        return <String, Object?>{
+          'frames': reads >= 3 ? _fixtureFrames : <Map<String, Object?>>[],
+          'livenessCounter': reads == 1 ? 0 : 10,
+        };
+      };
+
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      final Map<String, dynamic> frames = (payload['summary']
+          as Map<String, dynamic>)['frames'] as Map<String, dynamic>;
+      expect(frames['painted'], 2);
+      expect(reads, 3);
+    });
+  });
+
   group('semantics receipt', () {
     tearDown(DuskPlugin.resetSemanticsForTesting);
 

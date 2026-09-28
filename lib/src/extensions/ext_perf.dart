@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
@@ -9,6 +10,7 @@ import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostic
 import '../dusk_plugin.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
+import '../utils/frame_sync.dart';
 import '../utils/perf_insights.dart';
 import '../utils/perf_readers.dart';
 
@@ -465,12 +467,16 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
       });
     }
 
-    // 2. The cross-package sections. Timing mode reads neither: it reports
+    // 2. Hand the parked timings over, AFTER the liveness verdict so the flush
+    //    frame can never lift a stalled session past the refusal.
+    final Map<String, Object?> flushed = await _flushParkedTimings();
+
+    // 3. The cross-package sections. Timing mode reads neither: it reports
     //    frame timings only, and a counter read it then discards is still a
     //    call into another repository that can throw.
     final bool attribution = session.mode == PerfMode.attribution;
     final PerfAnalysis analysis = analysePerf(
-      perf,
+      flushed,
       attribution ? perfExtrasReader() : const <String, Object?>{},
       attribution ? WindDebugRegistry.currentPerf?.stats() : null,
       env: _env(session),
@@ -635,6 +641,28 @@ Map<String, Object?> _env(_PerfSession session) => <String, Object?>{
 ///
 /// A timing session never touched the flags, so it restores none: writing
 /// the saved values back would undo a change someone else made during it.
+/// Longer than the web engine's 100 ms hand-over interval.
+const Duration _kTimingsFlushDelay = Duration(milliseconds: 120);
+
+/// Draws one frame so the engine hands over the timings it is still holding,
+/// then reads the frames again.
+///
+/// The web engine passes FrameTimings to `onReportTimings` only from inside
+/// a LATER frame, and only once 100 ms have passed since the last hand-over
+/// (`flutter_web_sdk/lib/_engine/engine/frame_timing_recorder.dart`,
+/// `submitTimings`). The frames a session draws in its last 100 ms therefore
+/// stay parked until something draws again, and on uptizm that was all but
+/// one of them: 1 of 5 frames reported on every repeat of a list scroll. The
+/// flush frame is idle and lands in the report as one more painted frame.
+/// `scheduleFrame`, not `scheduleForcedFrame`: a hidden page must stay
+/// frameless rather than be woken into looking measured.
+Future<Map<String, Object?>> _flushParkedTimings() async {
+  await Future<void>.delayed(_kTimingsFlushDelay);
+  SchedulerBinding.instance.scheduleFrame();
+  await awaitFrameOrTimeout();
+  return framePerfReader();
+}
+
 void _closeSession(_PerfSession session) {
   if (session.mode == PerfMode.attribution) {
     FlutterTimeline.debugCollectionEnabled = session.priorCollectionEnabled;

@@ -8,6 +8,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`perf_end` no longer loses the frames a session drew last.** The web engine hands frame timings over only from inside a later frame, 100 ms after the previous hand-over, so the tail of a session stayed parked and a list scroll reported 1 of 5 frames. `perf_end` now waits past that interval and draws one idle frame (after the liveness verdict, so a hidden page still refuses) before it reads.
+
 ### Added
 
 - **`dusk:perf_insight` / `dusk_perf_insight` / `ext.dusk.perf_insight`: drill into one insight of the last `perf_end` report.** Takes `id` (and an optional `token` naming the report's session) and returns Title / Summary / Detail / EstimatedSavings / NextStep, where `detail` is the raw rows behind the insight: the worst frames with their self-time blocks, the frame-number gaps, the frames where one block weighed most, or what a coverage gap left out. Ids are assigned before the report cuts its list, so an insight counted in `omitted.insights` is still drillable. An unknown id, a stale token or a refused session answers an error naming what to read instead; an unknown id points at `perf_end`'s `insights[]`. (`lib/src/extensions/ext_perf.dart`, `lib/src/commands/dusk_perf_insight_command.dart`, `lib/src/dusk_artisan_provider.dart`, `doc/commands/dusk-perf-insight.md`)
