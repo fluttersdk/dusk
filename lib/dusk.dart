@@ -14,10 +14,12 @@
 ///   descriptors into artisan.
 /// - [buildPerfReport]: the pure builder behind `ext.dusk.perf_end`, callable
 ///   from a host's conformance test with the same maps the extension reads.
-/// - [PerfInteraction] and [activeInteraction]: the interaction a dusk gesture
-///   opens inside a perf session, read off the zone as
-///   `Zone.current[#fluttersdk_interaction]` or, from frame-zone work, through
-///   the active slot.
+/// - [PerfInteraction], [activeInteraction] and [perfInteractionAt]: the
+///   interaction a dusk gesture opens inside a perf session, read off the zone
+///   as `Zone.current[#fluttersdk_interaction]`, from frame-zone work through
+///   the active slot, or from any recorded time through `perfInteractionAt`.
+/// - [rendererReader]: the pointer behind the report's `env.renderer`, which a
+///   host may reassign.
 library;
 
 export 'src/dusk_artisan_provider.dart';
@@ -31,7 +33,7 @@ export 'src/extensions/ext_wait_find.dart' show pendingHttpCountReader;
 export 'src/ref_registry.dart';
 export 'src/utils/perf_insights.dart' show PerfMode, buildPerfReport;
 export 'src/utils/perf_interaction.dart'
-    show PerfInteraction, activeInteraction;
+    show PerfInteraction, activeInteraction, perfInteractionAt;
 export 'src/utils/perf_readers.dart'
     show
         framePerfReader,
@@ -39,4 +41,5 @@ export 'src/utils/perf_readers.dart'
         perfInsightContributors,
         perfSessionBeginHook,
         perfSessionEndHook,
-        perfTimelineReader;
+        perfTimelineReader,
+        rendererReader;

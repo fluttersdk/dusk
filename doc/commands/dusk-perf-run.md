@@ -127,7 +127,7 @@ Actions are called with `includeSnapshot: false`: a snapshot per step would buil
 - `perFrame` flattens every count to a name: `blocks.<widget>`, `<wind|magic>.<counter>`, `<wind|magic>.<counter>.<row>`. Gauges such as `wind.cacheSize` are left out. A metric a repeat lacks counts as zero there.
 - `ms` (attribution) is indicative: build profiling inflates every duration. Compare `summary.timing.ms` instead.
 - `insights` come from the repeat whose total per-frame count is the median.
-- `env.host` and `env.renderer` come from the host: `uname`, the CPU and the Impeller backend line of the artisan run log (`impeller-vulkan`), else `unknown`.
+- `env.host` and `env.renderer` come from the host: `uname`, the CPU and the Impeller backend line of the artisan run log (`impeller-vulkan`), else `unknown`. On web the app itself answers `env.renderer` (`canvaskit` or `skwasm`) through `rendererReader`.
 
 ---
 

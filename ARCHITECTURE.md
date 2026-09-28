@@ -131,7 +131,7 @@ These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:
 5. `DuskActionabilityException` `reason` substring vocabulary (`not enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured by`)
 6. Actionability gate 6-step evaluation order (Step 0 defunct preflight + Steps 1-5 ordered: enabled, zero-rect, off-viewport, stable, receives-events)
 7. `e<N>` and `q<N>` token spaces are disjoint
-8. The six perf pointers exported from `lib/dusk.dart` (`framePerfReader`, `perfExtrasReader`, `perfSessionBeginHook`, `perfSessionEndHook`, `perfInsightContributors`, `perfTimelineReader`, declared in `lib/src/utils/perf_readers.dart`) and the key sets they return. `magic_devtools` assigns all six from another repository, so a renamed key does not fail to compile: it empties one section of the performance report with no error anywhere. `framePerfReader`'s `livenessCounter` is load-bearing beyond that, since `ext.dusk.perf_end`'s stalled-engine refusal is computed from it
+8. The seven perf pointers exported from `lib/dusk.dart` (`framePerfReader`, `perfExtrasReader`, `perfSessionBeginHook`, `perfSessionEndHook`, `perfInsightContributors`, `perfTimelineReader`, `rendererReader`, declared in `lib/src/utils/perf_readers.dart`) and the key sets they return. `magic_devtools` assigns the first six from another repository, so a renamed key does not fail to compile: it empties one section of the performance report with no error anywhere. `framePerfReader`'s `livenessCounter` is load-bearing beyond that, since `ext.dusk.perf_end`'s stalled-engine refusal is computed from it
 
 ## Actionability gate
 

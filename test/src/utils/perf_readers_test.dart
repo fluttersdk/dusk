@@ -12,6 +12,7 @@ void main() {
   final void Function() defaultEnd = perfSessionEndHook;
   final List<Map<String, Object?>> Function() defaultTimeline =
       perfTimelineReader;
+  final String Function() defaultRenderer = rendererReader;
 
   tearDown(() {
     framePerfReader = defaultFramePerf;
@@ -19,6 +20,7 @@ void main() {
     perfSessionBeginHook = defaultBegin;
     perfSessionEndHook = defaultEnd;
     perfTimelineReader = defaultTimeline;
+    rendererReader = defaultRenderer;
   });
 
   group('framePerfReader default', () {
@@ -61,6 +63,19 @@ void main() {
   group('perfTimelineReader default', () {
     test('returns no rows, so a trace still carries dusk\'s own events', () {
       expect(perfTimelineReader(), isEmpty);
+    });
+  });
+
+  group('rendererReader default', () {
+    test('answers unknown off the web, where the host log scrape takes over',
+        () {
+      expect(rendererReader(), 'unknown');
+    });
+
+    test('a host may reassign it', () {
+      rendererReader = () => 'skwasm';
+
+      expect(rendererReader(), 'skwasm');
     });
   });
 

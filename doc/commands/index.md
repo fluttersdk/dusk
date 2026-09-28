@@ -113,7 +113,7 @@ Chrome DevTools Protocol commands that manipulate the browser viewport directly.
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
 | `dusk:device` | Emulate a device profile (viewport + DPR + touch + user agent) via Chrome DevTools Protocol. | none | none (CDP direct) |
-| `dusk:resize` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. | none | none (CDP direct) |
+| `dusk:resize` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. Chrome drops the override when the command exits; `--hold` keeps it until Ctrl-C or Chrome exits. | none | none (CDP direct) |
 
 ## Click variants
 

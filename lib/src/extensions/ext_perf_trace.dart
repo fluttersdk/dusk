@@ -42,7 +42,7 @@ const String _kFrameTrack = 'frames';
 ///   "displayTimeUnit": "ms",
 ///   "otherData": {"sessionToken": "perf-1", "startUs": 800000,
 ///                 "endUs": 2900000, "interactions": 3, "frames": 45,
-///                 "rows": 12, "skippedRows": 0}
+///                 "framesOutsideWindow": 2, "rows": 12, "skippedRows": 0}
 /// }
 /// ```
 ///
@@ -129,7 +129,8 @@ Future<developer.ServiceExtensionResponse> duskPerfTraceHandler(
 ///
 /// - Interactions and frames become `X` slices on the `interactions` and
 ///   `frames` tracks; a frame is placed at `vsyncStartUs` for
-///   `totalSpanMicros`, and one without `vsyncStartUs` is left out.
+///   `totalSpanMicros`. One without `vsyncStartUs` is left out; one outside
+///   the window is left out and counted in `otherData.framesOutsideWindow`.
 /// - A host `span` with an `id` becomes an async `b`/`e` pair (`cat` is its
 ///   track), one without an `id` an `X` slice, an `instant` an `i` event, a
 ///   `counter` a `C` event.
@@ -180,11 +181,19 @@ Map<String, Object?> buildPerfTrace({
     );
   }
 
-  // 2. Frames, placed by vsync start.
+  // 2. Frames, placed by vsync start. One outside the window is counted, not
+  //    just dropped: the buffer holds frames from before the session and the
+  //    flush frame after it, and a reader comparing the trace's frame count
+  //    with the report's has to be able to tell why they differ.
   int frameCount = 0;
+  int framesOutsideWindow = 0;
   for (final Map<String, Object?> frame in frames) {
     final int? start = _asNullableInt(frame['vsyncStartUs']);
-    if (start == null || !inWindow(start)) continue;
+    if (start == null) continue;
+    if (!inWindow(start)) {
+      framesOutsideWindow++;
+      continue;
+    }
     frameCount++;
     tracks.slice(
       _kFrameTrack,
@@ -303,6 +312,7 @@ Map<String, Object?> buildPerfTrace({
       'endUs': endUs,
       'interactions': interactionCount,
       'frames': frameCount,
+      'framesOutsideWindow': framesOutsideWindow,
       'rows': rowCount,
       'skippedRows': skipped,
     },

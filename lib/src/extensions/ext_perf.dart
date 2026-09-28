@@ -471,22 +471,36 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
     //    frame can never lift a stalled session past the refusal.
     final Map<String, Object?> flushed = await _flushParkedTimings();
 
-    // 3. The cross-package sections. Timing mode reads neither: it reports
+    // 3. Keep the frames of this session's window only. The flush hands over
+    //    the tail, but the same read also carries timings of frames drawn
+    //    BEFORE perf_begin (parked, delivered after the buffer was cleared)
+    //    and the idle frame the flush itself drew; neither is in `advanced`,
+    //    which was read before the flush, so counting them made the summary
+    //    larger than the session it describes.
+    final ({
+      List<Map<String, Object?>> inSession,
+      int outside,
+      bool clockMismatch,
+    }) window = _sessionFrames(flushed['frames'], session.startUs, endUs);
+
+    // 4. The cross-package sections. Timing mode reads neither: it reports
     //    frame timings only, and a counter read it then discards is still a
     //    call into another repository that can throw.
     final bool attribution = session.mode == PerfMode.attribution;
     final PerfAnalysis analysis = analysePerf(
-      flushed,
+      <String, Object?>{...flushed, 'frames': window.inSession},
       attribution ? perfExtrasReader() : const <String, Object?>{},
       attribution ? WindDebugRegistry.currentPerf?.stats() : null,
       env: _env(session),
       mode: session.mode,
       framesDrawn: advanced,
+      framesOutsideSession: window.outside,
+      sessionClockMismatch: window.clockMismatch,
       durationMs: session.clock.elapsedMicroseconds / 1000,
       full: full,
     );
 
-    // 4. Keep the analysis for perf_insight, then report.
+    // 5. Keep the analysis for perf_insight, then report.
     _lastClosed = _ClosedSession(
       session.token,
       analysis,
@@ -632,9 +646,59 @@ Map<String, Object?> _env(_PerfSession session) => <String, Object?>{
           : kDebugMode
               ? 'debug'
               : 'release',
+      'renderer': rendererReader(),
       'semanticsEnabled': SemanticsBinding.instance.semanticsEnabled,
       'phases': session.phases,
     };
+
+/// Splits [rawFrames] into the frames that belong to the session window
+/// `[startUs, endUs]` and a count of the ones that do not.
+///
+/// The window is judged by `vsyncStartUs`, the one timestamp a frame record
+/// carries that says when the frame began. Frame numbers cannot bound it: the
+/// engine numbers frames it never reports, and timings parked before
+/// `perf_begin` arrive numbered AFTER the last one the buffer held. A frame
+/// with no `vsyncStartUs` cannot be placed and is kept, which is the
+/// pre-window behavior for a host that never supplied one.
+///
+/// `vsyncStartUs` is the engine's clock and `startUs`/`endUs` are
+/// `FlutterTimeline.now`; telescope's record documents that their parity is
+/// unverified on native. The caller only gets here after the liveness counter
+/// proved the session drew, so a read in which frames carry a timestamp and
+/// NONE of them lands in the window means the clocks disagree, not that the
+/// session was empty. Then every frame is kept and `clockMismatch` is set, so
+/// the report describes the frames it has and says it could not cut them.
+({
+  List<Map<String, Object?>> inSession,
+  int outside,
+  bool clockMismatch,
+}) _sessionFrames(
+  Object? rawFrames,
+  int startUs,
+  int endUs,
+) {
+  final List<Map<String, Object?>> all = rawFrames is List<Object?>
+      ? rawFrames.whereType<Map<String, Object?>>().toList()
+      : <Map<String, Object?>>[];
+  final List<Map<String, Object?>> inSession = <Map<String, Object?>>[];
+  int outside = 0;
+  int placed = 0;
+  for (final Map<String, Object?> frame in all) {
+    final Object? vsync = frame['vsyncStartUs'];
+    if (vsync is num) {
+      if (vsync < startUs || vsync > endUs) {
+        outside++;
+        continue;
+      }
+      placed++;
+    }
+    inSession.add(frame);
+  }
+  if (outside > 0 && placed == 0) {
+    return (inSession: all, outside: 0, clockMismatch: true);
+  }
+  return (inSession: inSession, outside: outside, clockMismatch: false);
+}
 
 /// Longer than the web engine's 100 ms hand-over interval.
 const Duration _kTimingsFlushDelay = Duration(milliseconds: 120);

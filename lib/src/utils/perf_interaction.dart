@@ -130,6 +130,23 @@ Future<T> runPerfInteraction<T>(
   return _runOpened(_openInteraction(verb, target), dispatch);
 }
 
+/// The interaction whose window `[startUs, closedAtUs ?? now]` holds [us], or
+/// null when none does.
+///
+/// For a host that recorded a time without recording which gesture it belongs
+/// to (a span that began in the frame zone). When windows overlap the newest
+/// wins, as in [activeInteraction]. Unlike it, this reads the log and so
+/// answers after the session closed.
+PerfInteraction? perfInteractionAt(int us) {
+  final int now = FlutterTimeline.now;
+  for (final PerfInteraction interaction in _log.reversed) {
+    if (us >= interaction.startUs && us <= (interaction.closedAtUs ?? now)) {
+      return interaction;
+    }
+  }
+  return null;
+}
+
 /// Interactions opened between [startUs] and [endUs] inclusive, oldest first.
 List<PerfInteraction> perfInteractionsBetween(int startUs, int endUs) => _log
     .where(

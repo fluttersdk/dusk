@@ -43,8 +43,8 @@ dart run fluttersdk_dusk dusk:perf_end [--json]
   "sessionToken": "perf-1",
   "refused": false,
   "mode": "attribution",
-  "env": {"platform": "macOS", "isWeb": true, "buildMode": "debug", "semanticsEnabled": true, "phases": false},
-  "coverage": {"framesDrawn": 45, "framesSummarized": 45, "complete": true, "missing": []},
+  "env": {"platform": "macOS", "isWeb": true, "buildMode": "debug", "renderer": "canvaskit", "semanticsEnabled": true, "phases": false},
+  "coverage": {"framesDrawn": 45, "framesSummarized": 45, "framesOutsideSession": 2, "complete": true, "missing": []},
   "summary": {
     "durationMs": 2310.4,
     "budgetMs": 16.7,
@@ -77,8 +77,8 @@ dart run fluttersdk_dusk dusk:perf_end [--json]
 }
 ```
 
-- `env` says where the numbers came from, read in the app: `buildMode` from `kProfileMode` / `kDebugMode`, and `semanticsEnabled`, which is `true` whenever dusk is installed because dusk holds a semantics handle for the whole process.
-- `coverage` says whether the summary describes every frame the engine drew. `framesDrawn` comes from the liveness counter, which a post-frame callback increments once per frame; `framesSummarized` counts the records Flutter's `onReportTimings` delivered, and Flutter batches those. When `complete` is `false` the report describes a SUBSET and the coverage insight says so: an empty ranking then means "not reported", not "nothing was slow". `missing` names sources that were never read: `wind` (no wind perf resolver, so `counters.wind` is `null`, which is a different finding from zeros), `blocks`, `blockSelfTime`. Read this before the numbers.
+- `env` says where the numbers came from, read in the app: `buildMode` from `kProfileMode` / `kDebugMode`, and `semanticsEnabled`, which is `true` whenever dusk is installed because dusk holds a semantics handle for the whole process. `renderer` is what the `rendererReader` pointer answers: `canvaskit` or `skwasm` on web, `unknown` elsewhere until a host assigns one (a `dusk:perf_run` run fills it from the launch log).
+- `coverage` says whether the summary describes every frame the engine drew. `framesDrawn` comes from the liveness counter, which a post-frame callback increments once per frame; `framesSummarized` counts the records Flutter's `onReportTimings` delivered, and Flutter batches those. The summary describes the session window only: a frame drawn before `perf_begin` whose timings arrived late, and the idle frame `perf_end` draws to flush the tail, are read but left out, and `framesOutsideSession` counts them (a frame is placed by its `vsyncStartUs`; a record without one is kept). A large `framesOutsideSession` next to few summarized frames on a non-web target means `vsyncStartUs` and the session clock disagree there. When `complete` is `false` the report describes a SUBSET and the coverage insight says so: an empty ranking then means "not reported", not "nothing was slow". `missing` names sources that were never read: `wind` (no wind perf resolver, so `counters.wind` is `null`, which is a different finding from zeros), `blocks`, `blockSelfTime`. Read this before the numbers.
 - `summary.frames`: `painted` is the frames Flutter reported, `dropped` the frames missing from the `frameNumber` sequence (how a dropped scene shows on web), `count` their sum. A frame is over budget when its slower thread took longer than `budgetMs`.
 - `blocksBySelf` ranks by EXCLUSIVE time. A parent's inclusive time contains its children's, so ranking by it blames the parent for the child's work. `frames` separates a block that cost 10ms once from one that cost 0.1ms in each of a hundred frames; those need opposite fixes. Both block lists keep the top 10; `omitted` counts the rest.
 - `counters` are given raw and per painted frame. A breakdown keeps its top 3 as positional rows in `columns` order.

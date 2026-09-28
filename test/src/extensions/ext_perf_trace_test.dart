@@ -379,6 +379,7 @@ void main() {
           'endUs': _end,
           'interactions': 3,
           'frames': 2,
+          'framesOutsideWindow': 1,
           'rows': 8,
           'skippedRows': 3,
         },

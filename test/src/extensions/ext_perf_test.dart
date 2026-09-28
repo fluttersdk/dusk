@@ -98,6 +98,8 @@ Map<String, dynamic> _decode(developer.ServiceExtensionResponse response) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  final String Function() defaultRenderer = rendererReader;
+
   setUp(() {
     framePerfReader = () => <String, Object?>{
           'frames': <Map<String, Object?>>[],
@@ -125,6 +127,7 @@ void main() {
     debugProfileLayoutsEnabled = false;
     debugProfilePaintsEnabled = false;
     WindDebugRegistry.resetForTesting();
+    rendererReader = defaultRenderer;
   });
 
   group('registerPerfExtensions()', () {
@@ -697,6 +700,136 @@ void main() {
         contains('subset'),
         reason: 'the reader has to be told the ranking may miss the worst work',
       );
+    });
+
+    test(
+        'leaves a frame drawn before perf_begin and the flush frame out of '
+        'the session, and counts them', () async {
+      // Measured on the Pixel 8 profile emulator: a list scroll drew 24 frames
+      // and the summary held 31. Timings the engine parked BEFORE perf_begin
+      // arrive after the buffer was cleared, and the idle frame perf_end
+      // draws to flush the tail is a frame of its own. Neither belongs to the
+      // window the report describes.
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      final int now = FlutterTimeline.now;
+      Map<String, Object?> at(int frameNumber, int vsyncStartUs) =>
+          <String, Object?>{
+            ..._frame(
+                frameNumber: frameNumber,
+                buildMicros: 4000,
+                rasterMicros: 3000),
+            'vsyncStartUs': vsyncStartUs,
+          };
+      final List<Map<String, Object?>> frames = <Map<String, Object?>>[
+        at(40, now - 5000000), // drawn before perf_begin, reported late
+        at(41, now),
+        at(42, now),
+        at(43, now + 60000000), // the flush frame
+      ];
+      int reads = 0;
+      framePerfReader = () => <String, Object?>{
+            'frames': frames,
+            // 2 session frames on the first read; the flush frame is the 3rd.
+            'livenessCounter': reads++ == 0 ? 2 : 3,
+          };
+
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      final Map<String, dynamic> frameSummary = (payload['summary']
+          as Map<String, dynamic>)['frames'] as Map<String, dynamic>;
+      expect(frameSummary['painted'], 2);
+      final Map<String, dynamic> coverage =
+          payload['coverage'] as Map<String, dynamic>;
+      expect(coverage['framesDrawn'], 2);
+      expect(coverage['framesSummarized'], 2);
+      expect(coverage['framesOutsideSession'], 2);
+      expect(coverage['complete'], isTrue);
+    });
+
+    test(
+        'keeps every frame and says so when no timestamped frame lands in '
+        'the window: the two clocks disagree', () async {
+      // The window is FlutterTimeline.now and vsyncStartUs is the engine's
+      // clock. A session that drew frames but places none of them is a clock
+      // mismatch, not an empty session; cutting everything would report a
+      // blank summary for a session that drew.
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      final int now = FlutterTimeline.now;
+      Map<String, Object?> at(int frameNumber, int vsyncStartUs) =>
+          <String, Object?>{
+            ..._frame(
+                frameNumber: frameNumber,
+                buildMicros: 4000,
+                rasterMicros: 3000),
+            'vsyncStartUs': vsyncStartUs,
+          };
+      final int offset = now + 3600000000;
+      framePerfReader = () => <String, Object?>{
+            'frames': <Map<String, Object?>>[at(1, offset), at(2, offset)],
+            'livenessCounter': 2,
+          };
+
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      final Map<String, dynamic> frameSummary = (payload['summary']
+          as Map<String, dynamic>)['frames'] as Map<String, dynamic>;
+      expect(frameSummary['painted'], 2);
+      final Map<String, dynamic> coverage =
+          payload['coverage'] as Map<String, dynamic>;
+      expect(coverage['framesOutsideSession'], 0);
+      expect(coverage['sessionClockMismatch'], isTrue);
+    });
+
+    test('keeps a frame that carries no vsync timestamp: nothing places it',
+        () async {
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      framePerfReader = () => <String, Object?>{
+            'frames': _fixtureFrames,
+            'livenessCounter': 2,
+          };
+
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      final Map<String, dynamic> coverage =
+          payload['coverage'] as Map<String, dynamic>;
+      expect(coverage['framesSummarized'], 2);
+      expect(coverage['framesOutsideSession'], 0);
+    });
+
+    test('env.renderer is what rendererReader answers', () async {
+      rendererReader = () => 'skwasm';
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      framePerfReader = () => <String, Object?>{
+            'frames': _fixtureFrames,
+            'livenessCounter': 2,
+          };
+
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      expect((payload['env'] as Map<String, dynamic>)['renderer'], 'skwasm');
+    });
+
+    test('says unknown for the renderer until a host or the web says more',
+        () async {
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      framePerfReader = () => <String, Object?>{
+            'frames': _fixtureFrames,
+            'livenessCounter': 2,
+          };
+
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      expect((payload['env'] as Map<String, dynamic>)['renderer'], 'unknown');
     });
 
     test('reports complete coverage when every drawn frame was summarized',

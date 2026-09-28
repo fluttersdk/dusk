@@ -1,6 +1,12 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../cdp/cdp_client.dart';
+
+/// How often a held session checks that Chrome is still there.
+const Duration _kHoldPoll = Duration(milliseconds: 250);
 
 /// `artisan dusk:resize --width=<px> --height=<px>`: resize the running
 /// Flutter web app viewport via Chrome DevTools Protocol Emulation methods.
@@ -8,6 +14,13 @@ import '../cdp/cdp_client.dart';
 /// Reads the CDP port from `~/.artisan/state.json` (written by
 /// `artisan start --cdp-port=<port>`). Does not require a VM Service
 /// connection; [CommandBoot.none] is correct.
+///
+/// The override belongs to the DevTools session that sent it: Chrome drops it
+/// when that session detaches, whatever its parameters. Without `--hold` the
+/// override therefore ends the moment this command exits, and a page read
+/// afterwards is back at its own size. `--hold` keeps the session open, and
+/// so the override, until Chrome goes away or the command is interrupted; run
+/// it in the background and drive the app meanwhile.
 final class DuskResizeCommand extends ArtisanCommand {
   @override
   String get name => 'dusk:resize';
@@ -48,6 +61,14 @@ final class DuskResizeCommand extends ArtisanCommand {
         'touch',
         help: 'Enable touch event synthesis.',
         defaultsTo: false,
+      )
+      ..addFlag(
+        'hold',
+        help: 'Keep the CDP session open so the override outlives this '
+            'command: it lasts until Ctrl-C or until Chrome exits. Run it in '
+            'the background.',
+        defaultsTo: false,
+        negatable: false,
       )
       ..addFlag(
         'reset',
@@ -113,6 +134,7 @@ final class DuskResizeCommand extends ArtisanCommand {
       final double dpr = _readDouble(ctx.input.option('dpr'), fallback: 1.0);
       final bool mobile = _readBool(ctx.input.option('mobile'));
       final bool touch = _readBool(ctx.input.option('touch'));
+      final bool hold = _readBool(ctx.input.option('hold'));
 
       await client.send(
         'Emulation.setDeviceMetricsOverride',
@@ -135,6 +157,17 @@ final class DuskResizeCommand extends ArtisanCommand {
         'Viewport set to ${width}x$height @ ${dpr}x '
         '(mobile=$mobile touch=$touch).',
       );
+      if (!hold) {
+        ctx.output.warning(
+          'Chrome drops this override when the command exits. Pass --hold '
+          '(in the background) to keep it while you drive the app.',
+        );
+        return 0;
+      }
+
+      ctx.output
+          .info('Holding the override; Ctrl-C or closing Chrome ends it.');
+      await _holdWhileConnected(client);
       return 0;
     } on DuskCdpException catch (e) {
       ctx.output.error('CDP command failed: $e');
@@ -142,6 +175,27 @@ final class DuskResizeCommand extends ArtisanCommand {
     } finally {
       // 5. Always close the CDP connection regardless of success or failure.
       await client.close();
+    }
+  }
+
+  /// Returns once [client] loses its session (Chrome exited) or the process
+  /// is interrupted, which is what ends a held override.
+  Future<void> _holdWhileConnected(CdpClient client) async {
+    final Completer<void> released = Completer<void>();
+    void release([Object? _]) {
+      if (!released.isCompleted) released.complete();
+    }
+
+    final StreamSubscription<ProcessSignal> interrupt =
+        ProcessSignal.sigint.watch().listen(release);
+    final Timer poll = Timer.periodic(_kHoldPoll, (Timer _) {
+      if (!client.isConnected) release();
+    });
+    try {
+      await released.future;
+    } finally {
+      poll.cancel();
+      await interrupt.cancel();
     }
   }
 

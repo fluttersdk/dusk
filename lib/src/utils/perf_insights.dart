@@ -109,6 +109,7 @@ Map<String, Object?> buildPerfReport(
   required Map<String, Object?> env,
   PerfMode mode = PerfMode.attribution,
   int? framesDrawn,
+  int framesOutsideSession = 0,
   double? durationMs,
   bool full = false,
 }) =>
@@ -119,6 +120,7 @@ Map<String, Object?> buildPerfReport(
       env: env,
       mode: mode,
       framesDrawn: framesDrawn,
+      framesOutsideSession: framesOutsideSession,
       durationMs: durationMs,
       full: full,
     ).report;
@@ -130,7 +132,12 @@ Map<String, Object?> buildPerfReport(
 /// when no resolver is registered. [env] is carried through verbatim.
 /// [framesDrawn] is the liveness counter's advance over the session and
 /// defaults to the frames reported, which reads as complete coverage.
-/// [durationMs] is the session's wall-clock length, null when unknown.
+/// [framesOutsideSession] counts the frames the caller cut from [framePerf]
+/// because they lay outside the session window, reported in `coverage` so a
+/// cut is never silent. [sessionClockMismatch] says the caller could place no
+/// frame in the window and kept them all, reported in `coverage` as
+/// `sessionClockMismatch`. [durationMs] is the session's wall-clock length, null
+/// when unknown.
 /// [full] lifts every cut the report makes (block rankings, counter rows,
 /// route transitions, insights), so every row is carried and `omitted` reads
 /// all zeros: the unbounded form a runner writes to a file, never the one an
@@ -148,6 +155,8 @@ PerfAnalysis analysePerf(
   required Map<String, Object?> env,
   PerfMode mode = PerfMode.attribution,
   int? framesDrawn,
+  int framesOutsideSession = 0,
+  bool sessionClockMismatch = false,
   double? durationMs,
   bool full = false,
 }) {
@@ -162,6 +171,8 @@ PerfAnalysis analysePerf(
     frames: frames,
     painted: painted,
     drawn: framesDrawn ?? painted,
+    outsideSession: framesOutsideSession,
+    clockMismatch: sessionClockMismatch,
     full: full,
     frameSummary: summarizeFramePerf(frames),
     blocks: mode == PerfMode.attribution
@@ -249,6 +260,8 @@ final class _Session {
     required this.frames,
     required this.painted,
     required this.drawn,
+    required this.outsideSession,
+    required this.clockMismatch,
     required this.full,
     required this.frameSummary,
     required this.blocks,
@@ -258,6 +271,13 @@ final class _Session {
   final List<Map<String, Object?>> frames;
   final int painted;
   final int drawn;
+
+  /// Frames the caller cut for lying outside the session window.
+  final int outsideSession;
+
+  /// Whether the caller could not place any frame in the window and kept
+  /// them all.
+  final bool clockMismatch;
 
   /// Whether the report carries every row rather than the ranked head.
   final bool full;
@@ -414,6 +434,14 @@ Map<String, Object?> _counterSection(
 /// Measured on Chrome: a theme toggle drew 4 frames, 2 were reported, and the
 /// report looked complete. The prose explaining a gap lives in the coverage
 /// insight, not here, so the report does not carry it twice.
+///
+/// `framesOutsideSession` is the other direction: reported frames that were
+/// NOT counted because they belong to no part of the window (drawn before
+/// `perf_begin` and delivered late, or the idle frame `perf_end` draws to
+/// flush the tail). Without it a session that drew 24 frames and summarized
+/// 24 gives no hint that 7 more were read and dropped. `sessionClockMismatch`,
+/// present only when true, says no frame could be placed in the window, so
+/// nothing was cut and the summary may include frames from either side of it.
 Map<String, Object?> _coverage(_Session session, Map<String, Object?>? wind) {
   final List<String> missing = <String>[
     if (session.mode == PerfMode.attribution) ...<String>[
@@ -429,6 +457,8 @@ Map<String, Object?> _coverage(_Session session, Map<String, Object?>? wind) {
   return <String, Object?>{
     'framesDrawn': session.drawn,
     'framesSummarized': session.painted,
+    'framesOutsideSession': session.outsideSession,
+    if (session.clockMismatch) 'sessionClockMismatch': true,
     'complete': complete,
     'missing': missing,
   };

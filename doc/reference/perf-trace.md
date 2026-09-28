@@ -79,12 +79,13 @@ final PerfInteraction? interaction =
   ],
   "displayTimeUnit": "ms",
   "otherData": {"sessionToken": "perf-1", "startUs": 800000, "endUs": 2900000,
-                "interactions": 1, "frames": 45, "rows": 12, "skippedRows": 0}
+                "interactions": 1, "frames": 45, "framesOutsideWindow": 2,
+                "rows": 12, "skippedRows": 0}
 }
 ```
 
 - **Interactions** are `X` slices on the `interactions` track, from `startUs` to `closedAtUs`; one still open when the session closed ends at the session's end.
-- **Frames** are `X` slices on the `frames` track, placed at `vsyncStartUs` for `totalSpanMicros`. A frame record without `vsyncStartUs` cannot be placed and is left out.
+- **Frames** are `X` slices on the `frames` track, placed at `vsyncStartUs` for `totalSpanMicros`. A frame record without `vsyncStartUs` cannot be placed and is left out; one placed outside the session window (drawn before `perf_begin`, or the idle flush frame after it) is left out and counted in `otherData.framesOutsideWindow`.
 - **Host spans with an `id`** become async `b`/`e` pairs keyed by that id, with `cat` set to the track: the shape for work that overlaps other work on its track, such as two requests in flight. Spans without an id become `X` slices, instants `i` events, counters `C` events.
 - `X` slices must nest on their track for Perfetto to draw them. Two can straddle in ordinary use (a tap before the last one settled, a frame whose build starts while the previous one rasterizes), so a slice that would straddle another moves to an overflow lane, `interactions (2)`, rather than being trimmed. Durations stay true.
 - Only what STARTED inside the session window is exported; the window runs from `perf_begin` to `perf_end`.

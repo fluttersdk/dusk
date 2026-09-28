@@ -1,4 +1,4 @@
-/// Six settable cross-package pointers that let dusk read and reset perf
+/// Seven settable cross-package pointers that let dusk read and reset perf
 /// state in packages it cannot depend on (frozen contract #10 limits dusk to
 /// `fluttersdk_artisan`, `image`, `meta`, `fluttersdk_wind_diagnostics_contracts`;
 /// it must not import telescope, wind or magic).
@@ -10,6 +10,8 @@
 /// magic are all visible at once, so it is the only place these can be
 /// assigned; dusk only declares and reads them.
 library;
+
+import 'package:flutter/foundation.dart' show kIsWasm, kIsWeb;
 
 import 'perf_insights.dart' show PerfMode;
 
@@ -210,3 +212,18 @@ List<List<Map<String, Object?>> Function(Map<String, Object?> report)>
 /// Reset to this default by `MagicPerfIntegration.resetForTesting()`.
 List<Map<String, Object?>> Function() perfTimelineReader =
     () => <Map<String, Object?>>[];
+
+/// Reader for the renderer the app draws with, the source of the report's
+/// `env.renderer`.
+///
+/// The default is dusk's own answer, which is all it can know: on web
+/// `skwasm` when compiled to WebAssembly and `canvaskit` otherwise, and
+/// `unknown` everywhere else, where the renderer (Impeller's backend, Skia)
+/// is a fact of the engine build that only its launch log states. A run
+/// through `dusk:perf_run` fills that gap from the host's log scrape; a host
+/// that knows better may reassign this.
+///
+/// **Contract**: an unset value reads `unknown`, never null or empty, so a
+/// report always says where the renderer question stands.
+String Function() rendererReader =
+    () => kIsWeb ? (kIsWasm ? 'skwasm' : 'canvaskit') : 'unknown';

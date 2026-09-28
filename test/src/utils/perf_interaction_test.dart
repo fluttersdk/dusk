@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show FlutterTimeline;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -242,6 +243,57 @@ void main() {
 
       expect(handle.closedAtUs, isNotNull);
       await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'perfInteractionAt names the interaction whose window holds a time',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _openSession();
+
+      await runPerfInteraction<void>('tap', 'e1', () async {});
+      final PerfInteraction handle = activeInteraction()!;
+      expect(
+        perfInteractionAt(FlutterTimeline.now),
+        same(handle),
+        reason: 'an open interaction runs from its start to now',
+      );
+      expect(
+        perfInteractionAt(FlutterTimeline.now + 60000000),
+        isNull,
+        reason: 'the future is not inside anything yet',
+      );
+
+      await tester.pump(const Duration(milliseconds: 500));
+      final int closedAt = handle.closedAtUs!;
+
+      expect(perfInteractionAt(handle.startUs), same(handle));
+      expect(perfInteractionAt(closedAt), same(handle));
+      expect(perfInteractionAt(handle.startUs - 1), isNull);
+      expect(
+        perfInteractionAt(closedAt + 1),
+        isNull,
+        reason: 'a closed handle stops containing time once it settled',
+      );
+
+      resetPerfSessionForTesting();
+    });
+
+    testWidgets('perfInteractionAt prefers the newest of overlapping ones',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _openSession();
+
+      await runPerfInteraction<void>('tap', 'e1', () async {});
+      final PerfInteraction first = activeInteraction()!;
+      await runPerfInteraction<void>('tap', 'e2', () async {});
+      final PerfInteraction second = activeInteraction()!;
+      expect(second, isNot(same(first)));
+
+      expect(perfInteractionAt(second.startUs), same(second));
+
+      await tester.pump(const Duration(milliseconds: 500));
+      resetPerfSessionForTesting();
     });
 
     test('the zone key is the public symbol a host in another library reads',

@@ -724,14 +724,17 @@ Success: `{ sessionToken, refused: false, mode, env, coverage, summary,
 counters, insights, omitted }`. Every duration is in milliseconds; every count
 is given raw and per painted frame.
 
-- `env`: `{platform, isWeb, buildMode, semanticsEnabled, phases}`, read in the
-  app. `buildMode` comes from `kProfileMode` / `kDebugMode`; `semanticsEnabled`
-  is `true` whenever dusk is installed, because dusk holds a semantics handle
-  for the whole process.
-- `coverage`: `{framesDrawn, framesSummarized, complete, missing}`.
-  `framesDrawn` is the liveness counter's advance; `framesSummarized` counts
-  the frame records Flutter delivered, which it batches, so a session can close
-  before the last arrive. `missing` names sources never read: `wind` (no perf
+- `env`: `{platform, isWeb, buildMode, renderer, semanticsEnabled, phases}`,
+  read in the app. `buildMode` comes from `kProfileMode` / `kDebugMode`;
+  `renderer` is `canvaskit` or `skwasm` on web and `unknown` elsewhere unless a
+  host assigns `rendererReader`; `semanticsEnabled` is `true` whenever dusk is
+  installed, because dusk holds a semantics handle for the whole process.
+- `coverage`: `{framesDrawn, framesSummarized, framesOutsideSession, complete,
+  missing}`. `framesDrawn` is the liveness counter's advance;
+  `framesSummarized` counts the frame records Flutter delivered inside the
+  session window, which it batches, so a session can close before the last
+  arrive; `framesOutsideSession` counts the delivered records left out because
+  they lie outside the window (drawn before `perf_begin`, or the flush frame). `missing` names sources never read: `wind` (no perf
   resolver, so `counters.wind` is `null`, not zeros), `blocks` (profiling was
   on and no frame carried a block map), `blockSelfTime` (blocks without
   `selfMicros`). Read it before the numbers.
@@ -981,7 +984,10 @@ three indicate no work was done, confirming idempotency.
 Dispatch: `artisan:dusk:resize`
 
 Resize the running Flutter web app viewport via Chrome DevTools Protocol. Requires
-artisan to have been started with `--cdp-port`.
+artisan to have been started with `--cdp-port`. Chrome drops the override when the
+DevTools session that sent it detaches, so through this tool it ends when the call
+returns; the CLI's `--hold` flag (`dusk:resize --hold`, run in the background) keeps
+the session open and is the way to drive the app at the new size.
 
 ### Input schema
 
