@@ -58,7 +58,7 @@ alphabetically; each link jumps to the per-tool entry in [tool-reference.md](too
 | [`dusk_fill`](tool-reference.md#dusk_fill) | Focus + clear + type + settle a text field in one call (stale-retry). |
 | [`dusk_find`](tool-reference.md#dusk_find) | Mint a re-resolvable `q<N>` handle by text / label / key. |
 | [`dusk_focus`](tool-reference.md#dusk_focus) | Request keyboard focus on a widget by ref. |
-| [`dusk_get_routes`](tool-reference.md#dusk_get_routes) | List route paths declared by the running router. |
+| [`dusk_get_routes`](tool-reference.md#dusk_get_routes) | Report the mounted Router's location, the top page name and a title hint. |
 | [`dusk_hot_reload_and_snap`](tool-reference.md#dusk_hot_reload_and_snap) | Hot reload, snap, screenshot, exceptions in one round-trip. |
 | [`dusk_hover`](tool-reference.md#dusk_hover) | Hover a mouse cursor over a widget by ref. |
 | [`dusk_navigate`](tool-reference.md#dusk_navigate) | Navigate to a route path. |

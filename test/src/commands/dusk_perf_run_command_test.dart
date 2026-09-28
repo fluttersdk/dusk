@@ -26,6 +26,9 @@ final class _FakeDriver implements PerfRunDriver {
     this.navigateHonoured = true,
     this.redirectOnIdle,
     this.exceptions = const <Map<String, dynamic>>[],
+    this.routerMountReads = 0,
+    this.answersUri = true,
+    this.landingReads,
   })  : perfEnds = perfEnds ?? <Map<String, dynamic>>[],
         findMisses = findMisses ?? <String, int>{};
 
@@ -47,8 +50,31 @@ final class _FakeDriver implements PerfRunDriver {
   /// What `ext.dusk.exceptions` lists, newest first.
   final List<Map<String, dynamic>> exceptions;
 
-  /// What `ext.dusk.get_routes` answers as the location.
-  String location = '/';
+  /// What `ext.dusk.get_routes` answers as the location: the top page's
+  /// name, which a Router-based app leaves empty on every screen.
+  String location = '';
+
+  /// The mounted Router's URI, `ext.dusk.get_routes`'s `uri`.
+  String uri = '/';
+
+  /// How many `ext.dusk.get_routes` reads after each restart answer
+  /// `uri: null`: the app answers ext.dusk.* from `main()` before `runApp`
+  /// has mounted its Router, and a navigate in that gap is not honoured.
+  final int routerMountReads;
+
+  /// Whether `ext.dusk.get_routes` carries `uri` at all; false is an app
+  /// built with a dusk older than the CLI.
+  final bool answersUri;
+
+  int _unmountedReads = 0;
+
+  /// When set, `ext.dusk.navigate` answers `navigated: false` and the route
+  /// lands only after this many further `ext.dusk.get_routes` reads: a
+  /// Router still applying its first location right after it mounts.
+  final int? landingReads;
+
+  String? _landing;
+  int _landingLeft = 0;
 
   /// The interactive nodes `ext.dusk.observe` lists, as `dusk:snap` shows
   /// them: a role and the merged label.
@@ -78,19 +104,38 @@ final class _FakeDriver implements PerfRunDriver {
     calls.add((method: method, params: params));
     switch (method) {
       case 'ext.dusk.navigate':
-        if (!navigateHonoured) {
+        if (landingReads != null) {
+          _landing = params['route'];
+          _landingLeft = landingReads!;
           return <String, dynamic>{
             'navigated': false,
             'route': params['route'],
             'reason': 'router did not honor the new route',
           };
         }
-        location = params['route']!;
-        return <String, dynamic>{'navigated': true, 'route': location};
+        if (!navigateHonoured || _unmountedReads > 0) {
+          return <String, dynamic>{
+            'navigated': false,
+            'route': params['route'],
+            'reason': 'router did not honor the new route',
+          };
+        }
+        uri = params['route']!;
+        return <String, dynamic>{'navigated': true, 'route': uri};
       case 'ext.dusk.get_routes':
-        return <String, dynamic>{'location': location, 'title': ''};
+        if (_landing != null && _landingLeft-- <= 0) {
+          uri = _landing!;
+          _landing = null;
+        }
+        final bool mounted = _unmountedReads == 0;
+        if (!mounted) _unmountedReads--;
+        return <String, dynamic>{
+          'location': location,
+          'title': '',
+          if (answersUri) 'uri': mounted ? uri : null,
+        };
       case 'ext.dusk.wait_for_network_idle':
-        location = redirectOnIdle ?? location;
+        uri = redirectOnIdle ?? uri;
         return <String, dynamic>{'matched': true, 'idleAchievedMs': 500};
       case 'ext.dusk.exceptions':
         return <String, dynamic>{
@@ -169,6 +214,7 @@ final class _FakeDriver implements PerfRunDriver {
   @override
   Future<void> restart() async {
     restarts++;
+    _unmountedReads = routerMountReads;
     calls.add((method: 'restart', params: const <String, dynamic>{}));
   }
 
@@ -631,8 +677,8 @@ void main() {
 
       expect(driver.restarts, 3);
       final List<String> m = driver.methods;
-      // Viewport, restart, viewport again, navigate and its route check
-      // across network idle, wait, front, then the first step's target,
+      // Viewport, restart, viewport again, a mounted Router, navigate and
+      // its route check across network idle, wait, front, then the first step's target,
       // which nothing before it can move, and begin.
       final int firstBegin = m.indexOf('ext.dusk.perf_begin');
       expect(
@@ -641,6 +687,7 @@ void main() {
           'cdp:Emulation.setDeviceMetricsOverride',
           'restart',
           'cdp:Emulation.setDeviceMetricsOverride',
+          'ext.dusk.get_routes',
           'ext.dusk.navigate',
           'ext.dusk.get_routes',
           'ext.dusk.wait_for_network_idle',
@@ -799,6 +846,7 @@ repeat: 1
           'cdp:Emulation.setDeviceMetricsOverride',
           'restart',
           'cdp:Emulation.setDeviceMetricsOverride',
+          'ext.dusk.get_routes',
           'ext.dusk.navigate',
           'ext.dusk.get_routes',
           'ext.dusk.wait_for_network_idle',
@@ -1012,12 +1060,80 @@ repeat: 1
         expect(out, contains('list-scroll setup[1] (navigate)'));
         expect(out, contains('"navigated":false'));
         expect(out, contains('router did not honor the new route'));
+        expect(out, contains('route "/"'));
+        expect(driver.callsTo('ext.dusk.navigate'), hasLength(1));
+        expect(driver.callsTo('ext.dusk.get_routes').length, lessThan(40));
         expect(driver.callsTo('ext.dusk.wait_for'), isEmpty);
         expect(driver.callsTo('ext.dusk.perf_begin'), isEmpty);
       });
 
+      test('a navigate right after a restart waits for the Router to mount',
+          () async {
+        // The boot id answers from main(), before runApp mounts the Router
+        // the navigate is verified against: navigating then answered
+        // navigated:false on every Chrome scenario.
+        final _FakeDriver driver = _FakeDriver(routerMountReads: 3);
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 0, reason: out);
+        final List<String> m = driver.methods;
+        final int navigate = m.indexOf('ext.dusk.navigate');
+        expect(
+          m.sublist(m.indexOf('restart'), navigate).where(
+                (String method) => method == 'ext.dusk.get_routes',
+              ),
+          hasLength(4),
+        );
+        expect(driver.callsTo('ext.dusk.navigate'), hasLength(1));
+      });
+
+      test('a navigate that lands just after its answer is held to the route',
+          () async {
+        // Measured on uptizm after a web hot restart: a navigate sent as the
+        // Router mounts answers false, and the route lands a moment later.
+        final _FakeDriver driver = _FakeDriver(landingReads: 3);
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 0, reason: out);
+        expect(driver.callsTo('ext.dusk.navigate'), hasLength(1));
+        expect(driver.callsTo('ext.dusk.perf_begin'), hasLength(1));
+      });
+
+      test('a Router that never mounts fails before navigating', () async {
+        final _FakeDriver driver = _FakeDriver(routerMountReads: 1 << 20);
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 1);
+        expect(out, contains('list-scroll setup[1] (navigate)'));
+        expect(out, contains('no Router'));
+        expect(out, contains('route none (no Router mounted)'));
+        expect(driver.callsTo('ext.dusk.navigate'), isEmpty);
+        expect(driver.callsTo('ext.dusk.get_routes').length, lessThan(200));
+      });
+
+      test('an app whose get_routes carries no uri is told to relaunch',
+          () async {
+        final _FakeDriver driver = _FakeDriver(answersUri: false);
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 1);
+        expect(out, contains('older'));
+        expect(driver.callsTo('ext.dusk.navigate'), isEmpty);
+        expect(driver.callsTo('ext.dusk.get_routes'), hasLength(2));
+      });
+
       test('a route that moves once the network is idle fails naming both',
           () async {
+        // The page name stays '' across the redirect, as in a Router-based
+        // app; only the router's uri moves.
         final _FakeDriver driver = _FakeDriver(redirectOnIdle: '/login');
 
         final (int code, String out) =

@@ -31,7 +31,7 @@
 *Navigation*
 - `dusk_navigate` (`ext.dusk.navigate`): Push a named route onto the active router.
 - `dusk_navigate_back` (`ext.dusk.navigate_back`): Pop the top route off navigator stack.
-- `dusk_get_routes` (`ext.dusk.get_routes`): Enumerate declared routes in the active router.
+- `dusk_get_routes` (`ext.dusk.get_routes`): Report where the app is: the mounted Router's `uri` (null before one mounts), the top page name `location`, and a `title` hint; it does not list declared routes.
 - `dusk_dismiss_modals` (`ext.dusk.dismiss_modals`): Pop every PopupRoute (dialog, bottom sheet, popup menu) across all NavigatorState instances; returns additive `popped` count.
 - `dusk_reset_overlays` (`ext.dusk.reset_overlays`): Return to a clean screen via 3 idempotent layers: dismiss all PopupRoutes, press Escape, then tap a Cancel/Dismiss/Close/OK/Done affordance. Returns `{popped, escaped, dismissTapped}`.
 

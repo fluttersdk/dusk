@@ -641,26 +641,25 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           extensionMethod: 'ext.dusk.navigate_back',
         ),
         // ---------------------------------------------------------------------
-        // 12. Get routes: enumerates the declared routes in the active
-        // router.
+        // 12. Get routes: where the app is right now.
         // ---------------------------------------------------------------------
         McpToolDescriptor(
           name: 'dusk_get_routes',
-          description: 'List the route paths declared by the running app\'s '
-              'router.\n'
+          description: 'Report where the running app is: the mounted '
+              'Router\'s location, the top page\'s name and a title hint.\n'
               '\n'
-              'Walks the active `MagicRouter` (when Magic is installed) '
-              'and emits every registered route path with its name and '
-              'any path parameters. Useful before a dusk_navigate call '
-              'when the available routes are not known upfront, or when '
-              'auditing the surface area of the app.\n'
+              'Read it to confirm a dusk_navigate landed, or to see where a '
+              'redirect took the app. It does not list the declared routes.\n'
               '\n'
               'Usage:\n'
               '- No parameters.\n'
-              '- Returns a list of `{ path, name }` records; static and '
-              'parameterised paths are both included (parameters render '
-              'as `:id`-style placeholders).\n'
-              '- Returns an empty list when no Magic router is installed.',
+              '- Returns `{ location, title, uri }`. `uri` is the first '
+              'mounted Router\'s location (`/monitors?page=2`), the value '
+              'dusk_navigate verifies against; null while no Router is '
+              'mounted, as on a loading screen right after a restart.\n'
+              '- `location` is the root Navigator\'s top page name, which a '
+              'Router-based app (go_router, MagicRouter) leaves empty on '
+              'every screen; read `uri` there.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{},

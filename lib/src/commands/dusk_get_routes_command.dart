@@ -4,8 +4,9 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
 
-/// `artisan dusk:get_routes` — print the active Navigator's current route
-/// state as JSON (location + title per registered route). Mirrors the
+/// `artisan dusk:get_routes`: print where the running app is as JSON
+/// (`uri` from the mounted Router, `location` from the root Navigator's top
+/// page, `title`). It does not list declared routes. Mirrors the
 /// `dusk_get_routes` MCP tool surface.
 class DuskGetRoutesCommand extends ArtisanCommand {
   @override
@@ -13,7 +14,8 @@ class DuskGetRoutesCommand extends ArtisanCommand {
 
   @override
   String get description =>
-      'Print the active Navigator\'s route table + current location as JSON.';
+      'Print the app\'s current location (Router uri, top page name, title) '
+      'as JSON.';
 
   @override
   CommandBoot get boot => CommandBoot.connected;

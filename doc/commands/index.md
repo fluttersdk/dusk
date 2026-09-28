@@ -77,7 +77,7 @@ Route-table manipulation against the active `Navigator`. `dusk:modal` dismisses 
 |---------|-------------|-----------|--------------|
 | `dusk:navigate` | Navigate the running app to a named route via the active Navigator. | connected | ext.dusk.navigate |
 | `dusk:navigate_back` | Pop the topmost route off the active Navigator (mirrors browser back). | connected | ext.dusk.navigate_back |
-| `dusk:get_routes` | Print the active Navigator's route table + current location as JSON. | connected | ext.dusk.get_routes |
+| `dusk:get_routes` | Print the mounted Router's location (`uri`), the top page name and a title hint as JSON. | connected | ext.dusk.get_routes |
 | `dusk:modal` | Dismiss all open modals, bottom sheets, and dialogs in the running app. | connected | ext.dusk.dismiss_modals |
 | [`dusk:reset_overlays`](dusk-reset-overlays.md) | Reset to a clean screen: dismiss modals + Escape + Cancel-tap fallback (idempotent). | connected | ext.dusk.reset_overlays |
 | `dusk:close_app` | Gracefully close the running app via SystemNavigator.pop(). | connected | ext.dusk.close_app |

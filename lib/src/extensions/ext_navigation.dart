@@ -44,11 +44,11 @@ Future<void> _appendSnapshotIfRequested(
 ///
 /// Three extensions are registered:
 ///
-/// | Extension                 | Description                                      |
-/// |---------------------------|--------------------------------------------------|
-/// | `ext.dusk.navigate`       | Navigate to a route by pushing onto the stack.   |
-/// | `ext.dusk.navigate_back`  | Pop the current route off the navigation stack.  |
-/// | `ext.dusk.get_routes`     | Return current router location + page title.     |
+/// | Extension                 | Description                                       |
+/// |---------------------------|---------------------------------------------------|
+/// | `ext.dusk.navigate`       | Navigate to a route by pushing onto the stack.    |
+/// | `ext.dusk.navigate_back`  | Pop the current route off the navigation stack.   |
+/// | `ext.dusk.get_routes`     | Return the page name, a title and the router URI. |
 ///
 /// Each registration goes through [registerExtensionIdempotent] so hot-restart
 /// duplicate-registration [ArgumentError]s are swallowed safely.
@@ -153,15 +153,20 @@ Map<String, dynamic> buildNavigateBackResponse() =>
 /// Builds the success payload for `ext.dusk.get_routes`.
 ///
 /// Returns a map with:
-/// - `location`: current Navigator location string (empty when no Navigator
-///   is active — this is the framework-agnostic fallback; Step 17 wires in
-///   MagicRouter-aware location detection).
-/// - `title`: current window title from [WidgetsBinding.instance.title] when
-///   available, otherwise empty string.
+/// - `location`: the name of the root Navigator's top page, empty when no
+///   Navigator is active or the page is unnamed. A Router-based app
+///   (go_router, MagicRouter) names no page, so it reads empty on every
+///   screen there.
+/// - `title`: a location hint from the platform dispatcher's default route
+///   name, empty when there is none.
+/// - `uri`: the location the first mounted [Router] reports, the same read
+///   `ext.dusk.navigate` verifies against; null while no Router is mounted,
+///   which after a restart means the app cannot be navigated yet.
 @visibleForTesting
 Map<String, dynamic> buildGetRoutesResponse() => <String, dynamic>{
       'location': _currentLocation(),
       'title': _currentTitle(),
+      'uri': _readActiveRouterUri(),
     };
 
 // ---------------------------------------------------------------------------
@@ -389,12 +394,8 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
 ///
 /// Params: none.
 ///
-/// On success: `{ "location": "/current/path", "title": "Page Title" }`.
-///
-/// The `location` field is derived from the active Navigator's current route
-/// name (framework-agnostic). Step 17 (Wave 3) wires in MagicRouter-aware
-/// location detection; for now an empty string is returned when no named
-/// route is on the stack.
+/// On success: `{ "location": "", "title": "", "uri": "/monitors" }`; see
+/// [buildGetRoutesResponse] for what each field reads.
 Future<developer.ServiceExtensionResponse> extDuskGetRoutesHandler(
   String method,
   Map<String, String> params,

@@ -500,8 +500,9 @@ Success: `{ ref: "<ref>", focused: true }`.
 
 Dispatch: `ext.dusk.get_routes`
 
-List the route paths declared by the running app's `MagicRouter`. Returns an empty list
-when no Magic router is installed.
+Report where the running app is: the mounted Router's location, the top page's name and a
+title hint. Read it to confirm a `dusk_navigate` landed or to see where a redirect took the
+app; it does not list the declared routes.
 
 ### Input schema
 
@@ -509,8 +510,13 @@ No parameters.
 
 ### Returns
 
-Success: `{ routes: [ { path, name }, ... ] }`. Parameterised paths render with `:id`-style
-placeholders.
+Success: `{ location, title, uri }`.
+
+| Field | Meaning |
+|---|---|
+| `uri` | The first mounted `Router`'s location, the value `dusk_navigate` verifies against. `null` while no Router is mounted, as on a loading screen right after a restart. |
+| `location` | The root Navigator's top page name. A Router-based app (go_router, MagicRouter) names no page, so it reads `""` on every screen there; read `uri`. |
+| `title` | A location hint from the platform's default route name; `""` when there is none. |
 
 ### Example call
 
@@ -521,7 +527,7 @@ placeholders.
 Response:
 
 ```json
-{ "routes": [ { "path": "/monitors", "name": "monitors.index" }, { "path": "/monitors/:id", "name": "monitors.show" } ] }
+{ "location": "", "title": "", "uri": "/monitors?page=2" }
 ```
 
 ---

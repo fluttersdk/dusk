@@ -444,7 +444,11 @@ true. Returns `{ navigatedBack: true, snapshot? }`.
 
 ### dusk_get_routes
 
-No params. Returns `{ location: "<current-route-name>", title: "<page-title>" }`.
+No params. Returns `{ location, title, uri }`. `uri` is the mounted
+Router's location (what `dusk_navigate` verifies against), `null` while no
+Router is mounted, as on a loading screen right after a restart.
+`location` is the root Navigator's top page name, which a Router-based app
+(go_router, MagicRouter) leaves `""` on every screen: read `uri`.
 
 **Pitfall.** Despite the name, this does NOT enumerate every declared
 route. It returns the current location only. To discover routes, snap

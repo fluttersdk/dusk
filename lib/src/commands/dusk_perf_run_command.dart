@@ -51,6 +51,15 @@ const Duration _kResolvePollInterval = Duration(milliseconds: 100);
 /// pause returns at once.
 const int _kResolveMaxPolls = 30;
 
+/// How long a setup navigate waits for the app to mount a Router. The boot
+/// id answers from `main()`, which can still be awaiting its own boot or be
+/// showing a loading screen before `runApp` builds the router.
+const Duration _kRouterBudget = Duration(seconds: 10);
+
+/// The most `ext.dusk.get_routes` reads that wait gets, so the budget holds
+/// on a driver whose pause returns at once.
+const int _kRouterMaxPolls = 100;
+
 /// How many `ext.dusk.exceptions` entries a setup failure quotes.
 const int _kDiagnosticExceptions = 3;
 
@@ -926,15 +935,21 @@ final class _PerfRunner {
 
   /// Navigates to [route] and holds the app to it.
   ///
-  /// A `navigated: false` fails at once with the payload: the router dropped
-  /// or redirected the route, and every later step would run on the wrong
-  /// screen. The route read right after is read again once the network is
-  /// idle, since a first fetch that answers 401 redirects away afterwards.
-  /// `get_routes` answers the page's name rather than its path, so the two
-  /// reads are compared with each other, not with [route].
+  /// The app has to be routable first ([_awaitRouter]). A `navigated: false`
+  /// then fails with the payload unless the route lands within
+  /// [_kResolveBudget] ([_awaitLanding]): a dropped route never lands and a
+  /// redirected one lands elsewhere, and every later step would run on the
+  /// wrong screen. The router's URI read right after is read again once the
+  /// network is idle, since a first fetch that answers 401 redirects away
+  /// afterwards.
   Future<void> _setupNavigate(String route, String where) async {
-    // 1. The router has to honor the route.
-    final Map<String, dynamic> payload = await _call(
+    // 1. A navigate is verified against the mounted Router, so one sent
+    //    before the Router exists answers false even when it lands later.
+    await _awaitRouter(where);
+
+    // 2. The router has to honor the route, if not within the navigate's
+    //    own two-frame read then shortly after it.
+    Map<String, dynamic> payload = await _call(
       'ext.dusk.navigate',
       <String, String>{
         'route': route,
@@ -943,19 +958,22 @@ final class _PerfRunner {
       where,
     );
     if (payload['navigated'] != true) {
-      throw PerfRunException(
-        '$where: the router did not honor "$route"; ext.dusk.navigate '
-        'answered ${jsonEncode(payload)}.',
-      );
+      if (!await _awaitLanding(route, where)) {
+        throw PerfRunException(
+          '$where: the router did not honor "$route"; ext.dusk.navigate '
+          'answered ${jsonEncode(payload)}.',
+        );
+      }
+      payload = <String, dynamic>{...payload, 'landedLate': true};
     }
     _lastNavigate = payload;
 
-    // 2. And the app has to stay there once its first fetches are done.
+    // 3. And the app has to stay there once its first fetches are done.
     final Object? landed = (await _call(
       'ext.dusk.get_routes',
       const <String, String>{},
       where,
-    ))['location'];
+    ))['uri'];
     await _call(
       'ext.dusk.wait_for_network_idle',
       const <String, String>{},
@@ -965,12 +983,82 @@ final class _PerfRunner {
       'ext.dusk.get_routes',
       const <String, String>{},
       where,
-    ))['location'];
+    ))['uri'];
     if (settled != landed) {
       throw PerfRunException(
         '$where: navigating to "$route" landed on "$landed", and once the '
         'network was idle the app had moved to "$settled".',
       );
+    }
+  }
+
+  /// Whether the Router's `uri` reaches [route] (the same path or one under
+  /// it, the match `ext.dusk.navigate` makes) within [_kResolveBudget], read
+  /// every [_kResolvePollInterval] and at most [_kResolveMaxPolls] times.
+  ///
+  /// `ext.dusk.navigate` reads the Router two frames after dispatching. A
+  /// Router that mounted a moment earlier is still applying its first
+  /// location then and reports a transient one, so the navigate answers
+  /// false for a route that lands right after: measured on a web hot
+  /// restart, false as the Router mounted and true 300 ms later. Only reads:
+  /// a second dispatch would stack a pushed route twice.
+  Future<bool> _awaitLanding(String route, String where) async {
+    final String wanted = _routePath(route);
+    final Stopwatch clock = Stopwatch()..start();
+    for (int poll = 1;; poll++) {
+      final Object? uri = (await _call(
+        'ext.dusk.get_routes',
+        const <String, String>{},
+        where,
+      ))['uri'];
+      if (uri is String) {
+        final String path = _routePath(uri);
+        if (path == wanted || path.startsWith('$wanted/')) return true;
+      }
+      if (poll >= _kResolveMaxPolls || clock.elapsed >= _kResolveBudget) {
+        return false;
+      }
+      await driver.pause(_kResolvePollInterval);
+    }
+  }
+
+  /// Waits until `ext.dusk.get_routes` reports a mounted Router's `uri`,
+  /// read every [_kResolvePollInterval] for up to [_kRouterBudget] (and at
+  /// most [_kRouterMaxPolls] reads).
+  ///
+  /// `ext.dusk.boot_id` answers once `DuskPlugin.install()` has run, and a
+  /// host that installs dusk before its own boot (magic_devtools' documented
+  /// order) or shows a loading screen first has no Router yet. Waiting here
+  /// rather than in the restart keeps a scenario that never navigates, or an
+  /// app with no Router at all, free of it.
+  ///
+  /// Throws [PerfRunException] prefixed with [where] when the budget runs out,
+  /// or at once when the answer has no `uri` key: the app runs a dusk older
+  /// than this CLI.
+  Future<void> _awaitRouter(String where) async {
+    final Stopwatch clock = Stopwatch()..start();
+    for (int poll = 1;; poll++) {
+      final Map<String, dynamic> routes = await _call(
+        'ext.dusk.get_routes',
+        const <String, String>{},
+        where,
+      );
+      if (!routes.containsKey('uri')) {
+        throw PerfRunException(
+          '$where: ext.dusk.get_routes answered no "uri", so the app runs a '
+          'dusk older than this CLI. Relaunch the app so it runs the dusk '
+          'this CLI ships with.',
+        );
+      }
+      if (routes['uri'] is String) return;
+      if (poll >= _kRouterMaxPolls || clock.elapsed >= _kRouterBudget) {
+        throw PerfRunException(
+          '$where: no Router was mounted within ${_kRouterBudget.inSeconds} s '
+          '($poll reads of ext.dusk.get_routes), and a navigate is verified '
+          'against the Router\'s location.',
+        );
+      }
+      await driver.pause(_kResolvePollInterval);
     }
   }
 
@@ -982,8 +1070,11 @@ final class _PerfRunner {
       'ext.dusk.get_routes',
       const <String, String>{},
       (Map<String, dynamic> r) {
+        final Object? uri = r['uri'];
+        final Object? page = r['location'];
         final Object? title = r['title'];
-        return 'route "${r['location']}"'
+        return 'route ${uri is String ? '"$uri"' : 'none (no Router mounted)'}'
+            '${page is String && page.isNotEmpty ? ' (page "$page")' : ''}'
             '${title is String && title.isNotEmpty ? ' (title "$title")' : ''}';
       },
     );
@@ -1756,6 +1847,12 @@ Future<String?> _runLog() async {
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
+
+/// The path of a route or a router URI, `/` when it has none.
+String _routePath(String route) {
+  final String path = Uri.tryParse(route)?.path ?? route;
+  return path.isEmpty ? '/' : path;
+}
 
 /// An iOS simulator UDID; a physical device's id has a different shape.
 final RegExp _kSimulatorUdid = RegExp(

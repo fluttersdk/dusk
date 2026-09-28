@@ -129,10 +129,32 @@ void main() {
       expect(decoded, containsPair('title', anything));
     });
 
-    test('returns exactly two keys', () {
+    test('returns location, title and uri, and nothing else', () {
       final Map<String, dynamic> result = buildGetRoutesResponse();
 
-      expect(result, hasLength(2));
+      expect(
+        result.keys,
+        unorderedEquals(<String>['location', 'title', 'uri']),
+      );
+    });
+
+    test('uri is null while no Router is mounted', () {
+      expect(buildGetRoutesResponse()['uri'], isNull);
+    });
+
+    testWidgets('uri is the mounted Router\'s location, not the page name',
+        (WidgetTester tester) async {
+      // A Router-based app names no page, so `location` reads '' while the
+      // router is on /monitors: the diagnosis measured exactly that in
+      // uptizm, where a post-idle route re-check compared '' with ''.
+      await tester.pumpWidget(
+        MaterialApp.router(routerConfig: _routerConfig('/monitors?page=2')),
+      );
+
+      final Map<String, dynamic> result = buildGetRoutesResponse();
+
+      expect(result['uri'], '/monitors?page=2');
+      expect(result['location'], '');
     });
   });
 
@@ -692,4 +714,46 @@ void main() {
       registerNavigationExtensions();
     });
   });
+}
+
+/// A one-screen Router whose provider starts on [location], with no page
+/// names: what a go_router app looks like to dusk.
+RouterConfig<Uri> _routerConfig(String location) => RouterConfig<Uri>(
+      routeInformationProvider: PlatformRouteInformationProvider(
+        initialRouteInformation: RouteInformation(uri: Uri.parse(location)),
+      ),
+      routeInformationParser: const _UriParser(),
+      routerDelegate: _UriDelegate(),
+    );
+
+final class _UriParser extends RouteInformationParser<Uri> {
+  const _UriParser();
+
+  @override
+  Future<Uri> parseRouteInformation(RouteInformation routeInformation) async =>
+      routeInformation.uri;
+}
+
+final class _UriDelegate extends RouterDelegate<Uri> with ChangeNotifier {
+  Uri? _current;
+
+  @override
+  Uri? get currentConfiguration => _current;
+
+  @override
+  Future<void> setNewRoutePath(Uri configuration) async {
+    _current = configuration;
+    notifyListeners();
+  }
+
+  @override
+  Future<bool> popRoute() async => false;
+
+  @override
+  Widget build(BuildContext context) => Navigator(
+        pages: <Page<void>>[
+          MaterialPage<void>(child: Text('${_current ?? ''}')),
+        ],
+        onDidRemovePage: (Page<Object?> page) {},
+      );
 }
