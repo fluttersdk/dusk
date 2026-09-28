@@ -63,7 +63,7 @@ import 'ext_wait_find.dart';
 ///   interactions, frames and host rows as Chrome Trace Event JSON.
 /// - [registerSemanticsHoldExtension]: ext.dusk.semantics_hold, which releases
 ///   dusk's semantics handle for one timed window of `dusk:perf_run
-///   --semantics-pass` and re-acquires it before perf_end.
+///   --semantics-pass` and re-acquires it after perf_end.
 ///
 /// Last, and it has to stay last: [registerBootExtension], ext.dusk.boot_id,
 /// the id `DuskPlugin.install()` minted for this boot. `dusk:perf_run` waits

@@ -29,8 +29,14 @@ final class _FakeDriver implements PerfRunDriver {
     this.routerMountReads = 0,
     this.answersUri = true,
     this.landingReads,
+    this.releaseAnswer = _kReleasedOff,
   })  : perfEnds = perfEnds ?? <Map<String, dynamic>>[],
         findMisses = findMisses ?? <String, int>{};
+
+  /// What `ext.dusk.semantics_hold action=release` answers. The default is a
+  /// release that turned the tree off, what a native app with no screen
+  /// reader answers.
+  final Map<String, dynamic> releaseAnswer;
 
   /// How many `ext.dusk.wait_for` calls answer `matched: false` before the
   /// text shows up.
@@ -189,6 +195,15 @@ final class _FakeDriver implements PerfRunDriver {
           return <String, dynamic>{'matched': false};
         }
         return <String, dynamic>{'matched': true};
+      case 'ext.dusk.semantics_hold':
+        return params['action'] == 'release'
+            ? releaseAnswer
+            : <String, dynamic>{
+                'action': params['action'],
+                'acquired': true,
+                'semanticsEnabled': true,
+                'treeReady': true,
+              };
       case 'ext.dusk.perf_begin':
         return <String, dynamic>{'sessionToken': 'perf-${calls.length}'};
       case 'ext.dusk.perf_end':
@@ -231,6 +246,23 @@ final class _FakeDriver implements PerfRunDriver {
     closed = true;
   }
 }
+
+/// A release that turned the semantics tree off.
+const Map<String, dynamic> _kReleasedOff = <String, dynamic>{
+  'action': 'release',
+  'released': true,
+  'semanticsEnabled': false,
+  'heldByPlatform': false,
+};
+
+/// A release the platform outlived: Flutter web's engine keeps semantics on
+/// once the app has sent a tree.
+const Map<String, dynamic> _kHeldByPlatform = <String, dynamic>{
+  'action': 'release',
+  'released': true,
+  'semanticsEnabled': true,
+  'heldByPlatform': true,
+};
 
 /// A screen with a heading and three buttons, two of them named `Row`.
 const List<Map<String, dynamic>> _kObserved = <Map<String, dynamic>>[
@@ -1371,12 +1403,16 @@ repeat: 1
           holds.map((_Call c) => c.params['action']).toList(),
           <String>['release', 'acquire'],
         );
-        // Released after the second perf_begin, acquired before its perf_end.
+        // Released after the second perf_begin, and re-acquired only once its
+        // perf_end has closed the session: the acquire's full tree rebuild is
+        // a frame, and perf_end reads semanticsEnabled for its env.
         expect(m.lastIndexOf('ext.dusk.perf_begin'), lessThan(release));
+        final int end = m.lastIndexOf('ext.dusk.perf_end');
         final int acquire = m.lastIndexOf('ext.dusk.semantics_hold');
-        expect(acquire, lessThan(m.lastIndexOf('ext.dusk.perf_end')));
+        expect(release, lessThan(end));
+        expect(end, lessThan(acquire));
         // Inside the window nothing resolves a target: coordinates only.
-        final List<String> window = m.sublist(release, acquire);
+        final List<String> window = m.sublist(release, end);
         expect(window, isNot(contains('ext.dusk.find')));
         expect(window, isNot(contains('ext.dusk.hover')));
         final _Call tap = driver.callsTo('ext.dusk.tap').last;
@@ -1444,7 +1480,7 @@ repeat: 1
         expect(run.containsKey('semanticsOff'), isFalse);
       });
 
-      test('a failed acquire still closes the session with perf_end', () async {
+      test('a failed acquire after perf_end records unsupported', () async {
         final _FakeDriver driver = _FailingAcquireDriver();
 
         final (int code, _) = await _run(
@@ -1456,12 +1492,131 @@ repeat: 1
         final List<String> m = driver.methods;
         expect(
           m.lastIndexOf('ext.dusk.perf_end'),
-          greaterThan(m.lastIndexOf('ext.dusk.semantics_hold')),
+          lessThan(m.lastIndexOf('ext.dusk.semantics_hold')),
+        );
+        final Map<String, dynamic> run = readRun('list-scroll', 'base');
+        expect(run['semanticsPass'], 'unsupported');
+        expect(run['semanticsPassReason'], contains('acquire failed'));
+      });
+
+      test('a perf_end that throws still re-acquires the handle', () async {
+        final _FakeDriver driver = _FailingReleasedEndDriver();
+
+        final (int code, _) = await _run(
+          driver,
+          options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
+        );
+
+        expect(code, 0);
+        final List<String> m = driver.methods;
+        expect(
+          driver
+              .callsTo('ext.dusk.semantics_hold')
+              .map((_Call c) => c.params['action'])
+              .toList(),
+          <String>['release', 'acquire'],
         );
         expect(
-          readRun('list-scroll', 'base')['semanticsPassReason'],
-          contains('acquire failed'),
+          m.lastIndexOf('ext.dusk.perf_end'),
+          lessThan(m.lastIndexOf('ext.dusk.semantics_hold')),
         );
+        final Map<String, dynamic> run = readRun('list-scroll', 'base');
+        expect(run['semanticsPass'], 'unsupported');
+        expect(run['semanticsPassReason'], contains('perf_end failed'));
+      });
+
+      test(
+          'a release the platform outlives on chrome records unsupported, '
+          'naming the web engine, and replays nothing', () async {
+        final _FakeDriver driver = _FakeDriver(
+          releaseAnswer: _kHeldByPlatform,
+        );
+
+        final (int code, _) = await _run(
+          driver,
+          options(<String, dynamic>{'semantics-pass': true, 'repeat': '2'}),
+        );
+
+        expect(code, 0);
+        // One release: the pass stops at the first one that left the tree
+        // on, and that window still closes and re-acquires.
+        final List<String> m = driver.methods;
+        expect(
+          driver
+              .callsTo('ext.dusk.semantics_hold')
+              .map((_Call c) => c.params['action'])
+              .toList(),
+          <String>['release', 'acquire'],
+        );
+        final int release = m.indexOf('ext.dusk.semantics_hold');
+        final int end = m.lastIndexOf('ext.dusk.perf_end');
+        expect(release, lessThan(end));
+        expect(end, lessThan(m.lastIndexOf('ext.dusk.semantics_hold')));
+        expect(
+          driver
+              .callsTo('ext.dusk.tap')
+              .where((_Call c) => c.params.containsKey('x')),
+          isEmpty,
+        );
+
+        final Map<String, dynamic> run = readRun('list-scroll', 'base');
+        expect(run['semanticsPass'], 'unsupported');
+        expect(run['semanticsPassReason'], contains('on chrome'));
+        expect(run['semanticsPassReason'], contains('Flutter web'));
+        expect(run.containsKey('semanticsOff'), isFalse);
+      });
+
+      test('a release the platform outlives on android names accessibility',
+          () async {
+        final _FakeDriver driver = _FakeDriver(
+          releaseAnswer: _kHeldByPlatform,
+        );
+
+        await _run(
+          driver,
+          options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
+          platform: PerfPlatform.android,
+        );
+
+        final Map<String, dynamic> run = readRun('list-scroll', 'base');
+        expect(run['semanticsPass'], 'unsupported');
+        expect(run['semanticsPassReason'], contains('on android'));
+        expect(run['semanticsPassReason'], contains('accessibility'));
+      });
+
+      test('a release another handle outlives names that handle', () async {
+        final _FakeDriver driver = _FakeDriver(
+          releaseAnswer: <String, dynamic>{
+            ..._kReleasedOff,
+            'semanticsEnabled': true,
+          },
+        );
+
+        await _run(
+          driver,
+          options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
+        );
+
+        final Map<String, dynamic> run = readRun('list-scroll', 'base');
+        expect(run['semanticsPass'], 'unsupported');
+        expect(run['semanticsPassReason'], contains('ensureSemantics'));
+      });
+
+      test(
+          'a release that does not say whether the tree went off is unsupported',
+          () async {
+        final _FakeDriver driver = _FakeDriver(
+          releaseAnswer: <String, dynamic>{'action': 'release'},
+        );
+
+        await _run(
+          driver,
+          options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
+        );
+
+        final Map<String, dynamic> run = readRun('list-scroll', 'base');
+        expect(run['semanticsPass'], 'unsupported');
+        expect(run['semanticsPassReason'], contains('older'));
       });
 
       test('a replay that fails re-acquires, closes and records unsupported',
@@ -1482,6 +1637,10 @@ repeat: 1
           <String>['release', 'acquire'],
         );
         expect(driver.callsTo('ext.dusk.perf_end'), hasLength(2));
+        expect(
+          driver.methods.lastIndexOf('ext.dusk.perf_end'),
+          lessThan(driver.methods.lastIndexOf('ext.dusk.semantics_hold')),
+        );
         final Map<String, dynamic> run = readRun('list-scroll', 'base');
         expect(run['semanticsPass'], 'unsupported');
         expect(run['semanticsPassReason'], contains('coordinates'));
@@ -1635,6 +1794,27 @@ final class _FailingAcquireDriver extends _FakeDriver {
     if (method == 'ext.dusk.semantics_hold' && params['action'] == 'acquire') {
       calls.add((method: method, params: params));
       throw Exception('acquire failed');
+    }
+    return super.call(method, params);
+  }
+}
+
+/// Fails the `perf_end` that closes a window the handle was released in.
+final class _FailingReleasedEndDriver extends _FakeDriver {
+  bool _released = false;
+
+  @override
+  Future<Map<String, dynamic>> call(
+    String method, [
+    Map<String, String> params = const <String, String>{},
+  ]) async {
+    if (method == 'ext.dusk.semantics_hold' && params['action'] == 'release') {
+      _released = true;
+    }
+    if (method == 'ext.dusk.perf_end' && _released) {
+      _released = false;
+      calls.add((method: method, params: params));
+      throw Exception('perf_end exploded');
     }
     return super.call(method, params);
   }

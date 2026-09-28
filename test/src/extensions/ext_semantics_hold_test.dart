@@ -67,6 +67,8 @@ void main() {
         <String, String>{'action': 'release'},
       );
       expect(_result(released)['released'], isTrue);
+      expect(_result(released)['semanticsEnabled'], isFalse);
+      expect(_result(released)['heldByPlatform'], isFalse);
       expect(DuskPlugin.semanticsReleased, isTrue);
       await tester.pump();
       expect(_rootSemanticsNode(), isNull);
@@ -90,6 +92,38 @@ void main() {
 
       // Inside the body: the harness checks for live handles before any
       // tearDown runs.
+      DuskPlugin.resetSemanticsForTesting();
+    });
+
+    // What Flutter web does to every real app: the engine turns semantics on
+    // at the first semantics update and never back off, so the platform
+    // holds a handle of its own and dusk's release cannot end the tree.
+    testWidgets(
+        'a release while the platform holds semantics on says it stayed on '
+        'and who holds it',
+        semanticsEnabled: false, (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: Text('held'))),
+      );
+      DuskPlugin.acquireSemantics();
+      tester.binding.platformDispatcher.semanticsEnabledTestValue = true;
+      await _openTimingSession();
+
+      final Map<String, dynamic> released = _result(
+        await duskSemanticsHoldHandler(
+          'ext.dusk.semantics_hold',
+          <String, String>{'action': 'release'},
+        ),
+      );
+
+      expect(released['released'], isTrue);
+      expect(released['semanticsEnabled'], isTrue);
+      expect(released['heldByPlatform'], isTrue);
+
+      // Inside the body: the platform's handle is the binding's, dropped
+      // when the test value is cleared, and the harness checks handles
+      // before any tearDown runs.
+      tester.binding.platformDispatcher.clearSemanticsEnabledTestValue();
       DuskPlugin.resetSemanticsForTesting();
     });
 

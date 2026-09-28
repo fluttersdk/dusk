@@ -24,7 +24,8 @@ void registerSemanticsHoldExtension() {
 /// That handle makes the framework build the semantics tree on every frame,
 /// so every dusk-driven measurement carries its cost. `dusk:perf_run
 /// --semantics-pass` releases it for one timed window to measure the app
-/// without it, and re-acquires it before `perf_end`.
+/// without it, and re-acquires it after `perf_end` has closed the window, so
+/// the acquire's full tree rebuild is not a frame of the session.
 ///
 /// Params (all string-valued):
 /// - `action` (required): `release` or `acquire`.
@@ -34,9 +35,18 @@ void registerSemanticsHoldExtension() {
 /// frame (bounded by [awaitFrameOrTimeout]) so the tree exists again when it
 /// answers.
 ///
+/// A release does not always turn the tree off: the framework builds it while
+/// any handle is held, and the platform holds one of its own whenever
+/// `platformDispatcher.semanticsEnabled` is true. On Flutter web that is
+/// every real app once it has sent a semantics tree (the engine turns
+/// semantics on at the first update and never back off); on a native device
+/// it is an accessibility service. `semanticsEnabled` says whether the tree
+/// went off, `heldByPlatform` whether the platform is what kept it on.
+///
 /// Response JSON:
 /// ```json
-/// {"action": "release", "released": true, "semanticsEnabled": false}
+/// {"action": "release", "released": true, "semanticsEnabled": false,
+///  "heldByPlatform": false}
 /// {"action": "acquire", "acquired": true, "semanticsEnabled": true,
 ///  "treeReady": true}
 /// ```
@@ -57,7 +67,7 @@ Future<developer.ServiceExtensionResponse> duskSemanticsHoldHandler(
           wrapErrorDetail(
             'ext.dusk.semantics_hold: release is only allowed inside an open '
             'perf session, the timed window it exists for. Call '
-            'ext.dusk.perf_begin first, and acquire before ext.dusk.perf_end.',
+            'ext.dusk.perf_begin first, and acquire after ext.dusk.perf_end.',
             DuskErrorEnvelope.unexpected(),
           ),
         );
@@ -67,6 +77,8 @@ Future<developer.ServiceExtensionResponse> duskSemanticsHoldHandler(
         'action': action,
         'released': released,
         'semanticsEnabled': SemanticsBinding.instance.semanticsEnabled,
+        'heldByPlatform':
+            SemanticsBinding.instance.platformDispatcher.semanticsEnabled,
       });
     case 'acquire':
       final bool acquired = DuskPlugin.acquireSemantics();

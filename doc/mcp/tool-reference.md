@@ -891,7 +891,10 @@ The run file: `scenario`, `label`, `env` (the app's own plus `target`,
 (`repeats`, `refused`, median `frames`, `perFrame`, `ms`, `spread`, and
 `timing` with `--timing`), `insights` of the median repeat, `repeats[]`, and
 with the semantics pass `semanticsPass` plus `semanticsOff` or
-`semanticsPassReason`. A refused repeat is recorded and left out of the
+`semanticsPassReason`. `semanticsPass` is `unsupported` when a release leaves
+semantics on, which on chrome is every app dusk has snapshotted (the web
+engine keeps semantics on once it has received a tree); the reason names the
+platform and what holds it. A refused repeat is recorded and left out of the
 medians; the call fails when every repeat refused. See
 [dusk:perf_run](../commands/dusk-perf-run.md).
 

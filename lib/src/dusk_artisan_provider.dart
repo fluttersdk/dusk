@@ -1812,7 +1812,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '- Set semantics-pass=true to also replay the steps by '
               'coordinates with the semantics tree released for the timed '
               'window (the semanticsOff series; unsupported for fill, type, '
-              'scroll).\n'
+              'scroll, and wherever a release leaves semantics on, which on '
+              'chrome is every app dusk has snapshotted).\n'
               '- Chrome needs the app started with a CDP port.',
           inputSchema: <String, dynamic>{
             'type': 'object',

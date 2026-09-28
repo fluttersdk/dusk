@@ -12,13 +12,13 @@
 | `action=acquire` | Takes the handle again, then awaits one frame (bounded, 200 ms) so the tree exists again when it answers. |
 
 ```json
-{"action": "release", "released": true, "semanticsEnabled": false}
+{"action": "release", "released": true, "semanticsEnabled": false, "heldByPlatform": false}
 {"action": "acquire", "acquired": true, "semanticsEnabled": true, "treeReady": true}
 ```
 
-`semanticsEnabled` stays `true` after a release when something else holds a handle (a screen reader, the test harness): the tree only goes away when the last handle does. `DuskPlugin.semanticsReleased` reads the state in-app.
+`semanticsEnabled` stays `true` after a release when something else holds a handle: the tree only goes away when the last handle does. `heldByPlatform` is `platformDispatcher.semanticsEnabled`, true when the platform holds a handle of its own. On Flutter web that is every real app once it has sent a semantics tree: the engine turns semantics on at the first update and nothing turns it off, so a release there answers `semanticsEnabled: true, heldByPlatform: true`. On a native device it is true while an accessibility service runs. `heldByPlatform: false` with `semanticsEnabled: true` is another `SemanticsHandle` in the app (or the test harness). `DuskPlugin.semanticsReleased` reads the state in-app.
 
-The caller owns the pairing: acquire before `perf_end`, including when a step in between failed. `dusk:perf_run` does both.
+The caller owns the pairing: acquire after `perf_end`, so the acquire's full tree rebuild is not a frame of the session, and acquire even when a step or `perf_end` failed. `perf_end` also re-takes a handle left released, as a safety net for a caller that died in between. `dusk:perf_run` does all of it.
 
 ---
 

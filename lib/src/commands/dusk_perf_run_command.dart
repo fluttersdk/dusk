@@ -787,7 +787,9 @@ final class _PerfRunner {
 
     // 3. The timed window. A failing step is held rather than thrown so the
     //    session still closes: perf_end restores the profiling flags, and a
-    //    released semantics handle must never outlive the window.
+    //    released semantics handle must never outlive the window. A release
+    //    that left the tree on ends the window at once: what would follow is
+    //    the attribution series again, reported as semantics off.
     await _call(
       'ext.dusk.perf_begin',
       <String, String>{
@@ -800,12 +802,17 @@ final class _PerfRunner {
     StackTrace? trace;
     try {
       if (series == _Series.semanticsOff) {
-        await _call(
+        // Marked before the call: a release that landed but whose answer was
+        // lost still needs its acquire.
+        released = true;
+        final Map<String, dynamic> answer = await _call(
           'ext.dusk.semantics_hold',
           <String, String>{'action': 'release'},
           scenario.name,
         );
-        released = true;
+        if (answer['semanticsEnabled'] != false) {
+          throw PerfRunException(_semanticsHeldReason(answer));
+        }
       }
       for (int i = 0; i < scenario.steps.length; i++) {
         final PerfStep step = scenario.steps[i];
@@ -826,8 +833,22 @@ final class _PerfRunner {
       trace = st;
     }
 
-    // 4. Close it whatever happened. A failed acquire is held like a failed
-    //    step: perf_end still has to run and put the profiling flags back.
+    // 4. Close it whatever happened, then re-acquire. perf_end goes first: the
+    //    acquire's frame rebuilds the whole tree, which is not the app's cost,
+    //    and perf_end reads `env.semanticsEnabled` for the window it closes.
+    //    A failed perf_end is held like a failed step so the acquire still
+    //    runs; the first failure is the one rethrown.
+    Map<String, dynamic>? report;
+    try {
+      report = await _call(
+        'ext.dusk.perf_end',
+        <String, String>{'full': 'true'},
+        scenario.name,
+      );
+    } catch (e, st) {
+      failure ??= e;
+      trace ??= st;
+    }
     if (released) {
       try {
         await _call(
@@ -840,13 +861,8 @@ final class _PerfRunner {
         trace ??= st;
       }
     }
-    final Map<String, dynamic> report = await _call(
-      'ext.dusk.perf_end',
-      <String, String>{'full': 'true'},
-      scenario.name,
-    );
     if (failure != null) Error.throwWithStackTrace(failure, trace!);
-    run.reports[series]!.add(report);
+    run.reports[series]!.add(report!);
     run.resolves[series]!.add(resolves);
   }
 
@@ -1485,6 +1501,41 @@ final class _PerfRunner {
       }
     }
     return null;
+  }
+
+  /// Why a release that answered [answer] cannot measure the app with the
+  /// tree off, naming what kept semantics on.
+  ///
+  /// The framework builds the tree while any handle is held, and the
+  /// platform holds its own while `platformDispatcher.semanticsEnabled` is
+  /// true (`heldByPlatform`). On Flutter web the engine turns that on at the
+  /// first semantics update a real app sends and nothing turns it off, so
+  /// once dusk has snapshotted the app it stays on.
+  String _semanticsHeldReason(Map<String, dynamic> answer) {
+    final String platform = env.platform.name;
+    if (answer['semanticsEnabled'] != true) {
+      return 'ext.dusk.semantics_hold release did not say whether the tree '
+          'went off (no semanticsEnabled in ${jsonEncode(answer)}), so the '
+          'app runs a dusk older than this CLI. Relaunch the app so it runs '
+          'the dusk this CLI ships with.';
+    }
+    final String holder = switch ((answer['heldByPlatform'], env.platform)) {
+      (true, PerfPlatform.chrome) => 'the platform holds it: Flutter web\'s '
+          'engine turns semantics on at the first semantics tree the app '
+          'sends (dusk\'s first snapshot sends one) and never turns it off, '
+          'so on chrome the pass cannot measure the app with semantics off; '
+          'run it on android or ios',
+      (true, _) => 'the platform holds it, which on $platform means an '
+          'accessibility service (a screen reader such as TalkBack or '
+          'VoiceOver, or another assistive service) is on; turn it off and '
+          'rerun',
+      (false, _) => 'another semantics handle in the app holds it (a '
+          'SemanticsHandle the app or a package took with ensureSemantics)',
+      _ => 'the app did not say what holds it (no heldByPlatform), so it '
+          'runs a dusk older than this CLI',
+    };
+    return 'on $platform, releasing dusk\'s semantics handle left semantics '
+        'on: $holder.';
   }
 
   /// The run file for [run].

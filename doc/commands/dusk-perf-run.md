@@ -160,9 +160,19 @@ A refused repeat (the engine drew one frame or none, see `dusk:perf_end`) is kep
 dusk keeps a semantics handle for the whole process, so every dusk-driven frame also builds the semantics tree. `--semantics-pass` measures the app without it, as a separate `semanticsOff` series:
 
 1. The first attribution round records where each `tap`, `drag` and `wheel` dispatched (`reportPoint`).
-2. Each semantics repeat runs the setup, opens the session, calls `ext.dusk.semantics_hold action=release`, replays the steps by those coordinates (`ext.dusk.tap {x, y}`, `ext.dusk.drag {x, y, toX, toY}`, CDP for the wheel), calls `action=acquire`, and only then `perf_end`. The handle is never released outside that window, and the acquire runs even when a step fails.
+2. Each semantics repeat runs the setup, opens the session, calls `ext.dusk.semantics_hold action=release`, replays the steps by those coordinates (`ext.dusk.tap {x, y}`, `ext.dusk.drag {x, y, toX, toY}`, CDP for the wheel), closes the session with `perf_end`, and only then calls `action=acquire`. The acquire's frame rebuilds the whole tree, so it stays out of the window, and the report's `env.semanticsEnabled` describes the window rather than the re-acquired handle. The handle is never released outside that window, and the acquire runs even when a step or `perf_end` fails.
 
-The file gains `semanticsPass: "measured"` and `semanticsOff: {summary, repeats}`. `fill`, `type` and `scroll` act through a resolved widget, so a scenario with one of them records `semanticsPass: "unsupported"` with a `semanticsPassReason` instead of failing the run; so does a replay that fails. The acquire's own frame, which rebuilds the whole tree, falls inside the window: read the series as an upper bound on what the tree costs, not an exact figure. See [the semantics hold](../reference/semantics-hold.md).
+The file gains `semanticsPass: "measured"` and `semanticsOff: {summary, repeats}`. `fill`, `type` and `scroll` act through a resolved widget, so a scenario with one of them records `semanticsPass: "unsupported"` with a `semanticsPassReason` instead of failing the run; so does a replay that fails. See [the semantics hold](../reference/semantics-hold.md).
+
+A release does not always turn the tree off. The framework builds it while any handle is held, and the platform holds its own while `platformDispatcher.semanticsEnabled` is true. When the release answers `semanticsEnabled: true` the pass stops there: it closes that window, re-acquires, records `semanticsPass: "unsupported"` and writes no `semanticsOff` series, since what it would measure is the attribution series again. The `semanticsPassReason` names the platform and what holds semantics on:
+
+| Where | What holds it | `semanticsPassReason` |
+|---|---|---|
+| chrome | The web engine turns semantics on at the first semantics tree a real app sends (dusk's first snapshot sends one) and never turns it off. | `on chrome, releasing dusk's semantics handle left semantics on: the platform holds it: Flutter web's engine ...` |
+| android, ios | An accessibility service (TalkBack, VoiceOver, another assistive service). | `on android, ... an accessibility service ... is on; turn it off and rerun.` |
+| any | A `SemanticsHandle` the app or a package took with `ensureSemantics`. | `on <platform>, ... another semantics handle in the app holds it ...` |
+
+On chrome, then, the pass reports `unsupported` for any app dusk has snapshotted; measure the semantics-off figure on a native target.
 
 ---
 
