@@ -486,7 +486,7 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
       full: full,
     );
 
-    // 3. Keep the analysis for perf_insight, then report.
+    // 4. Keep the analysis for perf_insight, then report.
     _lastClosed = _ClosedSession(
       session.token,
       analysis,
@@ -636,11 +636,6 @@ Map<String, Object?> _env(_PerfSession session) => <String, Object?>{
       'phases': session.phases,
     };
 
-/// Restores the five flags to the values [session] saved, hands wind's
-/// counters back to their off state, and drops the session.
-///
-/// A timing session never touched the flags, so it restores none: writing
-/// the saved values back would undo a change someone else made during it.
 /// Longer than the web engine's 100 ms hand-over interval.
 const Duration _kTimingsFlushDelay = Duration(milliseconds: 120);
 
@@ -663,6 +658,11 @@ Future<Map<String, Object?>> _flushParkedTimings() async {
   return framePerfReader();
 }
 
+/// Restores the five flags to the values [session] saved, hands wind's
+/// counters back to their off state, and drops the session.
+///
+/// A timing session never touched the flags, so it restores none: writing
+/// the saved values back would undo a change someone else made during it.
 void _closeSession(_PerfSession session) {
   if (session.mode == PerfMode.attribution) {
     FlutterTimeline.debugCollectionEnabled = session.priorCollectionEnabled;

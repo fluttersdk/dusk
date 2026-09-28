@@ -22,10 +22,11 @@ Map<String, Object?> _run({
   Map<String, Object?> env = const <String, Object?>{'emulator': false},
   Map<String, Object?>? thresholds,
   int repeats = 3,
+  String name = 'list',
 }) {
   return <String, Object?>{
     'scenario': <String, Object?>{
-      'name': 'list',
+      'name': name,
       if (thresholds != null) 'thresholds': thresholds,
     },
     'label': 'x',
@@ -197,6 +198,67 @@ void main() {
         <String, Object?>{'warn': 2, 'error': 4},
       );
     });
+
+    test(
+      'wind.cacheHits rising and wind.cacheMisses falling reads improved '
+      'or unchanged, never regressed',
+      () {
+        final Map<String, Object?> result = comparePerfRuns(
+          _run(
+            perFrame: <String, double>{
+              'blocks.MonitorRow': 2.0,
+              'wind.wDivBuilds': 30.0,
+              'wind.cacheHits': 20.0,
+              'wind.cacheMisses': 10.0,
+            },
+          ),
+          _run(
+            perFrame: <String, double>{
+              'blocks.MonitorRow': 2.0,
+              'wind.wDivBuilds': 30.0,
+              'wind.cacheHits': 29.0,
+              'wind.cacheMisses': 1.0,
+            },
+          ),
+        );
+
+        expect(result['verdict'], isNot('regressed'));
+        final Map<String, Object?> hits = _row(result, 'wind.cacheHits');
+        expect(hits['verdict'], isNot('regressed'));
+        final Map<String, Object?> misses = _row(result, 'wind.cacheMisses');
+        expect(misses['verdict'], isNot('regressed'));
+      },
+    );
+
+    test(
+      'an info row appears when scenario name, env.target or env.buildMode '
+      'differ, and it never gates the verdict',
+      () {
+        final Map<String, Object?> result = comparePerfRuns(
+          _run(
+            name: 'list',
+            env: const <String, Object?>{
+              'emulator': false,
+              'target': 'ios',
+              'buildMode': 'profile',
+            },
+          ),
+          _run(
+            name: 'detail',
+            env: const <String, Object?>{
+              'emulator': false,
+              'target': 'android',
+              'buildMode': 'debug',
+            },
+          ),
+        );
+
+        expect(_row(result, 'scenario.name')['severity'], 'info');
+        expect(_row(result, 'env.target')['severity'], 'info');
+        expect(_row(result, 'env.buildMode')['severity'], 'info');
+        expect(result['verdict'], isNot('regressed'));
+      },
+    );
 
     test('a run with no measured repeat cannot be compared', () {
       expect(

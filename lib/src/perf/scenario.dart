@@ -623,9 +623,12 @@ final class _ScenarioReader {
           .where((PerfPlatform p) => p != PerfPlatform.chrome)
           .map((PerfPlatform p) => p.name)
           .join(', ');
+      final String wheelHint = verb == PerfStepVerb.wheel
+          ? ', and a drag with `only: [android, ios]` to scroll there'
+          : '';
       problems.add(
         '$where: ${verb.wire} drives Chrome DevTools and would run on $others. '
-        'Add `only: [chrome]`${verb == PerfStepVerb.wheel ? ', and a drag with `only: [android, ios]` to scroll there' : ''}.',
+        'Add `only: [chrome]`$wheelHint.',
       );
     }
 

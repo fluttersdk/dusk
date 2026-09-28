@@ -9,6 +9,19 @@ import 'json_output.dart';
 /// Rows the human table prints before pointing at `--json` for the rest.
 const int _kTableRowLimit = 20;
 
+/// Per-frame metrics where a rise is the good outcome, not the bad one.
+///
+/// Every other metric is gated as higher-is-worse: a `blocks.*` build count,
+/// a wrapper emission, an inherited-widget read all cost more work as they
+/// grow. A cache hit is the opposite: it is work the run avoided, so a rise
+/// reads as an improvement (or informational) and a fall is what regresses.
+/// Extend this set when a new counter with the same "more is good" shape
+/// ships (`dusk_perf_run_command.dart:440-457` lists every `wind.*`/`magic.*`
+/// key `dusk:perf_run` can emit).
+const Set<String> _kHigherIsBetterMetrics = <String>{
+  'wind.cacheHits',
+};
+
 /// `artisan dusk:perf_compare <a.json> <b.json> [--json]`: judge run B
 /// against run A, both written by `dusk:perf_run`.
 ///
@@ -88,14 +101,19 @@ class DuskPerfCompareCommand extends ArtisanCommand {
 /// }
 /// ```
 ///
-/// Every metric is one where higher is worse: counts per painted frame from
-/// the attribution medians, and `timing.*` milliseconds from the timing
-/// medians. A change is judged against [PerfThresholds] from B's scenario
-/// (else A's, else 10/25 percent) and is `unchanged` whenever it stays inside
-/// the repeat-to-repeat range either run recorded for that metric: a delta
-/// the repeats themselves produce is noise, not a finding. A metric A never
-/// recorded is a warn-level `regressed` with no percentage. `rows` lists
-/// every judged change and every info row; `unchanged` counts the rest.
+/// Every metric is counts per painted frame from the attribution medians, or
+/// `timing.*` milliseconds from the timing medians, and almost all of them
+/// are higher-is-worse. The exception is [_kHigherIsBetterMetrics] (a cache
+/// hit and any counter shaped like one): work the run avoided, so a rise
+/// there is an improvement, never a regression. A change is judged against
+/// [PerfThresholds] from B's scenario (else A's, else 10/25 percent) and is
+/// `unchanged` whenever it stays inside the repeat-to-repeat range either run
+/// recorded for that metric: a delta the repeats themselves produce is
+/// noise, not a finding. A metric A never recorded is a warn-level
+/// `regressed` with no percentage (`improved` instead when the metric is
+/// higher-is-better). `rows` lists every judged change and every info row
+/// (including a scenario or environment change between the two runs);
+/// `unchanged` counts the rest.
 ///
 /// Throws [FormatException] when either run has no measured repeat.
 Map<String, Object?> comparePerfRuns(
@@ -116,6 +134,7 @@ Map<String, Object?> comparePerfRuns(
     noiseA: _noise(summaryA, 'perFrame'),
     noiseB: _noise(summaryB, 'perFrame'),
     thresholds: thresholds,
+    higherIsBetter: (String metric) => _kHigherIsBetterMetrics.contains(metric),
   );
 
   // 3. Milliseconds, from timing medians only.
@@ -137,7 +156,17 @@ Map<String, Object?> comparePerfRuns(
     );
   }
 
-  // 4. The verdict reads gated rows only.
+  // 4. Info rows for a context change: a metric delta means something
+  //    different when the scenario or the environment moved underneath it.
+  rows.addAll(
+    <_Row?>[
+      _contextRow('scenario.name', _scenario(a)['name'], _scenario(b)['name']),
+      _contextRow('env.target', _env(a)['target'], _env(b)['target']),
+      _contextRow('env.buildMode', _env(a)['buildMode'], _env(b)['buildMode']),
+    ].whereType<_Row>(),
+  );
+
+  // 5. The verdict reads gated rows only.
   final List<_Row> gated = rows.where((_Row r) => !r.info).toList();
   final String verdict = gated.any((_Row r) => r.verdict == _Verdict.regressed)
       ? _Verdict.regressed.name
@@ -189,8 +218,11 @@ final class _Row {
   });
 
   final String metric;
-  final num a;
-  final num b;
+
+  /// A numeric measurement for a judged metric, or a `String` for a context
+  /// row (a scenario or environment value that differs between the runs).
+  final Object a;
+  final Object b;
 
   /// Null when A never recorded the metric: there is nothing to divide by.
   final double? deltaPct;
@@ -233,6 +265,7 @@ List<_Row> _judge(
   required PerfThresholds thresholds,
   String prefix = '',
   bool Function(String metric)? infoOnly,
+  bool Function(String metric)? higherIsBetter,
 }) {
   final List<String> metrics = <String>{...a.keys, ...b.keys}.toList()..sort();
   return <_Row>[
@@ -245,6 +278,7 @@ List<_Row> _judge(
         noise: _max(noiseA[metric] ?? 0, noiseB[metric] ?? 0),
         thresholds: thresholds,
         info: infoOnly?.call(metric) ?? false,
+        higherIsBetter: higherIsBetter?.call(metric) ?? false,
       ),
   ];
 }
@@ -257,6 +291,7 @@ _Row _judgeOne({
   required double noise,
   required PerfThresholds thresholds,
   required bool info,
+  required bool higherIsBetter,
 }) {
   _Row row(_Verdict verdict, double? deltaPct, String? severity) => _Row(
         metric: name,
@@ -269,22 +304,57 @@ _Row _judgeOne({
       );
 
   if (a == 0) {
-    return b == 0
-        ? row(_Verdict.unchanged, 0, null)
+    if (b == 0) return row(_Verdict.unchanged, 0, null);
+    // A rise from zero is the good direction for a higher-is-better metric
+    // (a cold cache that started hitting), never a regression.
+    return higherIsBetter
+        ? row(_Verdict.improved, null, null)
         : row(_Verdict.regressed, null, 'warn');
   }
-  final double deltaPct = _round1((b / a - 1) * 100);
-  if ((b - a).abs() <= noise) return row(_Verdict.unchanged, deltaPct, null);
+  final double rawDeltaPct = _round1((b / a - 1) * 100);
+  if ((b - a).abs() <= noise) {
+    return row(_Verdict.unchanged, rawDeltaPct, null);
+  }
+
+  // A higher-is-better metric is judged against the same thresholds with the
+  // sign flipped: a rise is the improvement, a fall is what regresses. The
+  // percentage reported on the row ([rawDeltaPct]) always reads as "B versus
+  // A", regardless of direction.
+  final double deltaPct = higherIsBetter ? -rawDeltaPct : rawDeltaPct;
   if (deltaPct >= thresholds.errorPct) {
-    return row(_Verdict.regressed, deltaPct, 'error');
+    return row(_Verdict.regressed, rawDeltaPct, 'error');
   }
   if (deltaPct >= thresholds.warnPct) {
-    return row(_Verdict.regressed, deltaPct, 'warn');
+    return row(_Verdict.regressed, rawDeltaPct, 'warn');
   }
   if (deltaPct <= -thresholds.warnPct) {
-    return row(_Verdict.improved, deltaPct, null);
+    return row(_Verdict.improved, rawDeltaPct, null);
   }
-  return row(_Verdict.unchanged, deltaPct, null);
+  return row(_Verdict.unchanged, rawDeltaPct, null);
+}
+
+/// An info row noting that context value [a] differs from [b] under
+/// [metric] (a scenario name or an environment field), or null when they
+/// agree, including when both are absent.
+///
+/// Never gated: a scenario or environment change explains why every other
+/// row moved, it is not itself a regression or an improvement.
+_Row? _contextRow(String metric, Object? a, Object? b) {
+  if (a == b) return null;
+  return _Row(
+    metric: metric,
+    a: a ?? 'absent',
+    b: b ?? 'absent',
+    deltaPct: null,
+    verdict: _Verdict.unchanged,
+    severity: 'info',
+    info: true,
+  );
+}
+
+Map<String, Object?> _env(Map<String, Object?> run) {
+  final Object? env = run['env'];
+  return env is Map<String, Object?> ? env : const <String, Object?>{};
 }
 
 Future<Map<String, Object?>> _read(String path) async {

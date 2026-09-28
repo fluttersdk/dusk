@@ -16,16 +16,17 @@ import 'extensions/register_dusk_extensions.dart';
 /// ```dart
 /// void main() {
 ///   WidgetsFlutterBinding.ensureInitialized();
-///   if (kDebugMode) {
+///   if (!kReleaseMode) {
 ///     DuskPlugin.install();
 ///   }
-///   runApp(kDebugMode ? RepaintBoundary(child: app) : app);
+///   runApp(!kReleaseMode ? RepaintBoundary(child: app) : app);
 /// }
 /// ```
 ///
-/// V1 compile-time gate is just `kDebugMode` — release builds tree-shake
-/// the entire DuskPlugin branch on every platform (web dart2js, desktop +
-/// mobile dart2native AOT).
+/// The consumer gates with `!kReleaseMode`, so a debug AND a profile build
+/// both carry DuskPlugin (a profile build is what a real perf session runs
+/// against); release builds tree-shake the entire branch on every platform
+/// (web dart2js, desktop + mobile dart2native AOT).
 ///
 /// Extension points:
 /// - [enrichers]: live-read list of snapshot enrichers. Magic registers
