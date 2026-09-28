@@ -69,7 +69,7 @@ Steps: `tap`, `fill` (`text`), `type` (`text`), `press_key` (`key`), `scroll` (`
 
 Setup takes `hot_restart`, `navigate`, `wait_for_text` and `wait_for_network_idle`, and also the gestures `tap`, `fill`, `type`, `press_key`, `wheel`, `drag` and `wait`, written and validated exactly as steps are (targets, `only`, the Chrome-only rule). They run before `perf_begin`, so the path to the measured screen is not measured: navigate to `/monitors`, tap the row `perf-monitor-0000`, then time only the tab switches, rather than baking a seeded id into `navigate: /monitors/<uuid>`. `only` is refused on the four setup verbs, which run everywhere.
 
-A target is resolved on the live screen right before its step, never written as a ref: an `e12` from one run is stale after the next navigate, and the file is rejected if it names one. Exactly one of:
+A target is resolved on the live screen in every repeat, never written as a ref: an `e12` from one run is stale after the next navigate, and the file is rejected if it names one. A target only `wait` steps precede (on the platform the run is on) is resolved before `perf_begin`, a `wheel`'s hover point with it, so the lookup costs the window nothing. Every other target could be created or moved by an earlier step (the `English` option in the overlay a tap opens), so it is resolved inside the window, right before its step, and the run file records that cost. A target not there yet is looked up again every 100 ms for up to 3 s before the run fails with "matched nothing". Exactly one of:
 
 | Target | Resolves through |
 |---|---|
@@ -85,7 +85,11 @@ A target is resolved on the live screen right before its step, never written as 
 <a name="what-one-run-does"></a>
 ## What one run does
 
-Each repeat is one unit: the scenario's setup, `Page.bringToFront` on Chrome, `perf_begin`, the steps, a 300 ms settle (Flutter delivers frame timings in batches of about 100 ms), then `perf_end` with `full=true`. Setup runs before every repeat so each starts from the same state: the controllers are singletons, and a search term left by one repeat would filter every later one.
+Each repeat is one unit: the scenario's setup, `Page.bringToFront` on Chrome, the targets that can be resolved early, `perf_begin`, the steps, a 300 ms settle (Flutter delivers frame timings in batches of about 100 ms), then `perf_end` with `full=true`. Setup runs before every repeat so each starts from the same state: the controllers are singletons, and a search term left by one repeat would filter every later one.
+
+A setup `navigate` has to land and stay. An answer of `navigated: false` (the router dropped or redirected the route) fails the run at once with the payload. Otherwise the runner reads `ext.dusk.get_routes`, waits for network idle, and reads it again; a route that moved in between (a first fetch answering 401 redirects to the login screen) fails the run naming both. `get_routes` answers the page's name, not its path, so the two reads are compared with each other rather than with the requested route.
+
+Every setup failure other than a restart's ends with a `Diagnostics:` line: the route `ext.dusk.get_routes` answers, the last setup navigate's payload, and the three newest `ext.dusk.exceptions` entries. A diagnostic call that fails is named in its place.
 
 `hot_restart` is a hot restart on a debug build. A profile build cannot hot restart, so there it is a full relaunch through `artisan restart`, carrying the session's flags; `env.restartMode` says which (`none` when the setup has no restart). Either way the runner reads `ext.dusk.boot_id` first and waits, up to 90 s after a hot restart, until it answers with a different id, which `DuskPlugin.install()` mints on every run of `main()` and registers last. Not a new isolate: on Flutter web DWDS keeps isolate `"1"` across a hot restart, and on the VM the old isolate answers until the new one replaces it. The errors the app answers while it restarts (DWDS's -32603 for an extension not registered yet) are waited out, and the last one is named if the 90 s run out. An app that does not answer `ext.dusk.boot_id` at all runs an older dusk: relaunch it.
 
@@ -120,14 +124,17 @@ Actions are called with `includeSnapshot: false`: a snapshot per step would buil
     "timing": {"repeats": 3, "refused": 0, "ms": {"...": 0}, "spread": {}}
   },
   "insights": [{"id": "I1", "severity": "warn", "title": "...", "...": "..."}],
-  "repeats": [{"series": "attribution", "index": 0, "...": "the full perf_end report"}]
+  "repeats": [{"series": "attribution", "index": 0, "...": "the full perf_end report",
+               "resolves": [{"step": 0, "verb": "tap", "phase": "beforeBegin", "resolveMs": 12.4},
+                            {"step": 2, "verb": "tap", "phase": "inWindow", "resolveMs": 38.1}]}]
 }
 ```
 
 - `perFrame` flattens every count to a name: `blocks.<widget>`, `<wind|magic>.<counter>`, `<wind|magic>.<counter>.<row>`. Gauges such as `wind.cacheSize` are left out. A metric a repeat lacks counts as zero there.
 - `ms` (attribution) is indicative: build profiling inflates every duration. Compare `summary.timing.ms` instead.
 - `insights` come from the repeat whose total per-frame count is the median.
-- `env.host` and `env.renderer` come from the host: `uname`, the CPU and the Impeller backend line of the artisan run log (`impeller-vulkan`), else `unknown`. On web the app itself answers `env.renderer` (`canvaskit` or `skwasm`) through `rendererReader`.
+- `repeats[].resolves` lists each targeted step's lookup: `beforeBegin` outside the window, `inWindow` inside it, where `resolveMs` (retries included) is time the session measured. The semantics pass resolves nothing, so its repeats carry an empty list.
+- `env.host` comes from the host: `uname` and the CPU. `env.renderer` is the app's own answer (`canvaskit` or `skwasm` on web, through `rendererReader`); only when the app answers `unknown` does the runner fall back to the Impeller backend line of the artisan run log (`impeller-vulkan`), else `unknown`.
 
 ---
 

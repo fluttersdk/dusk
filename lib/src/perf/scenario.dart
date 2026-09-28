@@ -112,6 +112,12 @@ enum PerfStepVerb {
   /// Whether the step drives Chrome DevTools, which only the browser has.
   bool get chromeOnly => this == wheel || this == resize;
 
+  /// Whether the step can create, remove or move a widget a later step
+  /// targets: everything that dispatches into the app or changes its layout.
+  /// Only `wait` cannot, so a target behind nothing but waits already exists
+  /// where it will be when its step runs.
+  bool get movesTargets => this != wait;
+
   static PerfStepVerb? tryParse(String wire) {
     for (final PerfStepVerb verb in values) {
       if (verb.wire == wire) return verb;
@@ -169,9 +175,10 @@ final class PerfScenarioException implements Exception {
       'Invalid perf scenario:\n${problems.map((String p) => '- $p').join('\n')}';
 }
 
-/// The widget a step acts on, resolved against the live tree right before
-/// the step runs. Never a ref: an `e<N>` or `q<N>` minted by one run is stale
-/// after the next navigate.
+/// The widget a step acts on, resolved against the live tree in every
+/// repeat: before `perf_begin` when no earlier step can move it
+/// ([PerfStepVerb.movesTargets]), else right before its step. Never a ref:
+/// an `e<N>` or `q<N>` minted by one run is stale after the next navigate.
 final class PerfTarget {
   const PerfTarget({
     required this.kind,

@@ -22,11 +22,33 @@ final class _FakeDriver implements PerfRunDriver {
     this.unresolved = const <String>{},
     this.observed = _kObserved,
     this.waitMisses = 0,
-  }) : perfEnds = perfEnds ?? <Map<String, dynamic>>[];
+    Map<String, int>? findMisses,
+    this.navigateHonoured = true,
+    this.redirectOnIdle,
+    this.exceptions = const <Map<String, dynamic>>[],
+  })  : perfEnds = perfEnds ?? <Map<String, dynamic>>[],
+        findMisses = findMisses ?? <String, int>{};
 
   /// How many `ext.dusk.wait_for` calls answer `matched: false` before the
   /// text shows up.
   int waitMisses;
+
+  /// How many `ext.dusk.find` calls for a text answer no match before the
+  /// text shows up, by text.
+  final Map<String, int> findMisses;
+
+  /// Whether `ext.dusk.navigate` answers `navigated: true`.
+  final bool navigateHonoured;
+
+  /// The route the app moves to once the network goes idle, as an auth
+  /// redirect does after the first fetch answers 401; null stays put.
+  final String? redirectOnIdle;
+
+  /// What `ext.dusk.exceptions` lists, newest first.
+  final List<Map<String, dynamic>> exceptions;
+
+  /// What `ext.dusk.get_routes` answers as the location.
+  String location = '/';
 
   /// The interactive nodes `ext.dusk.observe` lists, as `dusk:snap` shows
   /// them: a role and the merged label.
@@ -55,7 +77,32 @@ final class _FakeDriver implements PerfRunDriver {
   ]) async {
     calls.add((method: method, params: params));
     switch (method) {
+      case 'ext.dusk.navigate':
+        if (!navigateHonoured) {
+          return <String, dynamic>{
+            'navigated': false,
+            'route': params['route'],
+            'reason': 'router did not honor the new route',
+          };
+        }
+        location = params['route']!;
+        return <String, dynamic>{'navigated': true, 'route': location};
+      case 'ext.dusk.get_routes':
+        return <String, dynamic>{'location': location, 'title': ''};
+      case 'ext.dusk.wait_for_network_idle':
+        location = redirectOnIdle ?? location;
+        return <String, dynamic>{'matched': true, 'idleAchievedMs': 500};
+      case 'ext.dusk.exceptions':
+        return <String, dynamic>{
+          'exceptions': exceptions,
+          'count': exceptions.length,
+        };
       case 'ext.dusk.find':
+        final int misses = findMisses[params['text']] ?? 0;
+        if (misses > 0) {
+          findMisses[params['text']!] = misses - 1;
+          return <String, dynamic>{'ref': null, 'matched': false};
+        }
         final bool miss = unresolved.contains(params['text']);
         return <String, dynamic>{
           'ref': miss ? null : 'q1',
@@ -256,6 +303,7 @@ Future<(int, String)> _run(
   Map<String, dynamic> options, {
   PerfPlatform platform = PerfPlatform.chrome,
   String restartMode = 'hot_restart',
+  String renderer = 'unknown',
 }) async {
   final BufferedOutput output = BufferedOutput();
   final DuskPerfRunCommand command = DuskPerfRunCommand(
@@ -266,7 +314,7 @@ Future<(int, String)> _run(
         device: 'chrome',
         restartMode: restartMode,
         host: const <String, Object?>{'uname': 'Darwin 25.0 arm64'},
-        renderer: 'unknown',
+        renderer: renderer,
       ),
     ),
   );
@@ -583,7 +631,9 @@ void main() {
 
       expect(driver.restarts, 3);
       final List<String> m = driver.methods;
-      // Viewport, restart, viewport again, navigate, wait, front, begin.
+      // Viewport, restart, viewport again, navigate and its route check
+      // across network idle, wait, front, then the first step's target,
+      // which nothing before it can move, and begin.
       final int firstBegin = m.indexOf('ext.dusk.perf_begin');
       expect(
         m.sublist(0, firstBegin),
@@ -592,8 +642,12 @@ void main() {
           'restart',
           'cdp:Emulation.setDeviceMetricsOverride',
           'ext.dusk.navigate',
+          'ext.dusk.get_routes',
+          'ext.dusk.wait_for_network_idle',
+          'ext.dusk.get_routes',
           'ext.dusk.wait_for',
           'cdp:Page.bringToFront',
+          'ext.dusk.find',
         ],
       );
       expect(driver.callsTo('cdp:Page.bringToFront'), hasLength(3));
@@ -607,10 +661,11 @@ void main() {
       final List<String> m = driver.methods;
       final int begin = m.indexOf('ext.dusk.perf_begin');
       final int end = m.indexOf('ext.dusk.perf_end');
+      // The tap's target was resolved before begin; the wheel's, which the
+      // tap can move, inside the window.
       expect(
         m.sublist(begin + 1, end),
         <String>[
-          'ext.dusk.find',
           'ext.dusk.tap',
           'ext.dusk.find',
           'ext.dusk.hover',
@@ -745,11 +800,15 @@ repeat: 1
           'restart',
           'cdp:Emulation.setDeviceMetricsOverride',
           'ext.dusk.navigate',
+          'ext.dusk.get_routes',
+          'ext.dusk.wait_for_network_idle',
+          'ext.dusk.get_routes',
           'ext.dusk.wait_for',
           'ext.dusk.find',
           'ext.dusk.tap',
           'pause',
           'cdp:Page.bringToFront',
+          'ext.dusk.find',
         ],
       );
       expect(
@@ -939,6 +998,241 @@ repeat: 1
       // Round 0 runs A then B, round 1 runs B then A: navigate is the first
       // setup call of each unit, so its count tracks the units.
       expect(driver.callsTo('ext.dusk.perf_begin'), hasLength(4));
+    });
+
+    group('setup diagnostics', () {
+      test('a setup navigate answering navigated:false fails with the payload',
+          () async {
+        final _FakeDriver driver = _FakeDriver(navigateHonoured: false);
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 1);
+        expect(out, contains('list-scroll setup[1] (navigate)'));
+        expect(out, contains('"navigated":false'));
+        expect(out, contains('router did not honor the new route'));
+        expect(driver.callsTo('ext.dusk.wait_for'), isEmpty);
+        expect(driver.callsTo('ext.dusk.perf_begin'), isEmpty);
+      });
+
+      test('a route that moves once the network is idle fails naming both',
+          () async {
+        final _FakeDriver driver = _FakeDriver(redirectOnIdle: '/login');
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 1);
+        expect(out, contains('/monitors'));
+        expect(out, contains('/login'));
+        expect(driver.callsTo('ext.dusk.perf_begin'), isEmpty);
+      });
+
+      test(
+          'a setup wait that fails reports the route, the navigate payload '
+          'and the last exceptions', () async {
+        final _FakeDriver driver = _FakeDriver(
+          waitMisses: 1000,
+          exceptions: const <Map<String, dynamic>>[
+            <String, dynamic>{
+              'type': 'FlutterError',
+              'message': 'RenderFlex overflowed by 12 pixels',
+              'time': '2026-09-28T20:00:00.000Z',
+            },
+          ],
+        );
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 1);
+        expect(out, contains('did not appear within'));
+        expect(out, contains('route "/monitors"'));
+        expect(out, contains('"navigated":true'));
+        expect(out, contains('RenderFlex overflowed by 12 pixels'));
+        expect(driver.callsTo('ext.dusk.exceptions'), hasLength(1));
+      });
+
+      test('a setup gesture that matches nothing reports the diagnostics too',
+          () async {
+        await File(scenarioPath).writeAsString(
+          _scenario.replaceFirst(
+            '  - wait_for_text: Monitors\n',
+            '  - wait_for_text: Monitors\n'
+                '  - tap: {target: {text: Gone}}\n',
+          ),
+        );
+        final _FakeDriver driver = _FakeDriver(unresolved: <String>{'Gone'});
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 1);
+        expect(out, contains('route "/monitors"'));
+        expect(out, contains('last exceptions: none'));
+      });
+    });
+
+    group('target resolution', () {
+      test('a target found on the second poll resolves', () async {
+        final _FakeDriver driver = _FakeDriver(
+          findMisses: <String, int>{'List': 1},
+        );
+
+        final (int code, _) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 0);
+        final List<_Call> finds = driver
+            .callsTo('ext.dusk.find')
+            .where((_Call c) => c.params['text'] == 'List')
+            .toList();
+        expect(finds, hasLength(2));
+        expect(driver.callsTo('cdp:Input.dispatchMouseEvent'), hasLength(1));
+      });
+
+      test('a target that never shows up gives up after a bounded wait',
+          () async {
+        final _FakeDriver driver = _FakeDriver(unresolved: <String>{'List'});
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 1);
+        expect(out, contains('matched nothing'));
+        expect(out, contains('3 s'));
+        final int polls = driver
+            .callsTo('ext.dusk.find')
+            .where((_Call c) => c.params['text'] == 'List')
+            .length;
+        expect(polls, greaterThan(1));
+        expect(polls, lessThanOrEqualTo(30));
+      });
+
+      test(
+          'a target an earlier step opens resolves inside the window, just '
+          'before its step, and records resolveMs', () async {
+        // locale-switch-390: the first tap opens the overlay `English` lives
+        // in, so `English` cannot exist before perf_begin.
+        await File(scenarioPath).writeAsString('''
+name: list-scroll
+viewport: {width: 390, height: 844}
+platforms: [chrome]
+steps:
+  - tap: {target: {text: 'Select an option'}}
+  - wait: 300
+  - tap: {target: {text: 'English'}}
+repeat: 1
+''');
+        final _FakeDriver driver = _FakeDriver();
+
+        final (int code, _) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 0);
+        int findOf(String text) => driver.calls.indexWhere(
+              (_Call c) =>
+                  c.method == 'ext.dusk.find' && c.params['text'] == text,
+            );
+        final List<String> m = driver.methods;
+        final int begin = m.indexOf('ext.dusk.perf_begin');
+        final int firstTap = m.indexOf('ext.dusk.tap');
+        final int secondTap = m.lastIndexOf('ext.dusk.tap');
+        expect(findOf('Select an option'), lessThan(begin));
+        expect(findOf('English'), greaterThan(firstTap));
+        expect(findOf('English'), lessThan(secondTap));
+        expect(findOf('English'), greaterThan(begin));
+
+        final Map<String, dynamic> repeat =
+            (readRun('list-scroll', 'base')['repeats'] as List<dynamic>).single
+                as Map<String, dynamic>;
+        final List<dynamic> resolves = repeat['resolves'] as List<dynamic>;
+        expect(
+          resolves
+              .map((dynamic r) => <Object?>[r['step'], r['phase']])
+              .toList(),
+          <List<Object?>>[
+            <Object?>[0, 'beforeBegin'],
+            <Object?>[2, 'inWindow'],
+          ],
+        );
+        for (final dynamic r in resolves) {
+          expect(r['resolveMs'], isA<num>());
+        }
+      });
+
+      test(
+          'a wheel no earlier step can move takes its hover point before begin',
+          () async {
+        await File(scenarioPath).writeAsString('''
+name: list-scroll
+viewport: {width: 1440, height: 900}
+platforms: [chrome]
+steps:
+  - wait: 100
+  - wheel: {target: {text: List}, dy: 120, ticks: 2}
+repeat: 1
+''');
+        final _FakeDriver driver = _FakeDriver();
+
+        final (int code, _) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 0);
+        final List<String> m = driver.methods;
+        final int begin = m.indexOf('ext.dusk.perf_begin');
+        expect(m.indexOf('ext.dusk.find'), lessThan(begin));
+        expect(m.indexOf('ext.dusk.hover'), lessThan(begin));
+        expect(m.lastIndexOf('ext.dusk.hover'), lessThan(begin));
+        final List<_Call> wheels =
+            driver.callsTo('cdp:Input.dispatchMouseEvent');
+        expect(wheels, hasLength(2));
+        expect(wheels.first.params['x'], 11.0);
+      });
+    });
+
+    group('env.renderer', () {
+      test('prefers the renderer the app reported', () async {
+        final Map<String, dynamic> report = _report(painted: 40);
+        (report['env'] as Map<String, dynamic>)['renderer'] = 'canvaskit';
+        final _FakeDriver driver = _FakeDriver(
+          perfEnds: <Map<String, dynamic>>[report],
+        );
+
+        await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+          renderer: 'impeller-vulkan',
+        );
+
+        expect(
+          (readRun('list-scroll', 'base')['env']
+              as Map<String, dynamic>)['renderer'],
+          'canvaskit',
+        );
+      });
+
+      test('falls back to the host scrape when the app answers unknown',
+          () async {
+        final Map<String, dynamic> report = _report(painted: 40);
+        (report['env'] as Map<String, dynamic>)['renderer'] = 'unknown';
+        final _FakeDriver driver = _FakeDriver(
+          perfEnds: <Map<String, dynamic>>[report],
+        );
+
+        await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+          renderer: 'impeller-vulkan',
+        );
+
+        expect(
+          (readRun('list-scroll', 'base')['env']
+              as Map<String, dynamic>)['renderer'],
+          'impeller-vulkan',
+        );
+      });
     });
 
     group('--semantics-pass', () {

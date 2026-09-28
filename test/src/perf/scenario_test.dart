@@ -419,6 +419,17 @@ steps:
     });
   });
 
+  group('PerfStepVerb', () {
+    group('.movesTargets', () {
+      test('only a wait leaves every later target where it was', () {
+        expect(
+          PerfStepVerb.values.where((PerfStepVerb v) => !v.movesTargets),
+          <PerfStepVerb>[PerfStepVerb.wait],
+        );
+      });
+    });
+  });
+
   group('isSafePerfName()', () {
     test('accepts lowercase, digits, underscore and hyphen only', () {
       expect(isSafePerfName('before_fix-2'), isTrue);
