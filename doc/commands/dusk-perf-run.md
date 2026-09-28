@@ -112,7 +112,7 @@ Actions are called with `includeSnapshot: false`: a snapshot per step would buil
           "renderer": "unknown"},
   "summary": {
     "repeats": 3, "refused": 0,
-    "frames": {"painted": 42, "dropped": 0, "overBudget": 1},
+    "frames": {"count": 42, "painted": 42, "dropped": 0, "overBudget": 1},
     "perFrame": {"blocks.MonitorRow": 2.2, "wind.wDivBuilds": 31.4},
     "ms": {"buildMs.p50": 4.1, "buildMs.p90": 8.3, "rasterMs.p50": 3.0},
     "spread": {"perFrame": {"blocks.MonitorRow": {"min": 2.0, "max": 3.0, "rangePct": 45.5}},

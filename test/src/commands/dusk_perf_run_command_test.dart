@@ -358,6 +358,11 @@ void main() {
       expect(summary['refused'], 1);
       expect((summary['frames']! as Map<String, Object?>)['painted'], 42);
       expect(
+        (summary['frames']! as Map<String, Object?>)['count'],
+        42,
+        reason: 'same key as a single perf_end report, so one reader fits both',
+      );
+      expect(
         (summary['perFrame']! as Map<String, Object?>)['blocks.MonitorRow'],
         2.2,
       );

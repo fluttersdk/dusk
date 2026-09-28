@@ -478,7 +478,12 @@ Map<String, Object?> summarizePerfSeries(List<Map<String, dynamic>> reports) {
 
   // 1. Frame counts, informational: the gate never reads them raw.
   summary['frames'] = <String, Object?>{
-    for (final String key in const <String>['painted', 'dropped', 'overBudget'])
+    for (final String key in const <String>[
+      'count',
+      'painted',
+      'dropped',
+      'overBudget',
+    ])
       key: _plain(
         perfMedian(<num>[
           for (final Map<String, dynamic> r in measured)
