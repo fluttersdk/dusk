@@ -3,19 +3,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluttersdk_dusk/src/utils/perf_readers.dart';
 
 void main() {
+  // Captured before any test assigns them, so tearDown restores the real
+  // defaults rather than a copy that drifts from them.
+  final Map<String, Object?> Function() defaultFramePerf = framePerfReader;
+  final Map<String, Object?> Function() defaultExtras = perfExtrasReader;
+  final void Function() defaultBegin = perfSessionBeginHook;
+  final void Function() defaultEnd = perfSessionEndHook;
+
   tearDown(() {
-    // Restore every pointer to its no-op default so a leaked assignment
-    // does not poison the next test file that reads these globals.
-    framePerfReader = () => <String, Object?>{
-          'frames': <Map<String, Object?>>[],
-          'livenessCounter': 0,
-        };
-    perfExtrasReader = () => <String, Object?>{
-          'controllerNotifies': <String, int>{},
-          'routeTransitions': <Map<String, Object?>>[],
-        };
-    perfSessionBeginHook = () {};
-    perfSessionEndHook = () {};
+    framePerfReader = defaultFramePerf;
+    perfExtrasReader = defaultExtras;
+    perfSessionBeginHook = defaultBegin;
+    perfSessionEndHook = defaultEnd;
   });
 
   group('framePerfReader default', () {
@@ -29,11 +28,29 @@ void main() {
   });
 
   group('perfExtrasReader default', () {
-    test('returns empty structures for both keys, not null', () {
+    test('returns an empty structure for every documented key, not null', () {
       final Map<String, Object?> result = perfExtrasReader();
 
+      expect(result.keys.toSet(), <String>{
+        'controllerNotifies',
+        'notifyCauses',
+        'queryReloads',
+        'actions',
+        'events',
+        'casts',
+        'timerTicks',
+        'broadcasts',
+        'routeTransitions',
+      });
       expect(result['controllerNotifies'], <String, int>{});
+      expect(result['broadcasts'], <String, int>{});
       expect(result['routeTransitions'], <Map<String, Object?>>[]);
+    });
+  });
+
+  group('perfInsightContributors default', () {
+    test('is an empty list, so a host without magic_devtools adds nothing', () {
+      expect(perfInsightContributors, isEmpty);
     });
   });
 

@@ -1,7 +1,7 @@
 # Dusk MCP Tool Reference
 
 Per-tool input schema, return shape, and example payload for every `dusk_*` MCP tool
-contributed by `DuskArtisanProvider`. 35 tools total: 32 dispatch through `ext.dusk.*` VM
+contributed by `DuskArtisanProvider`. 36 tools total: 33 dispatch through `ext.dusk.*` VM
 Service extensions and 3 (`dusk_hot_reload_and_snap`, `dusk_resize_viewport`,
 `dusk_device_profile`) route through the `artisan:dusk:*` substrate path to a CLI command
 because the orchestration cannot run inside the target isolate.
@@ -75,6 +75,7 @@ story survived two rewrites of the widget before anyone read the field back.
 - [`dusk_observe`](#dusk_observe)
 - [`dusk_perf_begin`](#dusk_perf_begin)
 - [`dusk_perf_end`](#dusk_perf_end)
+- [`dusk_perf_insight`](#dusk_perf_insight)
 - [`dusk_press_key`](#dusk_press_key)
 - [`dusk_reset_overlays`](#dusk_reset_overlays)
 - [`dusk_resize_viewport`](#dusk_resize_viewport)
@@ -667,30 +668,36 @@ default.
 Dispatch: `ext.dusk.perf_begin`
 
 Open a performance measurement session around an interaction you are about to
-drive. Switches `FlutterTimeline` collection and Flutter's build profiling on,
-zeroes the frame buffer and wind's counters, and records the liveness baseline
-`dusk_perf_end` judges the run against. The instrumentation costs real time, so
-keep the session tight: begin, drive one interaction, end.
+drive. Zeroes the frame buffer and the wind and magic counters and records the
+liveness baseline `dusk_perf_end` judges the run against. In `attribution` mode
+it also switches `FlutterTimeline` collection and Flutter's build profiling on;
+that instrumentation costs real time, so keep the session tight: begin, drive
+one interaction, end.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `phases` | boolean | no | Also profile layout and paint, not just builds. Default `false`; the span volume multiplies. |
+| `mode` | string | no | `attribution` (default): blocks by self time, counts per painted frame, wind and magic counters, insights. `timing`: no profiling flag is touched and the report carries frame timings only. |
+| `phases` | boolean | no | Also profile layout and paint, not just builds. Default `false`; the span volume multiplies. Rejected with `mode: "timing"`. |
 
 ### Returns
 
-Success: `{ sessionToken: "perf-1", phases: bool, livenessBaseline: <int>,
-restartedPreviousSession: bool }`.
+Success: `{ sessionToken: "perf-1", mode: "attribution", phases: bool,
+livenessBaseline: <int>, restartedPreviousSession: bool }`.
 
-A begin on an already-open session RESTARTS it rather than failing, restoring
-the previous session's flags before saving the current ones, so a `perf_end`
-that never landed cannot strand the profiling flags on.
+An unknown `mode`, or `phases` with `timing`, is an `invalidParams` error and
+opens nothing. A begin on an already-open session RESTARTS it rather than
+failing, restoring the previous session's flags before saving the current ones,
+so a `perf_end` that never landed cannot strand the profiling flags on.
+
+Attribution milliseconds are inflated by the profiling. Rank by them; compare
+milliseconds only between `timing` sessions.
 
 ### Example call
 
 ```json
-{ "name": "dusk_perf_begin", "arguments": { "phases": true } }
+{ "name": "dusk_perf_begin", "arguments": { "mode": "timing" } }
 ```
 
 ---
@@ -699,10 +706,9 @@ that never landed cannot strand the profiling flags on.
 
 Dispatch: `ext.dusk.perf_end`
 
-Close the session and read the attribution: which widget and RenderObject types
-ran, how often and for how long, next to wind's cache hit/miss/bypass counters
-and magic's controller-notify counts. Restores every profiling flag to the value
-it had BEFORE the session, not to `false`.
+Close the session and read a bounded report (about 6 KB at most) with ranked
+insights. Restores every profiling flag to the value it had BEFORE the session,
+not to `false`.
 
 ### Input schema
 
@@ -711,35 +717,100 @@ a typed error rather than an empty report.
 
 ### Returns
 
-Success: `{ sessionToken, refused: false, phases, liveness: {baseline, final,
-advanced}, coverage, frameSummary, blockAttribution, wind, magic, note }`.
-`coverage` is `{framesDrawn, framesSummarized, complete}` plus a `detail` string
-when incomplete. Flutter batches `onReportTimings`, so a session can close
-before the last frames' timings arrive; when `complete` is `false` the summary
-and the attribution describe a SUBSET, and an empty attribution then means "not
-reported" rather than "nothing was slow". Read it before the numbers.
-`frameSummary` uses `flutter_driver`'s metric-name strings verbatim (average /
-90th / 99th / worst build and rasterizer millis, missed-budget counts) plus a
-`dropped_frame_count` derived from gaps in the frame-number sequence.
-`blockAttribution` ranks blocks across the whole session as
-`{name, micros, count, frames}`. `wind` is `null` when no wind perf resolver
-registered, which is a different finding from a wind section of zeros.
+Success: `{ sessionToken, refused: false, mode, env, coverage, summary,
+counters, insights, omitted }`. Every duration is in milliseconds; every count
+is given raw and per painted frame.
 
-Check `refused` FIRST. When the liveness counter did not advance, the engine
-rendered nothing, the response carries NO metrics block at all, and the reason
+- `env`: `{platform, isWeb, buildMode, semanticsEnabled, phases}`, read in the
+  app. `buildMode` comes from `kProfileMode` / `kDebugMode`; `semanticsEnabled`
+  is `true` whenever dusk is installed, because dusk holds a semantics handle
+  for the whole process.
+- `coverage`: `{framesDrawn, framesSummarized, complete, missing}`.
+  `framesDrawn` is the liveness counter's advance; `framesSummarized` counts
+  the frame records Flutter delivered, which it batches, so a session can close
+  before the last arrive. `missing` names sources never read: `wind` (no perf
+  resolver, so `counters.wind` is `null`, not zeros), `blocks` (profiling was
+  on and no frame carried a block map), `blockSelfTime` (blocks without
+  `selfMicros`). Read it before the numbers.
+- `summary`: `{durationMs, budgetMs: 16.7, frames, blocksBySelf,
+  blocksByCount, routeTransitions}`. `frames` is `{count, painted, dropped,
+  overBudget, overBudgetBuild, overBudgetRaster, buildMs, rasterMs}`, the last
+  two as `{p50, p90, p99, worst}`; `dropped` comes from `frameNumber` gaps and
+  `count` is `painted + dropped`. `blocksBySelf` is `[{name, selfMs, frames}]`
+  ranked by EXCLUSIVE time (a parent's inclusive time contains its children's,
+  so ranking by it blames the parent); `blocksByCount` is `[{name, count,
+  perFrame}]`. Both keep the top 10. `timing` mode carries `durationMs`,
+  `budgetMs` and `frames` only.
+- `counters`: `{columns: ["name", "count", "perFrame"], wind, magic}`, `null`
+  in `timing` mode. A scalar counter is `{count, perFrame}` (`cacheSize` is a
+  gauge and stays bare); a breakdown (`widgetBuilds`, `controllerNotifies`,
+  ...) is its top 3 as positional rows in `columns` order.
+- `insights`: at most 6, sorted by severity then `estimatedSavingsMs`, each
+  `{id, severity, title, evidence: {metric, value, perFrame, threshold},
+  estimatedSavingsMs?, nextStep}`. Ids (`I1`, `I2`, ...) are assigned before
+  the sort and the cut. Built-in rules, with the thresholds each states in its
+  evidence: `framesOverBudget` (slower thread past 16.7ms; `error` past a 0.1
+  share), `framesDropped` (a `frameNumber` step of 2 or more; `error` past a
+  0.1 share), `blockSelfMs` (one block owning at least 0.3 of all self time and
+  1ms per painted frame; `error` past 8.35ms per frame), `blockCountPerFrame`
+  (at least 20 runs per painted frame and 10 times the median block),
+  `framesUnreported` / `sourcesMissing` (coverage). The host may add rules
+  through `perfInsightContributors`; a contributor that throws becomes a
+  `warn` insight named `contributorErrors`.
+- `omitted`: how many entries each ranked list cut, keyed by list
+  (`blocksBySelf`, `blocksByCount`, `routeTransitions`, `insights`,
+  `wind.widgetBuilds`, `magic.controllerNotifies`, ...).
+
+Refusal: `{ sessionToken, refused: true, mode, coverage: {framesDrawn,
+livenessBaseline, livenessFinal, complete: false}, reason }`.
+
+Check `refused` FIRST. When the liveness counter advanced by 1 or less, the
+engine rendered nothing, the response carries NO metrics at all, and the reason
 says so. A zero report would have read as "fast"; that is the reading a live
 probe produced three times against a tab that was merely behind another window.
 The liveness counter is the authority rather than the `warnings` block on the
 same response, because `SchedulerBinding.framesEnabled` was measured reporting
 `true` on a hidden page.
 
-Treat per-type millisecond values as indicative, not as facts about production;
-the payload's own `note` says why.
-
 ### Example call
 
 ```json
 { "name": "dusk_perf_end", "arguments": {} }
+```
+
+---
+
+## dusk_perf_insight
+
+Dispatch: `ext.dusk.perf_insight`
+
+Drill into one insight of the report `dusk_perf_end` last returned. Only the
+most recent closed session is kept.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes | Insight id (`I<n>`) from `insights[]`. One counted in `omitted.insights` is drillable too. |
+| `token` | string | no | The report's `sessionToken`; a token naming any other session is refused. |
+
+### Returns
+
+Success: `{ sessionToken, id, severity, title, summary, detail,
+estimatedSavingsMs, nextStep }`. `detail` holds the rows behind the insight:
+`worstFrames` (each `{frameNumber, buildMs, rasterMs, blocks: [{name, selfMs,
+count}]}`) for the budget rule, `gaps` (`{after, next, missing}`) for dropped
+frames, the block and the frames where it weighed most for the block rules,
+and the coverage map for a coverage insight.
+
+Errors, each naming what to read instead: no `id` (`invalidParams`), no closed
+session, a stale token, a refused session, and an id the session never issued,
+which points at `perf_end`'s `insights[]`.
+
+### Example call
+
+```json
+{ "name": "dusk_perf_insight", "arguments": { "id": "I1", "token": "perf-3" } }
 ```
 
 ---

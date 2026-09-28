@@ -41,6 +41,7 @@ void main() {
     'dusk:wait_for_network_idle',
     'dusk:perf_begin',
     'dusk:perf_end',
+    'dusk:perf_insight',
   };
 
   group('DuskArtisanProvider --json surface', () {

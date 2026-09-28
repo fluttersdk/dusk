@@ -1,4 +1,4 @@
-/// Four settable cross-package pointers that let dusk read and reset perf
+/// Five settable cross-package pointers that let dusk read and reset perf
 /// state in packages it cannot depend on (frozen contract #10 limits dusk to
 /// `fluttersdk_artisan`, `image`, `meta`, `fluttersdk_wind_diagnostics_contracts`;
 /// it must not import telescope, wind or magic).
@@ -38,26 +38,42 @@ Map<String, Object?> Function() framePerfReader = () => <String, Object?>{
       'livenessCounter': 0,
     };
 
-/// Reader for the magic-side performance extras: controller notify counts
-/// keyed by controller runtime type, and route-transition timings.
+/// Reader for the magic-side performance extras, the source of the report's
+/// `counters.magic` and `summary.routeTransitions`.
 ///
-/// Defaults to a function returning empty structures for both keys.
-///
-/// Hosts wire the real source by writing:
-///
-/// ```dart
-/// perfExtrasReader = () => {
-///   'controllerNotifies': MagicPerfIntegration.controllerNotifyCounts,
-///   'routeTransitions': MagicPerfIntegration.routeTransitions,
-/// };
-/// ```
+/// Defaults to a function returning an empty structure for every key, so a
+/// host without the perf integration wired gets a valid, empty section.
 ///
 /// **Contract**: set-once-per-isolate from `MagicPerfIntegration.install()`.
-/// Reset to this no-op default by `MagicPerfIntegration.resetForTesting()`.
-/// Returns exactly
-/// `{'controllerNotifies': Map<String, int>, 'routeTransitions': List<Map<String, Object?>>}`.
+/// Reset to this default by `MagicPerfIntegration.resetForTesting()`. The key
+/// set, every map a count since `perfSessionBeginHook` last ran:
+///
+/// - `controllerNotifies`: `Map<String, int>`, controller runtime type to
+///   notifies.
+/// - `notifyCauses`: `Map<String, int>`, notify cause to notifies.
+/// - `queryReloads`: `Map<String, int>`, query to reloads.
+/// - `actions`: `Map<String, int>`, action type to runs.
+/// - `events`: `Map<String, int>`, event type to dispatches.
+/// - `casts`: `Map<String, int>`, cast type to applications.
+/// - `timerTicks`: `Map<String, int>`, timer owner to ticks.
+/// - `broadcasts`: `Map<String, int>`, broadcast event to deliveries.
+/// - `routeTransitions`: `List<Map<String, Object?>>` of
+///   `{route, durationMicros, time}`.
+///
+/// Every `Map<String, int>` is reported raw and per painted frame, ranked and
+/// cut to the head with the cut counted in `omitted`; a numeric value is
+/// reported raw and per painted frame; any other key is ignored rather than
+/// failing the report, so a key added here before dusk ships support for it
+/// costs nothing.
 Map<String, Object?> Function() perfExtrasReader = () => <String, Object?>{
       'controllerNotifies': <String, int>{},
+      'notifyCauses': <String, int>{},
+      'queryReloads': <String, int>{},
+      'actions': <String, int>{},
+      'events': <String, int>{},
+      'casts': <String, int>{},
+      'timerTicks': <String, int>{},
+      'broadcasts': <String, int>{},
       'routeTransitions': <Map<String, Object?>>[],
     };
 
@@ -120,3 +136,27 @@ void Function() perfSessionBeginHook = () {};
 /// **Contract**: set-once-per-isolate from `MagicPerfIntegration.install()`.
 /// Reset to this no-op default by `MagicPerfIntegration.resetForTesting()`.
 void Function() perfSessionEndHook = () {};
+
+/// Insight rules contributed by the host, run by `ext.dusk.perf_end`'s
+/// insight engine after its built-in rules.
+///
+/// dusk owns the rules it can judge from frames alone (budget, drops, a
+/// dominant self-time block, a count outlier, coverage). Rules that need to
+/// know what a wind counter or a magic notify MEANS belong to the package that
+/// can see both, `magic_devtools`, which appends to this list.
+///
+/// Each contributor receives the report as built so far (every key except
+/// `insights`) and returns zero or more insights shaped
+/// `{severity: 'info'|'warn'|'error', title, evidence: {metric, value,
+/// perFrame, threshold}, nextStep, estimatedSavingsMs?, summary?, detail?}`.
+/// The engine assigns the `id`; `summary` and `detail` stay behind
+/// `ext.dusk.perf_insight` rather than inflating the report. A contributor
+/// that throws, or returns an insight missing a required key, costs its own
+/// insights and becomes one `warn` insight naming it; the report still
+/// returns.
+///
+/// **Contract**: appended once per isolate from `MagicPerfIntegration.install()`,
+/// cleared by `MagicPerfIntegration.resetForTesting()`. Defaults to empty.
+List<List<Map<String, Object?>> Function(Map<String, Object?> report)>
+    perfInsightContributors =
+    <List<Map<String, Object?>> Function(Map<String, Object?> report)>[];

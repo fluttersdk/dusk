@@ -10,8 +10,10 @@
 ///   point (Magic ships MagicFormEnricher via this). Wind diagnostics
 ///   flow through `fluttersdk_wind_diagnostics_contracts.WindDebugRegistry` instead
 ///   (registered by `Wind.installDebugResolver()`).
-/// - [DuskArtisanProvider]: registers 32 dusk:* commands + 31 MCP tool
+/// - [DuskArtisanProvider]: registers 37 dusk:* commands + 36 MCP tool
 ///   descriptors into artisan.
+/// - [buildPerfReport]: the pure builder behind `ext.dusk.perf_end`, callable
+///   from a host's conformance test with the same maps the extension reads.
 library;
 
 export 'src/dusk_artisan_provider.dart';
@@ -23,9 +25,11 @@ export 'src/extensions/ext_console.dart' show recentLogsReader;
 export 'src/extensions/ext_exceptions.dart' show recentExceptionsReader;
 export 'src/extensions/ext_wait_find.dart' show pendingHttpCountReader;
 export 'src/ref_registry.dart';
+export 'src/utils/perf_insights.dart' show PerfMode, buildPerfReport;
 export 'src/utils/perf_readers.dart'
     show
         framePerfReader,
         perfExtrasReader,
+        perfInsightContributors,
         perfSessionBeginHook,
         perfSessionEndHook;

@@ -49,11 +49,13 @@ import 'ext_wait_find.dart';
 /// - `ext.dusk.dblclick` is registered INSIDE [registerPointerExtensions].
 /// - [registerCheckboxExtensions]: ext.dusk.set_checkbox — checkbox setter.
 ///
-/// Perf pair:
+/// Perf trio:
 /// - [registerPerfExtensions]: ext.dusk.perf_begin / ext.dusk.perf_end, the
-///   measurement session that switches Flutter's profiling flags on, reads
-///   the frame, wind and magic counters back through the pointers in
-///   `lib/src/utils/perf_readers.dart`, and restores every flag afterwards.
+///   measurement session that switches Flutter's profiling flags on (or, in
+///   timing mode, touches none), reads the frame, wind and magic counters back
+///   through the pointers in `lib/src/utils/perf_readers.dart`, reports ranked
+///   insights and restores every flag afterwards; plus ext.dusk.perf_insight,
+///   the drill-down into one of those insights.
 void registerAllDuskExtensions() {
   registerSnapExtension();
   registerPointerExtensions();

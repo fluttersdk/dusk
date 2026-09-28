@@ -61,7 +61,9 @@ import '../utils/error_envelope.dart';
 /// ```
 
 void registerSnapExtension() {
-  if (!kDebugMode) return;
+  // Profile builds carry it so a profile-mode perf session can still be
+  // driven; release tree-shakes it.
+  if (kReleaseMode) return;
   registerExtensionIdempotent('ext.dusk.snap', duskSnapHandler);
 }
 

@@ -13,8 +13,8 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 36 commands', () {
-      expect(cmds, hasLength(36));
+    test('returns exactly 37 commands', () {
+      expect(cmds, hasLength(37));
     });
 
     test(
@@ -66,6 +66,7 @@ void main() {
           // Perf session pair.
           'DuskPerfBeginCommand',
           'DuskPerfEndCommand',
+          'DuskPerfInsightCommand',
         ]),
       );
     });
@@ -82,8 +83,8 @@ void main() {
     // Length
     // -------------------------------------------------------------------------
 
-    test('returns exactly 35 descriptors', () {
-      expect(tools, hasLength(35));
+    test('returns exactly 36 descriptors', () {
+      expect(tools, hasLength(36));
     });
 
     // -------------------------------------------------------------------------
@@ -135,6 +136,7 @@ void main() {
           // Perf session pair.
           'dusk_perf_begin',
           'dusk_perf_end',
+          'dusk_perf_insight',
         ]),
       );
     });
@@ -214,6 +216,25 @@ void main() {
       // Perf session pair.
       expect(byName['dusk_perf_begin'], equals('ext.dusk.perf_begin'));
       expect(byName['dusk_perf_end'], equals('ext.dusk.perf_end'));
+      expect(byName['dusk_perf_insight'], equals('ext.dusk.perf_insight'));
+    });
+
+    test('dusk_perf_begin declares mode as an attribution|timing enum', () {
+      final begin = tools.firstWhere((t) => t.name == 'dusk_perf_begin');
+      final properties =
+          begin.inputSchema['properties'] as Map<String, dynamic>;
+      expect(
+        (properties['mode'] as Map<String, dynamic>)['enum'],
+        <String>['attribution', 'timing'],
+      );
+    });
+
+    test('dusk_perf_insight requires id and takes an optional token', () {
+      final insight = tools.firstWhere((t) => t.name == 'dusk_perf_insight');
+      expect(insight.inputSchema['required'], <String>['id']);
+      final properties =
+          insight.inputSchema['properties'] as Map<String, dynamic>;
+      expect(properties.keys, containsAll(<String>['id', 'token']));
     });
 
     test('dusk_perf_begin declares the phases flag and requires nothing', () {

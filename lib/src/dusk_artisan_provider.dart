@@ -24,6 +24,7 @@ import 'commands/dusk_navigate_command.dart';
 import 'commands/dusk_observe_command.dart';
 import 'commands/dusk_perf_begin_command.dart';
 import 'commands/dusk_perf_end_command.dart';
+import 'commands/dusk_perf_insight_command.dart';
 import 'commands/dusk_press_key_command.dart';
 import 'commands/dusk_reset_overlays_command.dart';
 import 'commands/dusk_resize_command.dart';
@@ -130,6 +131,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         // driven interaction.
         DuskPerfBeginCommand(),
         DuskPerfEndCommand(),
+        DuskPerfInsightCommand(),
       ];
 
   @override
@@ -1659,29 +1661,38 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           description: 'Open a performance measurement session around an '
               'interaction you are about to drive.\n'
               '\n'
-              'Switches Flutter\'s build profiling on, zeroes the frame '
-              'buffer and the wind counters, and records the liveness '
-              'baseline the report is judged against. Nothing is measured '
-              'until you call this, and the instrumentation costs real time, '
-              'so keep the session tight: begin, drive one interaction, end. '
-              'Pair every call with dusk_perf_end, which is what turns the '
-              'profiling back off.\n'
+              'Zeroes the frame buffer and the wind and magic counters and '
+              'records the liveness baseline the report is judged against. '
+              'In attribution mode it also switches Flutter\'s build '
+              'profiling on, which costs real time, so keep the session '
+              'tight: begin, drive one interaction, end. Pair every call with '
+              'dusk_perf_end, which puts every flag back.\n'
               '\n'
               'Usage:\n'
-              '- Call with no params for build attribution.\n'
-              '- Set phases=true to also profile layout and paint; the span '
-              'volume multiplies, so reach for it when builds alone did not '
-              'explain the cost.\n'
-              '- Returns `{sessionToken, phases, livenessBaseline, '
+              '- Call with no params for attribution: blocks by self time, '
+              'counts per painted frame, wind and magic counters, insights.\n'
+              '- Set mode="timing" for a pass whose milliseconds are worth '
+              'comparing: no profiling flag is touched and the report carries '
+              'frame timings only.\n'
+              '- Set phases=true (attribution only) to also profile layout '
+              'and paint when builds alone did not explain the cost.\n'
+              '- Returns `{sessionToken, mode, phases, livenessBaseline, '
               'restartedPreviousSession}`. A begin on an already-open session '
               'restarts it rather than failing.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{
+              'mode': <String, dynamic>{
+                'type': 'string',
+                'enum': <String>['attribution', 'timing'],
+                'description': 'attribution (default) profiles builds; '
+                    'timing touches no profiling flag and reports frame '
+                    'timings only.',
+              },
               'phases': <String, dynamic>{
                 'type': 'boolean',
                 'description': 'Also profile layout and paint, not just '
-                    'builds (optional; default false).',
+                    'builds (optional; default false; attribution only).',
               },
             },
           },
@@ -1692,30 +1703,75 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         // -------------------------------------------------------------------
         McpToolDescriptor(
           name: 'dusk_perf_end',
-          description: 'Close the performance session and read the '
-              'attribution: which widget types ran, how often, and for how '
-              'long.\n'
+          description: 'Close the performance session and read a bounded '
+              'report with ranked insights.\n'
               '\n'
-              'Returns the frame summary under Flutter\'s own metric names '
-              '(average / 90th / 99th / worst build and rasterizer millis, '
-              'missed-budget counts, dropped frames), the session-wide block '
-              'ranking, wind\'s cache hit/miss/bypass counters and the magic '
-              'controller-notify counts. Restores every profiling flag to the '
-              'value it had before the session.\n'
+              'Returns `{sessionToken, refused, mode, env, coverage, summary, '
+              'counters, insights, omitted}`, about 6 KB at most. Every '
+              'duration is in ms and every count is given raw and per '
+              'painted frame. `summary` carries frame percentiles against a '
+              'stated budgetMs of 16.7, dropped frames, and blocks ranked by '
+              'SELF time and by count per painted frame. `insights` are '
+              'sorted by severity then estimatedSavingsMs; each has an id, '
+              'severity, title, evidence {metric, value, perFrame, threshold} '
+              'and nextStep. Restores every profiling flag.\n'
               '\n'
               'Usage:\n'
               '- No parameters. Requires a prior dusk_perf_begin.\n'
-              '- Check `refused` FIRST. When the liveness counter did not '
-              'advance, the engine rendered nothing, the response carries no '
-              'metrics at all, and a zero report would have read as "fast". A '
+              '- Check `refused` FIRST. When the liveness counter advanced by '
+              '1 or less the engine rendered nothing, the response carries no '
+              'metrics, and a zero report would have read as "fast". A '
               'backgrounded browser tab is the usual cause.\n'
-              '- Treat per-type millisecond values as indicative, not as '
-              'facts about production; the payload\'s own `note` says why.',
+              '- Read `coverage.complete` and `coverage.missing` before the '
+              'numbers: a subset or a missing source is not "nothing slow".\n'
+              '- Call dusk_perf_insight with an insight id for the rows '
+              'behind it; `omitted` counts what the report cut.\n'
+              '- Attribution milliseconds are inflated by the profiling; '
+              'compare milliseconds only across mode="timing" sessions.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{},
           },
           extensionMethod: 'ext.dusk.perf_end',
+        ),
+        // -------------------------------------------------------------------
+        // 31. Perf insight: drill into one insight of the last report.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_perf_insight',
+          description: 'Drill into one insight of the report dusk_perf_end '
+              'last returned.\n'
+              '\n'
+              'Returns `{sessionToken, id, severity, title, summary, detail, '
+              'estimatedSavingsMs, nextStep}`. `detail` holds the raw rows '
+              'behind the insight: the worst frames with their self-time '
+              'blocks, the frame-number gaps, the frames where a block '
+              'weighed most, or what a coverage gap left out. Only the most '
+              'recent closed session is kept.\n'
+              '\n'
+              'Usage:\n'
+              '- Pass id="I2" from the insights[] list of dusk_perf_end. Ids '
+              'are assigned before the list is cut, so one counted in '
+              'omitted.insights is drillable too.\n'
+              '- Pass token (the report\'s sessionToken) to guard against '
+              'reading a newer session than the report you hold.\n'
+              '- An unknown id, a stale token or a refused session returns an '
+              'error naming what to read instead.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'id': <String, dynamic>{
+                'type': 'string',
+                'description': 'Insight id (I<n>) from dusk_perf_end.',
+              },
+              'token': <String, dynamic>{
+                'type': 'string',
+                'description': 'sessionToken of that report (optional).',
+              },
+            },
+            'required': <String>['id'],
+          },
+          extensionMethod: 'ext.dusk.perf_insight',
         ),
       ];
 }

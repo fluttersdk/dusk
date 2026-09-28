@@ -42,8 +42,12 @@ Map<String, Object?> _frame({
       'blocks': blocks,
     };
 
-Map<String, Object?> _block(int micros, int count) =>
-    <String, Object?>{'micros': micros, 'count': count};
+Map<String, Object?> _block(int micros, int count, {int? selfMicros}) =>
+    <String, Object?>{
+      'micros': micros,
+      'selfMicros': selfMicros ?? micros,
+      'count': count,
+    };
 
 /// The two-frame fixture every payload-shape test reads.
 final List<Map<String, Object?>> _fixtureFrames = <Map<String, Object?>>[
@@ -65,6 +69,16 @@ final List<Map<String, Object?>> _fixtureFrames = <Map<String, Object?>>[
       'WDiv': _block(300, 2),
     },
   ),
+];
+
+/// The pre-redesign top-level keys; none may survive as an alias.
+const List<String> _oldKeys = <String>[
+  'frameSummary',
+  'blockAttribution',
+  'note',
+  'wind',
+  'magic',
+  'liveness',
 ];
 
 /// Decodes a success payload, reporting the error detail rather than
@@ -93,7 +107,10 @@ void main() {
         };
     perfSessionBeginHook = () {};
     perfSessionEndHook = () {};
+    perfInsightContributors =
+        <List<Map<String, Object?>> Function(Map<String, Object?>)>[];
     WindDebugRegistry.resetForTesting();
+    resetClosedPerfSessionForTesting();
   });
 
   tearDown(() {
@@ -109,7 +126,7 @@ void main() {
   });
 
   group('registerPerfExtensions()', () {
-    test('registers both verbs and is safe to call twice', () {
+    test('registers the three verbs and is safe to call twice', () {
       expect(registerPerfExtensions, returnsNormally);
       expect(registerPerfExtensions, returnsNormally);
     });
@@ -150,6 +167,59 @@ void main() {
       expect(payload['phases'], isTrue);
       expect(debugProfileLayoutsEnabled, isTrue);
       expect(debugProfilePaintsEnabled, isTrue);
+    });
+
+    test('mode defaults to attribution and is echoed back', () async {
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{}),
+      );
+
+      expect(payload['mode'], 'attribution');
+    });
+
+    test('mode=timing flips no debugProfile flag and no collection flag',
+        () async {
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfBeginHandler(
+          'ext.dusk.perf_begin',
+          <String, String>{'mode': 'timing'},
+        ),
+      );
+
+      expect(payload['mode'], 'timing');
+      expect(FlutterTimeline.debugCollectionEnabled, isFalse);
+      expect(debugProfileBuildsEnabled, isFalse);
+      expect(debugProfileBuildsEnabledUserWidgets, isFalse);
+      expect(debugProfileLayoutsEnabled, isFalse);
+      expect(debugProfilePaintsEnabled, isFalse);
+    });
+
+    test('an unknown mode is rejected as invalid params, opening nothing',
+        () async {
+      final developer.ServiceExtensionResponse response =
+          await duskPerfBeginHandler(
+        'ext.dusk.perf_begin',
+        <String, String>{'mode': 'fast'},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, contains('attribution'));
+      expect(debugProfileBuildsEnabled, isFalse);
+      final developer.ServiceExtensionResponse end =
+          await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+      expect(end.result, isNull, reason: 'no session may have opened');
+    });
+
+    test('phases with timing is a contradiction and is rejected', () async {
+      final developer.ServiceExtensionResponse response =
+          await duskPerfBeginHandler(
+        'ext.dusk.perf_begin',
+        <String, String>{'mode': 'timing', 'phases': 'true'},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, contains('phases'));
+      expect(debugProfileLayoutsEnabled, isFalse);
     });
 
     test('calls perfSessionBeginHook once and records the liveness baseline',
@@ -265,17 +335,20 @@ void main() {
 
       expect(payload['refused'], isTrue);
       expect(payload['reason'], contains('liveness counter'));
-      expect(payload['liveness'], <String, dynamic>{
-        'baseline': 7,
-        'final': 7,
-        'advanced': 0,
+      expect(payload['coverage'], <String, dynamic>{
+        'framesDrawn': 0,
+        'livenessBaseline': 7,
+        'livenessFinal': 7,
+        'complete': false,
       });
       // A refusal carries no numbers at all; a partial report would be read
       // as a report.
-      expect(payload.containsKey('frameSummary'), isFalse);
-      expect(payload.containsKey('blockAttribution'), isFalse);
-      expect(payload.containsKey('wind'), isFalse);
-      expect(payload.containsKey('magic'), isFalse);
+      expect(payload.containsKey('summary'), isFalse);
+      expect(payload.containsKey('counters'), isFalse);
+      expect(payload.containsKey('insights'), isFalse);
+      for (final String old in _oldKeys) {
+        expect(payload.containsKey(old), isFalse, reason: old);
+      }
     });
 
     test(
@@ -360,10 +433,11 @@ void main() {
       );
 
       expect(payload['refused'], isTrue);
-      expect((payload['liveness']! as Map<String, dynamic>)['advanced'], 1);
+      expect((payload['coverage']! as Map<String, dynamic>)['framesDrawn'], 1);
       // The frame list was NOT empty, so this cannot pass by accident on an
       // empty-buffer check: the refusal has to come from the counter.
-      expect(payload.containsKey('frameSummary'), isFalse);
+      expect(payload.containsKey('summary'), isFalse);
+      expect(payload.containsKey('insights'), isFalse);
     });
 
     test('the refusal is its own field, independent of the warnings block',
@@ -423,13 +497,13 @@ void main() {
       expect(second.result, isNull);
     });
 
-    test('carries the frame summary, the wind section and the magic section',
+    test('carries the LLM-first report and none of the old top-level keys',
         () async {
       WindDebugRegistry.registerPerf(_FakeWindPerfResolver());
       perfExtrasReader = () => <String, Object?>{
             'controllerNotifies': <String, int>{'MonitorController': 12},
             'routeTransitions': <Map<String, Object?>>[
-              <String, Object?>{'route': '/monitors', 'micros': 4200},
+              <String, Object?>{'route': '/monitors', 'durationMicros': 4200},
             ],
           };
 
@@ -443,35 +517,77 @@ void main() {
       );
 
       expect(payload['refused'], isFalse);
-      expect(payload['liveness'], <String, dynamic>{
-        'baseline': 0,
-        'final': 44,
-        'advanced': 44,
-      });
+      expect(payload['sessionToken'], startsWith('perf-'));
+      expect(payload['mode'], 'attribution');
+      expect(
+        payload.keys,
+        containsAll(<String>[
+          'env',
+          'coverage',
+          'summary',
+          'counters',
+          'insights',
+          'omitted',
+        ]),
+      );
+      for (final String old in _oldKeys) {
+        expect(payload.containsKey(old), isFalse, reason: old);
+      }
+
+      final Map<String, dynamic> env = payload['env'] as Map<String, dynamic>;
+      expect(env['isWeb'], isFalse);
+      expect(env['buildMode'], 'debug');
+      expect(env['semanticsEnabled'], isA<bool>());
+      expect(env['phases'], isFalse);
+      expect(env['platform'], isA<String>());
 
       final Map<String, dynamic> summary =
-          payload['frameSummary'] as Map<String, dynamic>;
-      expect(summary['frame_count'], 2);
-      expect(summary['worst_frame_build_time_millis'], 20.0);
-      expect(summary['missed_frame_build_budget_count'], 1);
-      expect(summary['dropped_frame_count'], 0);
-      expect(summary['worst_frames'], isA<List<dynamic>>());
-
+          payload['summary'] as Map<String, dynamic>;
+      final Map<String, dynamic> frames =
+          summary['frames'] as Map<String, dynamic>;
+      expect(frames['painted'], 2);
+      expect((frames['buildMs'] as Map<String, dynamic>)['worst'], 20.0);
+      expect(frames['overBudget'], 1);
+      expect(summary['durationMs'], isA<num>());
       expect(
-        payload['wind'],
-        containsPair('cacheBypasses', 40),
+        (summary['routeTransitions'] as List<dynamic>).single,
+        <String, dynamic>{'route': '/monitors', 'ms': 4.2},
       );
-      final Map<String, dynamic> magic =
-          payload['magic'] as Map<String, dynamic>;
-      expect(
-        magic['controllerNotifies'],
-        <String, dynamic>{'MonitorController': 12},
-      );
-      expect((magic['routeTransitions'] as List<dynamic>), hasLength(1));
 
-      // Flutter's own docs say the instrumentation overhead is significant
-      // relative to the work measured; the payload has to say so itself.
-      expect(payload['note'], contains('indicative'));
+      final Map<String, dynamic> counters =
+          payload['counters'] as Map<String, dynamic>;
+      expect(
+        (counters['wind'] as Map<String, dynamic>)['cacheBypasses'],
+        <String, dynamic>{'count': 40, 'perFrame': 20.0},
+      );
+      expect(
+        ((counters['magic'] as Map<String, dynamic>)['controllerNotifies']
+                as List<dynamic>)
+            .single,
+        <dynamic>['MonitorController', 12, 6.0],
+      );
+    });
+
+    test('timing mode reports frame timings only', () async {
+      WindDebugRegistry.registerPerf(_FakeWindPerfResolver());
+      await duskPerfBeginHandler(
+        'ext.dusk.perf_begin',
+        <String, String>{'mode': 'timing'},
+      );
+      framePerfReader = () => <String, Object?>{
+            'frames': _fixtureFrames,
+            'livenessCounter': 2,
+          };
+      final Map<String, dynamic> payload = _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+
+      expect(payload['mode'], 'timing');
+      expect(payload['counters'], isNull);
+      final Map<String, dynamic> summary =
+          payload['summary'] as Map<String, dynamic>;
+      expect(summary.containsKey('blocksBySelf'), isFalse);
+      expect(summary['frames'], isA<Map<String, dynamic>>());
     });
 
     test('says so when the summary covers fewer frames than the engine drew',
@@ -497,8 +613,24 @@ void main() {
       expect(coverage['framesDrawn'], 44);
       expect(coverage['framesSummarized'], 2);
       expect(coverage['complete'], isFalse);
+      // The explanation lives once, in the coverage insight, rather than
+      // twice in the report.
+      final Map<String, dynamic> gap = (payload['insights'] as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .firstWhere(
+            (Map<String, dynamic> i) =>
+                (i['evidence'] as Map<String, dynamic>)['metric'] ==
+                'framesUnreported',
+          );
+      expect(gap['title'], contains('2 of 44'));
+      final Map<String, dynamic> drill = _decode(
+        await duskPerfInsightHandler(
+          'ext.dusk.perf_insight',
+          <String, String>{'id': gap['id'] as String},
+        ),
+      );
       expect(
-        coverage['detail'],
+        drill['summary'],
         contains('subset'),
         reason: 'the reader has to be told the ranking may miss the worst work',
       );
@@ -524,6 +656,13 @@ void main() {
       expect(coverage['framesSummarized'], 2);
       expect(coverage['complete'], isTrue);
       expect(coverage.containsKey('detail'), isFalse);
+      expect(
+        (payload['insights'] as List<dynamic>).map(
+          (dynamic i) => ((i as Map<String, dynamic>)['evidence']
+              as Map<String, dynamic>)['metric'],
+        ),
+        isNot(contains('framesUnreported')),
+      );
     });
 
     test('the refusal names the idle-app cause before the hidden-page one',
@@ -552,8 +691,7 @@ void main() {
       );
     });
 
-    test('ranks block attribution across the whole session, not per frame',
-        () async {
+    test('ranks blocks across the whole session by self time', () async {
       await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
@@ -563,12 +701,12 @@ void main() {
         await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
       );
 
-      final List<dynamic> blocks = payload['blockAttribution'] as List<dynamic>;
+      final List<dynamic> blocks = (payload['summary']
+          as Map<String, dynamic>)['blocksBySelf'] as List<dynamic>;
       expect(blocks, hasLength(3));
       expect(blocks.first, <String, dynamic>{
         'name': 'MonitorRow',
-        'micros': 10200,
-        'count': 10,
+        'selfMs': 10.2,
         'frames': 2,
       });
       expect((blocks[1] as Map<String, dynamic>)['name'], 'WText');
@@ -588,8 +726,140 @@ void main() {
 
       // Null rather than a map of zeros: "wind never registered" and "wind
       // registered and counted nothing" are different findings.
-      expect(payload.containsKey('wind'), isTrue);
-      expect(payload['wind'], isNull);
+      final Map<String, dynamic> counters =
+          payload['counters'] as Map<String, dynamic>;
+      expect(counters.containsKey('wind'), isTrue);
+      expect(counters['wind'], isNull);
+      expect(
+        (payload['coverage'] as Map<String, dynamic>)['missing'],
+        contains('wind'),
+      );
+    });
+  });
+
+  group('ext.dusk.perf_insight', () {
+    Future<Map<String, dynamic>> closeReport() async {
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      framePerfReader = () => <String, Object?>{
+            'frames': _fixtureFrames,
+            'livenessCounter': 2,
+          };
+      return _decode(
+        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+      );
+    }
+
+    test('drills into an insight of the most recent closed session', () async {
+      final Map<String, dynamic> report = await closeReport();
+      final Map<String, dynamic> first =
+          (report['insights'] as List<dynamic>).first as Map<String, dynamic>;
+
+      final Map<String, dynamic> drill = _decode(
+        await duskPerfInsightHandler(
+          'ext.dusk.perf_insight',
+          <String, String>{
+            'token': report['sessionToken'] as String,
+            'id': first['id'] as String,
+          },
+        ),
+      );
+
+      expect(drill['id'], first['id']);
+      expect(drill['sessionToken'], report['sessionToken']);
+      expect(drill['title'], first['title']);
+      expect(
+        drill.keys,
+        containsAll(<String>[
+          'summary',
+          'detail',
+          'estimatedSavingsMs',
+          'nextStep',
+        ]),
+      );
+    });
+
+    test('the token is optional and defaults to the latest session', () async {
+      final Map<String, dynamic> report = await closeReport();
+      final String id = ((report['insights'] as List<dynamic>).first
+          as Map<String, dynamic>)['id'] as String;
+
+      final developer.ServiceExtensionResponse response =
+          await duskPerfInsightHandler(
+        'ext.dusk.perf_insight',
+        <String, String>{'id': id},
+      );
+
+      expect(response.result, isNotNull);
+    });
+
+    test('an unknown id is an error that names perf_end as the list', () async {
+      await closeReport();
+
+      final developer.ServiceExtensionResponse response =
+          await duskPerfInsightHandler(
+        'ext.dusk.perf_insight',
+        <String, String>{'id': 'I999'},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, contains('I999'));
+      expect(response.errorDetail, contains('perf_end'));
+    });
+
+    test('a stale token is an error naming the session that is held', () async {
+      final Map<String, dynamic> report = await closeReport();
+
+      final developer.ServiceExtensionResponse response =
+          await duskPerfInsightHandler(
+        'ext.dusk.perf_insight',
+        <String, String>{'token': 'perf-0', 'id': 'I1'},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, contains(report['sessionToken'] as String));
+    });
+
+    test('before any session closed it is an error naming perf_end', () async {
+      final developer.ServiceExtensionResponse response =
+          await duskPerfInsightHandler(
+        'ext.dusk.perf_insight',
+        <String, String>{'id': 'I1'},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, contains('perf_end'));
+    });
+
+    test('a missing id is rejected as invalid params', () async {
+      await closeReport();
+
+      final developer.ServiceExtensionResponse response =
+          await duskPerfInsightHandler(
+        'ext.dusk.perf_insight',
+        <String, String>{},
+      );
+
+      expect(response.result, isNull);
+      expect(response.errorDetail, contains('id'));
+    });
+
+    test('a refused session holds no insights to drill into', () async {
+      await closeReport();
+      framePerfReader = () => <String, Object?>{
+            'frames': <Map<String, Object?>>[],
+            'livenessCounter': 7,
+          };
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+
+      final developer.ServiceExtensionResponse response =
+          await duskPerfInsightHandler(
+        'ext.dusk.perf_insight',
+        <String, String>{'id': 'I1'},
+      );
+
+      expect(response.result, isNull, reason: 'the refusal replaced it');
+      expect(response.errorDetail, contains('refused'));
     });
   });
 }

@@ -25,28 +25,34 @@ class _StubContext extends ArtisanContext {
 Map<String, dynamic> _report({
   required int framesDrawn,
   required int framesSummarized,
+  List<Map<String, dynamic>> insights = const <Map<String, dynamic>>[],
 }) {
   final bool complete = framesSummarized >= framesDrawn;
   return <String, dynamic>{
     'sessionToken': 'perf-1',
     'refused': false,
-    'phases': true,
-    'liveness': <String, dynamic>{
-      'baseline': 0,
-      'final': framesDrawn,
-      'advanced': framesDrawn,
-    },
+    'mode': 'attribution',
+    'env': <String, dynamic>{'buildMode': 'debug', 'isWeb': true},
     'coverage': <String, dynamic>{
       'framesDrawn': framesDrawn,
       'framesSummarized': framesSummarized,
       'complete': complete,
+      'missing': <String>[],
       if (!complete) 'detail': 'describes a subset of this session',
     },
-    'frameSummary': <String, dynamic>{
-      'frame_count': framesSummarized,
-      'worst_frame_build_time_millis': 114.0,
+    'summary': <String, dynamic>{
+      'budgetMs': 16.7,
+      'frames': <String, dynamic>{
+        'count': framesSummarized,
+        'painted': framesSummarized,
+        'dropped': 0,
+        'overBudget': 1,
+        'buildMs': <String, dynamic>{'worst': 114.0},
+      },
     },
-    'blockAttribution': <Map<String, Object?>>[],
+    'counters': <String, dynamic>{'wind': null, 'magic': <String, dynamic>{}},
+    'insights': insights,
+    'omitted': <String, dynamic>{},
   };
 }
 
@@ -92,8 +98,56 @@ void main() {
 
       await DuskPerfEndCommand().handle(ctx);
 
-      expect(output.content, contains('9 frames'));
+      expect(output.content, contains('9 painted frames'));
       expect(output.content.toLowerCase(), isNot(contains('subset')));
+    });
+
+    test('the human line names the top insight and how to drill into it',
+        () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: output,
+        response: _report(
+          framesDrawn: 9,
+          framesSummarized: 9,
+          insights: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'I2',
+              'severity': 'error',
+              'title': '1 of 9 frames over the 16.7 ms budget',
+            },
+            <String, dynamic>{
+              'id': 'I1',
+              'severity': 'warn',
+              'title': 'something else',
+            },
+          ],
+        ),
+      );
+
+      await DuskPerfEndCommand().handle(ctx);
+
+      expect(output.content, contains('1 over the 16.7ms budget'));
+      expect(output.content, contains('worst build 114.0ms'));
+      expect(output.content, contains('2 insights'));
+      expect(output.content, contains('I2'));
+      expect(output.content, contains('dusk:perf_insight --id=I2'));
+    });
+
+    test('a report with no insight says so rather than printing a top line',
+        () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: output,
+        response: _report(framesDrawn: 9, framesSummarized: 9),
+      );
+
+      await DuskPerfEndCommand().handle(ctx);
+
+      expect(output.content, contains('No insight fired'));
+      expect(output.content, isNot(contains('perf_insight')));
     });
 
     test('a refusal still exits non-zero', () async {

@@ -21,6 +21,7 @@ Need a quick reminder of what a command does without leaving the terminal? Run `
 - [Console and exceptions](#console-and-exceptions)
 - [Observe](#observe)
 - [Hot reload and snap](#hot-reload-and-snap)
+- [Performance](#performance)
 
 ## How to read this page
 
@@ -171,6 +172,16 @@ The single-round-trip composite that hot-reloads the running app and then captur
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
 | `dusk:hot_reload_and_snap` | Hot reload the running app, then capture snapshot + screenshot + recent exceptions in a single round-trip. | connected | artisan:reload + ext.dusk.snap |
+
+## Performance
+
+One measurement session and its drill-down. `dusk:perf_begin` opens it (`--mode=attribution` profiles builds, `--mode=timing` touches no flag), you drive one interaction, `dusk:perf_end` closes it with a bounded report of ranked insights, and `dusk:perf_insight` returns the rows behind one of them.
+
+| Command | Description | Boot Mode | VM Extension |
+|---------|-------------|-----------|--------------|
+| [`dusk:perf_begin`](dusk-perf-begin.md) | Open a performance measurement session: zero the frame, wind and magic counters and, in attribution mode, switch on build profiling. | connected | ext.dusk.perf_begin |
+| [`dusk:perf_end`](dusk-perf-end.md) | Close the performance measurement session and report frames, ranked blocks, counters and insights. | connected | ext.dusk.perf_end |
+| [`dusk:perf_insight`](dusk-perf-insight.md) | Drill into one insight of the last perf_end report: title, summary, the rows behind it, estimated savings and the next step. | connected | ext.dusk.perf_insight |
 
 ## Boot mode and deep-dives
 

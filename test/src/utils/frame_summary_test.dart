@@ -21,52 +21,63 @@ Map<String, Object?> _frame({
   };
 }
 
+Map<String, Object?> _block(int micros, int selfMicros, int count) =>
+    <String, Object?>{
+      'micros': micros,
+      'selfMicros': selfMicros,
+      'count': count,
+    };
+
+Map<String, Object?> _ms(Map<String, Object?> summary, String key) =>
+    summary[key]! as Map<String, Object?>;
+
 void main() {
   group('summarizeFramePerf percentiles', () {
     test(
-      'a 10-element list puts p90 and p99 on different elements',
+      'a 10-element list puts p50, p90 and p99 on different elements',
       () {
-        // Build times 1..9ms then a 50ms outlier, sorted ascending already.
         // Percentile index = ((n - 1) * p).round(), matching
         // frame_timing_summarizer.dart's _findPercentile exactly.
-        // n=10: p90 index = (9 * 0.90).round() = 8 -> value 9ms.
-        //       p99 index = (9 * 0.99).round() = 9 -> value 50ms (last).
+        // n=10: p50 index 5 (4.5 rounds up) -> 6ms, p90 index 8 -> 9ms,
+        //       p99 index 9 -> 50ms (last).
         final List<int> buildMsValues = <int>[1, 2, 3, 4, 5, 6, 7, 8, 9, 50];
         final List<Map<String, Object?>> frames = <Map<String, Object?>>[
           for (int i = 0; i < buildMsValues.length; i++)
             _frame(frameNumber: i + 1, buildMicros: buildMsValues[i] * 1000),
         ];
 
-        final Map<String, Object?> summary = summarizeFramePerf(frames);
+        final Map<String, Object?> build =
+            _ms(summarizeFramePerf(frames), 'buildMs');
 
+        expect(build['p50'], 6.0);
         expect(
-          summary['90th_percentile_frame_build_time_millis'],
+          build['p90'],
           9.0,
           reason: 'p90 index 8 must land on the 9ms element, not the 50ms one',
         );
-        expect(
-          summary['99th_percentile_frame_build_time_millis'],
-          50.0,
-          reason: 'p99 index 9 must land on the last (50ms) element',
-        );
-        expect(summary['worst_frame_build_time_millis'], 50.0);
-        expect(summary['average_frame_build_time_millis'], 9.5);
+        expect(build['p99'], 50.0);
+        expect(build['worst'], 50.0);
       },
     );
   });
 
   group('summarizeFramePerf budget count', () {
     test(
-      'a frame at exactly the 16ms budget does not count, one past it does',
+      'a frame at exactly the 16.7ms budget does not count, one past it does',
       () {
-        final List<Map<String, Object?>> frames = <Map<String, Object?>>[
-          _frame(frameNumber: 1, buildMicros: 16000), // exactly 16ms
-          _frame(frameNumber: 2, buildMicros: 16001), // one microsecond over
-        ];
+        final Map<String, Object?> summary = summarizeFramePerf(
+          <Map<String, Object?>>[
+            _frame(frameNumber: 1, buildMicros: 16700),
+            _frame(frameNumber: 2, buildMicros: 16701),
+            _frame(frameNumber: 3, buildMicros: 1000, rasterMicros: 20000),
+          ],
+        );
 
-        final Map<String, Object?> summary = summarizeFramePerf(frames);
-
-        expect(summary['missed_frame_build_budget_count'], 1);
+        expect(kFrameBudgetMs, 16.7);
+        expect(summary['overBudgetBuild'], 1);
+        expect(summary['overBudgetRaster'], 1);
+        // A frame is over budget when EITHER thread is.
+        expect(summary['overBudget'], 2);
       },
     );
   });
@@ -77,117 +88,65 @@ void main() {
       final Map<String, Object?> summary =
           summarizeFramePerf(<Map<String, Object?>>[]);
 
-      expect(summary['average_frame_build_time_millis'], 0.0);
-      expect(summary['90th_percentile_frame_build_time_millis'], 0.0);
-      expect(summary['99th_percentile_frame_build_time_millis'], 0.0);
-      expect(summary['worst_frame_build_time_millis'], 0.0);
-      expect(summary['missed_frame_build_budget_count'], 0);
-      expect(summary['average_frame_rasterizer_time_millis'], 0.0);
-      expect(summary['stddev_frame_rasterizer_time_millis'], 0.0);
-      expect(summary['90th_percentile_frame_rasterizer_time_millis'], 0.0);
-      expect(summary['99th_percentile_frame_rasterizer_time_millis'], 0.0);
-      expect(summary['worst_frame_rasterizer_time_millis'], 0.0);
-      expect(summary['missed_frame_rasterizer_budget_count'], 0);
-      expect(summary['frame_count'], 0);
-      expect(summary['frame_rasterizer_count'], 0);
-      expect(summary['dropped_frame_count'], 0);
-      expect(summary['worst_frames'], <Map<String, Object?>>[]);
+      expect(summary['count'], 0);
+      expect(summary['painted'], 0);
+      expect(summary['dropped'], 0);
+      expect(summary['overBudget'], 0);
+      expect(_ms(summary, 'buildMs'), <String, Object?>{
+        'p50': 0.0,
+        'p90': 0.0,
+        'p99': 0.0,
+        'worst': 0.0,
+      });
+      expect(_ms(summary, 'rasterMs')['worst'], 0.0);
     });
   });
 
   group('summarizeFramePerf dropped-frame detection', () {
-    test(
-        'a gap in the frameNumber sequence [10, 11, 13, 14] reports exactly one dropped frame',
-        () {
-      final List<Map<String, Object?>> frames = <Map<String, Object?>>[
-        _frame(frameNumber: 10, buildMicros: 1000),
-        _frame(frameNumber: 11, buildMicros: 1000),
-        _frame(frameNumber: 13, buildMicros: 1000),
-        _frame(frameNumber: 14, buildMicros: 1000),
-      ];
+    test('a gap in [10, 11, 13, 14] reports exactly one dropped frame', () {
+      final Map<String, Object?> summary = summarizeFramePerf(
+        <Map<String, Object?>>[
+          _frame(frameNumber: 10, buildMicros: 1000),
+          _frame(frameNumber: 11, buildMicros: 1000),
+          _frame(frameNumber: 13, buildMicros: 1000),
+          _frame(frameNumber: 14, buildMicros: 1000),
+        ],
+      );
 
-      final Map<String, Object?> summary = summarizeFramePerf(frames);
-
-      expect(summary['dropped_frame_count'], 1);
-    });
-
-    test('a contiguous sequence reports zero dropped frames', () {
-      final List<Map<String, Object?>> frames = <Map<String, Object?>>[
-        _frame(frameNumber: 1, buildMicros: 1000),
-        _frame(frameNumber: 2, buildMicros: 1000),
-        _frame(frameNumber: 3, buildMicros: 1000),
-      ];
-
-      final Map<String, Object?> summary = summarizeFramePerf(frames);
-
-      expect(summary['dropped_frame_count'], 0);
+      expect(summary['dropped'], 1);
+      expect(summary['painted'], 4);
+      expect(summary['count'], 5);
     });
 
     test('a non-monotonic or duplicate sequence never reports a negative count',
         () {
-      final List<Map<String, Object?>> frames = <Map<String, Object?>>[
-        _frame(frameNumber: 5, buildMicros: 1000),
-        _frame(frameNumber: 5, buildMicros: 1000),
-        _frame(frameNumber: 3, buildMicros: 1000),
-      ];
+      final Map<String, Object?> summary = summarizeFramePerf(
+        <Map<String, Object?>>[
+          _frame(frameNumber: 5, buildMicros: 1000),
+          _frame(frameNumber: 5, buildMicros: 1000),
+          _frame(frameNumber: 3, buildMicros: 1000),
+        ],
+      );
 
-      final Map<String, Object?> summary = summarizeFramePerf(frames);
+      expect(summary['dropped'], 0);
+    });
 
-      expect(summary['dropped_frame_count'], 0);
+    test('frameGaps names each gap and how many frames it swallowed', () {
+      expect(
+        frameGaps(<Map<String, Object?>>[
+          _frame(frameNumber: 1, buildMicros: 1),
+          _frame(frameNumber: 4, buildMicros: 1),
+          _frame(frameNumber: 5, buildMicros: 1),
+        ]),
+        <Map<String, Object?>>[
+          <String, Object?>{'after': 1, 'next': 4, 'missing': 2},
+        ],
+      );
     });
   });
 
-  group('summarizeFramePerf worst-N attribution', () {
-    test(
-        'the worst-N list carries each frame\'s block attribution, ranked by build time',
-        () {
-      final List<Map<String, Object?>> frames = <Map<String, Object?>>[
-        _frame(
-          frameNumber: 1,
-          buildMicros: 1000,
-          blocks: <String, Object?>{
-            'WDiv': <String, Object?>{'micros': 100, 'count': 1},
-          },
-        ),
-        _frame(
-          frameNumber: 2,
-          buildMicros: 9000,
-          blocks: <String, Object?>{
-            'WText': <String, Object?>{'micros': 8000, 'count': 3},
-          },
-        ),
-        _frame(
-          frameNumber: 3,
-          buildMicros: 5000,
-          blocks: <String, Object?>{
-            'WDiv': <String, Object?>{'micros': 4000, 'count': 2},
-          },
-        ),
-      ];
-
-      final Map<String, Object?> summary =
-          summarizeFramePerf(frames, worstFrameCount: 2);
-
-      final List<Object?> worst = summary['worst_frames'] as List<Object?>;
-      expect(worst.length, 2);
-
-      final Map<String, Object?> first = worst[0] as Map<String, Object?>;
-      expect(first['frameNumber'], 2);
-      expect(first['buildMicros'], 9000);
-      expect(first['blocks'], isNotEmpty);
-
-      final Map<String, Object?> second = worst[1] as Map<String, Object?>;
-      expect(second['frameNumber'], 3);
-      expect(second['buildMicros'], 5000);
-      expect(second['blocks'], isNotEmpty);
-    });
-  });
   group('a malformed frame costs its row, not the report', () {
     test('a frame missing buildMicros does not throw', () {
-      // These maps are built in another repository and arrive over a function
-      // pointer, so a renamed or absent key does not fail to compile. An
-      // `as num` cast used to turn one bad row into a TypeError that perf_end
-      // reported as an opaque error envelope, losing the whole session.
       final Map<String, Object?> summary = summarizeFramePerf(
         <Map<String, Object?>>[
           <String, Object?>{'frameNumber': 1, 'rasterMicros': 2000},
@@ -199,52 +158,80 @@ void main() {
         ],
       );
 
-      expect(summary['frame_count'], 2);
-      expect(summary['worst_frame_build_time_millis'], 8.0);
+      expect(summary['painted'], 2);
+      expect(_ms(summary, 'buildMs')['worst'], 8.0);
     });
 
     test('a null frameNumber mid-sequence does not manufacture drops', () {
-      // The single-element version of this test could not show the bug: with
-      // no adjacent pair there is no gap to compute. Zeroing a sequence
-      // POSITION is not the graceful degradation that zeroing a duration is,
-      // and this reported 101 drops against a truth of 1 before the fix.
+      // Zeroing a sequence POSITION is not the graceful degradation that
+      // zeroing a duration is: this reported 101 drops against a truth of 1
+      // before the fix.
       final Map<String, Object?> summary = summarizeFramePerf(
         <Map<String, Object?>>[
-          <String, Object?>{
-            'frameNumber': 100,
-            'buildMicros': 1000,
-            'rasterMicros': 500,
-          },
-          <String, Object?>{
-            'frameNumber': null,
-            'buildMicros': 1000,
-            'rasterMicros': 500,
-          },
-          <String, Object?>{
-            'frameNumber': 102,
-            'buildMicros': 1000,
-            'rasterMicros': 500,
-          },
+          <String, Object?>{'frameNumber': 100, 'buildMicros': 1000},
+          <String, Object?>{'frameNumber': null, 'buildMicros': 1000},
+          <String, Object?>{'frameNumber': 102, 'buildMicros': 1000},
         ],
       );
 
-      expect(summary['dropped_frame_count'], 1);
-      expect(summary['frame_count'], 3);
+      expect(summary['dropped'], 1);
+      expect(summary['painted'], 3);
     });
+  });
 
-    test('a frame with a null frameNumber does not throw', () {
-      final Map<String, Object?> summary = summarizeFramePerf(
+  group('aggregateFrameBlocks()', () {
+    test('sums self time, inclusive time, counts and frames per name', () {
+      final List<PerfBlockTotal> totals = aggregateFrameBlocks(
         <Map<String, Object?>>[
-          <String, Object?>{
-            'frameNumber': null,
-            'buildMicros': 1000,
-            'rasterMicros': 500,
-          },
+          _frame(
+            frameNumber: 1,
+            buildMicros: 1,
+            blocks: <String, Object?>{'A': _block(900, 300, 2)},
+          ),
+          _frame(
+            frameNumber: 2,
+            buildMicros: 1,
+            blocks: <String, Object?>{
+              'A': _block(100, 50, 1),
+              'B': 'not a block',
+            },
+          ),
+          <String, Object?>{'frameNumber': 3, 'blocks': 'not a map'},
         ],
       );
 
-      expect(summary['frame_count'], 1);
-      expect(summary['dropped_frame_count'], 0);
+      final PerfBlockTotal a = totals.single;
+      expect(a.name, 'A');
+      expect(a.micros, 1000);
+      expect(a.selfMicros, 350);
+      expect(a.count, 3);
+      expect(a.frames, 2);
+    });
+  });
+
+  group('worstFrames()', () {
+    test('ranks by the slower thread and carries top blocks by self time', () {
+      final List<Map<String, Object?>> worst = worstFrames(
+        <Map<String, Object?>>[
+          _frame(frameNumber: 1, buildMicros: 1000),
+          _frame(
+            frameNumber: 2,
+            buildMicros: 2000,
+            rasterMicros: 30000,
+            blocks: <String, Object?>{
+              'Parent': _block(9000, 100, 1),
+              'Child': _block(8000, 7000, 1),
+            },
+          ),
+        ],
+        count: 1,
+      );
+
+      expect(worst, hasLength(1));
+      expect(worst.single['frameNumber'], 2);
+      expect(worst.single['rasterMs'], 30.0);
+      final List<Object?> blocks = worst.single['blocks']! as List<Object?>;
+      expect((blocks.first! as Map<String, Object?>)['name'], 'Child');
     });
   });
 }
