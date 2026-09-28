@@ -33,6 +33,10 @@ const Duration _kBootPollInterval = Duration(milliseconds: 500);
 /// interactive node on a screen, so an index deep in a list still resolves.
 const int _kObserveLimit = 5000;
 
+/// The longest single in-app wait: well under the 10 s after which DWDS
+/// abandons a service extension call on the web.
+const int _kWaitSliceMs = 5000;
+
 /// The gap between two ticks of one `wheel` step: one frame at 60 Hz.
 const Duration _kWheelTickInterval = Duration(milliseconds: 16);
 
@@ -818,18 +822,29 @@ final class _PerfRunner {
             where,
           );
         case PerfSetupVerb.waitForText:
-          final Map<String, dynamic> result = await _call(
-            'ext.dusk.wait_for',
-            <String, String>{
-              'text': step.argument!,
-              'timeoutMs': '${step.timeoutMs}',
-            },
-            where,
-          );
-          if (result['matched'] != true) {
+          // In slices: DWDS cuts any service extension call at 10 s and
+          // answers -32603, so one in-app wait of the whole budget died on
+          // every slow web restart. Each slice is a full in-app wait; the
+          // budget is spent slice by slice rather than by the host clock.
+          bool matched = false;
+          final int budget = step.timeoutMs ?? kPerfWaitForTextTimeoutMs;
+          for (int left = budget; left > 0 && !matched;) {
+            final int slice = left < _kWaitSliceMs ? left : _kWaitSliceMs;
+            final Map<String, dynamic> result = await _call(
+              'ext.dusk.wait_for',
+              <String, String>{
+                'text': step.argument!,
+                'timeoutMs': '$slice',
+              },
+              where,
+            );
+            matched = result['matched'] == true;
+            left -= slice;
+          }
+          if (!matched) {
             throw PerfRunException(
               '$where: "${step.argument}" did not appear within '
-              '${step.timeoutMs} ms.',
+              '$budget ms.',
             );
           }
         case PerfSetupVerb.waitForNetworkIdle:

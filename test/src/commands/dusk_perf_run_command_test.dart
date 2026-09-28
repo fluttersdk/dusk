@@ -21,7 +21,12 @@ final class _FakeDriver implements PerfRunDriver {
     List<Map<String, dynamic>>? perfEnds,
     this.unresolved = const <String>{},
     this.observed = _kObserved,
+    this.waitMisses = 0,
   }) : perfEnds = perfEnds ?? <Map<String, dynamic>>[];
+
+  /// How many `ext.dusk.wait_for` calls answer `matched: false` before the
+  /// text shows up.
+  int waitMisses;
 
   /// The interactive nodes `ext.dusk.observe` lists, as `dusk:snap` shows
   /// them: a role and the merged label.
@@ -87,6 +92,10 @@ final class _FakeDriver implements PerfRunDriver {
           },
         };
       case 'ext.dusk.wait_for':
+        if (waitMisses > 0) {
+          waitMisses--;
+          return <String, dynamic>{'matched': false};
+        }
         return <String, dynamic>{'matched': true};
       case 'ext.dusk.perf_begin':
         return <String, dynamic>{'sessionToken': 'perf-${calls.length}'};
@@ -618,6 +627,35 @@ void main() {
         driver.callsTo('ext.dusk.tap').single.params['includeSnapshot'],
         'false',
       );
+    });
+
+    test('wait_for_text waits in slices DWDS lets finish, until the budget',
+        () async {
+      // DWDS cuts any service extension call at 10 s, so one in-app wait of
+      // the full 15 s budget died as a -32603 on a slow restart.
+      final _FakeDriver driver = _FakeDriver(waitMisses: 2);
+
+      final (int code, _) =
+          await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+      expect(code, 0);
+      final List<_Call> waits = driver.callsTo('ext.dusk.wait_for');
+      expect(waits, hasLength(3));
+      for (final _Call w in waits) {
+        expect(int.parse(w.params['timeoutMs']!), lessThanOrEqualTo(8000));
+      }
+    });
+
+    test('wait_for_text still gives up once its whole budget is spent',
+        () async {
+      final _FakeDriver driver = _FakeDriver(waitMisses: 1000);
+
+      final (int code, String out) =
+          await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+      expect(code, isNot(0));
+      expect(out, contains('did not appear within'));
+      expect(driver.callsTo('ext.dusk.wait_for').length, lessThan(10));
     });
 
     test('a wheel with ticks sends that many events at one resolved point',
