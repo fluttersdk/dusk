@@ -11,15 +11,15 @@ lib/
 ├── dusk.dart                    # Public barrel: DuskPlugin, RefRegistry, DuskArtisanProvider, DuskSnapshotEnricher
 ├── cli.dart                     # Flutter-free codegen barrel (FluttersdkDuskArtisanProvider typedef)
 └── src/
-    ├── extensions/              # 19 files: 18 ext_*.dart (snapshot/pointer/text_input/screenshot/scroll/wait_find/modal_router/navigation/evaluate/close_app/find/console/exceptions/checkbox/observe/focus/fill/perf) + register_dusk_extensions.dart aggregator
-    ├── commands/                # 36 ArtisanCommand subclasses (one file each)
+    ├── extensions/              # 21 files: 20 ext_*.dart (snapshot/pointer/text_input/screenshot/scroll/wait_find/modal_router/navigation/evaluate/close_app/find/console/exceptions/checkbox/observe/focus/fill/perf/perf_trace/semantics_hold) + register_dusk_extensions.dart aggregator
+    ├── commands/                # 40 ArtisanCommand subclasses (one file each)
     ├── utils/                   # actionability_gate (6-step: defunct/enabled/zero-rect/off-viewport/stable/receives-events), error_envelope, chrome_reaper, dusk_exceptions, dusk_response, frame_sync, frame_summary, perf_readers
     ├── cdp/                     # cdp_client + chrome_finder + 8 device_presets
     ├── dusk_plugin.dart         # DuskPlugin.install() entry, enricher list, navigate adapter, installErrorCapture call
     ├── dusk_error_capture.dart  # Non-fatal FlutterError ring buffer (cap 50, dedup); installErrorCapture / uninstallErrorCapture / recentCapturedExceptions
     ├── ref_registry.dart        # e<N> + q<N> dual token system; live re-resolution for q-refs
     ├── dusk_snapshot_enricher.dart  # FROZEN typedef: String? Function(Element, RefRegistry)
-    └── dusk_artisan_provider.dart   # 36 commands + 35 MCP tool descriptors
+    └── dusk_artisan_provider.dart   # 40 commands + 39 MCP tool descriptors
 bin/fluttersdk_dusk.dart           # Flutter-free CLI entry (no dart:ui import)
 install.yaml                       # V1 plugin manifest, zero stubs, post_install bootstrap
 ```
@@ -33,13 +33,13 @@ Wrap app root in RepaintBoundary (no GlobalKey; render-tree walk finds it for sc
     ↓
 WidgetsBinding.instance.ensureSemantics()                # force semantics on
     ↓
-registerAllDuskExtensions()                              # 32 ext.dusk.* via registerExtensionIdempotent (across 17 aggregator register functions)
+registerAllDuskExtensions()                              # 37 ext.dusk.* via registerExtensionIdempotent (across 20 aggregator register functions)
     ↓
 installErrorCapture()                                    # chains FlutterError.onError; records non-fatal errors (incl. overflow) into bounded ring buffer; prior handler preserved
     ↓
 Consumer registers DuskArtisanProvider (auto-wired by `dusk:install` via _plugins.g.dart)
     ↓
-artisan mcp:serve   →   35 dusk_* tools surface to MCP clients (Claude Code, Cursor, Windsurf, Copilot, ...)
+artisan mcp:serve   →   39 dusk_* tools surface to MCP clients (Claude Code, Cursor, Windsurf, Copilot, ...)
 ```
 
 ### Plugin wrapper interceptions (`bin/fluttersdk_dusk.dart`)
@@ -51,7 +51,7 @@ The Flutter-free CLI wrapper applies two interceptions before delegating to `run
 
 ## CLI commands
 
-The 36 commands registered by `DuskArtisanProvider.commands()`:
+The 40 commands registered by `DuskArtisanProvider.commands()`:
 
 ```
 dusk:install           dusk:doctor              dusk:close_app
@@ -65,19 +65,20 @@ dusk:find              dusk:observe             dusk:wait
 dusk:wait_for_network_idle                      dusk:navigate
 dusk:navigate_back     dusk:get_routes          dusk:modal
 dusk:reset_overlays    dusk:resize              dusk:device
-dusk:console           dusk:exceptions         dusk:perf_begin
-dusk:perf_end
+dusk:console           dusk:exceptions          dusk:perf_begin
+dusk:perf_end          dusk:perf_insight        dusk:perf_run
+dusk:perf_compare      dusk:perf_trace
 ```
 
 Each command file declares `name`, `description`, `boot` (`none` or `connected`), `configure(parser)` (flags), and `handle(ctx)` (validates args, calls `ctx.callExtension('ext.dusk.X', params)`, writes formatted output).
 
 ## MCP tools
 
-The 35 `McpToolDescriptor` entries in `dusk_artisan_provider.dart:mcpTools()`. 32 route through `ext.dusk.*` VM Service extensions; 3 route through `artisan:dusk:*` substrate prefixes (`dusk_hot_reload_and_snap`, `dusk_resize_viewport`, `dusk_device_profile`) since they need out-of-isolate execution (in-isolate hot-reload would deadlock; CDP needs a non-Flutter Dart context).
+The 39 `McpToolDescriptor` entries in `dusk_artisan_provider.dart:mcpTools()`. 33 route through `ext.dusk.*` VM Service extensions; 6 route through `artisan:dusk:*` substrate prefixes (`dusk_hot_reload_and_snap`, `dusk_resize_viewport`, `dusk_device_profile`) since they need out-of-isolate execution (in-isolate hot-reload would deadlock; CDP needs a non-Flutter Dart context), or because the MCP dispatch itself needs to write a host file rather than call the isolate directly (`dusk_perf_run`, `dusk_perf_compare`, `dusk_perf_trace`).
 
 `dusk_evaluate` is MCP-only (no CLI mirror) so `magic_tinker` owns the connected REPL surface.
 
-## VM Service extension surface (32 ext.dusk.*)
+## VM Service extension surface (37 ext.dusk.*)
 
 ```
 ext.dusk.snap                  ext.dusk.screenshot          ext.dusk.tap
@@ -90,7 +91,9 @@ ext.dusk.close_app             ext.dusk.find                ext.dusk.focus
 ext.dusk.blur                  ext.dusk.clear               ext.dusk.right_click
 ext.dusk.dblclick              ext.dusk.triple_click        ext.dusk.set_checkbox
 ext.dusk.console               ext.dusk.exceptions          ext.dusk.observe
-ext.dusk.perf_begin            ext.dusk.perf_end
+ext.dusk.perf_begin            ext.dusk.perf_end            ext.dusk.perf_insight
+ext.dusk.perf_trace            ext.dusk.semantics_hold      ext.dusk.find_by_text
+ext.dusk.find_by_label
 ```
 
 Every registration routes through `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety.
@@ -128,7 +131,7 @@ These cannot change without a coordinated bump across `magic` + `wind` + `dusk`:
 5. `DuskActionabilityException` `reason` substring vocabulary (`not enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured by`)
 6. Actionability gate 6-step evaluation order (Step 0 defunct preflight + Steps 1-5 ordered: enabled, zero-rect, off-viewport, stable, receives-events)
 7. `e<N>` and `q<N>` token spaces are disjoint
-8. The four perf pointers exported from `lib/dusk.dart` (`framePerfReader`, `perfExtrasReader`, `perfSessionBeginHook`, `perfSessionEndHook`, declared in `lib/src/utils/perf_readers.dart`) and the key sets they return. `magic_devtools` assigns all four from another repository, so a renamed key does not fail to compile: it empties one section of the performance report with no error anywhere. `framePerfReader`'s `livenessCounter` is load-bearing beyond that, since `ext.dusk.perf_end`'s stalled-engine refusal is computed from it
+8. The six perf pointers exported from `lib/dusk.dart` (`framePerfReader`, `perfExtrasReader`, `perfSessionBeginHook`, `perfSessionEndHook`, `perfInsightContributors`, `perfTimelineReader`, declared in `lib/src/utils/perf_readers.dart`) and the key sets they return. `magic_devtools` assigns all six from another repository, so a renamed key does not fail to compile: it empties one section of the performance report with no error anywhere. `framePerfReader`'s `livenessCounter` is load-bearing beyond that, since `ext.dusk.perf_end`'s stalled-engine refusal is computed from it
 
 ## Actionability gate
 

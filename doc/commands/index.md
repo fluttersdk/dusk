@@ -1,6 +1,6 @@
 # Commands
 
-Catalog of every user-facing command shipped by `fluttersdk_dusk`. Thirty-four commands, grouped by intent.
+Catalog of every user-facing command shipped by `fluttersdk_dusk`. Forty commands, grouped by intent.
 
 Every command is invoked as `dart run fluttersdk_dusk <name>` (Flutter-free wrapper at `bin/fluttersdk_dusk.dart`), or via the consumer-side artisan dispatcher (`./bin/fsa <name>` / `dart run artisan <name>`) once the project has run `dusk:install`. Commands are auto-discovered through `DuskArtisanProvider`; nothing wires by hand.
 
@@ -32,7 +32,7 @@ Each group section ships a single table with four columns:
 - **Boot Mode** is the `CommandBoot` value the dispatcher reads before invoking `handle()`. `none` means pure CLI: no VM Service connection. `connected` means the command dials `~/.artisan/state.json` and fails fast if no app is running.
 - **VM Extension** is the `ext.dusk.*` method the command calls over the VM Service. `none` for commands that operate purely on the consumer filesystem.
 
-Deep-dive pages exist for the seven commands whose flag surface, return shape, or composition rules outgrow a single table row. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.
+Deep-dive pages exist for the fifteen commands whose flag surface, return shape, or composition rules outgrow a single table row. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.
 
 ## Snapshot and screenshot
 
@@ -104,7 +104,7 @@ The one-shot bootstrap. Injects three lines into the consumer's `lib/main.dart` 
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:install`](dusk-install.md) | Wire DuskPlugin.install() into lib/main.dart AND chain artisan install + plugin:install so ./bin/fsa surfaces all 34 dusk:* commands (idempotent on re-run; Phase 2 chain is best-effort). | none | none |
+| [`dusk:install`](dusk-install.md) | Wire DuskPlugin.install() into lib/main.dart AND chain artisan install + plugin:install so ./bin/fsa surfaces all 40 dusk:* commands (idempotent on re-run; Phase 2 chain is best-effort). | none | none |
 
 ## CDP
 
@@ -112,8 +112,8 @@ Chrome DevTools Protocol commands that manipulate the browser viewport directly.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `dusk:device` | Emulate a device profile (viewport + DPR + touch + user agent) via Chrome DevTools Protocol. | connected | none (CDP direct) |
-| `dusk:resize` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. | connected | none (CDP direct) |
+| `dusk:device` | Emulate a device profile (viewport + DPR + touch + user agent) via Chrome DevTools Protocol. | none | none (CDP direct) |
+| `dusk:resize` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. | none | none (CDP direct) |
 
 ## Click variants
 
@@ -188,6 +188,6 @@ One measurement session and its drill-down. `dusk:perf_begin` opens it (`--mode=
 
 ## Boot mode and deep-dives
 
-Two of thirty-four commands run with `CommandBoot.none` (`dusk:install`, `dusk:doctor`). Every other command is `CommandBoot.connected`: it dials the VM Service URI in `~/.artisan/state.json` and fails fast when the running app cannot be reached.
+Five of forty commands run with `CommandBoot.none` (`dusk:install`, `dusk:doctor`, `dusk:perf_compare`, `dusk:device`, `dusk:resize`; the last two dial Chrome DevTools Protocol directly rather than the VM Service). Every other command is `CommandBoot.connected`: it dials the VM Service URI in `~/.artisan/state.json` and fails fast when the running app cannot be reached.
 
-Nine commands earn their own pages: [dusk:install](dusk-install.md), [dusk:snap](dusk-snap.md), [dusk:tap](dusk-tap.md), [dusk:fill](dusk-fill.md), [dusk:reset_overlays](dusk-reset-overlays.md), [dusk:screenshot](dusk-screenshot.md), [dusk:find](dusk-find.md), [dusk:doctor](dusk-doctor.md), [dusk:observe](dusk-observe.md). Slug rule: the URL replaces the `:` separator with `-`. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.
+Fifteen commands earn their own pages: [dusk:install](dusk-install.md), [dusk:snap](dusk-snap.md), [dusk:tap](dusk-tap.md), [dusk:fill](dusk-fill.md), [dusk:reset_overlays](dusk-reset-overlays.md), [dusk:screenshot](dusk-screenshot.md), [dusk:find](dusk-find.md), [dusk:doctor](dusk-doctor.md), [dusk:observe](dusk-observe.md), [dusk:perf_begin](dusk-perf-begin.md), [dusk:perf_end](dusk-perf-end.md), [dusk:perf_insight](dusk-perf-insight.md), [dusk:perf_run](dusk-perf-run.md), [dusk:perf_compare](dusk-perf-compare.md), [dusk:perf_trace](dusk-perf-trace.md). Slug rule: the URL replaces the `:` separator with `-`. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.

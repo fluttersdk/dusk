@@ -1,8 +1,8 @@
 # MCP tools reference
 
-The 33 `dusk_*` MCP tools an LLM agent calls to drive a running Flutter app.
+The 39 `dusk_*` MCP tools an LLM agent calls to drive a running Flutter app.
 Each entry: one-line purpose, input schema, return shape, when to use it,
-common errors. Use this file as a lookup; the agent rarely needs all 33 in
+common errors. Use this file as a lookup; the agent rarely needs all 39 in
 the same session.
 
 ## Contents
@@ -19,6 +19,7 @@ the same session.
 - [Diagnostics (telescope bridge)](#diagnostics-telescope-bridge)
 - [Evaluation (MCP-only)](#evaluation-mcp-only)
 - [App control](#app-control)
+- [Performance](#performance)
 - [Composite (substrate-routed)](#composite-substrate-routed)
 - [Device emulation (substrate-routed, CDP, web-only)](#device-emulation-substrate-routed-cdp-web-only)
 
@@ -28,16 +29,18 @@ The MCP client forwards `tools/call` to the artisan server
 (`dart run fluttersdk_dusk mcp:serve`). The server dispatches to one of:
 
 - An `ext.dusk.*` VM Service extension running inside the Flutter isolate
-  (30 tools).
+  (33 tools).
 - An `artisan:dusk:*` substrate command running outside the isolate
-  (3 tools: `dusk_hot_reload_and_snap`, `dusk_resize_viewport`,
-  `dusk_device_profile`).
+  (6 tools: `dusk_hot_reload_and_snap`, `dusk_resize_viewport`,
+  `dusk_device_profile`, `dusk_perf_run`, `dusk_perf_compare`,
+  `dusk_perf_trace`).
 
 Every tool returns a JSON object via `ServiceExtensionResponse.result` on
 success. Failures return a `DuskErrorEnvelope`: at minimum `{ message }`,
 often with `{ reason, ref, method }` for agent branching.
 
-One field is universal across all 33 success payloads: `warnings`. It is
+One field is universal across every `ext.dusk.*`-backed success payload
+(33 tools): `warnings`. It is
 present only while the app has stopped producing frames, and it means the
 result cannot be trusted, because the semantics tree is not being rebuilt
 and dispatched gestures cannot take effect.
@@ -524,6 +527,104 @@ No params. Returns `{ closed: true }`. Calls `SystemNavigator.pop()`
 on mobile / desktop, `SystemChannels.platform.invokeMethod` on web.
 The browser may silently ignore `window.close()` when the tab was not
 script-opened.
+
+---
+
+## Performance
+
+One measurement session brackets a driven interaction. Open it, drive
+exactly one interaction, close it, then optionally drill into a ranked
+insight. Two host-side tools repeat a scenario from a clean start and
+judge one run against another; a third exports the closed session as a
+trace file.
+
+### dusk_perf_begin
+
+| Param | Type | Required | Default | Note |
+|---|---|---|---|---|
+| `mode` | string | no | `attribution` | `attribution` profiles builds; `timing` touches no profiling flag and reports frame timings only |
+| `phases` | boolean | no | false | Attribution only: also profile layout and paint, not just builds |
+
+Zeroes the frame buffer and wind's / magic's counters, records the
+liveness baseline, and in attribution mode switches Flutter's build
+profiling on. Returns `{ sessionToken, mode, phases, livenessBaseline,
+restartedPreviousSession }`. A begin on an already-open session restarts
+it rather than failing. Pair every call with `dusk_perf_end`.
+
+### dusk_perf_end
+
+No params. Requires a prior `dusk_perf_begin`. Returns `{ sessionToken,
+refused, mode, env, coverage, summary, counters, insights, omitted }`,
+about 6 KB at most, and restores every profiling flag to its prior value.
+
+**Check `refused` first.** When the liveness counter advanced by 1 or
+less the engine rendered nothing, the response carries no metrics, and a
+zero report would have read as "fast"; a backgrounded browser tab is the
+usual cause. `insights` are sorted by severity then estimated savings;
+drill into one with `dusk_perf_insight`. Attribution milliseconds are
+inflated by the profiling itself; compare milliseconds only across
+`mode="timing"` sessions.
+
+### dusk_perf_insight
+
+| Param | Type | Required | Default | Note |
+|---|---|---|---|---|
+| `id` | string | yes | -- | Insight id (`I<n>`) from `dusk_perf_end`'s `insights[]` |
+| `token` | string | no | -- | The report's `sessionToken`, guards against reading a newer session |
+
+Returns `{ sessionToken, id, severity, title, summary, detail,
+estimatedSavingsMs, nextStep }`. `detail` holds the raw rows behind the
+insight. Only the most recent closed session is kept; an unknown id, a
+stale token, or a refused session returns an error naming what to read
+instead.
+
+### dusk_perf_run (substrate-routed)
+
+| Param | Type | Required | Default | Note |
+|---|---|---|---|---|
+| `scenario` | string | yes | -- | Path to the scenario YAML |
+| `label` | string | no | `run` | Run label in the output file name, `[a-z0-9_-]` |
+| `out` | string | no | `build/perf` | Output directory |
+| `repeat` | integer | no | scenario's own | Repeats per series |
+| `platform` | string | no | from session | `chrome`, `android`, or `ios` |
+| `timing` | boolean | no | false | Also run interleaved timing-mode repeats |
+| `against` | string | no | -- | Baseline scenario YAML run in the same rounds |
+| `semantics-pass` | boolean | no | false | Also measure with the semantics tree released (unsupported for fill/type/scroll) |
+| `json` | boolean | no | false | Print the summary as JSON |
+
+Repeats the scenario from a clean start (hot restart, or a relaunch on a
+profile build), running `dusk_perf_begin` / the steps / `dusk_perf_end`
+each time. Writes `<out>/<scenario>-<label>.json` with medians, a spread
+block, and every repeat. A refused repeat is recorded and excluded from
+the medians; the call fails only when every repeat refused. Chrome needs
+the app started with a CDP port.
+
+### dusk_perf_compare (substrate-routed)
+
+| Param | Type | Required | Default | Note |
+|---|---|---|---|---|
+| `a` | string | yes | -- | Baseline `dusk_perf_run` file |
+| `b` | string | yes | -- | Candidate `dusk_perf_run` file |
+| `json` | boolean | no | false | Return the result as JSON instead of a table |
+
+Gates on counts per painted frame, never on raw counts: a run that drew
+10% fewer frames reports 10% fewer of everything, which reads as an
+improvement and is not one. Milliseconds are gated only from
+timing-mode medians. Returns `{ verdict, thresholds, frames, rows,
+unchanged, timing }`; the call fails on an error-level regression.
+
+### dusk_perf_trace (substrate-routed)
+
+| Param | Type | Required | Default | Note |
+|---|---|---|---|---|
+| `out` | string | yes | -- | File to write |
+| `token` | string | no | -- | `sessionToken` of the session to export |
+
+Writes the last closed perf session's interactions, frames and host rows
+as Chrome Trace Event JSON (opens in ui.perfetto.dev or chrome://tracing)
+and returns only the path; the trace itself is too large for a context
+window. Export before the next `dusk_perf_begin`, which clears the frames
+the trace reads.
 
 ---
 

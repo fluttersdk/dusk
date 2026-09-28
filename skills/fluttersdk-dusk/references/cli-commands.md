@@ -17,6 +17,7 @@ For interactive agent loops, MCP is faster (no process spawn per call).
 - [Common flags across commands](#common-flags-across-commands)
 - [Output](#output)
 - [Commands by family](#commands-by-family)
+- [Performance](#performance)
 - [Install + doctor (no app required)](#install--doctor-no-app-required)
 - [Exit codes and pipeline patterns](#exit-codes-and-pipeline-patterns)
 - [MCP-only: there is no CLI for evaluate](#mcp-only-there-is-no-cli-for-evaluate)
@@ -236,6 +237,28 @@ Empty arrays when telescope is not wired.
 ```
 
 Launch Chrome with the debug port first: `./bin/fsa start --device=chrome --cdp-port=9222`.
+
+## Performance
+
+```bash
+./bin/fsa dusk:perf_begin                                      # attribution mode (default)
+./bin/fsa dusk:perf_begin --mode=timing                        # frame timings only, no profiling flag
+./bin/fsa dusk:tap --ref=e7                                     # drive exactly one interaction
+./bin/fsa dusk:perf_end                                        # closes the session, reports insights
+./bin/fsa dusk:perf_insight --id=I1                             # drill into one insight's rows
+
+./bin/fsa dusk:perf_run --scenario=perf/login.yaml --label=baseline
+./bin/fsa dusk:perf_compare build/perf/login-baseline.json build/perf/login-candidate.json
+./bin/fsa dusk:perf_trace --out=build/perf/trace.json           # last closed session as Chrome Trace JSON
+```
+
+Check `refused` in `dusk:perf_end`'s output first: a session the engine did
+not render through (a backgrounded tab, usually) returns no metrics rather
+than a report reading all zeros as "fast". `dusk:perf_run` repeats a
+scenario from a clean start and writes medians to a file; `dusk:perf_compare`
+gates on counts per painted frame, never on raw counts, and exits 1 on an
+error-level regression. `dusk:perf_trace` writes to disk because a trace is
+too large for a terminal or an agent's context.
 
 ## Install + doctor (no app required)
 
