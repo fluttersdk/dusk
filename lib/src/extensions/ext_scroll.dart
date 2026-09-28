@@ -9,6 +9,7 @@ import '../utils/dusk_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
+import '../utils/perf_interaction.dart';
 import 'ext_find.dart' show resolveQuery;
 import 'ext_snapshot.dart' show duskSnapBuild;
 
@@ -113,10 +114,15 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
     if (intoView && targetContext != null) {
       startOffset = Scrollable.maybeOf(targetContext)?.position.pixels;
       // Scroll into view — ensureVisible handles the math.
-      await aiTestScrollEnsureVisible(
-        targetContext,
-        alignment: 0.5,
-        duration: const Duration(milliseconds: 300),
+      final BuildContext context = targetContext;
+      await runPerfInteraction<void>(
+        'scroll',
+        ref,
+        () => aiTestScrollEnsureVisible(
+          context,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 300),
+        ),
       );
       // Derive final offset from the parent scrollable after settling.
       // Element-bound BuildContext from RefRegistry stays valid across
@@ -164,7 +170,12 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
 
       startOffset = scrollable.position.pixels;
       final double target = startOffset + dy + dx;
-      await aiTestScrollByDelta(scrollable, target);
+      final ScrollableState driven = scrollable;
+      await runPerfInteraction<void>(
+        'scroll',
+        ref,
+        () => aiTestScrollByDelta(driven, target),
+      );
       finalOffset = scrollable.position.pixels;
     }
 
@@ -352,9 +363,13 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
     BuildContext? targetContext = ref != null ? _resolveRefContext(ref) : null;
 
     // 3. Walk the element subtree to find and invoke the select widget.
-    final bool invoked = targetContext != null
-        ? aiTestSelectOptionInElement(targetContext, value: value)
-        : _selectOptionInTree(value);
+    final bool invoked = await runPerfInteraction(
+      'select_option',
+      ref,
+      () async => targetContext != null
+          ? aiTestSelectOptionInElement(targetContext, value: value)
+          : _selectOptionInTree(value),
+    );
 
     if (!invoked) {
       return developer.ServiceExtensionResponse.error(

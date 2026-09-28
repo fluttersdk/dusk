@@ -1,4 +1,4 @@
-/// Five settable cross-package pointers that let dusk read and reset perf
+/// Six settable cross-package pointers that let dusk read and reset perf
 /// state in packages it cannot depend on (frozen contract #10 limits dusk to
 /// `fluttersdk_artisan`, `image`, `meta`, `fluttersdk_wind_diagnostics_contracts`;
 /// it must not import telescope, wind or magic).
@@ -10,6 +10,8 @@
 /// magic are all visible at once, so it is the only place these can be
 /// assigned; dusk only declares and reads them.
 library;
+
+import 'perf_insights.dart' show PerfMode;
 
 /// Reader for the current frame-performance data and liveness signal.
 ///
@@ -90,15 +92,22 @@ Map<String, Object?> Function() perfExtrasReader = () => <String, Object?>{
 /// zeros while every other section is populated, with no error anywhere to say
 /// why. Zeroing without enabling is the same bug wearing a tidier name.
 ///
+/// It receives the session's [PerfMode] because the enabling half is wrong
+/// for a timing session. Timing mode touches no profiling flag so that its
+/// milliseconds are comparable, and wind's counting sits on `WindParser.parse`,
+/// the hottest path in the framework: a hook that switched it on regardless
+/// would tax exactly the durations timing mode exists to report, for counters
+/// the timing report never reads.
+///
 /// Defaults to a no-op: a host without the perf integration wired has nothing
 /// to open.
 ///
 /// Hosts wire the real thing by writing:
 ///
 /// ```dart
-/// perfSessionBeginHook = () {
+/// perfSessionBeginHook = (PerfMode mode) {
 ///   WindPerfCounters.reset();
-///   WindPerfCounters.enabled = true;
+///   WindPerfCounters.enabled = mode == PerfMode.attribution;
 ///   TelescopeStore.clearFramePerf();
 /// };
 /// ```
@@ -106,7 +115,7 @@ Map<String, Object?> Function() perfExtrasReader = () => <String, Object?>{
 /// **Contract**: set-once-per-isolate from `MagicPerfIntegration.install()`.
 /// Reset to this no-op default by `MagicPerfIntegration.resetForTesting()`.
 /// Always paired with [perfSessionEndHook]; see there for why.
-void Function() perfSessionBeginHook = () {};
+void Function(PerfMode mode) perfSessionBeginHook = (PerfMode mode) {};
 
 /// Command that closes a measurement session, turning wind's counting back
 /// off.
@@ -160,3 +169,44 @@ void Function() perfSessionEndHook = () {};
 List<List<Map<String, Object?>> Function(Map<String, Object?> report)>
     perfInsightContributors =
     <List<Map<String, Object?>> Function(Map<String, Object?> report)>[];
+
+/// Reader for the host-side timeline rows `ext.dusk.perf_trace` exports
+/// beside dusk's own interactions and frames: HTTP requests, queries, magic
+/// notifies, counters, anything with a time on it.
+///
+/// One row per map:
+///
+/// ```text
+/// {kind: 'span'|'instant'|'counter', track: String, name: String,
+///  startUs: int, endUs: int?, id: String?, interactionId: String?,
+///  linkedBy: String?, value: num?, args: Map?}
+/// ```
+///
+/// - Times are `FlutterTimeline.now` microseconds, the clock dusk stamps
+///   interactions and the session window with.
+/// - `kind: 'span'` with an `id` becomes an async `b`/`e` pair keyed by that
+///   id, the shape for work that overlaps other work on its track (two HTTP
+///   requests in flight). Without an `id` it becomes an `X` slice, which must
+///   nest on its track; dusk moves one that would not to an overflow lane
+///   (`<track> (2)`) rather than emit a trace Perfetto draws wrongly. A span
+///   with no `endUs` is still running and ends at the session's end.
+/// - `kind: 'instant'` becomes an `i` event, `kind: 'counter'` a `C` event
+///   carrying `value`.
+/// - `interactionId` names the `PerfInteraction` the row belongs to and
+///   `linkedBy` how that was established: `'zone'` when the work read the
+///   interaction off its own zone, `'frame'` when it ran in the frame zone and
+///   was joined through `activeInteraction()` by time.
+///
+/// Return the whole buffer: dusk keeps only rows starting inside the session
+/// window. A row missing `kind`, `track`, `name` or an int `startUs`, a kind
+/// outside the three above, or a counter without a numeric `value` is
+/// skipped and counted in the trace's `otherData.skippedRows`, never a failed
+/// export.
+///
+/// Defaults to no rows, so a host without the perf integration wired still
+/// gets a trace of dusk's interactions and frames.
+///
+/// **Contract**: set-once-per-isolate from `MagicPerfIntegration.install()`.
+/// Reset to this default by `MagicPerfIntegration.resetForTesting()`.
+List<Map<String, Object?>> Function() perfTimelineReader =
+    () => <Map<String, Object?>>[];

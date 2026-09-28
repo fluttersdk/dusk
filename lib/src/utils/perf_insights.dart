@@ -110,6 +110,7 @@ Map<String, Object?> buildPerfReport(
   PerfMode mode = PerfMode.attribution,
   int? framesDrawn,
   double? durationMs,
+  bool full = false,
 }) =>
     analysePerf(
       framePerf,
@@ -119,6 +120,7 @@ Map<String, Object?> buildPerfReport(
       mode: mode,
       framesDrawn: framesDrawn,
       durationMs: durationMs,
+      full: full,
     ).report;
 
 /// Analyses one closed session into a report and its drill-downs.
@@ -129,6 +131,10 @@ Map<String, Object?> buildPerfReport(
 /// [framesDrawn] is the liveness counter's advance over the session and
 /// defaults to the frames reported, which reads as complete coverage.
 /// [durationMs] is the session's wall-clock length, null when unknown.
+/// [full] lifts every cut the report makes (block rankings, counter rows,
+/// route transitions, insights), so every row is carried and `omitted` reads
+/// all zeros: the unbounded form a runner writes to a file, never the one an
+/// agent reads.
 ///
 /// The report is `{mode, env, coverage, summary, counters, insights,
 /// omitted}`. Every duration is in milliseconds and every count is given raw
@@ -143,6 +149,7 @@ PerfAnalysis analysePerf(
   PerfMode mode = PerfMode.attribution,
   int? framesDrawn,
   double? durationMs,
+  bool full = false,
 }) {
   // 1. Frames and the timing summary every mode reports.
   final Object? rawFrames = framePerf['frames'];
@@ -155,6 +162,7 @@ PerfAnalysis analysePerf(
     frames: frames,
     painted: painted,
     drawn: framesDrawn ?? painted,
+    full: full,
     frameSummary: summarizeFramePerf(frames),
     blocks: mode == PerfMode.attribution
         ? aggregateFrameBlocks(frames)
@@ -173,15 +181,18 @@ PerfAnalysis analysePerf(
   if (mode == PerfMode.attribution) {
     summary['blocksBySelf'] = _rankBlocksBySelf(session, omitted);
     summary['blocksByCount'] = _rankBlocksByCount(session, omitted);
-    summary['routeTransitions'] = _routeTransitions(extras, omitted);
+    summary['routeTransitions'] = _routeTransitions(
+      extras,
+      omitted,
+      session.limit(_kRouteTransitionLimit),
+    );
     counters = <String, Object?>{
       'columns': _kCounterColumns,
       // Null rather than a map of zeros: "wind never registered a perf
       // resolver" and "wind counted nothing" are different findings.
-      'wind': wind == null
-          ? null
-          : _counterSection(wind, 'wind', session.painted, omitted),
-      'magic': _counterSection(extras, 'magic', session.painted, omitted),
+      'wind':
+          wind == null ? null : _counterSection(wind, 'wind', session, omitted),
+      'magic': _counterSection(extras, 'magic', session, omitted),
     };
   }
 
@@ -209,13 +220,14 @@ PerfAnalysis analysePerf(
     insights[i].id = 'I${i + 1}';
   }
   final List<_Insight> ranked = List<_Insight>.of(insights)..sort(_byRank);
-  omitted['insights'] = _cut(ranked.length, _kInsightLimit);
+  final int? insightLimit = session.limit(_kInsightLimit);
+  omitted['insights'] = _cut(ranked.length, insightLimit);
 
   return PerfAnalysis._(
     <String, Object?>{
       ...base,
       'insights': ranked
-          .take(_kInsightLimit)
+          .take(insightLimit ?? ranked.length)
           .map((_Insight i) => i.toReport())
           .toList(),
       'omitted': omitted,
@@ -237,6 +249,7 @@ final class _Session {
     required this.frames,
     required this.painted,
     required this.drawn,
+    required this.full,
     required this.frameSummary,
     required this.blocks,
   });
@@ -245,6 +258,9 @@ final class _Session {
   final List<Map<String, Object?>> frames;
   final int painted;
   final int drawn;
+
+  /// Whether the report carries every row rather than the ranked head.
+  final bool full;
   final Map<String, Object?> frameSummary;
 
   /// Every block total, UNCUT. Shares and medians are computed over this, not
@@ -266,6 +282,10 @@ final class _Session {
 
   /// [value] per painted frame, null when nothing was painted.
   double? perFrame(num value) => painted == 0 ? null : _round(value / painted);
+
+  /// The cut a ranked list takes, [bounded] in the default report and none
+  /// in a [full] one.
+  int? limit(int bounded) => full ? null : bounded;
 }
 
 // ---------------------------------------------------------------------------
@@ -276,9 +296,10 @@ List<Map<String, Object?>> _rankBlocksBySelf(
   _Session session,
   Map<String, Object?> omitted,
 ) {
-  omitted['blocksBySelf'] = _cut(session.bySelf.length, kRankedBlockLimit);
+  final int? limit = session.limit(kRankedBlockLimit);
+  omitted['blocksBySelf'] = _cut(session.bySelf.length, limit);
   return session.bySelf
-      .take(kRankedBlockLimit)
+      .take(limit ?? session.bySelf.length)
       .map(
         (PerfBlockTotal b) => <String, Object?>{
           'name': b.name,
@@ -293,9 +314,10 @@ List<Map<String, Object?>> _rankBlocksByCount(
   _Session session,
   Map<String, Object?> omitted,
 ) {
-  omitted['blocksByCount'] = _cut(session.byCount.length, kRankedBlockLimit);
+  final int? limit = session.limit(kRankedBlockLimit);
+  omitted['blocksByCount'] = _cut(session.byCount.length, limit);
   return session.byCount
-      .take(kRankedBlockLimit)
+      .take(limit ?? session.byCount.length)
       .map(
         (PerfBlockTotal b) => <String, Object?>{
           'name': b.name,
@@ -306,10 +328,12 @@ List<Map<String, Object?>> _rankBlocksByCount(
       .toList();
 }
 
-/// The slowest route transitions, as `{route, ms}`.
+/// The slowest route transitions, as `{route, ms}`, cut to [limit] when one
+/// is given.
 List<Map<String, Object?>> _routeTransitions(
   Map<String, Object?> extras,
   Map<String, Object?> omitted,
+  int? limit,
 ) {
   final Object? raw = extras['routeTransitions'];
   final List<Map<String, Object?>> rows = raw is List<Object?>
@@ -327,25 +351,25 @@ List<Map<String, Object?>> _routeTransitions(
       (Map<String, Object?> a, Map<String, Object?> b) =>
           (b['ms']! as double).compareTo(a['ms']! as double),
     );
-  omitted['routeTransitions'] =
-      _cut(transitions.length, _kRouteTransitionLimit);
-  return transitions.take(_kRouteTransitionLimit).toList();
+  omitted['routeTransitions'] = _cut(transitions.length, limit);
+  return transitions.take(limit ?? transitions.length).toList();
 }
 
 /// One counter source (wind's stats, magic's extras) in report form.
 ///
 /// A number becomes `{count, perFrame}` (a gauge stays bare), a
 /// `Map<String, num>` becomes ranked `[name, count, perFrame]` rows
-/// ([_kCounterColumns]) cut to [_kCounterListLimit] with the cut recorded as
-/// `omitted['<section>.<key>']`, and anything else is left out rather than
-/// failing the report.
+/// ([_kCounterColumns]) cut to [_kCounterListLimit] (uncut in a full report)
+/// with the cut recorded as `omitted['<section>.<key>']`, and anything else is
+/// left out rather than failing the report.
 Map<String, Object?> _counterSection(
   Map<String, Object?> source,
   String section,
-  int painted,
+  _Session session,
   Map<String, Object?> omitted,
 ) {
-  double? perFrame(num value) => painted == 0 ? null : _round(value / painted);
+  final double? Function(num value) perFrame = session.perFrame;
+  final int? limit = session.limit(_kCounterListLimit);
 
   final Map<String, Object?> out = <String, Object?>{};
   for (final MapEntry<String, Object?> entry in source.entries) {
@@ -365,9 +389,9 @@ Map<String, Object?> _counterSection(
         (MapEntry<String, num> a, MapEntry<String, num> b) =>
             _descThenName(a.value, b.value, a.key, b.key),
       );
-    omitted['$section.${entry.key}'] = _cut(counts.length, _kCounterListLimit);
+    omitted['$section.${entry.key}'] = _cut(counts.length, limit);
     out[entry.key] = counts
-        .take(_kCounterListLimit)
+        .take(limit ?? counts.length)
         .map(
           (MapEntry<String, num> e) => <Object?>[
             e.key,
@@ -860,7 +884,9 @@ int _descThenName(num a, num b, String aName, String bName) {
   return byValue != 0 ? byValue : aName.compareTo(bName);
 }
 
-int _cut(int length, int limit) => length > limit ? length - limit : 0;
+/// Rows a list of [length] loses to [limit]; none when there is no limit.
+int _cut(int length, int? limit) =>
+    limit != null && length > limit ? length - limit : 0;
 
 int _ordinal(String id) => int.parse(id.substring(1));
 

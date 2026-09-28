@@ -10,6 +10,7 @@ import 'ext_modal_router.dart';
 import 'ext_navigation.dart';
 import 'ext_observe.dart';
 import 'ext_perf.dart';
+import 'ext_perf_trace.dart';
 import 'ext_pointer.dart';
 import 'ext_screenshot.dart';
 import 'ext_scroll.dart';
@@ -56,6 +57,8 @@ import 'ext_wait_find.dart';
 ///   through the pointers in `lib/src/utils/perf_readers.dart`, reports ranked
 ///   insights and restores every flag afterwards; plus ext.dusk.perf_insight,
 ///   the drill-down into one of those insights.
+/// - [registerPerfTraceExtension]: ext.dusk.perf_trace, the closed session's
+///   interactions, frames and host rows as Chrome Trace Event JSON.
 void registerAllDuskExtensions() {
   registerSnapExtension();
   registerPointerExtensions();
@@ -77,4 +80,5 @@ void registerAllDuskExtensions() {
   // ext.dusk.reset_overlays registers inside registerModalRouterExtension.
   registerFillExtension();
   registerPerfExtensions();
+  registerPerfTraceExtension();
 }

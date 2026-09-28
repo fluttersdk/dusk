@@ -11,6 +11,7 @@ import '../utils/dusk_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
+import '../utils/perf_interaction.dart';
 import 'ext_find.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
 import 'ext_wait_find.dart' show findByTextWaitLoop;
@@ -394,7 +395,11 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   final Offset dispatchCenter =
       dispatchRectOf(entry)?.center ?? entry.rect.center;
   try {
-    await _injectTap(dispatchCenter);
+    await runPerfInteraction<void>(
+      'tap',
+      ref,
+      () => _injectTap(dispatchCenter),
+    );
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.tap: _injectTap failed for ref "$ref": '
@@ -588,15 +593,17 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     //    detached / synthetic-test entry).
     final Offset hoverCenter =
         dispatchRectOf(entry)?.center ?? entry.rect.center;
-    WidgetsBinding.instance.handlePointerEvent(
-      PointerHoverEvent(
-        pointer: _kSinglePointer,
-        position: hoverCenter,
-        viewId: _viewId(),
-        timeStamp: Duration.zero,
-        kind: PointerDeviceKind.mouse,
-      ),
-    );
+    await runPerfInteraction<void>('hover', ref, () async {
+      WidgetsBinding.instance.handlePointerEvent(
+        PointerHoverEvent(
+          pointer: _kSinglePointer,
+          position: hoverCenter,
+          viewId: _viewId(),
+          timeStamp: Duration.zero,
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+    });
 
     // 2. Two frames to let MouseRegion and AnimatedContainer settle.
     await awaitFramesOrTimeout(2);
@@ -781,46 +788,48 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     final start = dispatchRectOf(startEntry)?.center ?? startEntry.rect.center;
     final end = dispatchRectOf(endEntry)?.center ?? endEntry.rect.center;
 
-    // 1. Pointer down at the drag source.
-    WidgetsBinding.instance.handlePointerEvent(
-      PointerDownEvent(
-        pointer: dragPointer,
-        position: start,
-        viewId: viewId,
-        timeStamp: Duration.zero,
-        kind: PointerDeviceKind.touch,
-      ),
-    );
-
-    // 2. Intermediate Move events so velocity recognizers see actual motion.
-    //    Five steps spaced 16ms apart (one frame per step).
-    for (var step = 1; step <= _kDragSteps; step++) {
-      final progress = step / _kDragSteps;
-      final midpoint = Offset.lerp(start, end, progress)!;
-      final elapsed = Duration(milliseconds: step * 16);
-
-      await Future<void>.delayed(const Duration(milliseconds: 16));
-
+    await runPerfInteraction<void>('drag', startRef, () async {
+      // 1. Pointer down at the drag source.
       WidgetsBinding.instance.handlePointerEvent(
-        PointerMoveEvent(
+        PointerDownEvent(
           pointer: dragPointer,
-          position: midpoint,
+          position: start,
           viewId: viewId,
-          timeStamp: elapsed,
+          timeStamp: Duration.zero,
           kind: PointerDeviceKind.touch,
         ),
       );
-    }
 
-    // 3. Pointer up at the drag target.
-    WidgetsBinding.instance.handlePointerEvent(
-      PointerUpEvent(
-        pointer: dragPointer,
-        position: end,
-        viewId: viewId,
-        timeStamp: Duration(milliseconds: _kDragSteps * 16 + 16),
-      ),
-    );
+      // 2. Intermediate Move events so velocity recognizers see actual
+      //    motion. Five steps spaced 16ms apart (one frame per step).
+      for (var step = 1; step <= _kDragSteps; step++) {
+        final progress = step / _kDragSteps;
+        final midpoint = Offset.lerp(start, end, progress)!;
+        final elapsed = Duration(milliseconds: step * 16);
+
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+
+        WidgetsBinding.instance.handlePointerEvent(
+          PointerMoveEvent(
+            pointer: dragPointer,
+            position: midpoint,
+            viewId: viewId,
+            timeStamp: elapsed,
+            kind: PointerDeviceKind.touch,
+          ),
+        );
+      }
+
+      // 3. Pointer up at the drag target.
+      WidgetsBinding.instance.handlePointerEvent(
+        PointerUpEvent(
+          pointer: dragPointer,
+          position: end,
+          viewId: viewId,
+          timeStamp: Duration(milliseconds: _kDragSteps * 16 + 16),
+        ),
+      );
+    });
 
     // 4. Two frames to settle drag-end callbacks and rebuild.
     await awaitFramesOrTimeout(2);
@@ -942,48 +951,56 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     );
   }
 
-  // 1. First tap at the LIVE center (D1): re-resolve via `dispatchRectOf`
-  //    after the gate passed, falling back to the cached center when null.
-  try {
-    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
-  } catch (e, st) {
-    developer.log(
-      '[fluttersdk_dusk] ext.dusk.dblclick: first _injectTap failed for ref '
-      '"$ref": $e\n$st',
-      name: 'fluttersdk_dusk',
-    );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.dusk.dblclick: first injectTap failed: $e',
-        DuskErrorEnvelope.unexpected(widgetPath: ref),
-      ),
-    );
-  }
+  // Both taps are one gesture, so one interaction spans them. The closure
+  // answers the error response a failed tap produces, or null.
+  final RefEntry target = entry;
+  final developer.ServiceExtensionResponse? failed =
+      await runPerfInteraction('dblclick', ref, () async {
+    // 1. First tap at the LIVE center (D1): re-resolve via `dispatchRectOf`
+    //    after the gate passed, falling back to the cached center when null.
+    try {
+      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+    } catch (e, st) {
+      developer.log(
+        '[fluttersdk_dusk] ext.dusk.dblclick: first _injectTap failed for ref '
+        '"$ref": $e\n$st',
+        name: 'fluttersdk_dusk',
+      );
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.dblclick: first injectTap failed: $e',
+          DuskErrorEnvelope.unexpected(widgetPath: ref),
+        ),
+      );
+    }
 
-  // 2. Inter-tap delay (~100ms) to match Playwright's double-click timing.
-  await Future<void>.delayed(const Duration(milliseconds: 100));
+    // 2. Inter-tap delay (~100ms) to match Playwright's double-click timing.
+    await Future<void>.delayed(const Duration(milliseconds: 100));
 
-  // 3. Second tap — pointer ID reused safely because the first Up event
-  //    closed the hit-test cache entry (sequential, non-concurrent). Re-resolve
-  //    the live center again (D1): the first tap may itself have rebuilt the
-  //    host into a shifted slot between the two clicks.
-  try {
-    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
-  } catch (e, st) {
-    developer.log(
-      '[fluttersdk_dusk] ext.dusk.dblclick: second _injectTap failed for ref '
-      '"$ref": $e\n$st',
-      name: 'fluttersdk_dusk',
-    );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.dusk.dblclick: second injectTap failed: $e',
-        DuskErrorEnvelope.unexpected(widgetPath: ref),
-      ),
-    );
-  }
+    // 3. Second tap: pointer ID reused safely because the first Up event
+    //    closed the hit-test cache entry (sequential, non-concurrent).
+    //    Re-resolve the live center again (D1): the first tap may itself have
+    //    rebuilt the host into a shifted slot between the two clicks.
+    try {
+      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+    } catch (e, st) {
+      developer.log(
+        '[fluttersdk_dusk] ext.dusk.dblclick: second _injectTap failed for ref '
+        '"$ref": $e\n$st',
+        name: 'fluttersdk_dusk',
+      );
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.dblclick: second injectTap failed: $e',
+          DuskErrorEnvelope.unexpected(widgetPath: ref),
+        ),
+      );
+    }
+    return null;
+  });
+  if (failed != null) return failed;
 
   // POST-DISPATCH: best-effort enrichment — snapshot fires once, after both
   // taps, so the agent sees the final post-dblclick accessibility tree.
@@ -1091,26 +1108,28 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
     // once so the Down and the matching Up share the same point.
     final Offset rightClickCenter =
         dispatchRectOf(entry)?.center ?? entry.rect.center;
-    WidgetsBinding.instance.handlePointerEvent(
-      PointerDownEvent(
-        pointer: _kSinglePointer,
-        position: rightClickCenter,
-        viewId: viewId,
-        timeStamp: ts,
-        kind: PointerDeviceKind.mouse,
-        buttons: kSecondaryButton,
-      ),
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    WidgetsBinding.instance.handlePointerEvent(
-      PointerUpEvent(
-        pointer: _kSinglePointer,
-        position: rightClickCenter,
-        viewId: viewId,
-        timeStamp: const Duration(milliseconds: 50),
-        kind: PointerDeviceKind.mouse,
-      ),
-    );
+    await runPerfInteraction<void>('right_click', ref, () async {
+      WidgetsBinding.instance.handlePointerEvent(
+        PointerDownEvent(
+          pointer: _kSinglePointer,
+          position: rightClickCenter,
+          viewId: viewId,
+          timeStamp: ts,
+          kind: PointerDeviceKind.mouse,
+          buttons: kSecondaryButton,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      WidgetsBinding.instance.handlePointerEvent(
+        PointerUpEvent(
+          pointer: _kSinglePointer,
+          position: rightClickCenter,
+          viewId: viewId,
+          timeStamp: const Duration(milliseconds: 50),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+    });
     await awaitFramesOrTimeout(2);
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,
@@ -1194,11 +1213,14 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
     // Each tap dispatches at the LIVE center (D1): re-resolve via
     // `dispatchRectOf` before every click, falling back to the cached center
     // when null. A preceding tap may rebuild the host into a shifted slot.
-    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
+    final RefEntry target = entry;
+    await runPerfInteraction<void>('triple_click', ref, () async {
+      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+    });
     await awaitFrameOrTimeout();
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,

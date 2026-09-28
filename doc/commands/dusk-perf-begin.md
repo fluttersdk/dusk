@@ -48,7 +48,7 @@ In `timing` mode only step 4 runs; every flag is left where it was.
 1. `FlutterTimeline.debugCollectionEnabled` first. Both `startSync` and `finishSync` check that flag, so enabling the build flags ahead of it would push a finish with no matching start.
 2. `debugProfileBuildsEnabled` and `debugProfileBuildsEnabledUserWidgets`, from `package:flutter/widgets.dart`.
 3. With `--phases`, `debugProfileLayoutsEnabled` and `debugProfilePaintsEnabled`, from `package:flutter/rendering.dart`. Two libraries, one session.
-4. The session-begin hook the host wired: it zeroes wind's counters, turns wind's counting ON, and clears telescope's frame buffer. Without the hook (no `magic_devtools` in the app) those sections come back empty and the frame summary reports zero frames.
+4. The session-begin hook the host wired, called with the session's mode: it zeroes wind's counters, clears telescope's frame buffer, and turns wind's counting on in `attribution` mode only (counting sits on wind's hottest path and would inflate the milliseconds `timing` mode exists to report). Without the hook (no `magic_devtools` in the app) those sections come back empty and the frame summary reports zero frames.
 
 Each flag's prior value is saved in the session. `dusk:perf_end` restores those values rather than forcing `false`, so a host that had build profiling on for its own reasons gets it back.
 

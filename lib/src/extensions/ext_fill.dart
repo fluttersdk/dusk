@@ -9,6 +9,7 @@ import '../utils/dusk_exceptions.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
+import '../utils/perf_interaction.dart';
 import 'ext_focus.dart' show aiTestFocusHandler;
 import 'ext_pointer.dart' show resolveRefForAction;
 import 'ext_snapshot.dart' show duskSnapBuild;
@@ -99,8 +100,14 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
     // 1. Run the resolve + focus + clear + type sequence once. On a stale
     //    handle retry the whole sequence a single time; the second pass
     //    re-resolves the ref against the now-settled tree before the steps.
-    developer.ServiceExtensionResponse? outcome = await _attemptFill(params);
-    outcome ??= await _attemptFill(params);
+    //    One interaction spans both passes: the focus, clear and type steps
+    //    join it rather than opening three.
+    final developer.ServiceExtensionResponse? outcome =
+        await runPerfInteraction(
+      'fill',
+      ref,
+      () async => await _attemptFill(params) ?? await _attemptFill(params),
+    );
     if (outcome == null) {
       // Two consecutive stale resolutions: the handle is genuinely gone.
       return developer.ServiceExtensionResponse.error(

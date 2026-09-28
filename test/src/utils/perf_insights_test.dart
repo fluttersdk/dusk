@@ -235,6 +235,57 @@ void main() {
       }
     });
 
+    test(
+        'full=true lifts every cut: every block, counter row and insight, '
+        'omitted all zero; the default stays under 6 KB', () {
+      final Map<String, Object?> bounded = buildPerfReport(
+        _bigPerf(),
+        _bigExtras(),
+        _bigWind(),
+        env: _env,
+        framesDrawn: 3700,
+      );
+      final Map<String, Object?> full = buildPerfReport(
+        _bigPerf(),
+        _bigExtras(),
+        _bigWind(),
+        env: _env,
+        framesDrawn: 3700,
+        full: true,
+      );
+
+      expect(jsonEncode(bounded).length, lessThan(6144));
+
+      final Map<String, Object?> omitted =
+          full['omitted']! as Map<String, Object?>;
+      expect(omitted, isNotEmpty);
+      for (final MapEntry<String, Object?> cut in omitted.entries) {
+        expect(cut.value, 0, reason: '${cut.key} still cut rows');
+      }
+
+      final Map<String, Object?> summary =
+          full['summary']! as Map<String, Object?>;
+      final Set<String> ranked = <String>{
+        for (final Object? row in summary['blocksBySelf']! as List<Object?>)
+          (row! as Map<String, Object?>)['name']! as String,
+      };
+      final Set<String> expected = <String>{
+        for (int i = 0; i < 520; i++) 'NestedWidgetTypeNumber$i',
+        'DominantSlowWidget',
+        'ChattyTinyWidget',
+      };
+      expect(ranked, expected);
+      expect(summary['blocksByCount'] as List<Object?>, hasLength(522));
+      expect(summary['routeTransitions'] as List<Object?>, hasLength(12));
+
+      final Map<String, Object?> magic = (full['counters']!
+          as Map<String, Object?>)['magic']! as Map<String, Object?>;
+      expect(magic['controllerNotifies'] as List<Object?>, hasLength(30));
+      final Map<String, Object?> wind = (full['counters']!
+          as Map<String, Object?>)['wind']! as Map<String, Object?>;
+      expect(wind['widgetBuilds'] as List<Object?>, hasLength(40));
+    });
+
     test('ranks blocks by selfMicros, never by the nested micros', () {
       // Outer has the larger inclusive time only because Inner runs inside
       // it; ranking by `micros` would blame the parent for its child's work.

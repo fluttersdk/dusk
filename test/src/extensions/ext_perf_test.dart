@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_perf.dart';
+import 'package:fluttersdk_dusk/src/utils/perf_insights.dart';
 import 'package:fluttersdk_dusk/src/utils/perf_readers.dart';
 
 /// Wind is not a dependency of dusk, so the wind section is read through the
@@ -105,7 +106,7 @@ void main() {
           'controllerNotifies': <String, int>{},
           'routeTransitions': <Map<String, Object?>>[],
         };
-    perfSessionBeginHook = () {};
+    perfSessionBeginHook = (PerfMode mode) {};
     perfSessionEndHook = () {};
     perfInsightContributors =
         <List<Map<String, Object?>> Function(Map<String, Object?>)>[];
@@ -225,7 +226,7 @@ void main() {
     test('calls perfSessionBeginHook once and records the liveness baseline',
         () async {
       int beginCalls = 0;
-      perfSessionBeginHook = () => beginCalls++;
+      perfSessionBeginHook = (PerfMode mode) => beginCalls++;
       framePerfReader = () => <String, Object?>{
             'frames': <Map<String, Object?>>[],
             'livenessCounter': 41,
@@ -237,6 +238,22 @@ void main() {
 
       expect(beginCalls, 1);
       expect(payload['livenessBaseline'], 41);
+    });
+
+    test('hands the session mode to perfSessionBeginHook', () async {
+      // A timing session must be able to tell the host to leave wind's
+      // counting off: it sits on the hottest path in the framework and would
+      // inflate the milliseconds timing mode exists to report.
+      final List<PerfMode> seen = <PerfMode>[];
+      perfSessionBeginHook = seen.add;
+
+      await duskPerfBeginHandler(
+        'ext.dusk.perf_begin',
+        <String, String>{'mode': 'timing'},
+      );
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+
+      expect(seen, <PerfMode>[PerfMode.timing, PerfMode.attribution]);
     });
 
     test(
@@ -362,7 +379,8 @@ void main() {
       // of a hot restart, which the plan forbids outright.
       FlutterTimeline.debugCollectionEnabled = false;
       debugProfileBuildsEnabled = false;
-      perfSessionBeginHook = () => throw StateError('host wiring is broken');
+      perfSessionBeginHook =
+          (PerfMode mode) => throw StateError('host wiring is broken');
 
       final developer.ServiceExtensionResponse begin =
           await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
@@ -390,7 +408,8 @@ void main() {
             ],
             'livenessCounter': 4213,
           };
-      perfSessionBeginHook = () => throw StateError('host wiring is broken');
+      perfSessionBeginHook =
+          (PerfMode mode) => throw StateError('host wiring is broken');
 
       await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
       final developer.ServiceExtensionResponse end =
@@ -565,6 +584,49 @@ void main() {
                 as List<dynamic>)
             .single,
         <dynamic>['MonitorController', 12, 6.0],
+      );
+    });
+
+    test('full=true carries every counter row; the default cuts to three',
+        () async {
+      perfExtrasReader = () => <String, Object?>{
+            'controllerNotifies': <String, int>{
+              for (int i = 0; i < 5; i++) 'Controller$i': 10 + i,
+            },
+          };
+      Future<Map<String, dynamic>> session(Map<String, String> params) async {
+        framePerfReader = () => <String, Object?>{
+              'frames': <Map<String, Object?>>[],
+              'livenessCounter': 0,
+            };
+        await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+        framePerfReader = () => <String, Object?>{
+              'frames': _fixtureFrames,
+              'livenessCounter': 44,
+            };
+        return _decode(
+          await duskPerfEndHandler('ext.dusk.perf_end', params),
+        );
+      }
+
+      List<dynamic> notifies(Map<String, dynamic> payload) =>
+          ((payload['counters'] as Map<String, dynamic>)['magic']
+              as Map<String, dynamic>)['controllerNotifies'] as List<dynamic>;
+
+      final Map<String, dynamic> bounded = await session(<String, String>{});
+      final Map<String, dynamic> full =
+          await session(<String, String>{'full': 'true'});
+
+      expect(notifies(bounded), hasLength(3));
+      expect(
+        (bounded['omitted']
+            as Map<String, dynamic>)['magic.controllerNotifies'],
+        2,
+      );
+      expect(notifies(full), hasLength(5));
+      expect(
+        (full['omitted'] as Map<String, dynamic>).values,
+        everyElement(0),
       );
     });
 

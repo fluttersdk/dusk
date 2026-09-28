@@ -54,6 +54,10 @@ final class _PerfSession {
   /// Wall clock since the session opened, for `summary.durationMs`.
   final Stopwatch clock = Stopwatch()..start();
 
+  /// `FlutterTimeline.now` at open, the start of the window
+  /// `ext.dusk.perf_trace` exports: the clock interactions are stamped with.
+  final int startUs = FlutterTimeline.now;
+
   /// The liveness counter as it read at `perf_begin`. `perf_end` reports
   /// rather than refuses only when the counter has moved past this.
   ///
@@ -96,15 +100,40 @@ int _sessionCounter = 0;
 /// read say that", and holding older analyses would keep thousands of frame
 /// rows alive for questions nobody asks.
 final class _ClosedSession {
-  const _ClosedSession(this.token, this.analysis);
+  const _ClosedSession(
+    this.token,
+    this.analysis, {
+    required this.startUs,
+    required this.endUs,
+  });
 
   final String token;
+
+  /// The session's `FlutterTimeline.now` window, open to `perf_end`.
+  final int startUs;
+  final int endUs;
 
   /// Null when `perf_end` refused: a refusal has no insights to drill into.
   final PerfAnalysis? analysis;
 }
 
 _ClosedSession? _lastClosed;
+
+/// Whether a measurement session is open. Gesture verbs open an interaction
+/// only while it is, so outside a session they cost nothing.
+bool get perfSessionOpen => _session != null;
+
+/// The token of the most recent session `perf_end` closed, the one
+/// `perf_insight` and `perf_trace` answer for; null before any closed.
+String? get lastClosedPerfToken => _lastClosed?.token;
+
+/// That session's `FlutterTimeline.now` window, from `perf_begin` to
+/// `perf_end`; null before any closed.
+({int startUs, int endUs})? get lastClosedPerfWindow {
+  final _ClosedSession? closed = _lastClosed;
+  if (closed == null) return null;
+  return (startUs: closed.startUs, endUs: closed.endUs);
+}
 
 /// The most frames a session can produce and still be a stalled engine rather
 /// than a measurement.
@@ -244,8 +273,9 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
 
     // 5. Zero the counters dusk cannot reach itself, then read the baseline
     //    the refusal is judged against. Reading after the hook keeps the
-    //    baseline on the same side of the reset as everything else.
-    perfSessionBeginHook();
+    //    baseline on the same side of the reset as everything else. The hook
+    //    gets the mode so a timing session can leave wind's counting off.
+    perfSessionBeginHook(mode);
     final int livenessBaseline = _asInt(framePerfReader()['livenessCounter']);
     session.livenessBaseline = livenessBaseline;
 
@@ -283,7 +313,13 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
 
 /// Handler for `ext.dusk.perf_end`: closes the session and reports.
 ///
-/// Takes no params. Reads the frames and the liveness counter through
+/// Params (all string-valued):
+/// - `full` (optional, default `'false'`): lift every cut, so the counter
+///   breakdowns, block rankings, route transitions and insights carry every
+///   row and `omitted` reads all zeros. For a host-side runner that writes the
+///   report to a file; an agent reading the answer wants the bounded default.
+///
+/// Reads the frames and the liveness counter through
 /// [framePerfReader], wind's aggregate through `WindDebugRegistry.currentPerf`
 /// and the magic-side counters through [perfExtrasReader], builds the report
 /// with [analysePerf], keeps the analysis for `ext.dusk.perf_insight`, then
@@ -356,6 +392,8 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
   // A failed close must not leave the previous report answering drill-downs
   // as though it were this session's.
   _lastClosed = null;
+  final int endUs = FlutterTimeline.now;
+  final bool full = params['full'] == 'true';
 
   try {
     // 1. Read the liveness counter first: everything below is only worth
@@ -387,7 +425,12 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
     final int advanced = livenessFinal - baseline;
 
     if (advanced <= _kStalledEngineFrames) {
-      _lastClosed = _ClosedSession(session.token, null);
+      _lastClosed = _ClosedSession(
+        session.token,
+        null,
+        startUs: session.startUs,
+        endUs: endUs,
+      );
       return duskResult(<String, dynamic>{
         'sessionToken': session.token,
         'refused': true,
@@ -433,10 +476,16 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
       mode: session.mode,
       framesDrawn: advanced,
       durationMs: session.clock.elapsedMicroseconds / 1000,
+      full: full,
     );
 
     // 3. Keep the analysis for perf_insight, then report.
-    _lastClosed = _ClosedSession(session.token, analysis);
+    _lastClosed = _ClosedSession(
+      session.token,
+      analysis,
+      startUs: session.startUs,
+      endUs: endUs,
+    );
     return duskResult(<String, dynamic>{
       'sessionToken': session.token,
       'refused': false,

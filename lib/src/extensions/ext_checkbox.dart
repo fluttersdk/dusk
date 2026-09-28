@@ -11,6 +11,7 @@ import '../utils/dusk_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
+import '../utils/perf_interaction.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
 
 // ---------------------------------------------------------------------------
@@ -146,8 +147,13 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
   //    PointerDownEvent+delay+PointerUpEvent sequence as ext_pointer.dart
   //    (duplicate here to keep the checkbox module self-contained and avoid
   //    a circular import on the private _injectTap function).
+  final Offset center = entry.rect.center;
   try {
-    await _injectTapAt(entry.rect.center);
+    await runPerfInteraction<void>(
+      'set_checkbox',
+      ref,
+      () => _injectTapAt(center),
+    );
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.set_checkbox: injectTap failed for ref '

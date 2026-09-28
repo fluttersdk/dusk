@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fluttersdk_dusk/src/utils/perf_insights.dart';
 import 'package:fluttersdk_dusk/src/utils/perf_readers.dart';
 
 void main() {
@@ -7,14 +8,17 @@ void main() {
   // defaults rather than a copy that drifts from them.
   final Map<String, Object?> Function() defaultFramePerf = framePerfReader;
   final Map<String, Object?> Function() defaultExtras = perfExtrasReader;
-  final void Function() defaultBegin = perfSessionBeginHook;
+  final void Function(PerfMode mode) defaultBegin = perfSessionBeginHook;
   final void Function() defaultEnd = perfSessionEndHook;
+  final List<Map<String, Object?>> Function() defaultTimeline =
+      perfTimelineReader;
 
   tearDown(() {
     framePerfReader = defaultFramePerf;
     perfExtrasReader = defaultExtras;
     perfSessionBeginHook = defaultBegin;
     perfSessionEndHook = defaultEnd;
+    perfTimelineReader = defaultTimeline;
   });
 
   group('framePerfReader default', () {
@@ -54,9 +58,15 @@ void main() {
     });
   });
 
+  group('perfTimelineReader default', () {
+    test('returns no rows, so a trace still carries dusk\'s own events', () {
+      expect(perfTimelineReader(), isEmpty);
+    });
+  });
+
   group('the session hooks default', () {
     test('both are no-ops that do not throw', () {
-      expect(perfSessionBeginHook, returnsNormally);
+      expect(() => perfSessionBeginHook(PerfMode.timing), returnsNormally);
       expect(perfSessionEndHook, returnsNormally);
     });
   });
@@ -77,7 +87,7 @@ void main() {
       expect(extras['controllerNotifies'], <String, int>{});
       expect(extras['routeTransitions'], <Map<String, Object?>>[]);
 
-      perfSessionBeginHook();
+      perfSessionBeginHook(PerfMode.attribution);
       perfSessionEndHook();
       expect(resetCalled, isFalse);
 
@@ -88,7 +98,7 @@ void main() {
     test('assigning the session hooks does not disturb the two readers', () {
       bool began = false;
       bool ended = false;
-      perfSessionBeginHook = () => began = true;
+      perfSessionBeginHook = (PerfMode mode) => began = true;
       perfSessionEndHook = () => ended = true;
 
       final Map<String, Object?> frames = framePerfReader();
@@ -98,7 +108,7 @@ void main() {
       final Map<String, Object?> extras = perfExtrasReader();
       expect(extras['controllerNotifies'], <String, int>{});
 
-      perfSessionBeginHook();
+      perfSessionBeginHook(PerfMode.attribution);
       perfSessionEndHook();
       expect(began, isTrue);
       expect(ended, isTrue);

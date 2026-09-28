@@ -24,6 +24,8 @@ dart run fluttersdk_dusk dusk:perf_end [--json]
 
 `dusk:perf_end` requires a running Flutter session (`CommandBoot.connected`) and calls `ext.dusk.perf_end`. It takes no arguments beyond `--json`. Without a prior `dusk:perf_begin` it returns a typed error: the session carries the flag values to restore and the liveness baseline the report is judged against, and neither can be reconstructed afterwards.
 
+`ext.dusk.perf_end` itself also accepts `full: 'true'`, which the command does not pass. It lifts every cut: the block rankings, counter breakdowns, route transitions and insights carry every row, and `omitted` reads all zeros. That form is for a runner that writes the report to a file; the bounded default is the one to read.
+
 ---
 
 <a name="returns"></a>
@@ -153,4 +155,5 @@ dart run fluttersdk_dusk dusk:perf_end
 
 - [dusk:perf_begin](dusk-perf-begin.md): opens the session, picks the mode, records the liveness baseline.
 - [dusk:perf_insight](dusk-perf-insight.md): the rows behind one insight.
+- [Interactions and the perf trace](../reference/perf-trace.md): what each gesture in the session opened, exported as Chrome Trace Event JSON.
 - [Frame production](../reference/frame-production.md): the backgrounded-tab failure mode the refusal exists for.

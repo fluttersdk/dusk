@@ -68,6 +68,11 @@ void main() {
       expect(source, contains("import 'ext_close_app.dart';"));
     });
 
+    test('calls registerPerfTraceExtension() beside the perf session', () {
+      expect(source, contains("import 'ext_perf_trace.dart';"));
+      expect(source, contains('registerPerfTraceExtension();'));
+    });
+
     test('preserves the pre-existing alpha-1 aggregator calls', () {
       expect(source, contains('registerSnapExtension();'));
       expect(source, contains('registerPointerExtensions();'));
