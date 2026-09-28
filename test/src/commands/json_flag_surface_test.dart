@@ -42,6 +42,8 @@ void main() {
     'dusk:perf_begin',
     'dusk:perf_end',
     'dusk:perf_insight',
+    'dusk:perf_run',
+    'dusk:perf_compare',
   };
 
   group('DuskArtisanProvider --json surface', () {
@@ -85,6 +87,8 @@ void main() {
       expect(declared['dusk:observe'], isFalse);
       expect(declared['dusk:exceptions'], isFalse);
       expect(declared['dusk:screenshot'], isFalse);
+      // Prints only the path of the file it wrote.
+      expect(declared['dusk:perf_trace'], isFalse);
     });
 
     test('the summarising set covers every verb that declares the flag', () {

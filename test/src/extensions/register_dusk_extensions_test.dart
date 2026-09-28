@@ -73,6 +73,11 @@ void main() {
       expect(source, contains('registerPerfTraceExtension();'));
     });
 
+    test('calls registerSemanticsHoldExtension() for the semantics pass', () {
+      expect(source, contains("import 'ext_semantics_hold.dart';"));
+      expect(source, contains('registerSemanticsHoldExtension();'));
+    });
+
     test('preserves the pre-existing alpha-1 aggregator calls', () {
       expect(source, contains('registerSnapExtension();'));
       expect(source, contains('registerPointerExtensions();'));

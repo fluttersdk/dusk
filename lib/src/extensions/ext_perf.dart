@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
 
+import '../dusk_plugin.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/perf_insights.dart';
@@ -642,6 +643,10 @@ void _closeSession(_PerfSession session) {
     debugProfileLayoutsEnabled = session.priorProfileLayouts;
     debugProfilePaintsEnabled = session.priorProfilePaints;
   }
+  // A semantics pass whose driver died between `semantics_hold release` and
+  // its `acquire` would otherwise leave every later snapshot and ref-based
+  // action reading an empty tree. The session is the receipt for that too.
+  if (DuskPlugin.semanticsReleased) DuskPlugin.acquireSemantics();
   // Session dropped BEFORE the host hook runs. That hook is assigned in
   // another repository and can throw; from `perf_end`'s `finally` a throw
   // would replace the response and cross the VM Service boundary, which this

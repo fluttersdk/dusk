@@ -79,4 +79,26 @@ void main() {
     DuskPlugin.enrichers.remove(noopEnricher);
     expect(DuskPlugin.enrichers.length, equals(initialLength));
   });
+
+  group('semantics handle', () {
+    tearDown(DuskPlugin.resetSemanticsForTesting);
+
+    test('acquire is idempotent and release reports whether it dropped one',
+        () {
+      DuskPlugin.resetSemanticsForTesting();
+      expect(DuskPlugin.acquireSemantics(), isTrue);
+      expect(DuskPlugin.acquireSemantics(), isFalse);
+      expect(DuskPlugin.releaseSemantics(), isTrue);
+      expect(DuskPlugin.semanticsReleased, isTrue);
+      expect(DuskPlugin.releaseSemantics(), isFalse);
+    });
+
+    test('acquire clears the released flag', () {
+      DuskPlugin.resetSemanticsForTesting();
+      DuskPlugin.acquireSemantics();
+      DuskPlugin.releaseSemantics();
+      DuskPlugin.acquireSemantics();
+      expect(DuskPlugin.semanticsReleased, isFalse);
+    });
+  });
 }

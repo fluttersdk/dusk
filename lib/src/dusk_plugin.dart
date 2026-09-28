@@ -112,4 +112,52 @@ class DuskPlugin {
   );
 
   static SemanticsHandle? _semanticsHandle;
+  static bool _semanticsReleased = false;
+
+  /// Whether [releaseSemantics] dropped dusk's semantics handle and
+  /// [acquireSemantics] has not restored it yet.
+  ///
+  /// While true the semantics tree is gone unless something else holds a
+  /// handle, so nothing may resolve a target through it: `ext.dusk.tap` and
+  /// `ext.dusk.drag` dispatch by coordinates and report the gate's checks as
+  /// skipped.
+  static bool get semanticsReleased => _semanticsReleased;
+
+  /// Drops the handle [install] took, so the framework stops building the
+  /// semantics tree every frame. Returns whether one was held.
+  ///
+  /// Only `ext.dusk.semantics_hold` calls this, and only inside an open perf
+  /// session: dusk_perf_run's semantics pass measures what the app costs
+  /// without the tree, and a handle left released outside that window would
+  /// break every snapshot and ref-based action that follows.
+  static bool releaseSemantics() {
+    final SemanticsHandle? handle = _semanticsHandle;
+    if (handle == null) return false;
+    handle.dispose();
+    _semanticsHandle = null;
+    _semanticsReleased = true;
+    return true;
+  }
+
+  /// Takes dusk's semantics handle again. Returns whether it had to.
+  ///
+  /// The tree does not exist the moment this returns: the framework schedules
+  /// the initial semantics build for the next frame, so a caller that needs
+  /// the root node awaits one.
+  static bool acquireSemantics() {
+    _semanticsReleased = false;
+    if (_semanticsHandle != null) return false;
+    _semanticsHandle = RendererBinding.instance.ensureSemantics();
+    return true;
+  }
+
+  /// Disposes whatever handle this class holds and clears the released flag,
+  /// so a test leaves neither a live handle (the harness asserts every one is
+  /// disposed) nor a released state for the next test to read.
+  @visibleForTesting
+  static void resetSemanticsForTesting() {
+    _semanticsHandle?.dispose();
+    _semanticsHandle = null;
+    _semanticsReleased = false;
+  }
 }

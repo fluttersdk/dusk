@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
 
+import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_perf.dart';
 import 'package:fluttersdk_dusk/src/utils/perf_insights.dart';
 import 'package:fluttersdk_dusk/src/utils/perf_readers.dart';
@@ -922,6 +923,22 @@ void main() {
 
       expect(response.result, isNull, reason: 'the refusal replaced it');
       expect(response.errorDetail, contains('refused'));
+    });
+  });
+
+  group('semantics receipt', () {
+    tearDown(DuskPlugin.resetSemanticsForTesting);
+
+    test('perf_end re-acquires a semantics handle a dead driver left released',
+        () async {
+      DuskPlugin.acquireSemantics();
+      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      expect(DuskPlugin.releaseSemantics(), isTrue);
+
+      await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+
+      expect(DuskPlugin.semanticsReleased, isFalse);
+      expect(RendererBinding.instance.semanticsEnabled, isTrue);
     });
   });
 }

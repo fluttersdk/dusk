@@ -175,13 +175,16 @@ The single-round-trip composite that hot-reloads the running app and then captur
 
 ## Performance
 
-One measurement session and its drill-down. `dusk:perf_begin` opens it (`--mode=attribution` profiles builds, `--mode=timing` touches no flag), you drive one interaction, `dusk:perf_end` closes it with a bounded report of ranked insights, and `dusk:perf_insight` returns the rows behind one of them.
+One measurement session and its drill-down. `dusk:perf_begin` opens it (`--mode=attribution` profiles builds, `--mode=timing` touches no flag), you drive one interaction, `dusk:perf_end` closes it with a bounded report of ranked insights, and `dusk:perf_insight` returns the rows behind one of them. `dusk:perf_run` repeats a scenario from a clean start and writes the medians to a file, `dusk:perf_compare` judges one such file against another, and `dusk:perf_trace` writes a session's timeline for Perfetto.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
 | [`dusk:perf_begin`](dusk-perf-begin.md) | Open a performance measurement session: zero the frame, wind and magic counters and, in attribution mode, switch on build profiling. | connected | ext.dusk.perf_begin |
 | [`dusk:perf_end`](dusk-perf-end.md) | Close the performance measurement session and report frames, ranked blocks, counters and insights. | connected | ext.dusk.perf_end |
 | [`dusk:perf_insight`](dusk-perf-insight.md) | Drill into one insight of the last perf_end report: title, summary, the rows behind it, estimated savings and the next step. | connected | ext.dusk.perf_insight |
+| [`dusk:perf_run`](dusk-perf-run.md) | Run a perf scenario N times from a clean start and write medians, spread, insights and every repeat to <out>/<scenario>-<label>.json. | connected | ext.dusk.perf_begin + perf_end (+ semantics_hold) |
+| [`dusk:perf_compare`](dusk-perf-compare.md) | Compare two dusk:perf_run files on counts per painted frame (and timing-mode ms) and print a verdict table. | none | none |
+| [`dusk:perf_trace`](dusk-perf-trace.md) | Write the last closed perf session as a Chrome Trace JSON file (ui.perfetto.dev, chrome://tracing) and print its path. | connected | ext.dusk.perf_trace |
 
 ## Boot mode and deep-dives
 

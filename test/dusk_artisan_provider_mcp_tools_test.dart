@@ -13,8 +13,8 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 37 commands', () {
-      expect(cmds, hasLength(37));
+    test('returns exactly 40 commands', () {
+      expect(cmds, hasLength(40));
     });
 
     test(
@@ -67,6 +67,10 @@ void main() {
           'DuskPerfBeginCommand',
           'DuskPerfEndCommand',
           'DuskPerfInsightCommand',
+          // Perf runner, compare and trace export.
+          'DuskPerfRunCommand',
+          'DuskPerfCompareCommand',
+          'DuskPerfTraceCommand',
         ]),
       );
     });
@@ -83,8 +87,8 @@ void main() {
     // Length
     // -------------------------------------------------------------------------
 
-    test('returns exactly 36 descriptors', () {
-      expect(tools, hasLength(36));
+    test('returns exactly 39 descriptors', () {
+      expect(tools, hasLength(39));
     });
 
     // -------------------------------------------------------------------------
@@ -137,6 +141,9 @@ void main() {
           'dusk_perf_begin',
           'dusk_perf_end',
           'dusk_perf_insight',
+          'dusk_perf_run',
+          'dusk_perf_compare',
+          'dusk_perf_trace',
         ]),
       );
     });
@@ -217,6 +224,44 @@ void main() {
       expect(byName['dusk_perf_begin'], equals('ext.dusk.perf_begin'));
       expect(byName['dusk_perf_end'], equals('ext.dusk.perf_end'));
       expect(byName['dusk_perf_insight'], equals('ext.dusk.perf_insight'));
+      // Host-side: the run, the compare and the file write happen in the
+      // MCP server's process, so all three route through the substrate.
+      expect(byName['dusk_perf_run'], equals('artisan:dusk:perf_run'));
+      expect(byName['dusk_perf_compare'], equals('artisan:dusk:perf_compare'));
+      expect(byName['dusk_perf_trace'], equals('artisan:dusk:perf_trace'));
+    });
+
+    test('dusk_perf_run requires scenario and names every option', () {
+      final run = tools.firstWhere((t) => t.name == 'dusk_perf_run');
+      expect(run.inputSchema['required'], <String>['scenario']);
+      final properties = run.inputSchema['properties'] as Map<String, dynamic>;
+      expect(
+        properties.keys,
+        containsAll(<String>[
+          'scenario',
+          'label',
+          'out',
+          'repeat',
+          'platform',
+          'timing',
+          'against',
+          'semantics-pass',
+          'json',
+        ]),
+      );
+    });
+
+    test('dusk_perf_compare requires a and b', () {
+      final compare = tools.firstWhere((t) => t.name == 'dusk_perf_compare');
+      expect(compare.inputSchema['required'], <String>['a', 'b']);
+    });
+
+    test('dusk_perf_trace requires out and takes an optional token', () {
+      final trace = tools.firstWhere((t) => t.name == 'dusk_perf_trace');
+      expect(trace.inputSchema['required'], <String>['out']);
+      final properties =
+          trace.inputSchema['properties'] as Map<String, dynamic>;
+      expect(properties.keys, containsAll(<String>['out', 'token']));
     });
 
     test('dusk_perf_begin declares mode as an attribution|timing enum', () {

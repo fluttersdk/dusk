@@ -1,0 +1,1425 @@
+import 'dart:convert';
+import 'dart:io';
+
+// `hide Error`: the installer's `Error` result would shadow dart:core's.
+import 'package:fluttersdk_artisan/artisan.dart' hide Error;
+
+import '../cdp/cdp_client.dart';
+import '../perf/scenario.dart';
+import 'json_output.dart';
+
+/// Pause between the last step and `perf_end`. Flutter delivers FrameTiming
+/// in batches about every 100 ms in debug and profile
+/// (flutter/lib/src/scheduler/binding.dart:276-315), so a session closed on
+/// the step's last frame reports a subset; three batches is enough margin.
+const Duration _kSettleBeforeEnd = Duration(milliseconds: 300);
+
+/// Insights the `--json` stdout carries, the bounded report's own limit; the
+/// file keeps every one.
+const int _kStdoutInsightLimit = 6;
+
+/// How long a hot restart may take before ext.dusk.* answers again. Flutter
+/// web recompiles on restart, which the harness measured at up to 16 s.
+const Duration _kHotRestartTimeout = Duration(seconds: 90);
+
+/// How long a relaunch may take: a profile build compiles from scratch.
+const Duration _kRelaunchTimeout = Duration(seconds: 420);
+
+/// A run that cannot go on, with the sentence to print.
+final class PerfRunException implements Exception {
+  PerfRunException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// Everything `dusk:perf_run` needs from outside the command: the app's
+/// `ext.dusk.*` extensions, Chrome's DevTools, the runner's restart and the
+/// clock. The production driver talks to artisan; a test drives a fake.
+abstract interface class PerfRunDriver {
+  /// Calls [method] on the running app. Throws on an extension error.
+  Future<Map<String, dynamic>> call(
+    String method, [
+    Map<String, String> params,
+  ]);
+
+  /// Sends one DevTools command to the page. Chrome only.
+  Future<Map<String, dynamic>> cdp(
+    String method, [
+    Map<String, dynamic> params,
+  ]);
+
+  /// Restarts the app from scratch, a hot restart or a full relaunch as the
+  /// build allows, and returns once `ext.dusk.*` answers again.
+  Future<void> restart();
+
+  Future<void> pause(Duration duration);
+
+  /// Releases whatever the driver opened.
+  Future<void> close();
+}
+
+/// What the run was measured on, beyond what the app reports about itself.
+final class PerfRunEnvironment {
+  const PerfRunEnvironment({
+    required this.platform,
+    this.device,
+    this.emulator = false,
+    this.restartMode = 'hot_restart',
+    this.host = const <String, Object?>{},
+    this.renderer = 'unknown',
+  });
+
+  final PerfPlatform platform;
+
+  /// The runner's device id (`chrome`, `emulator-5554`, a simulator UDID).
+  final String? device;
+
+  /// An Android emulator or an iOS simulator, whose raster ms are not a
+  /// device's.
+  final bool emulator;
+
+  /// `hot_restart` on a debug build, `relaunch` on one that cannot.
+  final String restartMode;
+
+  /// `uname`, CPU and core count of the machine that ran it.
+  final Map<String, Object?> host;
+
+  /// The rendering backend scraped from the run log, or `unknown`.
+  final String renderer;
+}
+
+/// Opens the driver and describes the environment for one run.
+typedef PerfRunConnector = Future<(PerfRunDriver, PerfRunEnvironment)> Function(
+    ArtisanContext ctx, PerfPlatform? platform);
+
+/// Runs a scenario's measured session several times and writes one file per
+/// scenario, `<out>/<scenario>-<label>.json`:
+///
+/// ```text
+/// artisan dusk:perf_run <scenario.yaml> [--label] [--out] [--repeat]
+///   [--timing] [--against <baseline.yaml>] [--semantics-pass] [--json]
+/// ```
+///
+/// Every repeat starts from the scenario's `setup` (so from its hot restart)
+/// and is one attribution session: `perf_begin`, the steps, `perf_end` with
+/// `full=true`. `--timing` interleaves timing-mode repeats, alternating the
+/// order each round; `--against` runs a second scenario inside the same
+/// rounds so both sides share the app's drift. `--semantics-pass` replays
+/// the steps by coordinates with dusk's semantics handle released for the
+/// timed window, reported as a separate `semanticsOff` series.
+///
+/// Exits 1 on a bad input, a step that cannot run, or when every attribution
+/// repeat was refused; a refused repeat among measured ones is recorded and
+/// left out of the medians.
+class DuskPerfRunCommand extends ArtisanCommand {
+  DuskPerfRunCommand({PerfRunConnector? connector})
+      : _connector = connector ?? connectArtisanPerfRun;
+
+  final PerfRunConnector _connector;
+
+  @override
+  String get name => 'dusk:perf_run';
+
+  @override
+  String get description =>
+      'Run a perf scenario N times from a clean start and write medians, '
+      'spread, insights and every repeat to <out>/<scenario>-<label>.json.';
+
+  @override
+  CommandBoot get boot => CommandBoot.connected;
+
+  @override
+  void configure(ArgParser parser) {
+    addJsonFlag(parser);
+    parser
+      ..addOption(
+        'scenario',
+        help: 'The scenario YAML (or the first argument).',
+      )
+      ..addOption(
+        'label',
+        help: 'Names this run in the file name; [a-z0-9_-] only.',
+        defaultsTo: 'run',
+      )
+      ..addOption(
+        'out',
+        help: 'Directory the run files are written to.',
+        defaultsTo: 'build/perf',
+      )
+      ..addOption(
+        'repeat',
+        help: 'Repeats per series; overrides the scenario\'s `repeat`.',
+      )
+      ..addOption(
+        'platform',
+        help: 'chrome, android or ios. Read from the running session when '
+            'omitted.',
+        allowed: PerfPlatform.values.map((PerfPlatform p) => p.name),
+      )
+      ..addOption(
+        'against',
+        help: 'A baseline scenario YAML run inside the same rounds, A and B '
+            'alternating, and written to its own file.',
+      )
+      ..addFlag(
+        'timing',
+        help: 'Also run interleaved timing-mode repeats, the only '
+            'milliseconds dusk:perf_compare gates on.',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'semantics-pass',
+        help: 'Also replay the steps by coordinates with the semantics tree '
+            'released for the timed window (the semanticsOff series).',
+        defaultsTo: false,
+      );
+  }
+
+  @override
+  Future<int> handle(ArtisanContext ctx) async {
+    // 1. Every input is validated before the app is touched.
+    final String? path =
+        ctx.input.argument(0) ?? ctx.input.option('scenario') as String?;
+    if (path == null || path.isEmpty) {
+      ctx.output.error(
+        'Usage: dusk:perf_run <scenario.yaml> [--label=<name>]: pass the '
+        'scenario file.',
+      );
+      return 1;
+    }
+    final String label = (ctx.input.option('label') as String?) ?? 'run';
+    if (!isSafePerfName(label)) {
+      ctx.output.error(
+        '--label "$label" must use [a-z0-9_-] only: it becomes part of the '
+        'file name.',
+      );
+      return 1;
+    }
+    final String out = (ctx.input.option('out') as String?) ?? 'build/perf';
+    final Object? rawRepeat = ctx.input.option('repeat');
+    final int? repeat = _readInt(rawRepeat);
+    if (rawRepeat != null && (repeat == null || repeat < 1)) {
+      ctx.output.error('--repeat "$rawRepeat" must be a positive integer.');
+      return 1;
+    }
+    final Object? platformName = ctx.input.option('platform');
+    final PerfPlatform? platform = PerfPlatform.tryParse(platformName);
+    if (platformName != null && platform == null) {
+      ctx.output.error('--platform "$platformName" is not one of chrome, '
+          'android, ios.');
+      return 1;
+    }
+    final String? against = ctx.input.option('against') as String?;
+
+    final List<PerfScenario> scenarios = <PerfScenario>[];
+    for (final String file in <String>[path, if (against != null) against]) {
+      final PerfScenario? scenario = await _load(ctx, file);
+      if (scenario == null) return 1;
+      scenarios.add(scenario);
+    }
+    if (scenarios.length == 2 && scenarios[0].name == scenarios[1].name) {
+      ctx.output.error('--against names a scenario called '
+          '"${scenarios[0].name}" too; the two run files would collide.');
+      return 1;
+    }
+
+    // 2. Connect, then refuse a platform a scenario does not list.
+    final PerfRunDriver driver;
+    final PerfRunEnvironment env;
+    try {
+      (driver, env) = await _connector(ctx, platform);
+    } on PerfRunException catch (e) {
+      ctx.output.error(e.message);
+      return 1;
+    }
+
+    try {
+      for (final PerfScenario scenario in scenarios) {
+        if (!scenario.platforms.contains(env.platform)) {
+          ctx.output.error(
+            'Scenario ${scenario.name} does not list ${env.platform.name}; '
+            'it lists ${scenario.platforms.map((PerfPlatform p) => p.name).join(', ')}.',
+          );
+          return 1;
+        }
+      }
+
+      // 3. Run every round.
+      final _PerfRunner runner = _PerfRunner(
+        driver,
+        env,
+        repeat: repeat ?? scenarios.first.repeat,
+        timing: _readBool(ctx.input.option('timing')),
+        semanticsPass: _readBool(ctx.input.option('semantics-pass')),
+      );
+      final List<_ScenarioRun> runs;
+      try {
+        runs = await runner.run(scenarios);
+      } on PerfRunException catch (e) {
+        ctx.output.error(e.message);
+        return 1;
+      }
+
+      // 4. Write one file per scenario, then report the first.
+      final List<(String, Map<String, Object?>)> written =
+          <(String, Map<String, Object?>)>[];
+      for (final _ScenarioRun run in runs) {
+        final Map<String, Object?> file = runner.fileFor(
+          run,
+          label,
+          interleavedWith: runs.length == 2
+              ? runs.firstWhere((_ScenarioRun r) => r != run).scenario.name
+              : null,
+        );
+        written.add((await _write(out, run.scenario.name, label, file), file));
+      }
+      return _report(ctx, written);
+    } finally {
+      await driver.close();
+    }
+  }
+
+  Future<PerfScenario?> _load(ArtisanContext ctx, String path) async {
+    try {
+      return PerfScenario.parse(await File(path).readAsString());
+    } on PerfScenarioException catch (e) {
+      ctx.output.error('$path: $e');
+    } on FileSystemException catch (e) {
+      ctx.output.error('Cannot read scenario $path: ${e.message}');
+    }
+    return null;
+  }
+
+  Future<String> _write(
+    String out,
+    String name,
+    String label,
+    Map<String, Object?> file,
+  ) async {
+    final File target = File('$out/$name-$label.json').absolute;
+    await target.parent.create(recursive: true);
+    await target.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(file),
+    );
+    return target.path;
+  }
+
+  int _report(
+    ArtisanContext ctx,
+    List<(String, Map<String, Object?>)> written,
+  ) {
+    final (String path, Map<String, Object?> file) = written.first;
+    final Map<String, Object?> summary =
+        file['summary']! as Map<String, Object?>;
+    final int measured = summary['repeats']! as int;
+    final int refused = summary['refused']! as int;
+    final String name =
+        (file['scenario']! as Map<String, Object?>)['name']! as String;
+
+    // Every repeat refused is a run with no measurement in it: a file of
+    // refusals written with exit 0 would be chained on as if it were one.
+    final bool empty = written.any(
+      ((String, Map<String, Object?>) w) =>
+          (w.$2['summary']! as Map<String, Object?>)['repeats'] == 0,
+    );
+
+    emitEnvelope(ctx, _stdoutShape(file, path), () {
+      if (empty) return;
+      final Map<String, Object?> frames =
+          summary['frames']! as Map<String, Object?>;
+      ctx.output.success(
+        'perf_run $name: $measured of ${measured + refused} attribution '
+        'repeats measured ($refused refused), median ${frames['painted']} '
+        'painted frames. Wrote $path.',
+      );
+      final List<Object?> insights = file['insights']! as List<Object?>;
+      if (insights.isNotEmpty) {
+        final Map<String, Object?> top =
+            insights.first! as Map<String, Object?>;
+        ctx.output.writeln(
+          'Top insight of the median repeat: [${top['severity']}] '
+          '${top['id']}: ${top['title']}.',
+        );
+      }
+      if (file['semanticsPass'] != null) {
+        ctx.output.writeln(
+          'Semantics pass: ${file['semanticsPass']}'
+          '${file['semanticsPassReason'] == null ? '' : ', ${file['semanticsPassReason']}'}.',
+        );
+      }
+      for (final (String other, _) in written.skip(1)) {
+        ctx.output.writeln('Also wrote $other.');
+      }
+    });
+
+    if (!empty) return 0;
+    ctx.output.error(
+      'Every attribution repeat of a scenario was refused, so there is no '
+      'measurement: the engine drew too few frames. Bring the page to '
+      'front, check the steps drive something that renders, and rerun. The '
+      'refusals are in $path.',
+    );
+    return 1;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Statistics
+// ---------------------------------------------------------------------------
+
+/// The middle of [values], or the mean of the two middle ones.
+///
+/// Throws [ArgumentError] on an empty list: a median of nothing is not zero.
+double perfMedian(List<num> values) {
+  if (values.isEmpty) {
+    throw ArgumentError.value(values, 'values', 'must not be empty');
+  }
+  final List<double> sorted = values.map((num v) => v.toDouble()).toList()
+    ..sort();
+  final int mid = sorted.length ~/ 2;
+  return sorted.length.isOdd
+      ? sorted[mid]
+      : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/// `{min, max, rangePct}` of [values]: the range as a percentage of the
+/// median, null when the median is zero.
+Map<String, Object?> perfSpread(List<num> values) {
+  final double min = values.map((num v) => v.toDouble()).reduce(_min);
+  final double max = values.map((num v) => v.toDouble()).reduce(_max);
+  final double median = perfMedian(values);
+  return <String, Object?>{
+    'min': min,
+    'max': max,
+    'rangePct': median == 0 ? null : _round(((max - min) / median) * 100, 1),
+  };
+}
+
+/// Every count in a `perf_end` report, per painted frame, by a flat name.
+///
+/// - `blocks.<name>` from `summary.blocksByCount`;
+/// - `<section>.<key>` for a counter `{count, perFrame}`;
+/// - `<section>.<key>.<name>` for a ranked counter row
+///   `[name, count, perFrame]`.
+///
+/// Gauges (a bare number, such as wind's `cacheSize`) are not counts and are
+/// left out. A missing `perFrame` is computed from the count and the painted
+/// frames, so nothing is ever compared raw.
+Map<String, double> perfPerFrameMetrics(Map<String, dynamic> report) {
+  final Map<String, dynamic> summary = _map(report['summary']);
+  final num painted = _num(_map(summary['frames'])['painted']);
+  double perFrame(Object? given, Object? count) => given is num
+      ? given.toDouble()
+      : painted == 0
+          ? 0
+          : _num(count) / painted;
+
+  final Map<String, double> metrics = <String, double>{};
+  for (final Object? block in _list(summary['blocksByCount'])) {
+    final Map<String, dynamic> row = _map(block);
+    metrics['blocks.${row['name']}'] = perFrame(row['perFrame'], row['count']);
+  }
+  final Map<String, dynamic> counters = _map(report['counters']);
+  for (final String section in const <String>['wind', 'magic']) {
+    for (final MapEntry<String, dynamic> entry
+        in _map(counters[section]).entries) {
+      final Object? value = entry.value;
+      if (value is Map<String, dynamic>) {
+        metrics['$section.${entry.key}'] =
+            perFrame(value['perFrame'], value['count']);
+      } else if (value is List<dynamic>) {
+        for (final Object? row in value) {
+          if (row is List<dynamic> && row.length >= 2) {
+            metrics['$section.${entry.key}.${row[0]}'] =
+                perFrame(row.length > 2 ? row[2] : null, row[1]);
+          }
+        }
+      }
+    }
+  }
+  return metrics;
+}
+
+/// The frame durations of a report, in ms: build and raster p50 and p90.
+Map<String, double> perfMsMetrics(Map<String, dynamic> report) {
+  final Map<String, dynamic> frames = _map(_map(report['summary'])['frames']);
+  return <String, double>{
+    for (final String thread in const <String>['buildMs', 'rasterMs'])
+      for (final String pct in const <String>['p50', 'p90'])
+        if (_map(frames[thread])[pct] is num)
+          '$thread.$pct': _num(_map(frames[thread])[pct]).toDouble(),
+  };
+}
+
+/// One series of `perf_end` reports reduced to medians and spread.
+///
+/// Refused reports are counted and left out; a series with none measured
+/// carries only `{repeats: 0, refused: n}`. A metric one report lacks counts
+/// as zero there, because a block that did not build was built zero times.
+Map<String, Object?> summarizePerfSeries(List<Map<String, dynamic>> reports) {
+  final List<Map<String, dynamic>> measured =
+      reports.where((Map<String, dynamic> r) => r['refused'] != true).toList();
+  final Map<String, Object?> summary = <String, Object?>{
+    'repeats': measured.length,
+    'refused': reports.length - measured.length,
+  };
+  if (measured.isEmpty) return summary;
+
+  // 1. Frame counts, informational: the gate never reads them raw.
+  summary['frames'] = <String, Object?>{
+    for (final String key in const <String>['painted', 'dropped', 'overBudget'])
+      key: _plain(
+        perfMedian(<num>[
+          for (final Map<String, dynamic> r in measured)
+            _num(_map(_map(r['summary'])['frames'])[key]),
+        ]),
+      ),
+  };
+
+  // 2. Per-frame counts and durations, each with its spread.
+  final Map<String, Object?> spread = <String, Object?>{};
+  for (final (
+        String section,
+        Map<String, double> Function(Map<String, dynamic>) read
+      ) in <(String, Map<String, double> Function(Map<String, dynamic>))>[
+    ('perFrame', perfPerFrameMetrics),
+    ('ms', perfMsMetrics),
+  ]) {
+    final List<Map<String, double>> rows = measured.map(read).toList();
+    final List<String> names = <String>{
+      for (final Map<String, double> row in rows) ...row.keys,
+    }.toList()
+      ..sort();
+    if (names.isEmpty) continue;
+    final Map<String, Object?> medians = <String, Object?>{};
+    final Map<String, Object?> ranges = <String, Object?>{};
+    for (final String name in names) {
+      final List<double> values = <double>[
+        for (final Map<String, double> row in rows) row[name] ?? 0,
+      ];
+      medians[name] = _round(perfMedian(values), 4);
+      ranges[name] = perfSpread(values);
+    }
+    summary[section] = medians;
+    spread[section] = ranges;
+  }
+  summary['spread'] = spread;
+  return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Environment
+// ---------------------------------------------------------------------------
+
+/// The platform named by [requested], or read from the session's [state].
+///
+/// Throws [PerfRunException] when neither settles it.
+PerfPlatform resolvePerfPlatform(
+  Map<String, dynamic>? state,
+  String? requested,
+) {
+  if (requested != null) {
+    final PerfPlatform? platform = PerfPlatform.tryParse(requested);
+    if (platform != null) return platform;
+    throw PerfRunException(
+      '--platform "$requested" is not one of chrome, android, ios.',
+    );
+  }
+  final String device = '${state?['device'] ?? ''}';
+  final String lower = device.toLowerCase();
+  if (state?['cdpPort'] != null ||
+      lower == 'chrome' ||
+      lower == 'web-server' ||
+      lower == 'edge') {
+    return PerfPlatform.chrome;
+  }
+  if (lower.startsWith('emulator-') || lower.contains('android')) {
+    return PerfPlatform.android;
+  }
+  if (_kSimulatorUdid.hasMatch(device) ||
+      lower.contains('ios') ||
+      lower.contains('iphone')) {
+    return PerfPlatform.ios;
+  }
+  throw PerfRunException(
+    'Cannot tell which platform device "$device" is; pass '
+    '--platform=chrome|android|ios.',
+  );
+}
+
+/// `relaunch` when the session's build cannot hot restart (a profile or
+/// release build), else `hot_restart`.
+String perfRestartMode(Map<String, dynamic>? state) {
+  final Object? args = state?['flutterArgs'];
+  final bool compiled = state?['profile'] == 'static' ||
+      (args is List<dynamic> &&
+          (args.contains('--profile') || args.contains('--release')));
+  return compiled ? 'relaunch' : 'hot_restart';
+}
+
+/// The rendering backend the engine logged, as `impeller-<backend>`, or
+/// `unknown` when the run log says nothing about it.
+String scrapePerfRenderer(String? log) {
+  if (log == null) return 'unknown';
+  final Iterable<RegExpMatch> matches =
+      RegExp(r'Using the Impeller rendering backend(?: \(([^)]+)\))?')
+          .allMatches(log);
+  if (matches.isEmpty) return 'unknown';
+  final String? backend = matches.last.group(1);
+  return backend == null ? 'impeller' : 'impeller-${backend.toLowerCase()}';
+}
+
+/// The production connector: artisan's VM Service client, the session's
+/// state file and CDP port, and the host's own description.
+Future<(PerfRunDriver, PerfRunEnvironment)> connectArtisanPerfRun(
+  ArtisanContext ctx,
+  PerfPlatform? platform,
+) async {
+  final VmServiceClient? client = ctx.vmClient;
+  if (client == null) {
+    throw PerfRunException(
+      'dusk:perf_run needs a running app. Run `artisan start` first.',
+    );
+  }
+  final Map<String, dynamic>? state = await StateFile.read();
+  final PerfPlatform resolved = platform ?? resolvePerfPlatform(state, null);
+  final int? cdpPort = state?['cdpPort'] as int?;
+  if (resolved == PerfPlatform.chrome && cdpPort == null) {
+    throw PerfRunException(
+      'CDP not enabled, and Chrome needs it: every session is brought to '
+      'front first, since a background tab draws no frames. Run `artisan '
+      'start --cdp-port=9222` first.',
+    );
+  }
+  final String device = '${state?['device'] ?? ''}';
+  final String restartMode = perfRestartMode(state);
+  return (
+    _ArtisanPerfRunDriver(
+      client,
+      cdpPort: cdpPort,
+      relaunch: restartMode == 'relaunch',
+      profileStatic: state?['profile'] == 'static',
+    ),
+    PerfRunEnvironment(
+      platform: resolved,
+      device: device.isEmpty ? null : device,
+      emulator:
+          device.startsWith('emulator-') || _kSimulatorUdid.hasMatch(device),
+      restartMode: restartMode,
+      host: await _hostInfo(),
+      renderer: scrapePerfRenderer(await _runLog()),
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The runner
+// ---------------------------------------------------------------------------
+
+/// The three series a scenario can produce.
+enum _Series { attribution, timing, semanticsOff }
+
+/// One scenario's reports and what its semantics pass needs.
+final class _ScenarioRun {
+  _ScenarioRun(this.scenario);
+
+  final PerfScenario scenario;
+  final Map<_Series, List<Map<String, dynamic>>> reports =
+      <_Series, List<Map<String, dynamic>>>{
+    for (final _Series series in _Series.values)
+      series: <Map<String, dynamic>>[],
+  };
+
+  /// The dispatch points recorded with the tree on, by step index: `point`
+  /// for a tap or a wheel, `from` and `to` for a drag.
+  final Map<int, Map<String, dynamic>> points = <int, Map<String, dynamic>>{};
+
+  /// Why the semantics pass cannot drive this scenario, or null.
+  String? unsupported;
+}
+
+/// Drives the rounds and assembles the run files.
+final class _PerfRunner {
+  _PerfRunner(
+    this.driver,
+    this.env, {
+    required this.repeat,
+    required this.timing,
+    required this.semanticsPass,
+  });
+
+  final PerfRunDriver driver;
+  final PerfRunEnvironment env;
+  final int repeat;
+  final bool timing;
+  final bool semanticsPass;
+
+  bool get _chrome => env.platform == PerfPlatform.chrome;
+
+  Future<List<_ScenarioRun>> run(List<PerfScenario> scenarios) async {
+    final List<_ScenarioRun> runs =
+        scenarios.map((PerfScenario s) => _ScenarioRun(s)).toList();
+    if (semanticsPass) {
+      for (final _ScenarioRun run in runs) {
+        run.unsupported = _unsupportedReason(run.scenario);
+      }
+    }
+
+    // 1. Rounds. Each round runs every unit once and the next reverses the
+    //    order, so drift in the app (a warming cache, a growing heap) lands
+    //    on both modes and both scenarios alike.
+    final List<(_ScenarioRun, _Series)> units = <(_ScenarioRun, _Series)>[
+      for (final _ScenarioRun run in runs) ...<(_ScenarioRun, _Series)>[
+        (run, _Series.attribution),
+        if (timing) (run, _Series.timing),
+      ],
+    ];
+    for (int i = 0; i < repeat; i++) {
+      for (final (_ScenarioRun run, _Series series)
+          in i.isEven ? units : units.reversed) {
+        await _unit(
+          run,
+          series,
+          record: semanticsPass && i == 0 && series == _Series.attribution,
+        );
+      }
+    }
+
+    // 2. The semantics pass, after the recording round. A step it cannot
+    //    replay marks the scenario unsupported rather than failing the run.
+    if (!semanticsPass) return runs;
+    for (int i = 0; i < repeat; i++) {
+      for (final _ScenarioRun run in runs) {
+        if (run.unsupported != null) continue;
+        try {
+          await _unit(run, _Series.semanticsOff, record: false);
+        } on PerfRunException catch (e) {
+          run.unsupported = e.message;
+          run.reports[_Series.semanticsOff]!.clear();
+        }
+      }
+    }
+    return runs;
+  }
+
+  /// One session: setup, begin, the steps, end.
+  Future<void> _unit(
+    _ScenarioRun run,
+    _Series series, {
+    required bool record,
+  }) async {
+    final PerfScenario scenario = run.scenario;
+
+    // 1. The same starting state for every repeat.
+    await _prepare(scenario);
+    if (_chrome) await driver.cdp('Page.bringToFront');
+
+    // 2. The timed window. A failing step is held rather than thrown so the
+    //    session still closes: perf_end restores the profiling flags, and a
+    //    released semantics handle must never outlive the window.
+    await _call(
+      'ext.dusk.perf_begin',
+      <String, String>{
+        'mode': series == _Series.timing ? 'timing' : 'attribution',
+      },
+      scenario.name,
+    );
+    bool released = false;
+    Object? failure;
+    StackTrace? trace;
+    try {
+      if (series == _Series.semanticsOff) {
+        await _call(
+          'ext.dusk.semantics_hold',
+          <String, String>{'action': 'release'},
+          scenario.name,
+        );
+        released = true;
+      }
+      for (int i = 0; i < scenario.steps.length; i++) {
+        final PerfStep step = scenario.steps[i];
+        if (!step.runsOn(env.platform)) continue;
+        await _step(run, i, step, series: series, record: record);
+      }
+      await driver.pause(_kSettleBeforeEnd);
+    } catch (e, st) {
+      failure = e;
+      trace = st;
+    }
+
+    // 3. Close it whatever happened. A failed acquire is held like a failed
+    //    step: perf_end still has to run and put the profiling flags back.
+    if (released) {
+      try {
+        await _call(
+          'ext.dusk.semantics_hold',
+          <String, String>{'action': 'acquire'},
+          scenario.name,
+        );
+      } on PerfRunException catch (e, st) {
+        failure ??= e;
+        trace ??= st;
+      }
+    }
+    final Map<String, dynamic> report = await _call(
+      'ext.dusk.perf_end',
+      <String, String>{'full': 'true'},
+      scenario.name,
+    );
+    if (failure != null) Error.throwWithStackTrace(failure, trace!);
+    run.reports[series]!.add(report);
+  }
+
+  Future<void> _prepare(PerfScenario scenario) async {
+    await _viewport(scenario);
+    for (final PerfSetupStep step in scenario.setup) {
+      final String where = '${scenario.name} setup ${step.verb.wire}';
+      switch (step.verb) {
+        case PerfSetupVerb.hotRestart:
+          await driver.restart();
+          await _viewport(scenario);
+        case PerfSetupVerb.navigate:
+          await _call(
+            'ext.dusk.navigate',
+            <String, String>{
+              'route': step.argument!,
+              'includeSnapshot': 'false',
+            },
+            where,
+          );
+        case PerfSetupVerb.waitForText:
+          final Map<String, dynamic> result = await _call(
+            'ext.dusk.wait_for',
+            <String, String>{
+              'text': step.argument!,
+              'timeoutMs': '${step.timeoutMs}',
+            },
+            where,
+          );
+          if (result['matched'] != true) {
+            throw PerfRunException(
+              '$where: "${step.argument}" did not appear within '
+              '${step.timeoutMs} ms.',
+            );
+          }
+        case PerfSetupVerb.waitForNetworkIdle:
+          await _call(
+            'ext.dusk.wait_for_network_idle',
+            const <String, String>{},
+            where,
+          );
+      }
+    }
+  }
+
+  Future<void> _viewport(PerfScenario scenario) async {
+    final ({int width, int height})? viewport = scenario.viewport;
+    if (!_chrome || viewport == null) return;
+    await _resize(viewport.width, viewport.height);
+  }
+
+  Future<void> _resize(int width, int height) => driver.cdp(
+        'Emulation.setDeviceMetricsOverride',
+        <String, dynamic>{
+          'width': width,
+          'height': height,
+          // 0 keeps the browser's own device pixel ratio.
+          'deviceScaleFactor': 0,
+          'mobile': false,
+        },
+      );
+
+  /// Runs step [index]: resolving its target with the tree on, or replaying
+  /// its recorded points with the tree released.
+  Future<void> _step(
+    _ScenarioRun run,
+    int index,
+    PerfStep step, {
+    required _Series series,
+    required bool record,
+  }) async {
+    final String where =
+        '${run.scenario.name} steps[$index] (${step.verb.wire})';
+    try {
+      if (series == _Series.semanticsOff) {
+        await _replay(run, index, step);
+      } else {
+        await _drive(run, index, step, record: record);
+      }
+    } on Exception catch (e) {
+      throw PerfRunException(
+          '$where: ${e is PerfRunException ? e.message : e}');
+    }
+  }
+
+  Future<void> _drive(
+    _ScenarioRun run,
+    int index,
+    PerfStep step, {
+    required bool record,
+  }) async {
+    const Map<String, String> quiet = <String, String>{
+      'includeSnapshot': 'false',
+    };
+    final Map<String, String> report = <String, String>{
+      if (record) 'reportPoint': 'true',
+    };
+    switch (step.verb) {
+      case PerfStepVerb.tap:
+        final Map<String, dynamic> result = await driver.call(
+          'ext.dusk.tap',
+          <String, String>{
+            'ref': await _resolve(step.target!),
+            ...quiet,
+            ...report,
+          },
+        );
+        if (record) {
+          run.points[index] = <String, dynamic>{'point': result['point']};
+        }
+      case PerfStepVerb.wheel:
+        // The hover is what a mouse does before it wheels, and it answers
+        // the point to wheel at.
+        final Map<String, dynamic> hovered = await driver.call(
+          'ext.dusk.hover',
+          <String, String>{
+            'ref': await _resolve(step.target!),
+            'reportPoint': 'true',
+            ...quiet,
+          },
+        );
+        final Map<String, dynamic> point = _map(hovered['point']);
+        await _wheel(point, step);
+        if (record) run.points[index] = <String, dynamic>{'point': point};
+      case PerfStepVerb.drag:
+        final Map<String, dynamic> result = await driver.call(
+          'ext.dusk.drag',
+          <String, String>{
+            'startRef': await _resolve(step.target!),
+            'dx': '${step.dx}',
+            'dy': '${step.dy}',
+            ...quiet,
+            ...report,
+          },
+        );
+        if (record) {
+          run.points[index] = <String, dynamic>{
+            'from': result['from'],
+            'to': result['to'],
+          };
+        }
+      case PerfStepVerb.fill:
+      case PerfStepVerb.type:
+        await driver.call(
+          'ext.dusk.${step.verb.wire}',
+          <String, String>{
+            'ref': await _resolve(step.target!),
+            'text': step.text!,
+            ...quiet,
+          },
+        );
+      case PerfStepVerb.scroll:
+        await driver.call(
+          'ext.dusk.scroll',
+          <String, String>{
+            'ref': await _resolve(step.target!),
+            'dx': '${step.dx}',
+            'dy': '${step.dy}',
+            ...quiet,
+          },
+        );
+      case PerfStepVerb.pressKey:
+      case PerfStepVerb.navigate:
+      case PerfStepVerb.resize:
+      case PerfStepVerb.wait:
+        await _untargeted(step);
+    }
+  }
+
+  /// Replays a step by the points [_drive] recorded. Nothing here resolves a
+  /// target: with the handle released there is no tree to resolve through.
+  Future<void> _replay(_ScenarioRun run, int index, PerfStep step) async {
+    final Map<String, dynamic>? recorded = run.points[index];
+    switch (step.verb) {
+      case PerfStepVerb.tap:
+        final Map<String, dynamic> point = _recorded(recorded, 'point');
+        await driver.call(
+          'ext.dusk.tap',
+          <String, String>{'x': '${point['x']}', 'y': '${point['y']}'},
+        );
+      case PerfStepVerb.drag:
+        final Map<String, dynamic> from = _recorded(recorded, 'from');
+        final Map<String, dynamic> to = _recorded(recorded, 'to');
+        await driver.call(
+          'ext.dusk.drag',
+          <String, String>{
+            'x': '${from['x']}',
+            'y': '${from['y']}',
+            'toX': '${to['x']}',
+            'toY': '${to['y']}',
+          },
+        );
+      case PerfStepVerb.wheel:
+        await _wheel(_recorded(recorded, 'point'), step);
+      case PerfStepVerb.pressKey:
+      case PerfStepVerb.navigate:
+      case PerfStepVerb.resize:
+      case PerfStepVerb.wait:
+        await _untargeted(step);
+      case PerfStepVerb.fill:
+      case PerfStepVerb.type:
+      case PerfStepVerb.scroll:
+        // Ruled out before the pass by _unsupportedReason.
+        throw PerfRunException(
+            '${step.verb.wire} cannot replay by coordinates');
+    }
+  }
+
+  Future<void> _untargeted(PerfStep step) async {
+    switch (step.verb) {
+      case PerfStepVerb.pressKey:
+        await driver.call(
+          'ext.dusk.press_key',
+          <String, String>{'key': step.key!, 'includeSnapshot': 'false'},
+        );
+      case PerfStepVerb.navigate:
+        await driver.call(
+          'ext.dusk.navigate',
+          <String, String>{'route': step.route!, 'includeSnapshot': 'false'},
+        );
+      case PerfStepVerb.resize:
+        await _resize(step.width!, step.height!);
+      case PerfStepVerb.wait:
+        await driver.pause(Duration(milliseconds: step.ms!));
+      case PerfStepVerb.tap:
+      case PerfStepVerb.fill:
+      case PerfStepVerb.type:
+      case PerfStepVerb.scroll:
+      case PerfStepVerb.wheel:
+      case PerfStepVerb.drag:
+        throw StateError('${step.verb.wire} takes a target');
+    }
+  }
+
+  Future<void> _wheel(Map<String, dynamic> point, PerfStep step) => driver.cdp(
+        'Input.dispatchMouseEvent',
+        <String, dynamic>{
+          'type': 'mouseWheel',
+          'x': point['x'],
+          'y': point['y'],
+          'deltaX': step.dx,
+          'deltaY': step.dy,
+        },
+      );
+
+  /// Resolves [target] against the live tree, right before its step: a ref
+  /// from an earlier repeat is stale after the restart.
+  ///
+  /// Index 0 of text, label and key goes through `ext.dusk.find`, the
+  /// re-resolvable handle; a higher index, and a role, go through the lists
+  /// `ext.dusk.find_by_text` / `find_by_label` return.
+  Future<String> _resolve(PerfTarget target) async {
+    final String? ref = switch ((target.kind, target.index)) {
+      (PerfTargetKind.text, 0) => (await driver.call(
+          'ext.dusk.find',
+          <String, String>{'text': target.value},
+        ))['ref'] as String?,
+      (PerfTargetKind.label, 0) => (await driver.call(
+          'ext.dusk.find',
+          <String, String>{'semanticsLabel': target.value},
+        ))['ref'] as String?,
+      (PerfTargetKind.key, _) => (await driver.call(
+          'ext.dusk.find',
+          <String, String>{'key': target.value},
+        ))['ref'] as String?,
+      (PerfTargetKind.text, final int index) => _at(
+          await driver.call(
+            'ext.dusk.find_by_text',
+            <String, String>{'text': target.value},
+          ),
+          index,
+        ),
+      (PerfTargetKind.label, final int index) => _at(
+          await driver.call(
+            'ext.dusk.find_by_label',
+            <String, String>{'label': target.value},
+          ),
+          index,
+        ),
+      (PerfTargetKind.role, final int index) => _at(
+          await driver.call(
+            'ext.dusk.find_by_label',
+            <String, String>{'label': target.value, 'role': target.role!},
+          ),
+          index,
+        ),
+    };
+    if (ref == null) {
+      throw PerfRunException(
+        'target ${jsonEncode(target.toJson())} matched nothing on the live '
+        'screen.',
+      );
+    }
+    return ref;
+  }
+
+  Future<Map<String, dynamic>> _call(
+    String method,
+    Map<String, String> params,
+    String where,
+  ) async {
+    try {
+      return await driver.call(method, params);
+    } on Exception catch (e) {
+      throw PerfRunException('$where: $method failed: $e');
+    }
+  }
+
+  /// Why the pass cannot replay [scenario] with the tree released, or null.
+  String? _unsupportedReason(PerfScenario scenario) {
+    for (int i = 0; i < scenario.steps.length; i++) {
+      final PerfStep step = scenario.steps[i];
+      if (!step.runsOn(env.platform)) continue;
+      if (step.verb == PerfStepVerb.fill ||
+          step.verb == PerfStepVerb.type ||
+          step.verb == PerfStepVerb.scroll) {
+        return 'steps[$i] (${step.verb.wire}) acts through a resolved widget, '
+            'and the tree it resolves through is released during the pass; '
+            'only tap, drag, wheel, press_key, navigate, resize and wait '
+            'replay by coordinates.';
+      }
+    }
+    return null;
+  }
+
+  /// The run file for [run].
+  Map<String, Object?> fileFor(
+    _ScenarioRun run,
+    String label, {
+    String? interleavedWith,
+  }) {
+    final List<Map<String, dynamic>> attribution =
+        run.reports[_Series.attribution]!;
+    final Map<String, dynamic>? median = _medianReport(attribution);
+    final bool restarts = run.scenario.setup
+        .any((PerfSetupStep s) => s.verb == PerfSetupVerb.hotRestart);
+
+    return <String, Object?>{
+      'scenario': run.scenario.toJson(),
+      'label': label,
+      if (interleavedWith != null) 'interleavedWith': interleavedWith,
+      'env': <String, Object?>{
+        ..._map(median?['env']),
+        'target': env.platform.name,
+        'device': env.device,
+        'emulator': env.emulator,
+        'restartMode': restarts ? env.restartMode : 'none',
+        'host': env.host,
+        'renderer': env.renderer,
+      },
+      'summary': <String, Object?>{
+        ...summarizePerfSeries(attribution),
+        if (timing) 'timing': summarizePerfSeries(run.reports[_Series.timing]!),
+      },
+      'insights': _list(median?['insights']),
+      'repeats': <Map<String, Object?>>[
+        ..._repeats(run, _Series.attribution),
+        if (timing) ..._repeats(run, _Series.timing),
+      ],
+      if (semanticsPass) ...<String, Object?>{
+        'semanticsPass': run.unsupported == null ? 'measured' : 'unsupported',
+        if (run.unsupported != null) 'semanticsPassReason': run.unsupported,
+        if (run.unsupported == null)
+          'semanticsOff': <String, Object?>{
+            'summary': summarizePerfSeries(run.reports[_Series.semanticsOff]!),
+            'repeats': _repeats(run, _Series.semanticsOff),
+          },
+      },
+    };
+  }
+
+  List<Map<String, Object?>> _repeats(_ScenarioRun run, _Series series) =>
+      <Map<String, Object?>>[
+        for (final (int i, Map<String, dynamic> report)
+            in run.reports[series]!.indexed)
+          <String, Object?>{'series': series.name, 'index': i, ...report},
+      ];
+}
+
+/// The measured report whose total per-frame count is the median, the one
+/// whose insights the file carries; null when every repeat was refused.
+Map<String, dynamic>? _medianReport(List<Map<String, dynamic>> reports) {
+  final List<(double, Map<String, dynamic>)> measured = <(
+    double,
+    Map<String, dynamic>
+  )>[
+    for (final Map<String, dynamic> report in reports)
+      if (report['refused'] != true)
+        (
+          perfPerFrameMetrics(report)
+              .values
+              .fold<double>(0, (double sum, double v) => sum + v),
+          report,
+        ),
+  ]..sort(
+      ((double, Map<String, dynamic>) x, (double, Map<String, dynamic>) y) =>
+          x.$1.compareTo(y.$1),
+    );
+  return measured.isEmpty ? null : measured[(measured.length - 1) ~/ 2].$2;
+}
+
+/// The `--json` stdout: the file minus every `repeats[]`, insights cut to
+/// the bounded report's limit, plus where the file is.
+Map<String, dynamic> _stdoutShape(Map<String, Object?> file, String path) {
+  final List<Object?> insights = file['insights']! as List<Object?>;
+  final Object? off = file['semanticsOff'];
+  return <String, dynamic>{
+    for (final MapEntry<String, Object?> e in file.entries)
+      if (e.key != 'repeats') e.key: e.value,
+    'insights': insights.take(_kStdoutInsightLimit).toList(),
+    if (insights.length > _kStdoutInsightLimit)
+      'omittedInsights': insights.length - _kStdoutInsightLimit,
+    if (off is Map<String, Object?>)
+      'semanticsOff': <String, Object?>{'summary': off['summary']},
+    'path': path,
+  };
+}
+
+Map<String, dynamic> _recorded(Map<String, dynamic>? recorded, String key) {
+  final Object? value = recorded?[key];
+  if (value is Map<String, dynamic> && value['x'] is num && value['y'] is num) {
+    return value;
+  }
+  throw PerfRunException(
+    'no $key was recorded for this step with the tree on, so it has no '
+    'coordinates to replay.',
+  );
+}
+
+String? _at(Map<String, dynamic> result, int index) {
+  final List<dynamic> refs = _list(result['refs']);
+  return index < refs.length ? refs[index] as String? : null;
+}
+
+// ---------------------------------------------------------------------------
+// The artisan driver
+// ---------------------------------------------------------------------------
+
+/// Drives the app through artisan's VM Service client, restarts it through
+/// artisan's own commands, and reaches Chrome through [CdpClient].
+final class _ArtisanPerfRunDriver implements PerfRunDriver {
+  _ArtisanPerfRunDriver(
+    this._client, {
+    required this.cdpPort,
+    required this.relaunch,
+    required this.profileStatic,
+  });
+
+  final int? cdpPort;
+  final bool relaunch;
+  final bool profileStatic;
+
+  VmServiceClient _client;
+
+  /// False for the dispatcher's client, which is not ours to close; true for
+  /// one opened after a relaunch.
+  bool _ownsClient = false;
+  CdpClient? _cdp;
+
+  @override
+  Future<Map<String, dynamic>> call(
+    String method, [
+    Map<String, String> params = const <String, String>{},
+  ]) async {
+    final String isolateId = await _client.getMainIsolateId();
+    return _client.callServiceExtension<Map<String, dynamic>>(
+      method,
+      isolateId: isolateId,
+      params: params,
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> cdp(
+    String method, [
+    Map<String, dynamic> params = const <String, dynamic>{},
+  ]) async {
+    final int? port = cdpPort;
+    if (port == null) {
+      throw PerfRunException('$method needs Chrome DevTools, and this '
+          'session has no CDP port.');
+    }
+    final CdpClient client = _cdp ??= await CdpClient.connect(port: port);
+    return client.send(method, params);
+  }
+
+  @override
+  Future<void> restart() async {
+    final BufferedOutput output = BufferedOutput();
+
+    // 1. A debug build hot restarts in place; wait for a NEW isolate, since
+    //    the old one keeps answering until the restart replaces it.
+    if (!relaunch) {
+      final String before = await _client.getMainIsolateId();
+      final int code = await HotRestartCommand().handle(
+        ArtisanContext.bare(MapInput(const <String, dynamic>{}), output),
+      );
+      if (code != 0) {
+        throw PerfRunException('hot restart failed: ${output.content.trim()}');
+      }
+      await _awaitDusk(_client,
+          replacing: before, timeout: _kHotRestartTimeout);
+      return;
+    }
+
+    // 2. A profile build cannot hot restart: relaunch through the runner,
+    //    which carries the session's flags, and reconnect to the new VM.
+    await _cdp?.close();
+    _cdp = null;
+    final int code = await RestartCommand().handle(
+      ArtisanContext.bare(
+        MapInput(<String, dynamic>{
+          'profile-static': profileStatic,
+          'timeout': '${_kRelaunchTimeout.inSeconds}',
+        }),
+        output,
+      ),
+    );
+    if (code != 0) {
+      throw PerfRunException('relaunch failed: ${output.content.trim()}');
+    }
+    final String? uri = (await StateFile.read())?['vmServiceUri'] as String?;
+    if (uri == null) {
+      throw PerfRunException('the relaunch recorded no VM Service URI.');
+    }
+    if (_ownsClient) await _client.disconnect();
+    _client = VmServiceClient(uri);
+    await _client.connect();
+    _ownsClient = true;
+    await _awaitDusk(_client, replacing: null, timeout: _kRelaunchTimeout);
+  }
+
+  @override
+  Future<void> pause(Duration duration) => Future<void>.delayed(duration);
+
+  @override
+  Future<void> close() async {
+    await _cdp?.close();
+    _cdp = null;
+    if (_ownsClient) await _client.disconnect();
+  }
+}
+
+/// Polls until an isolate other than [replacing] has `ext.dusk.perf_begin`
+/// registered, which is when `main()` has run `DuskPlugin.install()` again.
+///
+/// While the app restarts the VM answers with errors (no isolate yet, an
+/// isolate going away); those are the state being waited out, retried until
+/// [timeout], and the last one is named when it runs out.
+Future<void> _awaitDusk(
+  VmServiceClient client, {
+  required String? replacing,
+  required Duration timeout,
+}) async {
+  final Stopwatch clock = Stopwatch()..start();
+  Object? last;
+  while (clock.elapsed < timeout) {
+    try {
+      final String id = await client.getMainIsolateId();
+      if (id != replacing &&
+          (await client.getExtensionRPCs(id)).contains('ext.dusk.perf_begin')) {
+        return;
+      }
+    } on Exception catch (e) {
+      last = e;
+    } on StateError catch (e) {
+      last = e;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+  }
+  throw PerfRunException(
+    'the app did not come back within ${timeout.inSeconds} s of the restart'
+    '${last == null ? '' : ' (last answer: $last)'}.',
+  );
+}
+
+Future<Map<String, Object?>> _hostInfo() async {
+  Future<String?> firstLine(String executable, List<String> args) async {
+    final ProcessResult result = await Process.run(executable, args);
+    return result.exitCode == 0 ? '${result.stdout}'.trim() : null;
+  }
+
+  final String? cpu = Platform.isMacOS
+      ? await firstLine('sysctl', <String>['-n', 'machdep.cpu.brand_string'])
+      : Platform.isLinux
+          ? RegExp(r'^model name\s*:\s*(.+)$', multiLine: true)
+              .firstMatch(await File('/proc/cpuinfo').readAsString())
+              ?.group(1)
+          : null;
+  return <String, Object?>{
+    'os': Platform.operatingSystem,
+    'uname': Platform.isWindows
+        ? Platform.operatingSystemVersion
+        : await firstLine('uname', <String>['-srm']),
+    'cpu': cpu,
+    'cores': Platform.numberOfProcessors,
+  };
+}
+
+/// The artisan run log beside the session's state file, else the global
+/// one, as `artisan logs` reads it; null when neither exists.
+Future<String?> _runLog() async {
+  for (final File log in <File>[
+    File('${File(StateFile.path).parent.path}/flutter-dev.log'),
+    File('${StateFile.homeDir}/flutter-dev.log'),
+  ]) {
+    if (log.existsSync()) return log.readAsString();
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
+
+/// An iOS simulator UDID; a physical device's id has a different shape.
+final RegExp _kSimulatorUdid = RegExp(
+  r'^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$',
+);
+
+Map<String, dynamic> _map(Object? value) =>
+    value is Map<String, dynamic> ? value : const <String, dynamic>{};
+
+List<dynamic> _list(Object? value) =>
+    value is List<dynamic> ? value : const <dynamic>[];
+
+num _num(Object? value) => value is num ? value : 0;
+
+/// An int when the value is whole, so a median of frame counts reads `42`.
+num _plain(double value) =>
+    value == value.roundToDouble() ? value.toInt() : _round(value, 4);
+
+double _round(double value, int places) {
+  final num factor = <int>[1, 10, 100, 1000, 10000][places];
+  return (value * factor).roundToDouble() / factor;
+}
+
+double _min(double x, double y) => x < y ? x : y;
+
+double _max(double x, double y) => x > y ? x : y;
+
+/// CLI options arrive as strings, MCP arguments as typed JSON.
+int? _readInt(Object? raw) => switch (raw) {
+      final int value => value,
+      final String value => int.tryParse(value),
+      _ => null,
+    };
+
+bool _readBool(Object? raw) => switch (raw) {
+      final bool value => value,
+      final String value => value == 'true' || value == '1',
+      _ => false,
+    };

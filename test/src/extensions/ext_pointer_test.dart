@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
 import 'package:fluttersdk_dusk/src/utils/actionability_gate.dart';
@@ -2132,6 +2133,235 @@ void main() {
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('zero rect'));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Coordinate dispatch and reported points: what dusk:perf_run's semantics
+  // pass records with the tree on and replays with it released.
+  // ---------------------------------------------------------------------------
+
+  group('coordinate dispatch', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(DuskPlugin.resetSemanticsForTesting);
+
+    Future<ServiceExtensionResponse> settle(
+      WidgetTester tester,
+      Future<ServiceExtensionResponse> future,
+    ) async {
+      for (int i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      return future;
+    }
+
+    Future<void> host(WidgetTester tester, VoidCallback onTap) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onTap,
+                child: const SizedBox(width: 200, height: 200),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets(
+        'tap at x,y dispatches without a ref and reports the gate '
+        'skipped', (WidgetTester tester) async {
+      int taps = 0;
+      await host(tester, () => taps++);
+
+      final ServiceExtensionResponse response = await settle(
+        tester,
+        aiTestTapHandler('ext.dusk.tap', <String, String>{
+          'x': '100',
+          'y': '100',
+        }),
+      );
+
+      expect(taps, 1);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['point'], <String, dynamic>{'x': 100.0, 'y': 100.0});
+      final Map<String, dynamic> checks =
+          decoded['checks'] as Map<String, dynamic>;
+      expect(checks['gate'], 'skipped');
+      expect(checks['semantics'], 'held');
+      expect(decoded.containsKey('snapshot'), isFalse);
+    });
+
+    testWidgets('the checks block says released while the handle is held off',
+        (WidgetTester tester) async {
+      await host(tester, () {});
+      DuskPlugin.acquireSemantics();
+      DuskPlugin.releaseSemantics();
+
+      final ServiceExtensionResponse response = await settle(
+        tester,
+        aiTestTapHandler('ext.dusk.tap', <String, String>{
+          'x': '10',
+          'y': '10',
+        }),
+      );
+
+      final Map<String, dynamic> checks = (jsonDecode(response.result!)
+          as Map<String, dynamic>)['checks'] as Map<String, dynamic>;
+      expect(checks['semantics'], 'released');
+    });
+
+    testWidgets('a ref tap with reportPoint reports where it dispatched',
+        (WidgetTester tester) async {
+      await host(tester, () {});
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(40, 60, 20, 20),
+        element: tester.element(find.byType(Scaffold)),
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final ServiceExtensionResponse response = await settle(
+        tester,
+        aiTestTapHandler('ext.dusk.tap', <String, String>{
+          'ref': ref,
+          'reportPoint': 'true',
+          'includeSnapshot': 'false',
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+        }),
+      );
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['point'], isA<Map<String, dynamic>>());
+      expect(decoded['ref'], ref);
+    });
+
+    testWidgets('a ref tap without reportPoint carries no point',
+        (WidgetTester tester) async {
+      await host(tester, () {});
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(40, 60, 20, 20),
+        element: tester.element(find.byType(Scaffold)),
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final ServiceExtensionResponse response = await settle(
+        tester,
+        aiTestTapHandler('ext.dusk.tap', <String, String>{
+          'ref': ref,
+          'includeSnapshot': 'false',
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+        }),
+      );
+
+      expect(
+        (jsonDecode(response.result!) as Map<String, dynamic>)
+            .containsKey('point'),
+        isFalse,
+      );
+    });
+
+    testWidgets('hover with reportPoint reports where it hovered',
+        (WidgetTester tester) async {
+      await host(tester, () {});
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(40, 60, 20, 20),
+        element: tester.element(find.byType(Scaffold)),
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final ServiceExtensionResponse response = await settle(
+        tester,
+        aiTestHoverHandler('ext.dusk.hover', <String, String>{
+          'ref': ref,
+          'reportPoint': 'true',
+          'includeSnapshot': 'false',
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+        }),
+      );
+
+      expect(
+        (jsonDecode(response.result!) as Map<String, dynamic>)['point'],
+        isA<Map<String, dynamic>>(),
+      );
+    });
+
+    testWidgets('drag from a ref by dx,dy reports both ends',
+        (WidgetTester tester) async {
+      await host(tester, () {});
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 20, 20),
+        element: tester.element(find.byType(Scaffold)),
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final ServiceExtensionResponse response = await settle(
+        tester,
+        aiTestDragHandler('ext.dusk.drag', <String, String>{
+          'startRef': ref,
+          'dx': '0',
+          'dy': '-50',
+          'reportPoint': 'true',
+          'includeSnapshot': 'false',
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+        }),
+      );
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final Map<String, dynamic> from = decoded['from'] as Map<String, dynamic>;
+      final Map<String, dynamic> to = decoded['to'] as Map<String, dynamic>;
+      expect((to['y'] as num) - (from['y'] as num), -50);
+      expect(to['x'], from['x']);
+    });
+
+    testWidgets('drag between coordinates needs no ref',
+        (WidgetTester tester) async {
+      await host(tester, () {});
+
+      final ServiceExtensionResponse response = await settle(
+        tester,
+        aiTestDragHandler('ext.dusk.drag', <String, String>{
+          'x': '100',
+          'y': '150',
+          'toX': '100',
+          'toY': '50',
+        }),
+      );
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['from'], <String, dynamic>{'x': 100.0, 'y': 150.0});
+      expect(decoded['to'], <String, dynamic>{'x': 100.0, 'y': 50.0});
+      expect((decoded['checks'] as Map<String, dynamic>)['gate'], 'skipped');
+    });
+
+    testWidgets('a tap with neither ref nor coordinates keeps the ref error',
+        (WidgetTester tester) async {
+      final ServiceExtensionResponse response = await aiTestTapHandler(
+        'ext.dusk.tap',
+        <String, String>{'x': '10'},
+      );
+
+      expect(response.errorDetail, contains('missing required param'));
+      expect(response.errorDetail, contains('missing_param'));
     });
   });
 }

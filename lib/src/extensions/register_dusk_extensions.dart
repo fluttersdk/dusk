@@ -14,6 +14,7 @@ import 'ext_perf_trace.dart';
 import 'ext_pointer.dart';
 import 'ext_screenshot.dart';
 import 'ext_scroll.dart';
+import 'ext_semantics_hold.dart';
 import 'ext_snapshot.dart';
 import 'ext_text_input.dart';
 import 'ext_wait_find.dart';
@@ -59,6 +60,9 @@ import 'ext_wait_find.dart';
 ///   the drill-down into one of those insights.
 /// - [registerPerfTraceExtension]: ext.dusk.perf_trace, the closed session's
 ///   interactions, frames and host rows as Chrome Trace Event JSON.
+/// - [registerSemanticsHoldExtension]: ext.dusk.semantics_hold, which releases
+///   dusk's semantics handle for one timed window of `dusk:perf_run
+///   --semantics-pass` and re-acquires it before perf_end.
 void registerAllDuskExtensions() {
   registerSnapExtension();
   registerPointerExtensions();
@@ -81,4 +85,5 @@ void registerAllDuskExtensions() {
   registerFillExtension();
   registerPerfExtensions();
   registerPerfTraceExtension();
+  registerSemanticsHoldExtension();
 }

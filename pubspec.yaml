@@ -29,6 +29,7 @@ dependencies:
   image: ^4.0.0
   meta: ^1.16.0
   fluttersdk_wind_diagnostics_contracts: ^1.1.0
+  yaml: ^3.1.0
 
 executables:
   # `dart run fluttersdk_dusk <cmd>` is the dusk-flavoured artisan wrapper.
@@ -39,4 +40,3 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ">=5.0.0 <7.0.0"
-  yaml: ^3.1.0

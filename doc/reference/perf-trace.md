@@ -113,4 +113,5 @@ Times are `FlutterTimeline.now` microseconds, the clock dusk stamps interactions
 
 - [dusk:perf_begin](../commands/dusk-perf-begin.md): opens the session interactions are recorded in.
 - [dusk:perf_end](../commands/dusk-perf-end.md): closes it; the trace exports that session.
+- [dusk:perf_trace](../commands/dusk-perf-trace.md): writes this export to a file and prints its path.
 - [Perfetto: other formats](https://perfetto.dev/docs/getting-started/other-formats): the Chrome JSON rules the trace follows.

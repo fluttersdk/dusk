@@ -23,8 +23,11 @@ import 'commands/dusk_navigate_back_command.dart';
 import 'commands/dusk_navigate_command.dart';
 import 'commands/dusk_observe_command.dart';
 import 'commands/dusk_perf_begin_command.dart';
+import 'commands/dusk_perf_compare_command.dart';
 import 'commands/dusk_perf_end_command.dart';
 import 'commands/dusk_perf_insight_command.dart';
+import 'commands/dusk_perf_run_command.dart';
+import 'commands/dusk_perf_trace_command.dart';
 import 'commands/dusk_press_key_command.dart';
 import 'commands/dusk_reset_overlays_command.dart';
 import 'commands/dusk_resize_command.dart';
@@ -132,6 +135,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         DuskPerfBeginCommand(),
         DuskPerfEndCommand(),
         DuskPerfInsightCommand(),
+        // Host-side perf: the scenario runner, the run-file compare and the
+        // Chrome Trace export.
+        DuskPerfRunCommand(),
+        DuskPerfCompareCommand(),
+        DuskPerfTraceCommand(),
       ];
 
   @override
@@ -1772,6 +1780,171 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             'required': <String>['id'],
           },
           extensionMethod: 'ext.dusk.perf_insight',
+        ),
+        // -------------------------------------------------------------------
+        // 32. Perf run: a scenario, repeated from a clean start, to a file.
+        //
+        // Routes through the `artisan:` substrate: the run restarts the app,
+        // drives Chrome DevTools and writes files, none of which an in-isolate
+        // extension can do.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_perf_run',
+          description: 'Run a perf scenario YAML several times from a clean '
+              'start and write medians, spread and insights to a file.\n'
+              '\n'
+              'Each repeat runs the scenario setup (its hot_restart, or a '
+              'relaunch on a profile build), then perf_begin, the steps with '
+              'targets resolved on the live screen, and perf_end. Writes '
+              '<out>/<scenario>-<label>.json with env (host, renderer, '
+              'restartMode), summary (medians of counts per painted frame and '
+              'ms, plus a spread block), the median repeat\'s insights and '
+              'every repeat. A refused repeat is recorded and left out of the '
+              'medians; the call fails only when every repeat refused.\n'
+              '\n'
+              'Usage:\n'
+              '- Pass scenario (a path) and a label ([a-z0-9_-]).\n'
+              '- Pass json=true for the summary as JSON (repeats stay in the '
+              'file).\n'
+              '- Set timing=true for interleaved timing-mode repeats, the only '
+              'ms dusk_perf_compare gates on.\n'
+              '- Set against to a baseline scenario path to run both in the '
+              'same rounds, order alternating, one file each.\n'
+              '- Set semantics-pass=true to also replay the steps by '
+              'coordinates with the semantics tree released for the timed '
+              'window (the semanticsOff series; unsupported for fill, type, '
+              'scroll).\n'
+              '- Chrome needs the app started with a CDP port.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'scenario': <String, dynamic>{
+                'type': 'string',
+                'description': 'Path to the scenario YAML.',
+              },
+              'label': <String, dynamic>{
+                'type': 'string',
+                'description': 'Run label in the file name, [a-z0-9_-] '
+                    '(default run).',
+              },
+              'out': <String, dynamic>{
+                'type': 'string',
+                'description': 'Output directory (default build/perf).',
+              },
+              'repeat': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Repeats per series; overrides the '
+                    'scenario\'s repeat.',
+              },
+              'platform': <String, dynamic>{
+                'type': 'string',
+                'enum': <String>['chrome', 'android', 'ios'],
+                'description': 'Target platform; read from the session when '
+                    'omitted.',
+              },
+              'timing': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Also run interleaved timing-mode repeats.',
+              },
+              'against': <String, dynamic>{
+                'type': 'string',
+                'description': 'Baseline scenario YAML run in the same '
+                    'rounds.',
+              },
+              'semantics-pass': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Also measure with the semantics tree '
+                    'released.',
+              },
+              'json': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Print the summary as JSON.',
+              },
+            },
+            'required': <String>['scenario'],
+          },
+          extensionMethod: 'artisan:dusk:perf_run',
+        ),
+        // -------------------------------------------------------------------
+        // 33. Perf compare: judge run B against run A. Reads two files.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_perf_compare',
+          description: 'Compare two dusk_perf_run files and return a verdict '
+              'per metric.\n'
+              '\n'
+              'Gates on counts per painted frame, never on raw counts: a run '
+              'that drew 10% fewer frames reports 10% fewer of everything '
+              'and is not faster. Milliseconds are gated only from '
+              'timing-mode medians; emulator raster ms are info only. A '
+              'change inside the repeats\' own spread is unchanged. Default '
+              'thresholds are warn +10% and error +25%, overridden by the '
+              'scenario\'s thresholds. Returns {verdict, thresholds, frames, '
+              'rows, unchanged, timing}; rows list only what changed.\n'
+              '\n'
+              'Usage:\n'
+              '- Pass a (the baseline file) and b (the candidate file).\n'
+              '- Pass json=true for the JSON; the default is a compact '
+              'table.\n'
+              '- The call fails on an error-level regression, or when either '
+              'run has no measured repeat.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'a': <String, dynamic>{
+                'type': 'string',
+                'description': 'Baseline dusk_perf_run file.',
+              },
+              'b': <String, dynamic>{
+                'type': 'string',
+                'description': 'Candidate dusk_perf_run file.',
+              },
+              'json': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Return the result as JSON.',
+              },
+            },
+            'required': <String>['a', 'b'],
+          },
+          extensionMethod: 'artisan:dusk:perf_compare',
+        ),
+        // -------------------------------------------------------------------
+        // 34. Perf trace: the last closed session as a Chrome Trace file.
+        //
+        // Through the substrate so the trace, often thousands of events,
+        // goes to a file and only its path comes back.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_perf_trace',
+          description: 'Write the last closed perf session as a Chrome Trace '
+              'JSON file and return only its path.\n'
+              '\n'
+              'Exports ext.dusk.perf_trace: interactions, frames and host rows '
+              '(HTTP, events) of the session window, which ui.perfetto.dev '
+              'and chrome://tracing open as is. The trace is too large for a '
+              'context window, so it is written to out.\n'
+              '\n'
+              'Usage:\n'
+              '- Pass out, the file to write.\n'
+              '- Pass token (the report\'s sessionToken) to guard against a '
+              'newer session.\n'
+              '- Export before the next dusk_perf_begin, which clears the '
+              'frames the trace reads.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'out': <String, dynamic>{
+                'type': 'string',
+                'description': 'File to write.',
+              },
+              'token': <String, dynamic>{
+                'type': 'string',
+                'description': 'sessionToken of the session (optional).',
+              },
+            },
+            'required': <String>['out'],
+          },
+          extensionMethod: 'artisan:dusk:perf_trace',
         ),
       ];
 }

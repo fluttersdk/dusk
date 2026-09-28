@@ -75,7 +75,10 @@ story survived two rewrites of the widget before anyone read the field back.
 - [`dusk_observe`](#dusk_observe)
 - [`dusk_perf_begin`](#dusk_perf_begin)
 - [`dusk_perf_end`](#dusk_perf_end)
+- [`dusk_perf_compare`](#dusk_perf_compare)
 - [`dusk_perf_insight`](#dusk_perf_insight)
+- [`dusk_perf_run`](#dusk_perf_run)
+- [`dusk_perf_trace`](#dusk_perf_trace)
 - [`dusk_press_key`](#dusk_press_key)
 - [`dusk_reset_overlays`](#dusk_reset_overlays)
 - [`dusk_resize_viewport`](#dusk_resize_viewport)
@@ -780,6 +783,39 @@ same response, because `SchedulerBinding.framesEnabled` was measured reporting
 
 ---
 
+## dusk_perf_compare
+
+Dispatch: `artisan:dusk:perf_compare` (runs the CLI command in the MCP server's
+process; reads two files, needs no app)
+
+Judge run `b` against run `a`, both `dusk_perf_run` files. Gates on counts per
+painted frame, never raw counts; milliseconds only from timing-mode medians;
+emulator raster ms are info. A change inside either run's repeat-to-repeat
+range is `unchanged`. Thresholds: warn +10%, error +25%, or the scenario's.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `a` | string | yes | Baseline run file. |
+| `b` | string | yes | Candidate run file. |
+| `json` | boolean | no | Return the JSON result instead of the table. |
+
+### Returns
+
+`{ verdict, thresholds, frames: {painted: {a, b}}, rows: [{metric, a, b,
+deltaPct, verdict, severity}], unchanged, timing: {gated, note?} }`. `rows`
+lists what changed plus info rows, worst first. The call fails on an
+error-level regression, or when a run has no measured repeat.
+
+### Example call
+
+```json
+{ "name": "dusk_perf_compare", "arguments": { "a": "build/perf/list-before.json", "b": "build/perf/list-after.json", "json": true } }
+```
+
+---
+
 ## dusk_perf_insight
 
 Dispatch: `ext.dusk.perf_insight`
@@ -811,6 +847,77 @@ which points at `perf_end`'s `insights[]`.
 
 ```json
 { "name": "dusk_perf_insight", "arguments": { "id": "I1", "token": "perf-3" } }
+```
+
+---
+
+## dusk_perf_run
+
+Dispatch: `artisan:dusk:perf_run` (runs the CLI command in the MCP server's
+process: it restarts the app, drives Chrome DevTools and writes files)
+
+Run a scenario YAML several times from a clean start: setup (its hot restart,
+or a relaunch on a profile build), `perf_begin`, the steps with targets
+resolved on the live screen, `perf_end` with `full=true`. Writes
+`<out>/<scenario>-<label>.json`.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `scenario` | string | yes | Scenario YAML path. |
+| `label` | string | no | `[a-z0-9_-]`, default `run`. |
+| `out` | string | no | Output directory, default `build/perf`. |
+| `repeat` | integer | no | Repeats per series; overrides the scenario's. |
+| `platform` | string | no | `chrome`, `android` or `ios`; read from the session when omitted. |
+| `timing` | boolean | no | Interleaved timing-mode repeats, the ms `dusk_perf_compare` gates on. |
+| `against` | string | no | Baseline scenario run in the same rounds, one file each. |
+| `semantics-pass` | boolean | no | Also measure with the semantics tree released (`semanticsOff`). |
+| `json` | boolean | no | Return the run file minus `repeats[]`, plus `path`. |
+
+### Returns
+
+The run file: `scenario`, `label`, `env` (the app's own plus `target`,
+`device`, `emulator`, `restartMode`, `host`, `renderer`), `summary`
+(`repeats`, `refused`, median `frames`, `perFrame`, `ms`, `spread`, and
+`timing` with `--timing`), `insights` of the median repeat, `repeats[]`, and
+with the semantics pass `semanticsPass` plus `semanticsOff` or
+`semanticsPassReason`. A refused repeat is recorded and left out of the
+medians; the call fails when every repeat refused. See
+[dusk:perf_run](../commands/dusk-perf-run.md).
+
+### Example call
+
+```json
+{ "name": "dusk_perf_run", "arguments": { "scenario": "tool/perf/scenarios/list.yaml", "label": "before", "timing": true, "json": true } }
+```
+
+---
+
+## dusk_perf_trace
+
+Dispatch: `artisan:dusk:perf_trace` (runs the CLI command in the MCP server's
+process, so the trace goes to a file and only the path comes back)
+
+Write the last closed session's `ext.dusk.perf_trace` export as a Chrome Trace
+JSON file. Export before the next `dusk_perf_begin`, which clears the frames
+the trace reads.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `out` | string | yes | File to write. |
+| `token` | string | no | The session's `sessionToken`; a stale one is refused. |
+
+### Returns
+
+The absolute path of the written file.
+
+### Example call
+
+```json
+{ "name": "dusk_perf_trace", "arguments": { "out": "build/perf/list.trace.json" } }
 ```
 
 ---
