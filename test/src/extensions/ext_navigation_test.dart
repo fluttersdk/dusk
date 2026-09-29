@@ -87,10 +87,14 @@ void main() {
       expect(decoded['navigatedBack'], isTrue);
     });
 
-    test('returns exactly one key', () {
+    test('returns exactly navigatedBack and popped', () {
       final Map<String, dynamic> result = buildNavigateBackResponse();
 
-      expect(result, hasLength(1));
+      expect(result.keys, unorderedEquals(<String>['navigatedBack', 'popped']));
+    });
+
+    test('carries popped=false for a no-op', () {
+      expect(buildNavigateBackResponse(popped: false)['popped'], isFalse);
     });
 
     test('navigatedBack value is a bool (not a string)', () {
