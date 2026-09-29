@@ -1,0 +1,166 @@
+# dusk:perf_campaign
+
+Run every scenario of a perf campaign on one platform, each from a cold start of the app, and summarise which passed. One command replaces the shell harness that used to boot services, start the app, log in and loop over `dusk:perf_run`: the app declares that work in a campaign YAML, and dusk runs it.
+
+---
+
+## Table of contents
+
+- [Synopsis](#synopsis)
+- [The campaign file](#the-campaign-file)
+- [What one campaign does](#what-one-campaign-does)
+- [Files and output](#files-and-output)
+- [Secrets](#secrets)
+- [Exit codes](#exit-codes)
+- [See also](#see-also)
+
+---
+
+<a name="synopsis"></a>
+## Synopsis
+
+```
+dart run fluttersdk_dusk dusk:perf_campaign <campaign.yaml> --platform=chrome|android|ios
+    [--label=<name>] [--out=<dir>] [--only=<substring>] [--device=<id>]
+    [--cdp-port=<port>] [--timing] [--semantics-pass] [--json]
+```
+
+`dusk:perf_campaign` needs no running app (`CommandBoot.none`): it starts and stops the app itself through artisan's `start` and `stop`, run in-process. It is CLI only; there is no MCP tool for it.
+
+Rebuild a stale dispatcher before invoking it: the command runs inside the compiled dispatcher, whose staleness stamp keys only on `pubspec.lock` and the SDK, so a dusk change reached through a path override never reaches it. Run `rm -f .artisan/build.stamp` first.
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `<campaign.yaml>` / `--campaign` | required | The campaign file. |
+| `--platform` | required | `chrome`, `android` or `ios`. Only scenarios whose `platforms` list it run. |
+| `--label` | `run` | Names the run in every file name. `[a-z0-9_-]` only. |
+| `--out` | `build/perf` | Directory the run files and `.err` files go to. |
+| `--only` | none | Runs only the scenarios whose name (the run file stem, `<name>-<variant>` for a variant) contains this substring. |
+| `--device` | see below | Chrome: `chrome`. Android: the emulator running `android.avd`, else the first `emulator-*` serial `adb devices` lists as ready. iOS: required, the id of a USB-connected device. |
+| `--cdp-port` | `9222` | The Chrome DevTools port `artisan start --cdp-port` opens. Chrome only. Checked before anything runs: a value that is not an integer from 1 to 65535 exits 1. |
+| `--timing` | `false` | Passed to every `dusk:perf_run`. |
+| `--semantics-pass` | `false` | Passed to every `dusk:perf_run`. |
+| `--json` | `false` | Print only the envelope described in [files and output](#files-and-output). |
+
+---
+
+<a name="the-campaign-file"></a>
+## The campaign file
+
+```yaml
+scenarios:                        # relative to this file; `*` in the file name only
+  - scenarios/*.yaml
+hooks:                            # shell strings, run verbatim, never interpolated
+  before_campaign: ./tool/perf/services.sh up
+  before_scenario: ./tool/perf/services.sh reset
+  after_campaign: ./tool/perf/services.sh down
+android:
+  avd: my_pixel_api35             # matched by name, launched when not running
+  reverse: [8001, 8080]           # adb reverse tcp:P tcp:P each
+  grant: [android.permission.POST_NOTIFICATIONS]
+after_start:                      # the scenario `setup` grammar, includes and all
+  - include: fragments/login.yaml
+    with: {email: "${env.PERF_EMAIL}", password: "${env.PERF_PASSWORD}"}
+    when: {text: Sign in, unless_text: Monitors}
+retries: 1                        # extra attempts per scenario, default 1
+```
+
+- `scenarios` expands a `*` in the file name against its directory, sorted; a `*` in a directory or `**` is refused. A file with `variants` becomes one scenario per variant. Two scenarios with one name are refused, since each name is a run file.
+- `hooks` run through `/bin/sh -c` in the directory the command was invoked from. `${` in a hook is refused: read a variable in the shell as `$NAME`. Each hook gets the inherited environment minus the credentials the campaign itself consumes (see [secrets](#secrets)), plus `DUSK_PERF_PLATFORM`, `DUSK_PERF_LABEL` and `DUSK_PERF_OUT`; `before_scenario` also gets `DUSK_PERF_SCENARIO`, the scenario name, and `after_campaign` gets `DUSK_PERF_STATUS`, `ok` or `failed`.
+- `android` is read only with `--platform=android`. Nothing in it has a default: the AVD, the ports and the permissions are the app's. Each `grant` entry must be letters, digits, `_` and `.` only (`android.grant[i]` names one that is not): `adb shell pm grant` hands it to the device's `sh`, which would read anything else as syntax.
+- `after_start` runs once per cold start, before `dusk:perf_run` and so before the scenario's own `setup`. It uses the setup grammar of [dusk:perf_run](dusk-perf-run.md#fragments-parameters-and-variants), fragments, `when` guards and secrets included.
+
+The whole file is validated before anything runs, and every problem is listed at once, each scenario file's prefixed with the file.
+
+---
+
+<a name="what-one-campaign-does"></a>
+## What one campaign does
+
+1. **Filter.** The scenarios whose `platforms` list `--platform` and whose name contains `--only`. When none is left the command prints `No scenario matched --only=<x> on <platform>.` (or `No scenario lists <platform>.`) and exits 1 before any hook or process runs. `--platform=ios` without `--device`, an unsafe `--label` and a `--cdp-port` that is not a port are refused here too.
+2. **`hooks.before_campaign`.** A non-zero exit stops the campaign. The hook is done when its shell exits: a server it starts in the background should redirect all three streams (`(exec nohup server) >log 2>&1 </dev/null &`), since output still arriving 5 s after the exit is cut and the `.err` says so.
+3. **`flutter pub get`.** An edit to `pubspec_overrides.yaml` does not reach `.dart_tool/package_config.json` on its own.
+4. **Android preparation** (`--platform=android`). adb is `$ANDROID_HOME/platform-tools/adb` when it exists, else `adb` on `PATH`: flutter drives the SDK's adb, and a second adb of another version restarts the shared server whenever either runs. With `android.avd` (and no `--device`): the serial is the ready `emulator-*` whose `adb emu avd name` is that AVD, so another emulator already running is never the one measured; when none runs it, `flutter emulators --launch <avd>` and the same match every 2 s until it appears (up to 180 s). Then `getprop sys.boot_completed` every 2 s until it reads `1` (up to 180 s). Without `android.avd` the serial is `--device` or the first ready `emulator-*`. Then `adb -s <serial> reverse tcp:P tcp:P` per `android.reverse`. With `android.grant`: `flutter build apk --profile`, `adb install -r` of the profile APK and `pm grant <applicationId> <permission>` each, the `applicationId` read from `android/app/build.gradle(.kts)`. That `applicationId` must be letters, digits, `_` and `.` only, for the same device-shell reason as the grants: one that is not (a Gradle expression such as `"com.example.${flavor}"`, which dusk does not resolve) stops the campaign before the device is touched, with a message saying the Gradle value could not be used. A permission prompt on first launch sits on top of the task and swallows every later launch intent, so the grant comes before the first start. Any step that exits non-zero stops the campaign, and so does one that cannot start at all (`flutter` or `adb` not found, or not executable): the command prints `<executable> could not start: <reason>` and exits 1.
+5. **Each scenario**, up to `retries + 1` attempts:
+   1. `hooks.before_scenario`. A non-zero exit, or a shell that cannot start, stops the campaign at this scenario.
+   2. The session is read (artisan's stop deletes it), artisan `stop` runs, and the command waits until the old app's pid is gone and the ports artisan start refuses to start on can be bound, polling every 250 ms for up to 30 s: the web port and the CDP port of a browser session, and nothing on a device. The VM Service port is not waited for: on Android `adb forward` keeps it listening after the app is gone, for as long as the adb server lives, and flutter starts over it regardless. artisan's stop signals and returns, and its start fails at once on a port still held.
+   3. artisan `start`: `--device`, `--cdp-port` on Chrome, `--profile-static` on a device (a profile build).
+   4. `ext.dusk.boot_id` is polled every 500 ms, for up to 180 s, until it answers: the VM Service is up before `main()` has installed dusk.
+   5. `after_start`, once the app has mounted a Router (`boot_id` answers before it has one, and a login screen needs it). The Router is read every 100 ms for as long as the largest `timeout_ms` among `after_start`'s `when` guards (60 s, the guard default, when it has none), never less than the 10 s `dusk:perf_run` waits: a login guard written to wait out a slow cold start does not lose to a router wait that gave up first.
+   6. `dusk:perf_run <scenario> --variant --label --out --platform [--timing] [--semantics-pass]`, in-process on the same connection. Once it exits 0 the command reads the run file it wrote and masks it again for the campaign's secrets (see [secrets](#secrets)).
+
+   Every scenario runs from its own cold start: on Chrome, DWDS answers `ext.dusk.*` with `0/1 responses` timeouts that compound over a long session, and a retry in the same session does not clear them. Whatever an attempt throws, or a non-zero exit from stop, start or perf_run, fails that attempt; the next attempt, and the next scenario, still run.
+6. **The end.** The app is stopped once the last scenario is done, whatever happened. A stop that exits non-zero makes the campaign exit 1 even when every scenario passed, and says `artisan stop exited <n> after the campaign; the app may still be running.`
+7. **`hooks.after_campaign`.** Runs once, after that stop, however the campaign ended: every scenario passed, some failed, `before_scenario` stopped it, or the preparation did, a failed `before_campaign` included, since a hook that failed halfway may have started half of what this one tears down. It does not run when the command refused its input or selected nothing (step 1), since nothing was started then. `DUSK_PERF_STATUS` is `ok` when every selected scenario passed and the final stop succeeded, else `failed`. A non-zero exit, or a shell that cannot start, makes the campaign exit 1 and is reported after the scenario results, never instead of them; its output is appended to `campaign-<label>.err`.
+
+---
+
+<a name="files-and-output"></a>
+## Files and output
+
+- `<out>/<scenario>-<label>.json`: the run file `dusk:perf_run` writes, masked again for the campaign's secrets.
+- `<out>/<scenario>-<label>.err`: written when an attempt fails, one section per failed attempt: the failure, the stack trace of anything that is not a perf-run failure, what stop, start and perf_run printed, and, when the attempt failed while starting, a copy of the session's `flutter-dev.log`. A scenario that passes on its first attempt has none; a stale one from an earlier run is deleted when the scenario starts.
+- `<out>/campaign-<label>.err`: the output of a hook, `flutter pub get` or Android step that stopped the campaign, then that of a failed `after_campaign`.
+
+An `.err` that cannot be written (an `--out` under a file, a full disk) is reported as `dusk:perf_campaign could not write <path>: <reason>.` and the campaign goes on: the scenarios after it still run and the app is still stopped.
+
+One line per scenario, as each finishes:
+
+```
+  monitors-list-scroll-1440  ok
+  monitors-list-scroll-390   ok (attempt 2, see /abs/build/perf/monitors-list-scroll-390-base.err)
+  monitor-detail-390         FAILED (see /abs/build/perf/monitor-detail-390-base.err)
+```
+
+A scenario that passed only on a later attempt says which attempt, and names the `.err` holding the attempts that failed before it.
+
+With `--json` the lines are replaced by one envelope, printed however the campaign ended, a stop before the first scenario included:
+
+```json
+{"results": [
+  {"scenario": "monitors-list-scroll-1440", "status": "ok", "attempts": 1,
+   "runFile": "/abs/build/perf/monitors-list-scroll-1440-base.json", "errFile": null},
+  {"scenario": "monitor-detail-390", "status": "failed", "attempts": 2,
+   "runFile": null, "errFile": "/abs/build/perf/monitor-detail-390-base.err"},
+  {"scenario": "monitor-detail-1440", "status": "not_run", "attempts": 0,
+   "runFile": null, "errFile": null}
+],
+ "stopped": "hooks.before_scenario exited 2 before monitor-detail-390",
+ "errors": ["artisan stop exited 1 after the campaign; the app may still be running."]}
+```
+
+- `results` lists every selected scenario. `not_run` is one the campaign stopped before: every scenario when a hook, `flutter pub get` or an Android step stopped it, the ones after it when `before_scenario` did.
+- `stopped` is present when the campaign stopped, with the sentence it printed (and the `campaign-<label>.err` it wrote, when the failed step printed anything).
+- `errors` is present when something failed after the scenarios: the final artisan stop, `hooks.after_campaign`.
+- `errFile` is also set on an `ok` scenario whose first attempt failed.
+
+---
+
+<a name="secrets"></a>
+## Secrets
+
+A value read through `${env.*}` or a `secret: true` param, in `after_start` or any scenario, is a secret (see [dusk:perf_run](dusk-perf-run.md#secrets)). The campaign masks every secret, raw and JSON-encoded, as `***` in every line it prints, every `.err` it writes (hook output and the copied `flutter-dev.log` included), every run file and the `--json` envelope.
+
+- **Run files.** `dusk:perf_run` masks its run file for its own scenario's secrets only, so an `after_start` credential an app exception quotes (in `semanticsPassReason`, say) would pass through it. After each passing attempt the campaign reads the run file back, masks every string in it for all of its secrets and writes it again: still valid JSON, with the same keys and numbers.
+- **Diagnostics.** A setup or `after_start` failure quotes the app's newest exceptions, each message cut to 200 characters. The message is masked before it is cut, so a secret the cut would split leaves no prefix behind.
+- **The `--json` envelope** is masked as a tree (string values only) and printed once, unwrapped. A text pass over the encoded envelope could rewrite a key or a number a secret happens to match: a secret `attempts` would turn `"attempts":2` into `"***":2`. No secret is put on a command line: hooks, adb and flutter get only their literal arguments, and a hook reads what it needs from the environment it inherits.
+- **The environment.** Every variable the campaign reads through `${env.NAME}`, in `after_start` or any scenario, is kept out of the processes it starts: hooks and every preparation process (`flutter pub get`, adb, `flutter emulators`, `flutter build apk`) get the invoking environment minus those variables, and nothing else is inherited on top. The filter is by name, never by value, so `CI=1` survives a secret that happens to read `1`. A hook that backgrounds a server therefore cannot leave the password running with it; a hook that needs a variable the campaign does not read still gets it. The exceptions are artisan `start` and `stop`, which run in-process and have no way to set the environment of what they spawn: `flutter run` and the app build it drives, the Chrome a CDP start launches, and stop's `adb shell am force-stop` on Android inherit the dispatcher's environment whole, and so does a `dusk:perf_run` relaunch, which chains the two. An adb of another version than the SDK's restarting the shared adb server from there keeps the variable for as long as that server lives.
+- **Short secrets.** A secret shorter than 4 characters is refused when the campaign loads, naming the variable or the param: its mask would hit every number and word that holds it.
+
+---
+
+<a name="exit-codes"></a>
+## Exit codes
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | Every selected scenario passed. |
+| `1` | A bad input or campaign file, nothing selected, a hook, `flutter pub get` or Android step that failed or could not start, an `applicationId` that could not be used, any scenario that failed every attempt, an artisan stop after the campaign that exited non-zero, or a `hooks.after_campaign` that failed or could not start. |
+
+---
+
+<a name="see-also"></a>
+## See also
+
+- [dusk:perf_run](dusk-perf-run.md): the scenario file, fragments and the run file.
+- [dusk:perf_compare](dusk-perf-compare.md): judge one campaign's run files against another's.

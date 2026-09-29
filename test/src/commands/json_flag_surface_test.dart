@@ -44,6 +44,7 @@ void main() {
     'dusk:perf_insight',
     'dusk:perf_run',
     'dusk:perf_compare',
+    'dusk:perf_campaign',
   };
 
   group('DuskArtisanProvider --json surface', () {

@@ -13,8 +13,8 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 40 commands', () {
-      expect(cmds, hasLength(40));
+    test('returns exactly 41 commands', () {
+      expect(cmds, hasLength(41));
     });
 
     test(
@@ -71,6 +71,8 @@ void main() {
           'DuskPerfRunCommand',
           'DuskPerfCompareCommand',
           'DuskPerfTraceCommand',
+          // Perf campaign.
+          'DuskPerfCampaignCommand',
         ]),
       );
     });
@@ -239,6 +241,7 @@ void main() {
         properties.keys,
         containsAll(<String>[
           'scenario',
+          'variant',
           'label',
           'out',
           'repeat',
@@ -248,6 +251,12 @@ void main() {
           'semantics-pass',
           'json',
         ]),
+      );
+      // Every file with `variants` needs one picked; the tool's arguments
+      // reach dusk:perf_run's MapInput under the same key.
+      expect(
+        (properties['variant'] as Map<String, dynamic>)['type'],
+        'string',
       );
     });
 

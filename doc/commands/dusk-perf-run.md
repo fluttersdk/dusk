@@ -8,6 +8,7 @@ Run a perf scenario several times from a clean start and write one file per scen
 
 - [Synopsis](#synopsis)
 - [The scenario file](#the-scenario-file)
+- [Fragments, parameters and variants](#fragments-parameters-and-variants)
 - [What one run does](#what-one-run-does)
 - [The run file](#the-run-file)
 - [Refusals and exit codes](#refusals-and-exit-codes)
@@ -20,8 +21,8 @@ Run a perf scenario several times from a clean start and write one file per scen
 ## Synopsis
 
 ```
-dart run fluttersdk_dusk dusk:perf_run <scenario.yaml> [--label=<name>] [--out=<dir>]
-    [--repeat=<n>] [--platform=chrome|android|ios] [--timing]
+dart run fluttersdk_dusk dusk:perf_run <scenario.yaml> [--variant=<key>] [--label=<name>]
+    [--out=<dir>] [--repeat=<n>] [--platform=chrome|android|ios] [--timing]
     [--against=<baseline.yaml>] [--semantics-pass] [--json]
 ```
 
@@ -30,6 +31,7 @@ dart run fluttersdk_dusk dusk:perf_run <scenario.yaml> [--label=<name>] [--out=<
 | Flag | Default | Meaning |
 |------|---------|---------|
 | `<scenario.yaml>` / `--scenario` | required | The scenario file. |
+| `--variant` | none | The [variant](#variants) to run. Required when the file declares `variants` (the error lists the keys), refused when it does not. It applies to `--against` too, so both files have to declare it. |
 | `--label` | `run` | Names the run in the file name. `[a-z0-9_-]` only; anything else is rejected. |
 | `--out` | `build/perf` | Directory the run files go to. |
 | `--repeat` | the scenario's `repeat` | Repeats per series. |
@@ -82,6 +84,87 @@ A target is resolved on the live screen in every repeat, never written as a ref:
 
 ---
 
+<a name="fragments-parameters-and-variants"></a>
+## Fragments, parameters and variants
+
+A scenario file is loaded through `loadPerfScenarios` (`lib/src/perf/scenario_loader.dart`), which adds three things to the grammar above: setup fragments, `${...}` interpolation with secrets, and variants. `PerfScenario.parse` reads the same grammar from a string, except that it refuses an `include` (a string has no directory to resolve one against) and `variants` (they yield several scenarios).
+
+### Fragments
+
+A setup entry `- include: <path>` flattens a fragment file into `setup` in place. The path is relative to the file that holds the entry.
+
+```yaml
+# scenarios/monitors-list.yaml
+setup:
+  - hot_restart
+  - include: fragments/login.yaml
+    with: {email: "${env.PERF_EMAIL}", password: "${env.PERF_PASSWORD}"}
+    when: {text: Sign in, unless_text: Monitors, timeout_ms: 60000}
+  - navigate: /monitors
+```
+
+```yaml
+# scenarios/fragments/login.yaml
+params:
+  email: {}                         # required: no default
+  password: {secret: true}
+  submit: {default: Sign in}
+when: {text: Sign in}               # used when the include names no `when`
+steps:                              # the setup grammar, nested includes too
+  - fill: {target: {label: Email}, text: "${email}"}
+  - fill: {target: {label: Password}, text: "${password}"}
+  - tap: {target: {role: button, name: "${submit}"}}
+```
+
+A fragment takes `params`, `when` and `steps` and nothing else. Every param is required unless it has a `default`; a `with:` key the fragment does not declare, a missing required param, an include cycle (a includes b includes a) and includes nested deeper than 8 are each a problem. An include is a setup entry only: the measured `steps` are written out, so the file shows everything the window times. A problem inside a fragment names it and the entry, `fragments/login.yaml steps[1].fill.text`, and so does every flattened entry at run time.
+
+`when: {text, unless_text, timeout_ms}` guards the whole fragment; the include's own `when` replaces the fragment's. The runner polls the screen for up to `timeout_ms` (default 60000): `text` on screen runs the fragment, `unless_text` on screen skips it (and wins when both are there). On timeout the fragment is skipped when there is no `unless_text`, and the run fails when there is one, since the screen showed neither state.
+
+At run time the guard is a poll of `ext.dusk.find --text` every 250 ms, `unless_text` first, then `text`, up to `timeout_ms`. Each guard is decided once per pass over the setup (so once per repeat in `dusk:perf_run`), at the first of its steps that runs on the platform, and the decision covers every step the include flattened. A guard nested in another is decided only after the outer one decided to run, so a skipped outer fragment never polls for its inner one. The timeout failure names both texts and the include (`list-scroll setup[1] (when): neither "Sign in" nor "Monitors" showed within 60000 ms, ...`) and ends with the same `Diagnostics:` line as any setup failure.
+
+The run file's `scenario.setup` echoes each guard once, as `when`, on the first step it governs, which marks where a guarded group begins (the steps its include flattened follow it, in order; the echo does not mark where the group ends): `{"tap": {"target": {"text": "Sign in"}}, "when": {"text": "Sign in", "unless_text": "Monitors", "timeout_ms": 60000}}`. A guard entered on the same step as one nested in it is that one's `parent`; a step written as a bare verb becomes `{"hot_restart": null, "when": {...}}`. Unguarded steps are written as before. A `when` never holds a secret: the loader refuses one there.
+
+### Interpolation
+
+Every scalar value in a scenario or fragment file (never a key) is interpolated once, in its own file:
+
+| Written | Reads |
+|---|---|
+| `${name}` | the fragment's param `name` |
+| `${env.NAME}` | the environment variable `NAME` |
+| `$$` | one literal `$` |
+
+A `with:` value is resolved in the including file and passed on as it is, never scanned again: `Pa$$w0rd` arrives as `Pa$w0rd` however many includes it goes through, and an environment value `a${b}` arrives as `a${b}`. A `default` reads the environment only. An undefined name is a problem that names the file and the path.
+
+### Secrets
+
+A value any part of which came from `${env.*}` or from a param declared `secret: true` is a secret, and stays one through every `with:`. It may only be the `text` of a `fill` or `type`; anywhere else (a route, a `wait_for_text`, a target, a `when`) the file is refused with "a secret may only be typed". A non-empty secret shorter than 4 characters is refused too, with a problem naming the variable (`${env.PIN} is 2 characters`) or the param, never the value: every output is masked for every secret wherever its text appears, so a secret `1` or `80` would mask that number in every log line and every run file. An empty `${env.*}` value is no secret and masks nothing. The run file writes the text of a secret step as `***`, and a problem never prints a secret, raw or JSON-encoded. Once the files have loaded, `dusk:perf_run` masks every secret, raw or JSON-encoded, in everything it prints (errors, diagnostics, the success lines and the `--json` envelope) and in every string of the run files it writes, such as a `semanticsPassReason` that quotes a failed fill. The run files and the `--json` envelope are masked as JSON trees (string values only) and the envelope is printed once, unwrapped: a text pass over encoded JSON could rewrite a number or a key a secret matches (a secret `1234` inside `81234567`) into invalid JSON. An exception message the diagnostics quote is masked before it is cut to 200 characters, so a secret the cut would split leaves no prefix behind.
+
+### Variants
+
+`variants` turns one file into one scenario per key, named `<name>-<key>`, so twin files that differ in the viewport become one:
+
+```yaml
+name: monitors-list-scroll
+platforms: [chrome]
+viewport: {width: 1440, height: 900}
+steps:
+  - wheel: {target: {key: monitor-list}, dy: 1200}
+variants:
+  1440: {}
+  390:
+    viewport: {width: 390, height: 844}
+    platforms: [chrome, android, ios]
+    steps:
+      - drag: {target: {text: Monitors}, dy: -600}
+```
+
+A variant may replace `viewport`, `platforms`, `repeat` and `steps`; each key it names replaces the base's whole value (a variant's `steps` replaces the whole list). A key is read as text (YAML reads `1440` as a number) and must use `[a-z0-9_-]`. Each resulting scenario is validated on its own, so a step's `only:` is checked against that variant's `platforms`, and a problem in one names it (`monitors-list-scroll-390: variants.390.steps[0]...`).
+
+`dusk:perf_run` runs one variant per call: `--variant=390` runs `monitors-list-scroll-390` and writes `<out>/monitors-list-scroll-390-<label>.json`, whose top-level `variant` says which key it was. A file with variants run without `--variant`, a key it does not declare, and `--variant` on a file without variants each exit 1 before the app is touched.
+
+---
+
 <a name="what-one-run-does"></a>
 ## What one run does
 
@@ -93,7 +176,7 @@ An answer of `navigated: false` is then held against the Router for up to 3 s: `
 
 Once it has landed, the runner reads `get_routes`'s `uri`, waits for network idle, and reads it again; a route whose path moved in between (a first fetch answering 401 redirects to the login screen) fails the run naming both. The two reads compare paths, so a page that normalises its query after the first fetch (`/monitors` to `/monitors?page=1`) has not moved.
 
-Every setup failure other than a restart's ends with a `Diagnostics:` line: the Router's `uri` as `ext.dusk.get_routes` answers it (`route none (no Router mounted)` when there is none, plus the page name when the Navigator's top page has one), the last setup navigate's payload, and the three newest `ext.dusk.exceptions` entries. A diagnostic call that fails is named in its place.
+Every setup failure other than a restart's ends with a `Diagnostics:` line: the Router's `uri` as `ext.dusk.get_routes` answers it (`route none (no Router mounted)` when there is none, plus the page name when the Navigator's top page has one), the last setup navigate's payload, and the three newest `ext.dusk.exceptions` entries, each message's first line masked for the secrets and then cut to 200 characters. A diagnostic call that fails is named in its place.
 
 `hot_restart` is a hot restart on a debug build. A profile build cannot hot restart, so there it is a full relaunch through `artisan restart`, carrying the session's flags; `env.restartMode` says which (`none` when the setup has no restart). Either way the runner reads `ext.dusk.boot_id` first and waits, up to 90 s after a hot restart, until it answers with a different id, which `DuskPlugin.install()` mints on every run of `main()` and registers last. Not a new isolate: on Flutter web DWDS keeps isolate `"1"` across a hot restart, and on the VM the old isolate answers until the new one replaces it. The errors the app answers while it restarts (DWDS's -32603 for an extension not registered yet) are waited out, and the last one is named if the 90 s run out. An app that does not answer `ext.dusk.boot_id` at all runs an older dusk: relaunch it.
 
@@ -112,6 +195,7 @@ Actions are called with `includeSnapshot: false`: a snapshot per step would buil
 {
   "scenario": {"name": "monitors-list-scroll-1440", "...": "the parsed scenario"},
   "label": "before",
+  "variant": "1440",
   "env": {"platform": "macOS", "isWeb": true, "buildMode": "debug",
           "semanticsEnabled": true, "target": "chrome", "device": "chrome",
           "emulator": false, "restartMode": "hot_restart",
@@ -137,6 +221,7 @@ Actions are called with `includeSnapshot: false`: a snapshot per step would buil
 - `perFrame` flattens every count to a name: `blocks.<widget>`, `<wind|magic>.<counter>`, `<wind|magic>.<counter>.<row>`. Gauges such as `wind.cacheSize` are left out. A metric a repeat lacks counts as zero there.
 - `ms` (attribution) is indicative: build profiling inflates every duration. Compare `summary.timing.ms` instead.
 - `insights` come from the repeat whose total per-frame count is the median.
+- `variant` is the `--variant` the run used, present only when it used one.
 - `repeats[].resolves` lists each targeted step's lookup: `beforeBegin` outside the window, `inWindow` inside it, where `resolveMs` (retries included) is time the session measured. The semantics pass resolves nothing, so its repeats carry an empty list.
 - `env.host` comes from the host: `uname` and the CPU. `env.renderer` is the app's own answer (`canvaskit` or `skwasm` on web, through `rendererReader`); only when the app answers `unknown` does the runner fall back to the Impeller backend line of the artisan run log (`impeller-vulkan`), else `unknown`.
 

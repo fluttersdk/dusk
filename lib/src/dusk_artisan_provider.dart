@@ -23,6 +23,7 @@ import 'commands/dusk_navigate_back_command.dart';
 import 'commands/dusk_navigate_command.dart';
 import 'commands/dusk_observe_command.dart';
 import 'commands/dusk_perf_begin_command.dart';
+import 'commands/dusk_perf_campaign_command.dart';
 import 'commands/dusk_perf_compare_command.dart';
 import 'commands/dusk_perf_end_command.dart';
 import 'commands/dusk_perf_insight_command.dart';
@@ -140,6 +141,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         DuskPerfRunCommand(),
         DuskPerfCompareCommand(),
         DuskPerfTraceCommand(),
+        // The whole campaign, one cold start per scenario (CLI only).
+        DuskPerfCampaignCommand(),
       ];
 
   @override
@@ -598,6 +601,9 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '- Pass `route: "/monitors/123"` (must start with `/`).\n'
               '- ALWAYS re-snapshot after navigation; refs from a prior '
               'dusk_snap are invalidated by the route change.\n'
+              '- `navigated: true` also covers a page under the route '
+              '(`/monitors/7` for `/monitors`); `exactPath: true` says the '
+              'Router shows the route itself.\n'
               '- For going back use dusk_navigate_back; to list known '
               'routes use dusk_get_routes.\n'
               '\n'
@@ -1818,6 +1824,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '\n'
               'Usage:\n'
               '- Pass scenario (a path) and a label ([a-z0-9_-]).\n'
+              '- Pass variant when the file declares variants (required '
+              'then, refused otherwise); it applies to against too.\n'
               '- Pass json=true for the summary as JSON (repeats stay in the '
               'file).\n'
               '- Set timing=true for interleaved timing-mode repeats, the only '
@@ -1836,6 +1844,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'scenario': <String, dynamic>{
                 'type': 'string',
                 'description': 'Path to the scenario YAML.',
+              },
+              'variant': <String, dynamic>{
+                'type': 'string',
+                'description': 'The variants key to run; required when the '
+                    'file declares variants.',
               },
               'label': <String, dynamic>{
                 'type': 'string',
