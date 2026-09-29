@@ -87,6 +87,10 @@ final class _FakeHost implements PerfCampaignHost {
   /// What `ext.dusk.exceptions` lists to a setup failure's diagnostics.
   List<Map<String, dynamic>> exceptions = <Map<String, dynamic>>[];
 
+  /// `ext.dusk.get_routes` reads per driver that answer no Router yet, at
+  /// 100 ms a read: 150 is a Router that mounts 15 s after the boot id.
+  int routerMountReads = 0;
+
   /// Every event, in order: `run <exe> <args>`, `stop`, `start`,
   /// `alive:<pid>=<bool>`, `free:<port>=<bool>`, `pause`, `connect`,
   /// `boot:miss`, `boot:ok`, `driver open`, `driver <method>`,
@@ -252,11 +256,13 @@ final class _FakeApp implements PerfCampaignApp {
   Future<void> close() async => host.events.add('close');
 }
 
-/// A driver whose Router is mounted and whose network is always idle.
+/// A driver whose Router mounts after [_FakeHost.routerMountReads] reads
+/// and whose network is always idle.
 final class _FakeDriver implements PerfRunDriver {
-  _FakeDriver(this.host);
+  _FakeDriver(this.host) : _unmounted = host.routerMountReads;
 
   final _FakeHost host;
+  int _unmounted;
 
   @override
   Future<Map<String, dynamic>> call(
@@ -264,6 +270,10 @@ final class _FakeDriver implements PerfRunDriver {
     Map<String, String> params = const <String, String>{},
   ]) async {
     host.events.add('driver $method');
+    if (method == 'ext.dusk.get_routes' && _unmounted > 0) {
+      _unmounted--;
+      return <String, dynamic>{'uri': null};
+    }
     return switch (method) {
       'ext.dusk.get_routes' => <String, dynamic>{'uri': '/'},
       'ext.dusk.wait_for_network_idle' => <String, dynamic>{'matched': true},
@@ -1263,6 +1273,61 @@ android:
           host.events.where((String e) => e == 'driver close'),
           hasLength(2),
         );
+      });
+
+      test(
+          'after_start waits for a Router that mounts at 15 s: the router '
+          'wait takes the after_start guard budget, not perf_run\'s 10 s',
+          () async {
+        write('fragments/login.yaml', '''
+steps:
+  - tap: {target: {text: Sign in}}
+''');
+        final _FakeHost host = _FakeHost()..routerMountReads = 150;
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+          },
+          extra: '''
+retries: 0
+after_start:
+  - include: fragments/login.yaml
+    when: {text: Sign in}
+''',
+        );
+
+        final (int code, String out) = await handle(host, path);
+
+        expect(code, 0, reason: out);
+        expect(
+          host.events.where((String e) => e == 'driver ext.dusk.get_routes'),
+          hasLength(151),
+        );
+      });
+
+      test('the router wait stops at the largest after_start guard budget',
+          () async {
+        write('fragments/login.yaml', '''
+steps:
+  - tap: {target: {text: Sign in}}
+''');
+        final _FakeHost host = _FakeHost()..routerMountReads = 250;
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+          },
+          extra: '''
+retries: 0
+after_start:
+  - include: fragments/login.yaml
+    when: {text: Sign in, timeout_ms: 20000}
+''',
+        );
+
+        final (int code, _) = await handle(host, path);
+
+        expect(code, 1);
+        expect(errOf('a'), contains('no Router was mounted within 20 s'));
       });
 
       test('chrome starts with the CDP port and perf_run gets the options',

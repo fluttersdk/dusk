@@ -934,7 +934,7 @@ final class _CampaignRun {
         if (afterStart.isNotEmpty) {
           final PerfSetupRunner runner =
               PerfSetupRunner(PerfActions(driver, env), redactor: redactor);
-          await runner.awaitRouter(name);
+          await runner.awaitRouter(name, budget: _routerBudget(afterStart));
           await runner.run(afterStart, name);
         }
 
@@ -1056,6 +1056,23 @@ final class _CampaignRun {
 }
 
 String _processText(ProcessResult result) => '${result.stdout}${result.stderr}';
+
+/// How long `after_start` waits for the app to mount a Router: the largest
+/// `timeout_ms` among its guards, the guard default when it has none, never
+/// less than perf_run's own [kPerfRouterBudget]. A login guard written to
+/// wait out a slow cold start must not lose to a router wait that gives up
+/// first.
+Duration _routerBudget(List<PerfSetupStep> afterStart) {
+  int ms = 0;
+  for (final PerfSetupStep step in afterStart) {
+    for (PerfSetupGuard? g = step.guard; g != null; g = g.parent) {
+      if (g.timeoutMs > ms) ms = g.timeoutMs;
+    }
+  }
+  final Duration guards =
+      Duration(milliseconds: ms == 0 ? kPerfWhenTimeoutMs : ms);
+  return guards > kPerfRouterBudget ? guards : kPerfRouterBudget;
+}
 
 /// The first `applicationId` in the Android app module's Gradle file under
 /// [projectRoot], or null. The same lookup as artisan's

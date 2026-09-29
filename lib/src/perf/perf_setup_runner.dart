@@ -10,14 +10,11 @@ import 'scenario.dart';
 /// abandons a service extension call on the web.
 const int _kWaitSliceMs = 5000;
 
-/// How long a setup navigate waits for the app to mount a Router. The boot
-/// id answers from `main()`, which can still be awaiting its own boot or be
-/// showing a loading screen before `runApp` builds the router.
-const Duration _kRouterBudget = Duration(seconds: 10);
-
-/// The most `ext.dusk.get_routes` reads that wait gets, so the budget holds
-/// on a driver whose pause returns at once.
-const int _kRouterMaxPolls = 100;
+/// How long a setup navigate waits for the app to mount a Router, unless
+/// the caller names another budget. The boot id answers from `main()`, which
+/// can still be awaiting its own boot or be showing a loading screen before
+/// `runApp` builds the router.
+const Duration kPerfRouterBudget = Duration(seconds: 10);
 
 /// How often a `when` guard looks at the screen while it waits.
 const Duration _kWhenPollInterval = Duration(milliseconds: 250);
@@ -328,8 +325,9 @@ final class PerfSetupRunner {
   }
 
   /// Waits until `ext.dusk.get_routes` reports a mounted Router's `uri`,
-  /// read every [kPerfResolvePollInterval] for up to 10 s (and at most 100
-  /// reads).
+  /// read every [kPerfResolvePollInterval] for up to [budget] (and at most
+  /// one read per interval of it, so the budget holds on a driver whose
+  /// pause returns at once): 10 s and 100 reads by default.
   ///
   /// `ext.dusk.boot_id` answers once `DuskPlugin.install()` has run, and a
   /// host that installs dusk before its own boot (magic_devtools' documented
@@ -337,10 +335,19 @@ final class PerfSetupRunner {
   /// navigate waits here rather than the restart, which keeps a scenario that
   /// never navigates, or an app with no Router at all, free of it.
   ///
+  /// A campaign's `after_start` passes a longer [budget]: a cold start on a
+  /// device can take most of a minute to mount its first screen, and its
+  /// login guard is written to wait that long.
+  ///
   /// Throws [PerfRunException] prefixed with [where] when the budget runs out,
   /// or at once when the answer has no `uri` key: the app runs a dusk older
   /// than this CLI.
-  Future<void> awaitRouter(String where) async {
+  Future<void> awaitRouter(
+    String where, {
+    Duration budget = kPerfRouterBudget,
+  }) async {
+    final int maxPolls =
+        budget.inMicroseconds ~/ kPerfResolvePollInterval.inMicroseconds;
     final Stopwatch clock = Stopwatch()..start();
     for (int poll = 1;; poll++) {
       final Map<String, dynamic> routes = await actions.call(
@@ -356,9 +363,9 @@ final class PerfSetupRunner {
         );
       }
       if (routes['uri'] is String) return;
-      if (poll >= _kRouterMaxPolls || clock.elapsed >= _kRouterBudget) {
+      if (poll >= maxPolls || clock.elapsed >= budget) {
         throw PerfRunException(
-          '$where: no Router was mounted within ${_kRouterBudget.inSeconds} s '
+          '$where: no Router was mounted within ${budget.inSeconds} s '
           '($poll reads of ext.dusk.get_routes), and a navigate is verified '
           'against the Router\'s location.',
         );

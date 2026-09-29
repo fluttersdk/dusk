@@ -32,6 +32,9 @@ final class _ScreenDriver implements PerfRunDriver {
   final bool navigateHonoured;
   final bool answersUri;
 
+  /// `ext.dusk.get_routes` reads that answer no Router before one mounts.
+  int unmountedReads = 0;
+
   String uri = '/';
   String? _landing;
 
@@ -73,6 +76,10 @@ final class _ScreenDriver implements PerfRunDriver {
         uri = params['route']!;
         return <String, dynamic>{'navigated': true, 'route': uri};
       case 'ext.dusk.get_routes':
+        if (unmountedReads > 0) {
+          unmountedReads--;
+          return <String, dynamic>{'uri': null};
+        }
         if (_landing != null) {
           uri = _landing!;
           _landing = null;
@@ -442,6 +449,38 @@ void main() {
         await _runner(driver).awaitRouter('after_start');
 
         expect(driver.callsTo('ext.dusk.get_routes'), hasLength(1));
+      });
+
+      test(
+          'waits out a Router mounting at 15 s when given a 60 s budget, one '
+          'read every 100 ms', () async {
+        final _ScreenDriver driver = _ScreenDriver()..unmountedReads = 150;
+
+        await _runner(driver).awaitRouter(
+          'after_start',
+          budget: const Duration(seconds: 60),
+        );
+
+        expect(driver.callsTo('ext.dusk.get_routes'), hasLength(151));
+        expect(
+          driver.callsTo('pause').map((_Call c) => c.params['ms']).toSet(),
+          <int>{100},
+        );
+      });
+
+      test('keeps its 10 s default, 100 reads at most', () async {
+        final _ScreenDriver driver = _ScreenDriver()..unmountedReads = 150;
+
+        await expectLater(
+          _runner(driver).awaitRouter('after_start'),
+          throwsA(
+            isA<PerfRunException>().having(
+              (PerfRunException e) => e.message,
+              'message',
+              contains('no Router was mounted within 10 s (100 reads'),
+            ),
+          ),
+        );
       });
 
       test('tells an app with an older dusk to relaunch', () async {
