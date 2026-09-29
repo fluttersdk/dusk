@@ -64,6 +64,10 @@ final class _FakeHost implements PerfCampaignHost {
   /// What `start` answers; non-zero records no session.
   int startCode;
 
+  /// What `stop` answers once a perf_run has run: the campaign's final stop
+  /// in a one-scenario campaign.
+  int stopCodeAfterRun = 0;
+
   /// Written to the start output, as artisan's start prints its own lines.
   String startOutput = 'flutter run pid=1';
 
@@ -143,7 +147,7 @@ final class _FakeHost implements PerfCampaignHost {
       busyReads[previous['webPort'] as int] = 1;
     }
     session = null;
-    return 0;
+    return perfRuns.isEmpty ? 0 : stopCodeAfterRun;
   }
 
   @override
@@ -1555,6 +1559,152 @@ android:
         expect(out, matches(RegExp(r'^\s*a\s+ok$', multiLine: true)));
         expect(host.events.last, 'stop');
         expect(File('build/perf/a-run.err').existsSync(), isFalse);
+      });
+    });
+
+    group('.handle() the end of a campaign', () {
+      Map<String, dynamic> envelopeOf(String out) =>
+          jsonDecode(out.split('\n').first) as Map<String, dynamic>;
+
+      Map<String, dynamic> notRun(String name) => <String, dynamic>{
+            'scenario': name,
+            'status': 'not_run',
+            'attempts': 0,
+            'runFile': null,
+            'errFile': null,
+          };
+
+      test(
+          'a preparation stop still prints the --json envelope, every '
+          'scenario not_run and the reason', () async {
+        final _FakeHost host = _FakeHost(
+          onRun: (String exe, List<String> args) =>
+              exe == '/bin/sh' ? (3, 'redis down', '') : (0, '', ''),
+        );
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+            'b': <String>['chrome'],
+          },
+          extra: 'hooks: {before_campaign: ./services.sh up}',
+        );
+
+        final (int code, String out) = await handle(
+          host,
+          path,
+          options: <String, dynamic>{'json': true},
+        );
+
+        expect(code, 1);
+        final Map<String, dynamic> envelope = envelopeOf(out);
+        expect(envelope['results'], <Map<String, dynamic>>[
+          notRun('a'),
+          notRun('b'),
+        ]);
+        expect(envelope['stopped'], contains('hooks.before_campaign exited 3'));
+        expect(envelope['stopped'], contains('campaign-run.err'));
+        expect(envelope.containsKey('errors'), isFalse);
+      });
+
+      test(
+          'a before_scenario stop lists the scenarios after it as not_run in '
+          'the --json envelope', () async {
+        final _FakeHost host = _FakeHost(
+          onRun: (String exe, List<String> args) =>
+              exe == '/bin/sh' ? (2, 'reset failed', '') : (0, '', ''),
+        );
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+            'b': <String>['chrome'],
+            'c': <String>['chrome'],
+          },
+          extra: 'hooks: {before_scenario: ./services.sh reset}',
+        );
+
+        final (int code, String out) = await handle(
+          host,
+          path,
+          options: <String, dynamic>{'json': true},
+        );
+
+        expect(code, 1);
+        final Map<String, dynamic> envelope = envelopeOf(out);
+        final List<dynamic> results = envelope['results'] as List<dynamic>;
+        expect(results, hasLength(3));
+        expect(results[0], containsPair('status', 'failed'));
+        expect(results[0], containsPair('errFile', endsWith('a-run.err')));
+        expect(results.sublist(1), <Map<String, dynamic>>[
+          notRun('b'),
+          notRun('c'),
+        ]);
+        expect(
+          envelope['stopped'],
+          'hooks.before_scenario exited 2 before a',
+        );
+      });
+
+      test(
+          'a final artisan stop that fails exits 1, says so, and names it in '
+          'the --json envelope', () async {
+        final _FakeHost host = _FakeHost()..stopCodeAfterRun = 1;
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        });
+
+        final (int code, String out) = await handle(
+          host,
+          path,
+          options: <String, dynamic>{'json': true},
+        );
+
+        expect(code, 1);
+        expect(out, contains('artisan stop exited 1 after the campaign'));
+        final Map<String, dynamic> envelope = envelopeOf(out);
+        expect(
+          (envelope['results'] as List<dynamic>).single,
+          containsPair('status', 'ok'),
+        );
+        expect(
+          envelope['errors'],
+          <String>[
+            'artisan stop exited 1 after the campaign; the app may still be '
+                'running.',
+          ],
+        );
+      });
+
+      test(
+          'an .err that cannot be written is reported and the campaign goes '
+          'on', () async {
+        final _FakeHost host = _FakeHost(
+          onPerfRun:
+              (Map<String, dynamic> options, ArtisanOutput output) async => 1,
+        );
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+            'b': <String>['chrome'],
+          },
+          extra: 'retries: 0',
+        );
+        // The out directory's parent is a file, so no .err can be created.
+        write('blocked', 'a file, not a directory');
+
+        final (int code, String out) = await handle(
+          host,
+          path,
+          options: <String, dynamic>{'out': 'blocked/perf'},
+        );
+
+        expect(code, 1);
+        expect(host.events, contains('perf_run b'));
+        expect(
+          RegExp('could not write .*a-run\\.err').hasMatch(out),
+          isTrue,
+          reason: out,
+        );
+        expect(out, contains('2 of 2 scenarios failed'));
       });
     });
 

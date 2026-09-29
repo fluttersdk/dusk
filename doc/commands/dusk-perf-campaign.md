@@ -89,7 +89,7 @@ The whole file is validated before anything runs, and every problem is listed at
    6. `dusk:perf_run <scenario> --variant --label --out --platform [--timing] [--semantics-pass]`, in-process on the same connection. Once it exits 0 the command reads the run file it wrote and masks it again for the campaign's secrets (see [secrets](#secrets)).
 
    Every scenario runs from its own cold start: on Chrome, DWDS answers `ext.dusk.*` with `0/1 responses` timeouts that compound over a long session, and a retry in the same session does not clear them. Whatever an attempt throws, or a non-zero exit from stop, start or perf_run, fails that attempt; the next attempt, and the next scenario, still run.
-6. **The end.** The app is stopped once the last scenario is done, whatever happened.
+6. **The end.** The app is stopped once the last scenario is done, whatever happened. A stop that exits non-zero makes the campaign exit 1 even when every scenario passed, and says `artisan stop exited <n> after the campaign; the app may still be running.`
 
 ---
 
@@ -99,6 +99,8 @@ The whole file is validated before anything runs, and every problem is listed at
 - `<out>/<scenario>-<label>.json`: the run file `dusk:perf_run` writes, masked again for the campaign's secrets.
 - `<out>/<scenario>-<label>.err`: written when an attempt fails, one section per failed attempt: the failure, the stack trace of anything that is not a perf-run failure, what stop, start and perf_run printed, and, when the attempt failed while starting, a copy of the session's `flutter-dev.log`. A scenario that passes on its first attempt has none; a stale one from an earlier run is deleted when the scenario starts.
 - `<out>/campaign-<label>.err`: the output of a hook, `flutter pub get` or Android step that stopped the campaign.
+
+An `.err` that cannot be written (an `--out` under a file, a full disk) is reported as `dusk:perf_campaign could not write <path>: <reason>.` and the campaign goes on: the scenarios after it still run and the app is still stopped.
 
 One line per scenario, as each finishes:
 
@@ -110,18 +112,25 @@ One line per scenario, as each finishes:
 
 A scenario that passed only on a later attempt says which attempt, and names the `.err` holding the attempts that failed before it.
 
-With `--json` the lines are replaced by one envelope:
+With `--json` the lines are replaced by one envelope, printed however the campaign ended, a stop before the first scenario included:
 
 ```json
 {"results": [
   {"scenario": "monitors-list-scroll-1440", "status": "ok", "attempts": 1,
    "runFile": "/abs/build/perf/monitors-list-scroll-1440-base.json", "errFile": null},
   {"scenario": "monitor-detail-390", "status": "failed", "attempts": 2,
-   "runFile": null, "errFile": "/abs/build/perf/monitor-detail-390-base.err"}
-]}
+   "runFile": null, "errFile": "/abs/build/perf/monitor-detail-390-base.err"},
+  {"scenario": "monitor-detail-1440", "status": "not_run", "attempts": 0,
+   "runFile": null, "errFile": null}
+],
+ "stopped": "hooks.before_scenario exited 2 before monitor-detail-390",
+ "errors": ["artisan stop exited 1 after the campaign; the app may still be running."]}
 ```
 
-`errFile` is also set on an `ok` scenario whose first attempt failed.
+- `results` lists every selected scenario. `not_run` is one the campaign stopped before: every scenario when a hook, `flutter pub get` or an Android step stopped it, the ones after it when `before_scenario` did.
+- `stopped` is present when the campaign stopped, with the sentence it printed (and the `campaign-<label>.err` it wrote, when the failed step printed anything).
+- `errors` is present when something failed after the scenarios, such as the final artisan stop.
+- `errFile` is also set on an `ok` scenario whose first attempt failed.
 
 ---
 
@@ -144,7 +153,7 @@ A value read through `${env.*}` or a `secret: true` param, in `after_start` or a
 | Exit code | Meaning |
 |-----------|---------|
 | `0` | Every selected scenario passed. |
-| `1` | A bad input or campaign file, nothing selected, a hook, `flutter pub get` or Android step that failed or could not start, an `applicationId` that could not be used, or any scenario that failed every attempt. |
+| `1` | A bad input or campaign file, nothing selected, a hook, `flutter pub get` or Android step that failed or could not start, an `applicationId` that could not be used, any scenario that failed every attempt, or an artisan stop after the campaign that exited non-zero. |
 
 ---
 

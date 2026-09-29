@@ -339,20 +339,43 @@ final class _Progress {
   _Phase phase = _Phase.stopping;
 }
 
+/// Where a scenario ended, as the `--json` envelope spells it.
+enum _Status {
+  ok('ok'),
+  failed('failed'),
+
+  /// Never attempted: the campaign stopped before it.
+  notRun('not_run');
+
+  const _Status(this.wire);
+
+  final String wire;
+}
+
 /// One scenario's outcome, as the summary and the envelope report it.
 final class _ScenarioResult {
   const _ScenarioResult({
     required this.name,
-    required this.ok,
+    required this.status,
     required this.attempts,
     this.runFile,
     this.errFile,
     this.stop,
   });
 
+  /// A scenario the campaign stopped before.
+  const _ScenarioResult.notRun(this.name)
+      : status = _Status.notRun,
+        attempts = 0,
+        runFile = null,
+        errFile = null,
+        stop = null;
+
   final String name;
-  final bool ok;
+  final _Status status;
   final int attempts;
+
+  bool get ok => status == _Status.ok;
   final String? runFile;
   final String? errFile;
 
@@ -361,15 +384,16 @@ final class _ScenarioResult {
 
   /// The summary's word for it: a pass on a later attempt names that attempt
   /// and the `.err` that holds the earlier ones.
-  String get line => switch ((ok, attempts)) {
-        (false, _) => 'FAILED (see $errFile)',
-        (true, 1) => 'ok',
-        (true, _) => 'ok (attempt $attempts, see $errFile)',
+  String get line => switch ((status, attempts)) {
+        (_Status.failed, _) => 'FAILED (see $errFile)',
+        (_Status.notRun, _) => 'not run',
+        (_Status.ok, 1) => 'ok',
+        (_Status.ok, _) => 'ok (attempt $attempts, see $errFile)',
       };
 
   Map<String, Object?> toJson() => <String, Object?>{
         'scenario': name,
-        'status': ok ? 'ok' : 'failed',
+        'status': status.wire,
         'attempts': attempts,
         'runFile': runFile,
         'errFile': errFile,
@@ -432,63 +456,79 @@ final class _CampaignRun {
     PerfCampaign campaign,
     List<PerfCampaignScenario> scenarios,
   ) async {
+    final List<_ScenarioResult> results = <_ScenarioResult>[];
+
+    // Why the campaign stopped before its last scenario, or null.
+    String? stopped;
+
+    // What went wrong after the scenarios, each a sentence of its own.
+    final List<String> errors = <String>[];
+
     // 1. Everything before the first scenario; a failure stops the campaign.
     final File campaignErr = _errFile('campaign');
     await _clear(campaignErr);
-    final String target;
+    String? target;
     try {
       target = await _prepare(campaign);
     } on _CampaignStop catch (stop) {
       final String? detail = stop.detail;
-      if (detail == null) {
-        output.error(stop.message);
-      } else {
-        await _write(campaignErr, '${stop.message}\n$detail');
-        output.error('${stop.message}; see ${campaignErr.path}.');
-      }
-      return 1;
+      stopped = detail != null &&
+              await _record(campaignErr, '${stop.message}\n$detail')
+          ? '${stop.message}; see ${campaignErr.path}'
+          : stop.message;
     }
 
-    // 2. The scenarios, each one's line printed as it finishes.
-    final int width = scenarios
-        .map((PerfCampaignScenario s) => s.scenario.name.length)
-        .reduce((int a, int b) => a > b ? a : b);
-    final List<_ScenarioResult> results = <_ScenarioResult>[];
-    try {
-      for (final PerfCampaignScenario scenario in scenarios) {
-        final _ScenarioResult result =
-            await _scenario(scenario, campaign, target);
-        results.add(result);
-        if (!json) {
-          output.writeln('  ${result.name.padRight(width)}  ${result.line}');
+    // 2. The scenarios, each one's line printed as it finishes, then the app
+    //    stopped whatever happened.
+    if (target != null) {
+      final int width = scenarios
+          .map((PerfCampaignScenario s) => s.scenario.name.length)
+          .reduce((int a, int b) => a > b ? a : b);
+      try {
+        for (final PerfCampaignScenario scenario in scenarios) {
+          final _ScenarioResult result =
+              await _scenario(scenario, campaign, target);
+          results.add(result);
+          if (!json) {
+            output.writeln('  ${result.name.padRight(width)}  ${result.line}');
+          }
+          stopped = result.stop;
+          if (stopped != null) break;
         }
-        if (result.stop != null) break;
-      }
-    } finally {
-      if (_started) {
-        final int stopped = await host.stop(BufferedOutput());
-        if (stopped != 0) {
-          output.error('artisan stop exited $stopped after the campaign; '
-              'the app may still be running.');
+      } finally {
+        if (_started) {
+          final int code = await host.stop(BufferedOutput());
+          if (code != 0) {
+            errors.add('artisan stop exited $code after the campaign; the '
+                'app may still be running.');
+          }
         }
       }
     }
 
-    // 3. The report.
+    // 3. The report: every selected scenario, those a stop left untried
+    //    included, so a caller of `--json` always gets the envelope.
+    final List<_ScenarioResult> reported = <_ScenarioResult>[
+      ...results,
+      for (final PerfCampaignScenario s in scenarios.skip(results.length))
+        _ScenarioResult.notRun(s.scenario.name),
+    ];
     if (json) {
       envelopeOutput.writeln(
         jsonEncode(
           redactor.redactJson(<String, Object?>{
             'results': <Object?>[
-              for (final _ScenarioResult r in results) r.toJson(),
+              for (final _ScenarioResult r in reported) r.toJson(),
             ],
+            if (stopped != null) 'stopped': stopped,
+            if (errors.isNotEmpty) 'errors': errors,
           }),
         ),
       );
     }
-    final String? stop = results.last.stop;
-    if (stop != null) {
-      output.error('Campaign stopped: $stop.');
+    errors.forEach(output.error);
+    if (stopped != null) {
+      output.error('Campaign stopped: $stopped.');
       return 1;
     }
     final int failed = results.where((_ScenarioResult r) => !r.ok).length;
@@ -497,6 +537,7 @@ final class _CampaignRun {
           'FAILED line names its .err.');
       return 1;
     }
+    if (errors.isNotEmpty) return 1;
     if (!json) {
       output.success('Campaign done: ${results.length} scenarios on '
           '${platform.name}, run files in $out.');
@@ -767,10 +808,10 @@ final class _CampaignRun {
           final String stop =
               'hooks.before_scenario could not run before $name: ${e.message}';
           record.writeln('=== $stop');
-          await _write(err, record.toString());
+          await _record(err, record.toString());
           return _ScenarioResult(
             name: name,
-            ok: false,
+            status: _Status.failed,
             attempts: attempt,
             errFile: err.path,
             stop: stop,
@@ -782,10 +823,10 @@ final class _CampaignRun {
           record
             ..writeln('=== $stop')
             ..write(_processText(result));
-          await _write(err, record.toString());
+          await _record(err, record.toString());
           return _ScenarioResult(
             name: name,
-            ok: false,
+            status: _Status.failed,
             attempts: attempt,
             errFile: err.path,
             stop: stop,
@@ -807,7 +848,7 @@ final class _CampaignRun {
         );
         return _ScenarioResult(
           name: name,
-          ok: true,
+          status: _Status.ok,
           attempts: attempt,
           runFile: _runFile(name).path,
           errFile: record.isEmpty ? null : err.path,
@@ -831,12 +872,12 @@ final class _CampaignRun {
               ..write(log);
           }
         }
-        await _write(err, record.toString());
+        await _record(err, record.toString());
       }
     }
     return _ScenarioResult(
       name: name,
-      ok: false,
+      status: _Status.failed,
       attempts: attempts,
       errFile: err.path,
     );
@@ -997,9 +1038,20 @@ final class _CampaignRun {
     if (file.existsSync()) await file.delete();
   }
 
-  Future<void> _write(File file, String text) async {
-    await file.parent.create(recursive: true);
-    await file.writeAsString(redactor.redact(text));
+  /// Writes [text], masked, to [file]; answers whether it could. A file
+  /// that cannot be written is said through [output] and the campaign goes
+  /// on: a full disk or an unwritable `--out` must not cost the scenarios
+  /// after it, nor the app stop at the end.
+  Future<bool> _record(File file, String text) async {
+    try {
+      await file.parent.create(recursive: true);
+      await file.writeAsString(redactor.redact(text));
+      return true;
+    } on FileSystemException catch (e) {
+      output.error('dusk:perf_campaign could not write ${file.path}: '
+          '${e.osError?.message ?? e.message}.');
+      return false;
+    }
   }
 }
 
