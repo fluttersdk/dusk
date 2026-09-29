@@ -782,6 +782,19 @@ void main() {
           payload['coverage'] as Map<String, dynamic>;
       expect(coverage['framesOutsideSession'], 0);
       expect(coverage['sessionClockMismatch'], isTrue);
+      // The kept frames include ones from outside the session, so the report
+      // is not a complete account of it and says so where a reader looks.
+      expect(coverage['complete'], isFalse);
+      final List<dynamic> insights = payload['insights'] as List<dynamic>;
+      expect(
+        insights.cast<Map<String, dynamic>>().where(
+              (Map<String, dynamic> i) =>
+                  i['severity'] == 'warn' &&
+                  (i['evidence'] as Map<String, dynamic>)['metric'] ==
+                      'sessionClockMismatch',
+            ),
+        hasLength(1),
+      );
     });
 
     test('keeps a frame that carries no vsync timestamp: nothing places it',

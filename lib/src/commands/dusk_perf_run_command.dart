@@ -498,14 +498,25 @@ Map<String, double> perfMsMetrics(Map<String, dynamic> report) {
 /// One series of `perf_end` reports reduced to medians and spread.
 ///
 /// Refused reports are counted and left out; a series with none measured
-/// carries only `{repeats: 0, refused: n}`. A metric one report lacks counts
+/// carries only `{repeats: 0, refused: n}`. A report whose frames could not
+/// be placed in its session window (`coverage.sessionClockMismatch`) is left
+/// out the same way and counted as `unplaced`, present only when non-zero: it
+/// kept frames from outside its session. A metric one report lacks counts
 /// as zero there, because a block that did not build was built zero times.
 Map<String, Object?> summarizePerfSeries(List<Map<String, dynamic>> reports) {
-  final List<Map<String, dynamic>> measured =
+  final List<Map<String, dynamic>> answered =
       reports.where((Map<String, dynamic> r) => r['refused'] != true).toList();
+  final List<Map<String, dynamic>> measured = answered
+      .where(
+        (Map<String, dynamic> r) =>
+            _map(r['coverage'])['sessionClockMismatch'] != true,
+      )
+      .toList();
   final Map<String, Object?> summary = <String, Object?>{
     'repeats': measured.length,
-    'refused': reports.length - measured.length,
+    'refused': reports.length - answered.length,
+    if (answered.length > measured.length)
+      'unplaced': answered.length - measured.length,
   };
   if (measured.isEmpty) return summary;
 

@@ -453,7 +453,11 @@ Map<String, Object?> _coverage(_Session session, Map<String, Object?>? wind) {
         'blockSelfTime',
     ],
   ];
-  final bool complete = session.painted >= session.drawn;
+  // Kept-all frames include ones from either side of the window, so a
+  // mismatch is never a complete account of the session however many
+  // arrived.
+  final bool complete =
+      !session.clockMismatch && session.painted >= session.drawn;
   return <String, Object?>{
     'framesDrawn': session.drawn,
     'framesSummarized': session.painted,
@@ -667,6 +671,29 @@ _Insight? _countOutlierInsight(_Session session) {
 
 /// Frames the engine drew and never reported, or sources never read.
 _Insight? _coverageInsight(_Session session, Map<String, Object?> coverage) {
+  // Outranks the rest: every other figure in the report sits on frames that
+  // may not belong to the session.
+  if (session.clockMismatch) {
+    return _Insight(
+      severity: PerfSeverity.warn,
+      title: 'No frame could be placed in the session window',
+      summary: 'Frames carried vsync timestamps and none fell between '
+          'perf_begin and perf_end, so the engine clock and '
+          'FlutterTimeline.now disagree on this device. Every frame read was '
+          'kept, including ones drawn before the session and the flush frame, '
+          'so the summary may describe more than this session.',
+      evidence: _evidence(
+        metric: 'sessionClockMismatch',
+        value: session.painted,
+        perFrame: null,
+        threshold: <String, Object?>{'minPlaced': 1},
+      ),
+      nextStep: 'Treat this unit as unmeasured; dusk:perf_run leaves it out '
+          'of the series medians.',
+      detail: coverage,
+    );
+  }
+
   final int unreported = session.drawn - session.painted;
   final List<String> missing = coverage['missing']! as List<String>;
   if (unreported <= 0 && missing.isEmpty) return null;

@@ -529,6 +529,36 @@ void main() {
       );
     });
 
+    test('leaves out a repeat whose frames could not be placed, and counts it',
+        () {
+      // A unit that kept every frame because the clocks disagreed describes
+      // frames from outside its session; a median over it is not a
+      // measurement of the scenario.
+      final Map<String, dynamic> unplaced =
+          _report(painted: 90, rowsPerFrame: 9)
+            ..['coverage'] = <String, dynamic>{
+              'framesDrawn': 90,
+              'framesSummarized': 90,
+              'sessionClockMismatch': true,
+              'complete': false,
+              'missing': <String>[],
+            };
+      final Map<String, Object?> summary = summarizePerfSeries(
+        <Map<String, dynamic>>[
+          _report(painted: 40, rowsPerFrame: 2),
+          unplaced,
+          _report(painted: 42, rowsPerFrame: 2),
+        ],
+      );
+
+      expect(summary['repeats'], 2);
+      expect(summary['unplaced'], 1);
+      expect(
+        (summary['frames']! as Map<String, Object?>)['painted'],
+        41,
+      );
+    });
+
     test('a series of refusals only has counts', () {
       expect(
         summarizePerfSeries(<Map<String, dynamic>>[_refused, _refused]),
