@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -102,6 +104,39 @@ void main() {
   });
 
   group('pollDuskBoot()', () {
+    test(
+        'never reads once the budget is spent, so the last answer is the '
+        'app\'s, not a zero timeout', () async {
+      int reads = 0;
+
+      await expectLater(
+        pollDuskBoot(
+          () {
+            reads++;
+            if (reads == 1) {
+              return Future<String>.error(Exception('RPCError -32603'));
+            }
+            return Completer<String>().future;
+          },
+          replacing: null,
+          timeout: const Duration(milliseconds: 50),
+          pollInterval: const Duration(milliseconds: 10),
+          pause: (Duration _) =>
+              Future<void>.delayed(const Duration(milliseconds: 80)),
+          failure: 'the app did not come back',
+        ),
+        throwsA(
+          isA<PerfRunException>().having(
+            (PerfRunException e) => e.message,
+            'message',
+            'the app did not come back (last answer: Exception: RPCError '
+                '-32603).',
+          ),
+        ),
+      );
+      expect(reads, 1);
+    });
+
     test(
         'stops at its poll cap on a pause that returns at once, naming the '
         'failure and the last answer', () async {

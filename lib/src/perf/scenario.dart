@@ -339,7 +339,7 @@ final class PerfSetupStep {
   /// outermost first ([PerfScenario.toJson] works them out): the innermost
   /// is echoed as `when`, each enclosing one as the `parent` of the one it
   /// encloses. A verb written alone becomes `{verb: null, when: ...}` then,
-  /// so a reader sees which steps a guard may have skipped.
+  /// so a reader sees where a guarded group begins.
   Object toJson({List<PerfSetupGuard> opens = const <PerfSetupGuard>[]}) {
     final Object entry = switch (verb) {
       PerfSetupVerb.hotRestart || PerfSetupVerb.waitForNetworkIdle => verb.wire,
@@ -365,7 +365,7 @@ final class PerfSetupStep {
 }
 
 /// [setup] as the run file writes it: each guard echoed once, on the first
-/// entry it governs, so a guarded group reads as guarded.
+/// entry it governs, marking where each guarded group begins.
 List<Object> _setupJson(List<PerfSetupStep> setup) {
   final Set<PerfSetupGuard> echoed = Set<PerfSetupGuard>.identity();
   final List<Object> entries = <Object>[];

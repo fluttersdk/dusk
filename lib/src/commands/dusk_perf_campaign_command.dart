@@ -132,9 +132,10 @@ abstract interface class PerfCampaignApp {
 /// `DUSK_PERF_OUT` (and `DUSK_PERF_SCENARIO` before a scenario,
 /// `DUSK_PERF_STATUS` after the campaign) on top of the inherited
 /// environment. Hooks and preparation processes inherit it minus every
-/// variable the campaign read through `${env.NAME}`; artisan start runs
-/// in-process and has no such seam, so the `flutter` it spawns inherits the
-/// dispatcher's environment whole.
+/// variable the campaign read through `${env.NAME}`; artisan start and stop
+/// run in-process and have no such seam, so the `flutter run`, the Chrome
+/// and the `adb force-stop` they spawn inherit the dispatcher's environment
+/// whole.
 ///
 /// The command runs inside the compiled dispatcher, so a dispatcher built
 /// before a dusk change is the caller's to rebuild (`rm -f
@@ -1085,9 +1086,15 @@ final class _CampaignRun {
   File _runFile(String name) => File('$out/$name-$label.json').absolute;
 
   /// Removes a previous campaign's `.err`, which a `see <path>` would
-  /// otherwise point at.
+  /// otherwise point at. One that cannot be removed is said through
+  /// [output] and the campaign goes on, as [_record] does for a write.
   Future<void> _clear(File file) async {
-    if (file.existsSync()) await file.delete();
+    try {
+      if (file.existsSync()) await file.delete();
+    } on FileSystemException catch (e) {
+      output.error('dusk:perf_campaign could not delete ${file.path}: '
+          '${e.osError?.message ?? e.message}.');
+    }
   }
 
   /// Writes [text], masked, to [file]; answers whether it could. A file
@@ -1195,11 +1202,15 @@ final class _ArtisanPerfCampaignHost implements PerfCampaignHost {
   @override
   Future<Map<String, dynamic>?> readSession() => StateFile.read();
 
+  /// Decoded leniently: the log is flutter's and the app's raw output, and
+  /// a malformed byte in it must not throw out of the attempt's catch.
   @override
   Future<String?> readSessionLog() async {
     final File log =
         File('${File(StateFile.path).parent.path}/flutter-dev.log');
-    return log.existsSync() ? log.readAsString() : null;
+    if (!log.existsSync()) return null;
+    return const Utf8Decoder(allowMalformed: true)
+        .convert(await log.readAsBytes());
   }
 
   @override

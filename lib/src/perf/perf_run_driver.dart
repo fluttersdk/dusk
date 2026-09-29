@@ -130,7 +130,8 @@ Future<void> awaitDuskBoot(
 /// too, so the budget holds on a [pause] that returns at once.
 ///
 /// Throws [PerfRunException] with [failure], then the last error when there
-/// was one, once the budget is spent.
+/// was one, once the budget is spent. No read starts once it is: the last
+/// answer named is the app's.
 Future<void> pollDuskBoot(
   Future<String> Function() read, {
   required String? replacing,
@@ -154,13 +155,15 @@ Future<void> pollDuskBoot(
     } on StateError catch (e) {
       last = e;
     }
-    if (poll >= maxPolls || clock.elapsed >= timeout) {
-      throw PerfRunException(
-        '$failure${last == null ? '' : ' (last answer: $last)'}.',
-      );
-    }
+    if (poll >= maxPolls || clock.elapsed >= timeout) break;
     await pause(pollInterval);
+    // A read with no time left would be cut before any reply, and its
+    // TimeoutException would stand in for the app's own last answer.
+    if (clock.elapsed >= timeout) break;
   }
+  throw PerfRunException(
+    '$failure${last == null ? '' : ' (last answer: $last)'}.',
+  );
 }
 
 Future<void> _delay(Duration duration) => Future<void>.delayed(duration);

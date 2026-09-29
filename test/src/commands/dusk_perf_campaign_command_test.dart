@@ -1763,8 +1763,11 @@ hooks:
     });
 
     group('.handle() the end of a campaign', () {
-      Map<String, dynamic> envelopeOf(String out) =>
-          jsonDecode(out.split('\n').first) as Map<String, dynamic>;
+      /// The envelope line: error lines, stderr in a real run, may precede it
+      /// in the one buffer a test reads.
+      Map<String, dynamic> envelopeOf(String out) => jsonDecode(
+            out.split('\n').firstWhere((String l) => l.startsWith('{')),
+          ) as Map<String, dynamic>;
 
       Map<String, dynamic> notRun(String name) => <String, dynamic>{
             'scenario': name,
@@ -1871,6 +1874,37 @@ hooks:
             'artisan stop exited 1 after the campaign; the app may still be '
                 'running.',
           ],
+        );
+      });
+
+      test(
+          'a stale .err that cannot be deleted is reported, and the campaign '
+          'still tears down and prints its envelope', () async {
+        final _FakeHost host = _FakeHost();
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+          },
+          extra: 'retries: 0\nhooks: {after_campaign: ./services.sh down}',
+        );
+        write('ro/a-run.err', 'a stale failure');
+        final Directory ro = Directory('${dir.path}/ro');
+        Process.runSync('chmod', <String>['555', ro.path]);
+        addTearDown(() => Process.runSync('chmod', <String>['755', ro.path]));
+
+        final (int code, String out) = await handle(
+          host,
+          path,
+          options: <String, dynamic>{'out': 'ro', 'json': true},
+        );
+
+        expect(code, 1);
+        expect(out, contains('could not delete'));
+        expect(out, contains('a-run.err'));
+        expect(host.events.last, 'run /bin/sh -c ./services.sh down');
+        expect(
+          (envelopeOf(out)['results'] as List<dynamic>).single,
+          containsPair('scenario', 'a'),
         );
       });
 
