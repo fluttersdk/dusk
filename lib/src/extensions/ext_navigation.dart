@@ -78,9 +78,14 @@ void registerNavigationExtensions() {
 // ---------------------------------------------------------------------------
 
 /// Walks the active widget tree for the first [Router] and reads its
-/// `routeInformationProvider.value.uri` ONCE; returns the URI string
-/// when its path matches [requested] (exact or prefix), `null` when
-/// no Router is mounted or the URI does not match.
+/// `routeInformationProvider.value.uri` ONCE; returns the URI string and
+/// whether its path is [requested]'s own when that path matches (exact or
+/// prefix), `null` when no Router is mounted or the URI does not match.
+///
+/// The prefix match is the verdict's intent: a navigate to `/monitors` that
+/// lands on a page the router opens under it (`/monitors/7`, a default
+/// child) navigated. `exact` tells a caller that needs the named screen
+/// itself (perf_run's setup) apart from it.
 ///
 /// Designed to be called AFTER the handler has already awaited the
 /// post-dispatch `endOfFrame` ticks — at that point the router (if it
@@ -88,7 +93,7 @@ void registerNavigationExtensions() {
 /// is intentionally avoided: it deadlocks under testWidgets pump
 /// semantics (each `await endOfFrame` schedules a frame the test must
 /// pump, and existing handler tests only pump twice).
-String? _readMatchingRouterUri(String requested) {
+({String uri, bool exact})? _readMatchingRouterUri(String requested) {
   final String? observed = _readActiveRouterUri();
   if (observed == null) return null;
   final Uri requestedUri = Uri.parse(requested);
@@ -96,9 +101,9 @@ String? _readMatchingRouterUri(String requested) {
       requestedUri.path.isEmpty ? '/' : requestedUri.path;
   final Uri observedUri = Uri.tryParse(observed) ?? Uri();
   final String observedPath = observedUri.path.isEmpty ? '/' : observedUri.path;
-  if (observedPath == requestedPath ||
-      observedPath.startsWith('$requestedPath/')) {
-    return observed;
+  final bool exact = observedPath == requestedPath;
+  if (exact || observedPath.startsWith('$requestedPath/')) {
+    return (uri: observed, exact: exact);
   }
   return null;
 }
@@ -136,10 +141,17 @@ String? _readActiveRouterUri() {
 /// Returns a map with:
 /// - `navigated`: always `true`
 /// - `route`: the requested route path
+/// - `exactPath`: whether the Router's path is the route's own, not a page
+///   under it; the verdict accepts both
 @visibleForTesting
-Map<String, dynamic> buildNavigateResponse(String route) => <String, dynamic>{
+Map<String, dynamic> buildNavigateResponse(
+  String route, {
+  required bool exactPath,
+}) =>
+    <String, dynamic>{
       'navigated': true,
       'route': route,
+      'exactPath': exactPath,
     };
 
 /// Builds the success payload for `ext.dusk.navigate_back`.
@@ -182,8 +194,12 @@ Map<String, dynamic> buildGetRoutesResponse() => <String, dynamic>{
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
 ///   embedding the post-navigation accessibility snapshot in the response.
 ///
-/// On success (default):
-/// `{ "navigated": true, "route": "/dashboard", "snapshot": "<yaml>" }`.
+/// On success (default), with the snapshot under `snapshot`:
+/// `{ "navigated": true, "route": "/dashboard", "exactPath": true }`.
+/// `navigated` accepts a Router path under the
+/// route (a navigate to `/monitors` that shows `/monitors/7`); `exactPath`
+/// says whether the path is the route's own, and is `false` beside
+/// `navigated: false`.
 /// On missing or empty `route` param: returns an extension error response.
 ///
 /// Steps:
@@ -292,18 +308,18 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
     //    that gives the router two frames to apply the URL, which
     //    suffices for GoRouter / MagicRouter in production and avoids
     //    the multi-frame poll loop that deadlocks testWidgets pumps.
-    final String? activeUri = _readMatchingRouterUri(route);
-    final bool actuallyNavigated = activeUri != null;
+    final ({String uri, bool exact})? landed = _readMatchingRouterUri(route);
 
     // 5. Embed post-action snapshot (opt-out via includeSnapshot:'false')
     //    + return confirmation so the MCP tool can assert navigation
     //    happened. Snapshot-build failures must not convert a successful
     //    push into an error envelope.
-    final Map<String, dynamic> payload = actuallyNavigated
-        ? buildNavigateResponse(route)
+    final Map<String, dynamic> payload = landed != null
+        ? buildNavigateResponse(route, exactPath: landed.exact)
         : <String, dynamic>{
             'navigated': false,
             'route': route,
+            'exactPath': false,
             'reason': 'router did not honor the new route; observed URI did not '
                 'change. Route may be unregistered or guarded by a redirect.',
           };

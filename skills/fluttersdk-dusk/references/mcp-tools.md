@@ -433,9 +433,11 @@ consumer-registered `DuskNavigateAdapter`, (3)
 `SystemNavigator.routeInformationUpdated` (Router-based apps like
 GoRouter, auto_route). Before navigating, dismisses every modal.
 
-Returns `{ navigated: true|false, route, reason?, snapshot? }`. When
-`navigated: false`, `reason` carries the diagnostic ("no navigator
-found", "adapter rejected", "router did not accept").
+Returns `{ navigated: true|false, route, exactPath, reason?, snapshot? }`.
+When `navigated: false`, `reason` carries the diagnostic ("no navigator
+found", "adapter rejected", "router did not accept"). `navigated: true`
+also covers a page under the route (`/monitors/7` for `/monitors`);
+`exactPath: true` only when the Router shows the route itself.
 
 ### dusk_navigate_back
 

@@ -107,7 +107,7 @@ last resort; the cancel button usually exists.
 
 ```
 1. dusk_navigate { route: "/monitors/abc-123" }
-   → { navigated: true, route: "/monitors/abc-123", snapshot: "<yaml>" }
+   → { navigated: true, route: "/monitors/abc-123", exactPath: true, snapshot: "<yaml>" }
 
 2. dusk_wait_for_network_idle              # detail load
 3. dusk_wait_for { text: "abc-123" }       # presence of the id confirms the page

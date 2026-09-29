@@ -607,8 +607,13 @@ when Magic is installed, falling back to `Navigator.of(root).pushNamed(...)`.
 
 ### Returns
 
-Success: `{ route: "<path>" }`. ALWAYS re-snap after; refs from a prior snapshot are
-invalidated.
+Success: `{ navigated, route: "<path>", exactPath, reason?, snapshot? }`. `navigated` is
+read off the first mounted Router two frames after the dispatch: `true` when its path is
+the route's or a page under it (a navigate to `/monitors` that shows `/monitors/7`, a
+default child), `false` with a `reason` when the router dropped or redirected it.
+`exactPath` is `true` only when the path is the route's own, query aside, and `false`
+beside `navigated: false`; branch on it when the named screen itself matters. ALWAYS
+re-snap after; refs from a prior snapshot are invalidated.
 
 ### Example call
 

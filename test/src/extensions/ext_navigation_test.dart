@@ -35,35 +35,41 @@ void main() {
 
   group('buildNavigateResponse', () {
     test('returns navigated=true and the supplied route', () {
-      final Map<String, dynamic> result = buildNavigateResponse('/dashboard');
+      final Map<String, dynamic> result =
+          buildNavigateResponse('/dashboard', exactPath: true);
 
       expect(result['navigated'], isTrue);
       expect(result['route'], equals('/dashboard'));
+      expect(result['exactPath'], isTrue);
     });
 
     test('encodes to valid JSON with correct fields', () {
       final Map<String, dynamic> result =
-          buildNavigateResponse('/monitors/abc');
+          buildNavigateResponse('/monitors/abc', exactPath: false);
       final String json = jsonEncode(result);
       final Map<String, dynamic> decoded =
           jsonDecode(json) as Map<String, dynamic>;
 
       expect(decoded['navigated'], isTrue);
       expect(decoded['route'], equals('/monitors/abc'));
+      expect(decoded['exactPath'], isFalse);
     });
 
     test('preserves arbitrary route strings verbatim', () {
       final Map<String, dynamic> result =
-          buildNavigateResponse('/monitors/123/metrics');
+          buildNavigateResponse('/monitors/123/metrics', exactPath: true);
 
       expect(result['route'], equals('/monitors/123/metrics'));
     });
 
-    test('always returns exactly two keys', () {
-      final Map<String, dynamic> result = buildNavigateResponse('/foo');
+    test('always returns exactly navigated, route and exactPath', () {
+      final Map<String, dynamic> result =
+          buildNavigateResponse('/foo', exactPath: true);
 
-      expect(result.keys, containsAll(<String>['navigated', 'route']));
-      expect(result, hasLength(2));
+      expect(
+        result.keys,
+        unorderedEquals(<String>['navigated', 'route', 'exactPath']),
+      );
     });
   });
 
@@ -298,6 +304,61 @@ void main() {
         findsNothing,
         reason: 'Navigator must not push the route when the adapter claimed it',
       );
+    });
+
+    group('exactPath', () {
+      /// Navigates to [route] on a Router sitting at [at], through an adapter
+      /// that dispatches nothing, and answers the decoded payload.
+      Future<Map<String, dynamic>> navigate(
+        WidgetTester tester, {
+        required String at,
+        required String route,
+      }) async {
+        DuskPlugin.registerNavigateAdapter((String route) async => true);
+        addTearDown(() => DuskPlugin.registerNavigateAdapter(null));
+        await tester.pumpWidget(
+          MaterialApp.router(routerConfig: _routerConfig(at)),
+        );
+        final Future<developer.ServiceExtensionResponse> future =
+            extDuskNavigateHandler(
+          'ext.dusk.navigate',
+          <String, String>{'route': route, 'includeSnapshot': 'false'},
+        );
+        await tester.pump();
+        await tester.pump();
+        return jsonDecode((await future).result!) as Map<String, dynamic>;
+      }
+
+      testWidgets(
+          'is false on a page under the route: the verdict stays a prefix '
+          'match', (WidgetTester tester) async {
+        final Map<String, dynamic> body =
+            await navigate(tester, at: '/monitors/7', route: '/monitors');
+
+        expect(body['navigated'], isTrue);
+        expect(body['exactPath'], isFalse);
+      });
+
+      testWidgets('is true when the path is the route, query aside',
+          (WidgetTester tester) async {
+        final Map<String, dynamic> body = await navigate(
+          tester,
+          at: '/monitors?page=2',
+          route: '/monitors',
+        );
+
+        expect(body['navigated'], isTrue);
+        expect(body['exactPath'], isTrue);
+      });
+
+      testWidgets('is false beside navigated: false',
+          (WidgetTester tester) async {
+        final Map<String, dynamic> body =
+            await navigate(tester, at: '/settings', route: '/monitors');
+
+        expect(body['navigated'], isFalse);
+        expect(body['exactPath'], isFalse);
+      });
     });
 
     // Negative-path coverage (router never honors the route → navigated:false
