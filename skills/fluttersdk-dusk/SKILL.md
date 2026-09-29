@@ -5,7 +5,7 @@ version: 0.0.16
 when_to_use: "Any task where the agent drives or inspects a running Flutter app via dusk: calling `dusk_*` MCP tools in a loop (snap, tap, type, screenshot, hot_reload_and_snap), invoking `./bin/fsa dusk:<verb>` from a shell, recovering from an actionability failure, choosing between `e<N>` and `q<N>` ref tokens, waiting for text or network idle, navigating routes, or filling a form."
 ---
 
-<!-- fluttersdk_dusk v0.0.16 | Skill updated: 2026-09-28 -->
+<!-- fluttersdk_dusk v0.0.16 | Skill updated: 2026-09-29 -->
 
 # fluttersdk_dusk
 
@@ -185,7 +185,7 @@ and verify with `./bin/fsa dusk:doctor`.
 | App control | `dusk_close_app` | `SystemNavigator.pop()`. Graceful; web `window.close()` may no-op if the tab was not script-opened. |
 | Composite | `dusk_hot_reload_and_snap` | Hot reload, then snap, screenshot, and recent exceptions in one round-trip. Returns `{ reloaded, durationMs, snapshot, screenshot, recentExceptions }`, or `{ reloaded: false, error, recentExceptions }` on compile failure. |
 | Performance | `dusk_perf_begin`, `dusk_perf_end`, `dusk_perf_insight` | Begin (`mode: attribution` profiles builds, `mode: timing` touches no flag), drive one interaction, end. `perf_end` returns a bounded report: check `refused` first, then `coverage`, then `insights` (each `id`, `severity`, `title`, `evidence` with its threshold, `nextStep`). `perf_insight {id}` returns the rows behind one insight. Rank by attribution ms; compare only timing ms. |
-| Perf runs | `dusk_perf_run`, `dusk_perf_compare`, `dusk_perf_trace` | `perf_run {scenario, label}` repeats a scenario YAML from a clean start (targets are `{text}` / `{label}` / `{role, name}` / `{key}`, never a ref) and writes `<out>/<scenario>-<label>.json`; `timing: true` adds the ms worth comparing, `semantics-pass: true` a `semanticsOff` series. `perf_compare {a, b}` gates on counts per painted frame, ms only from timing medians. `perf_trace {out}` writes a Perfetto file and returns its path. A whole campaign (every scenario from a cold start, hooks, Android prep, retries) is CLI only: `./bin/fsa dusk:perf_campaign <campaign.yaml> --platform=chrome`. |
+| Perf runs | `dusk_perf_run`, `dusk_perf_compare`, `dusk_perf_trace` | `perf_run {scenario, variant, label}` repeats a scenario YAML (`variant` names the `variants` key, required when the file declares any) from a clean start (targets are `{text}` / `{label}` / `{role, name}` / `{key}`, never a ref) and writes `<out>/<scenario>-<label>.json`; `timing: true` adds the ms worth comparing, `semantics-pass: true` a `semanticsOff` series. `perf_compare {a, b}` gates on counts per painted frame, ms only from timing medians. `perf_trace {out}` writes a Perfetto file and returns its path. A whole campaign (every scenario from a cold start, hooks, Android prep, retries) is CLI only: `./bin/fsa dusk:perf_campaign <campaign.yaml> --platform=chrome`. |
 | CDP (web-only) | `dusk_resize_viewport`, `dusk_device_profile` | Drive Chrome via CDP. 8 device presets: `iphone-x`, `iphone-13`, `iphone-15-pro`, `pixel-5`, `pixel-8`, `ipad-pro-12.9`, `desktop-1440`, `desktop-1920`. |
 
 Full per-tool input schema, return shape, and example calls:

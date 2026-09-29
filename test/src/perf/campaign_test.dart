@@ -352,6 +352,24 @@ android:
         expect(problems, contains('android.grant[1]'));
         expect(problems, isNot(contains('android.reverse[0]')));
       });
+
+      test(
+          'a grant that is not a plain permission name is refused: the '
+          'device shell reads it', () async {
+        write('scenarios/a.yaml', _tap);
+        final String problems = await problemsOf(write('c.yaml', r'''
+scenarios: [scenarios/a.yaml]
+android:
+  grant:
+    - android.permission.CAMERA
+    - "android.permission.CAMERA; reboot"
+    - "$(id)"
+'''));
+
+        expect(problems, isNot(contains('android.grant[0]')));
+        expect(problems, contains('android.grant[1]'));
+        expect(problems, contains('android.grant[2]'));
+      });
     });
 
     group('hooks', () {

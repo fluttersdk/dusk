@@ -283,6 +283,7 @@ class DuskPerfRunCommand extends ArtisanCommand {
       // 5. Run every round.
       final _PerfRunner runner = _PerfRunner(
         PerfActions(driver, env),
+        redactor: redactor,
         repeat: repeat ?? scenarios.first.repeat,
         timing: _readBool(ctx.input.option('timing')),
         semanticsPass: _readBool(ctx.input.option('semantics-pass')),
@@ -313,7 +314,7 @@ class DuskPerfRunCommand extends ArtisanCommand {
         )! as Map<String, Object?>;
         written.add((await _write(out, run.scenario.name, label, file), file));
       }
-      return _report(masked, written);
+      return _report(ctx, masked, redactor, written);
     } finally {
       await driver.close();
     }
@@ -375,8 +376,14 @@ class DuskPerfRunCommand extends ArtisanCommand {
     return target.path;
   }
 
+  /// Prints the summary through [masked] and the `--json` envelope through
+  /// [ctx]'s own output, once: the envelope is masked as a tree, and a text
+  /// pass over its encoding could rewrite a number or a key a secret
+  /// matches (`1234` inside `81234567`) into invalid JSON.
   int _report(
     ArtisanContext ctx,
+    ArtisanContext masked,
+    PerfRedactor redactor,
     List<(String, Map<String, Object?>)> written,
   ) {
     final (String path, Map<String, Object?> file) = written.first;
@@ -394,11 +401,13 @@ class DuskPerfRunCommand extends ArtisanCommand {
           (w.$2['summary']! as Map<String, Object?>)['repeats'] == 0,
     );
 
-    emitEnvelope(ctx, _stdoutShape(file, path), () {
+    final Map<String, dynamic> envelope =
+        redactor.redactJson(_stdoutShape(file, path))! as Map<String, dynamic>;
+    emitEnvelope(ctx, envelope, () {
       if (empty) return;
       final Map<String, Object?> frames =
           summary['frames']! as Map<String, Object?>;
-      ctx.output.success(
+      masked.output.success(
         'perf_run $name: $measured of ${measured + refused} attribution '
         'repeats measured ($refused refused), median ${frames['painted']} '
         'painted frames. Wrote $path.',
@@ -407,24 +416,24 @@ class DuskPerfRunCommand extends ArtisanCommand {
       if (insights.isNotEmpty) {
         final Map<String, Object?> top =
             insights.first! as Map<String, Object?>;
-        ctx.output.writeln(
+        masked.output.writeln(
           'Top insight of the median repeat: [${top['severity']}] '
           '${top['id']}: ${top['title']}.',
         );
       }
       if (file['semanticsPass'] != null) {
-        ctx.output.writeln(
+        masked.output.writeln(
           'Semantics pass: ${file['semanticsPass']}'
           '${file['semanticsPassReason'] == null ? '' : ', ${file['semanticsPassReason']}'}.',
         );
       }
       for (final (String other, _) in written.skip(1)) {
-        ctx.output.writeln('Also wrote $other.');
+        masked.output.writeln('Also wrote $other.');
       }
     });
 
     if (!empty) return 0;
-    ctx.output.error(
+    masked.output.error(
       'Every attribution repeat of a scenario was refused, so there is no '
       'measurement: the engine drew too few frames. Bring the page to '
       'front, check the steps drive something that renders, and rerun. The '
@@ -738,6 +747,7 @@ final class _ScenarioRun {
 final class _PerfRunner {
   _PerfRunner(
     this.actions, {
+    required this.redactor,
     required this.repeat,
     required this.timing,
     required this.semanticsPass,
@@ -745,6 +755,10 @@ final class _PerfRunner {
 
   /// The step execution the setup and the measured window share.
   final PerfActions actions;
+
+  /// Handed to every [PerfSetupRunner], which masks an exception message
+  /// before cutting it.
+  final PerfRedactor redactor;
   final int repeat;
   final bool timing;
   final bool semanticsPass;
@@ -815,6 +829,7 @@ final class _PerfRunner {
     final PerfSetupRunner setup = PerfSetupRunner(
       actions,
       viewport: scenario.viewport,
+      redactor: redactor,
     );
     final bool landedLate =
         (await setup.run(scenario.setup, scenario.name)).landedLate;

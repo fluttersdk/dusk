@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../commands/dusk_perf_run_command.dart';
 import 'perf_actions.dart';
+import 'perf_redaction.dart';
 import 'scenario.dart';
 
 /// The longest single in-app wait: well under the 10 s after which DWDS
@@ -34,9 +35,14 @@ const int _kDiagnosticMessageChars = 200;
 /// newest exceptions, since "did not appear" alone does not say which screen
 /// it did not appear on.
 final class PerfSetupRunner {
-  PerfSetupRunner(this.actions, {this.viewport});
+  PerfSetupRunner(this.actions, {this.viewport, this.redactor});
 
   final PerfActions actions;
+
+  /// Masks an exception message [diagnose] quotes before it is cut: a mask
+  /// applied after the cut no longer matches a secret the cut split, and
+  /// leaves its prefix behind. Null quotes messages as the app sent them.
+  final PerfRedactor? redactor;
 
   /// The Chrome viewport applied before the first entry and again after
   /// every `hot_restart`, which drops it; null leaves the page as it is.
@@ -392,6 +398,19 @@ final class PerfSetupRunner {
     return 'Diagnostics: $route; $navigate; $exceptions.';
   }
 
+  /// One `ext.dusk.exceptions` entry as a setup failure quotes it: the type,
+  /// the first line of the message, masked and then cut to
+  /// [_kDiagnosticMessageChars], and when it happened.
+  String _exceptionLine(Object? entry) {
+    final Map<String, dynamic> e = _map(entry);
+    final String line = '${e['message'] ?? ''}'.split('\n').first;
+    final String message = redactor?.redact(line) ?? line;
+    final String cut = message.length > _kDiagnosticMessageChars
+        ? '${message.substring(0, _kDiagnosticMessageChars)}...'
+        : message;
+    return '${e['type']}: $cut${e['time'] == null ? '' : ' at ${e['time']}'}';
+  }
+
   Future<String> _describe(
     String method,
     Map<String, String> params,
@@ -403,18 +422,6 @@ final class PerfSetupRunner {
       return '$method failed ($e)';
     }
   }
-}
-
-/// One `ext.dusk.exceptions` entry as a setup failure quotes it: the type,
-/// the first line of the message, cut to [_kDiagnosticMessageChars], and
-/// when it happened.
-String _exceptionLine(Object? entry) {
-  final Map<String, dynamic> e = _map(entry);
-  final String message = '${e['message'] ?? ''}'.split('\n').first;
-  final String cut = message.length > _kDiagnosticMessageChars
-      ? '${message.substring(0, _kDiagnosticMessageChars)}...'
-      : message;
-  return '${e['type']}: $cut${e['time'] == null ? '' : ' at ${e['time']}'}';
 }
 
 /// The path of a route or a router URI, `/` when it has none.
