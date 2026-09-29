@@ -8,14 +8,14 @@
 
 import 'dart:developer' as developer;
 
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttersdk_dusk/dusk.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  if (kDebugMode) {
+  if (!kReleaseMode) {
     DuskPlugin.install();
   }
   runApp(const DuskShowroomApp());

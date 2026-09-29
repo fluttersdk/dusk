@@ -1106,7 +1106,7 @@ meaningless without the widget it is relative to.
 Success: `{ format: "<jpeg|png>", base64: "<base64>", width: <int>, height: <int> }`.
 
 Without `ref` the capture is the app-root viewport (the `RepaintBoundary` the host wraps
-the app in under `kDebugMode`). With `ref` it is the widget's own render-object region,
+the app in under `!kReleaseMode`). With `ref` it is the widget's own render-object region,
 rasterised out of its nearest repaint-boundary ancestor.
 
 A third mode, `geometry: "true"`, returns

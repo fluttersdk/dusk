@@ -68,11 +68,11 @@ End-to-end testing on Flutter has always been a stitched-together ritual. `flutt
 | 🖥️ | **CDP Device Emulation** | `dusk_resize_viewport` and `dusk_device_profile` (iphone-x, pixel-5, desktop-1440, plus 5 more) drive Chrome DevTools Protocol |
 | 📈 | **Frame Attribution Session** | `dusk_perf_begin` / `dusk_perf_end` bracket a driven interaction and report which widget types built, how often and for how long, next to wind's cache hit/miss/bypass counters and magic's controller notifies. A session the engine did not render through is REFUSED rather than reported, because a table of zeros reads as "fast" |
 | 🎨 | **Snapshot Enricher Plug-in** | `DuskPlugin.enrichers.add()` lets `magic` and `wind` add framework-specific YAML fragments via a frozen `String? Function(Element, RefRegistry)` contract |
-| 🔒 | **Debug-Only Tree-Shake** | Consumer wraps `DuskPlugin.install()` in `kDebugMode`; release builds tree-shake the entire driver across web, desktop, and mobile |
+| 🔒 | **Release Tree-Shake** | Consumer wraps `DuskPlugin.install()` in `!kReleaseMode`, so debug and profile builds carry the driver; release builds tree-shake it across web, desktop, and mobile |
 | 📡 | **AI-first Distribution** | Canonical `fluttersdk-dusk` skill at [`skills/fluttersdk-dusk/`](skills/fluttersdk-dusk/) and hosted docs MCP at `mcp.fluttersdk.com`, distributed to 8+ agents (Claude Code, Cursor, OpenCode, Gemini CLI, VS Code Copilot, Codex CLI, Cline, Roo Code) via [fluttersdk/ai](https://github.com/fluttersdk/ai). First end-to-end driver in the Flutter ecosystem to ship its own LLM-agent skill bundle + docs MCP. |
 
 > [!IMPORTANT]
-> `DuskPlugin.install()` must be wrapped in `if (kDebugMode) { ... }` at the call site in `lib/main.dart`. Release builds tree-shake the entire driver across web (dart2js), desktop (dart2native), and mobile (AOT), but only when the guard exists. Without the guard, dusk ships into release binaries.
+> `DuskPlugin.install()` must be wrapped in `if (!kReleaseMode) { ... }` at the call site in `lib/main.dart`, so debug and profile builds carry it (`dusk:perf_run` measures a profile build). An app wired under `kDebugMode` before this still works in debug, but registers no `ext.dusk.*` in a profile build. Release builds tree-shake the entire driver across web (dart2js), desktop (dart2native), and mobile (AOT), but only when the guard exists. Without the guard, dusk ships into release binaries.
 
 ## AI Coding Assistants
 

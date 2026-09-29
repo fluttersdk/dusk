@@ -586,8 +586,8 @@ RefEntry? _entryFromSemanticsNode(SemanticsNode node) {
 }
 
 /// The live [Element] whose [RenderBox] contributes [node] to the semantics
-/// tree, matching on `debugSemantics` identity (debug-only, and dusk is
-/// `kDebugMode`-gated). Returns `null` when no render object owns [node]
+/// tree, matching on `debugSemantics` identity (null in release builds only,
+/// and dusk is `!kReleaseMode`-gated). Returns `null` when no render object owns [node]
 /// (a purely synthetic or merged-away node); callers fall back to the root.
 Element? _elementForSemanticsNode(SemanticsNode node) {
   final Element? root = WidgetsBinding.instance.rootElement;

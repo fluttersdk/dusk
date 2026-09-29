@@ -6,9 +6,9 @@ Guidance for Claude Code working inside the `fluttersdk_dusk` repo. Path-scoped 
 
 ## Stack
 
-Flutter SDK package (Dart 3.4+, Flutter 3.22+). Plugin of `fluttersdk_artisan ^0.0.5`: contributes `DuskArtisanProvider` with 32 CLI commands and 31 MCP tool descriptors backed by 28 `ext.dusk.*` VM Service extensions plus 3 `artisan:dusk:*` substrate-routed tools.
+Flutter SDK package (Dart 3.4+, Flutter 3.22+). Plugin of `fluttersdk_artisan ^0.0.16`: contributes `DuskArtisanProvider` with 40 CLI commands and 39 MCP tool descriptors over 38 `ext.dusk.*` VM Service extensions: 33 MCP tools call an extension directly and 6 route through the `artisan:dusk:*` substrate. The other five extensions have no MCP tool of their own: `perf_trace` and `semantics_hold` are driven by the substrate tools, and `find_by_text`, `find_by_label` and `boot_id` are internal helpers.
 
-Production deps (hosted only): `fluttersdk_artisan ^0.0.5`, `image ^4.0.0`, `meta ^1.16.0`, `fluttersdk_wind_diagnostics_contracts ^1.0.0`. Dev deps: `flutter_test`, `flutter_lints >=5.0.0 <7.0.0`, `yaml ^3.1.0`. Debug-only at the consumer call site: the consumer wraps `DuskPlugin.install()` in `if (kDebugMode)` so release builds tree-shake the subsystem on dart2js (web) and dart2native (mobile/desktop AOT).
+Production deps (hosted only): `fluttersdk_artisan ^0.0.16`, `image ^4.0.0`, `meta ^1.16.0`, `fluttersdk_wind_diagnostics_contracts ^1.1.0`, `yaml ^3.1.0`. Dev deps: `flutter_test`, `flutter_lints >=5.0.0 <7.0.0`. Kept out of release at the consumer call site: the consumer wraps `DuskPlugin.install()` in `if (!kReleaseMode)`, so debug and profile builds carry it (a profile build is what `dusk:perf_run` measures) and release builds tree-shake the subsystem on dart2js (web) and dart2native (mobile/desktop AOT).
 
 Two CLI surfaces. `bin/fluttersdk_dusk.dart` is the Flutter-free wrapper (`dart run fluttersdk_dusk <cmd>`); `lib/cli.dart` exports `FluttersdkDuskArtisanProvider` (typedef alias of `DuskArtisanProvider`) for consumer-side `lib/app/_plugins.g.dart` auto-discovery. `install.yaml` at the package root drives `plugin:install fluttersdk_dusk` via the artisan PluginInstaller. After install the consumer's `./bin/fsa` (~110ms warm AOT) is the recommended entry point.
 
@@ -29,6 +29,14 @@ Two CLI surfaces. `bin/fluttersdk_dusk.dart` is the Flutter-free wrapper (`dart 
 2. **Coverage at or above 80%.** CI enforces via lcov parse in `.github/workflows/ci.yml:42-44`. Verify locally after behavioral changes: `awk -F: '/^LF:/{lf+=$2} /^LH:/{lh+=$2} END{ if (lf==0) exit 1; printf "%.2f%%\n", (lh/lf)*100 }' coverage/lcov.info`. Drops below 80% block the change.
 3. **CHANGELOG always under `[Unreleased]`.** Every behavioral or interface change lands a bullet under `## [Unreleased]` in `CHANGELOG.md`. Keep-a-Changelog 1.1.0 ordering: Added, Changed, Deprecated, Removed, Fixed, Security. Promote to a dated section on tag push.
 4. **Green gate plus TDD.** `dart format lib/ test/ bin/` zero diff, `dart analyze lib/ test/ bin/` zero issues, `flutter test --exclude-tags=integration` all green. Red-green-refactor for behavioral changes: failing test first that fails for the right reason, then implementation that turns it green.
+5. **GitHub Flow.** One long-lived branch: `master` (released, what pub.dev resolves). Cut every task branch from `master`, push the work, open a PR back into `master`. Releases ship by bumping `pubspec.yaml`, promoting `## [Unreleased]` in `CHANGELOG.md`, merging the bump PR, then tagging the commit on `master`. No `develop` accumulator. See the Branching section below for the full flow.
+
+## Branching
+
+- One long-lived branch: `master`. Direct pushes blocked; everything lands via PR. Matches the flutter, dart-lang/sdk, dart-lang/pub, and Anthropic-ecosystem convention.
+- Task branches: cut from `master`, short kebab-case names (`feat/snap-ref-dedup`, `fix/race-on-restart`, `docs/skills-section-7`). One topic per branch, PR back into `master`. Squash or merge per the PR's commit shape.
+- Release: open a `release: X.Y.Z` PR from a topic branch that bumps `pubspec.yaml` `version:` and promotes `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` with the footer link. Merge, then `git tag X.Y.Z && git push origin X.Y.Z`. The tag triggers `.github/workflows/publish.yml` to push to pub.dev.
+- External contributors fork the repo and PR against `master` using the same shape.
 
 ## Architecture
 
@@ -36,24 +44,24 @@ Single barrel: `lib/dusk.dart` re-exports the public API. Subsystem layout under
 
 | Path | Purpose |
 |---|---|
-| `extensions/` | 17 files: `ext_snapshot`, `ext_pointer`, `ext_text_input`, `ext_screenshot`, `ext_scroll`, `ext_wait_find`, `ext_modal_router`, `ext_navigation`, `ext_evaluate`, `ext_close_app`, `ext_find`, `ext_console`, `ext_exceptions`, `ext_checkbox`, `ext_observe`, `ext_focus`, plus `register_dusk_extensions` aggregator. See `.claude/rules/extensions.md`. |
-| `commands/` | 32 `ArtisanCommand` subclasses (one file each). See `.claude/rules/commands.md`. |
+| `extensions/` | 22 files: `ext_snapshot`, `ext_pointer`, `ext_text_input`, `ext_screenshot`, `ext_scroll`, `ext_wait_find`, `ext_modal_router`, `ext_navigation`, `ext_evaluate`, `ext_close_app`, `ext_find`, `ext_fill`, `ext_console`, `ext_exceptions`, `ext_checkbox`, `ext_observe`, `ext_focus`, `ext_perf`, `ext_perf_trace`, `ext_semantics_hold`, `ext_boot`, plus `register_dusk_extensions` aggregator. See `.claude/rules/extensions.md`. |
+| `commands/` | 40 `ArtisanCommand` subclasses (one file each) plus two shared output helpers (`json_output.dart`, `frame_warning_output.dart`), 42 files in all. See `.claude/rules/commands.md`. |
 | `cdp/` | `cdp_client.dart` (JSON-RPC over `/json` + WebSocket, 30s timeout), `chrome_finder.dart`, `device_presets.dart` (8 named presets). |
-| `utils/` | `actionability_gate.dart` (6-check gate), `dusk_exceptions.dart`, `error_envelope.dart`, `chrome_reaper.dart`. |
+| `utils/` | `actionability_gate.dart` (6-check gate), `dusk_exceptions.dart`, `error_envelope.dart`, `chrome_reaper.dart`, `frame_summary.dart` (pure frame-metric summarizer), `perf_readers.dart` (the seven settable cross-package perf pointers). |
 | `dusk_plugin.dart` | `DuskPlugin.install()` entry, enricher list, navigate adapter hook. Idempotent. Wraps the app root in a `RepaintBoundary` (no `GlobalKey`) so `ext.dusk.screenshot` finds it via render-tree walk. |
 | `ref_registry.dart` | `e<N>` (snapshot-frozen, dedup-by-`node.id`) + `q<N>` (re-resolvable predicate handles) dual token system. |
 | `dusk_snapshot_enricher.dart` | FROZEN typedef: `String? Function(Element element, RefRegistry refs)`. |
 | `dusk_navigate_adapter.dart` | FROZEN typedef: `Future<bool> Function(String route)`. |
-| `dusk_artisan_provider.dart` | `DuskArtisanProvider extends ArtisanServiceProvider`: `commands()` returns 32 entries, `mcpTools()` returns 31 const `McpToolDescriptor`s. |
+| `dusk_artisan_provider.dart` | `DuskArtisanProvider extends ArtisanServiceProvider`: `commands()` returns 40 entries, `mcpTools()` returns 39 const `McpToolDescriptor`s. |
 | `bin/fluttersdk_dusk.dart` | Flutter-free CLI wrapper (no `dart:ui` import). |
 | `lib/cli.dart` | Codegen barrel exporting `FluttersdkDuskArtisanProvider` typedef alias for consumer-side `_plugins.g.dart` auto-discovery. |
 | `install.yaml` | V1 plugin manifest (zero stubs, post-install bootstrap message, `executables:` anchor). |
 
 ## VM Service surface
 
-28 `ext.dusk.*` extensions registered via `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety: `snap`, `tap`, `hover`, `drag`, `dblclick`, `right_click`, `triple_click`, `type`, `clear`, `press_key`, `focus`, `blur`, `scroll`, `select_option`, `set_checkbox`, `screenshot`, `wait_for`, `wait_for_network_idle`, `find`, `observe`, `dismiss_modals`, `navigate`, `navigate_back`, `get_routes`, `evaluate`, `close_app`, `console`, `exceptions`. Two internal helpers (`find_by_text`, `find_by_label`) back the `dusk:wait` polling loop and are not MCP-surfaced. Handler signature: `Future<ServiceExtensionResponse> Function(String method, Map<String, String> params)`. Parse integers via `int.tryParse(params['key'] ?? '')`. Return `.result(jsonEncode(payload))` or `.error(ServiceExtensionResponse.extensionError, msg)` with JSON-encoded `errorDetail` (Flutter framework convention).
+38 `ext.dusk.*` extensions registered via `registerExtensionIdempotent` (from `fluttersdk_artisan`) for hot-restart safety, the 35 listed here plus the three internal helpers named after them: `snap`, `tap`, `hover`, `drag`, `dblclick`, `right_click`, `triple_click`, `type`, `fill`, `clear`, `press_key`, `focus`, `blur`, `scroll`, `select_option`, `set_checkbox`, `screenshot`, `wait_for`, `wait_for_network_idle`, `find`, `observe`, `dismiss_modals`, `reset_overlays`, `navigate`, `navigate_back`, `get_routes`, `evaluate`, `close_app`, `console`, `exceptions`, `perf_begin`, `perf_end`, `perf_insight`, `perf_trace`, `semantics_hold`. Two internal helpers (`find_by_text`, `find_by_label`) back the `dusk:wait` polling loop and are not MCP-surfaced; a third, `boot_id`, answers the id `DuskPlugin.install()` mints per run of `main()`, registered last, which `dusk:perf_run` waits on across a hot restart. Handler signature: `Future<ServiceExtensionResponse> Function(String method, Map<String, String> params)`. Parse integers via `int.tryParse(params['key'] ?? '')`. Return `.result(jsonEncode(payload))` or `.error(ServiceExtensionResponse.extensionError, msg)` with JSON-encoded `errorDetail` (Flutter framework convention).
 
-Three MCP tools route through the `artisan:dusk:*` substrate prefix instead of a VM extension because they need out-of-isolate execution: `dusk_hot_reload_and_snap` (in-isolate self-reload would deadlock), `dusk_resize_viewport`, `dusk_device_profile` (both drive Chrome DevTools Protocol from a non-Flutter Dart context).
+Six MCP tools route through the `artisan:dusk:*` substrate prefix instead of a direct VM extension call: `dusk_hot_reload_and_snap` (in-isolate self-reload would deadlock), `dusk_resize_viewport` and `dusk_device_profile` (drive Chrome DevTools Protocol from a non-Flutter Dart context), `dusk_perf_run` (drives `ext.dusk.perf_begin`/`perf_end` itself in a loop, host-side), `dusk_perf_compare` (diffs two run files on disk, no VM Service involved), and `dusk_perf_trace` (calls `ext.dusk.perf_trace` then writes the trace to a host file, so the MCP dispatch itself goes through the CLI substrate).
 
 ## Off-limits (FROZEN contracts, alpha-2 cycle)
 
@@ -64,11 +72,11 @@ These cannot change without a coordinated bump across `fluttersdk_dusk` + `magic
 3. `DuskPlugin.install()` and `DuskPlugin.registerNavigateAdapter()` signatures, plus the `DuskPlugin.enrichers` live-read list that magic appends to via `MagicDuskIntegration` (`lib/src/dusk_plugin.dart:39,52,59`).
 4. `RefRegistry` public method signatures: `register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting` (`lib/src/ref_registry.dart:190,251,264,274,316,363`). Magic-side enrichers call these directly.
 5. `DuskActionabilityException` reason-substring vocabulary (`lib/src/utils/dusk_exceptions.dart:51`): `"defunct (element no longer mounted)"`, `"not enabled"`, `"zero rect"`, `"off-viewport (rect=..., viewport=...)"`, `"not stable (rect changed by Xpx)"`, `"obscured by other widget (top=...)"`. Agents branch on these substrings.
-6. Actionability-gate evaluation order (`lib/src/utils/actionability_gate.dart`): (0) defunct preflight, (1) enabled, (2) zero-rect, (3) off-viewport (auto-`showOnScreen` if a `Scrollable` ancestor exists), (4) not-stable (2-frame rect drift > 0.5px; opt-out `--no-checkStable`), (5) receives-events (hit-test path includes target or descendant; opt-out `--no-checkReceivesEvents`). New checks append; do not reorder.
+6. Actionability-gate evaluation order (`lib/src/utils/actionability_gate.dart`): (0) defunct preflight, (1) enabled, (2) zero-rect, (3) off-viewport (auto-`showOnScreen` if a `Scrollable` ancestor exists), (4) not-stable (2-frame rect drift > 0.5px; opt-out `--no-checkStable`), (5) receives-events (hit-test path includes target or descendant; opt-out `--no-checkReceivesEvents`). New checks append; do not reorder. Step 5 reports `confirmed` / `indeterminate` / `skipped` through `ActionabilityReport`; the order and the reason substrings are the frozen part, the report is additive.
 7. `e<N>` and `q<N>` token spaces are disjoint. Never mint `e<N>` from `ext.dusk.find`/`observe` or `q<N>` from `ext.dusk.snap`.
 8. The 6 alpha-1 MCP tool names (`dusk_snap`, `dusk_tap`, `dusk_screenshot`, `dusk_hover`, `dusk_drag`, `dusk_type`) and their backing `ext.dusk.*` method names. Renames break pinned consumer scripts and agent prompts.
 9. `install.yaml` at the package root is load-bearing for `plugin:install fluttersdk_dusk`. Do not delete; it carries the post-install bootstrap message and the `executables:` mapping anchor.
-10. No new production dependencies beyond `fluttersdk_artisan`, `image`, `meta`, `fluttersdk_wind_diagnostics_contracts`.
+10. No new production dependencies beyond `fluttersdk_artisan`, `image`, `meta`, `fluttersdk_wind_diagnostics_contracts`, `yaml`. `yaml` joined for the `dusk:perf_run` scenario files; it added no package to any consumer graph, because `fluttersdk_artisan` already depends on it, and its only importer is `lib/src/perf/scenario.dart`.
 
 ## Style
 

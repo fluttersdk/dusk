@@ -27,7 +27,7 @@ install.yaml                       # V1 plugin manifest, zero stubs, post_instal
 ## Boot flow
 
 ```
-DuskPlugin.install()                                    # inside kDebugMode in lib/main.dart
+DuskPlugin.install()                                    # inside !kReleaseMode in lib/main.dart
     ↓
 Wrap app root in RepaintBoundary (no GlobalKey; render-tree walk finds it for screenshots)
     ↓
