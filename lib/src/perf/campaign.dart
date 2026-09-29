@@ -13,6 +13,7 @@
 /// hooks:                          # shell strings, never interpolated
 ///   before_campaign: ./services.sh up
 ///   before_scenario: ./services.sh reset
+///   after_campaign: ./services.sh down
 /// android:
 ///   avd: my_pixel_api35
 ///   reverse: [8001, 8080]
@@ -46,13 +47,22 @@ final class PerfCampaignException implements Exception {
 
 /// Shell strings the command runs verbatim through `/bin/sh -c`.
 final class PerfHooks {
-  const PerfHooks({this.beforeCampaign, this.beforeScenario});
+  const PerfHooks({
+    this.beforeCampaign,
+    this.beforeScenario,
+    this.afterCampaign,
+  });
 
   /// Runs once, before `flutter pub get` and the first scenario.
   final String? beforeCampaign;
 
   /// Runs before every attempt of every scenario, with `DUSK_PERF_SCENARIO`.
   final String? beforeScenario;
+
+  /// Runs once, after the app is stopped at the end, however the campaign
+  /// ended (a failed `before_campaign` included), with `DUSK_PERF_STATUS`
+  /// `ok` or `failed`: the teardown of what [beforeCampaign] started.
+  final String? afterCampaign;
 }
 
 /// What the command prepares on an Android emulator before the first start.
@@ -157,7 +167,11 @@ const Set<String> _kCampaignKeys = <String>{
   'after_start',
   'retries',
 };
-const Set<String> _kHookKeys = <String>{'before_campaign', 'before_scenario'};
+const Set<String> _kHookKeys = <String>{
+  'before_campaign',
+  'before_scenario',
+  'after_campaign',
+};
 const Set<String> _kAndroidKeys = <String>{'avd', 'reverse', 'grant'};
 
 const int _kDefaultRetries = 1;
@@ -323,6 +337,7 @@ final class _CampaignReader {
     return PerfHooks(
       beforeCampaign: _hook(raw['before_campaign'], 'hooks.before_campaign'),
       beforeScenario: _hook(raw['before_scenario'], 'hooks.before_scenario'),
+      afterCampaign: _hook(raw['after_campaign'], 'hooks.after_campaign'),
     );
   }
 

@@ -381,10 +381,15 @@ scenarios: [scenarios/a.yaml]
 hooks:
   before_campaign: ./services.sh up
   before_scenario: echo "$DUSK_PERF_SCENARIO"
+  after_campaign: ./services.sh down "$DUSK_PERF_STATUS"
 '''));
 
         expect(campaign.hooks.beforeCampaign, './services.sh up');
         expect(campaign.hooks.beforeScenario, r'echo "$DUSK_PERF_SCENARIO"');
+        expect(
+          campaign.hooks.afterCampaign,
+          r'./services.sh down "$DUSK_PERF_STATUS"',
+        );
       });
 
       test(r'a ${ inside a hook is rejected, and the hook is not echoed',
@@ -414,11 +419,22 @@ hooks:
         write('scenarios/a.yaml', _tap);
         final String problems = await problemsOf(write('c.yaml', '''
 scenarios: [scenarios/a.yaml]
-hooks: {before_campaign: [up], before_scenario: ""}
+hooks: {before_campaign: [up], before_scenario: "", after_campaign: 1}
 '''));
 
         expect(problems, contains('hooks.before_campaign'));
         expect(problems, contains('hooks.before_scenario'));
+        expect(problems, contains('hooks.after_campaign'));
+      });
+
+      test(r'a ${ inside after_campaign is rejected too', () async {
+        write('scenarios/a.yaml', _tap);
+        final String problems = await problemsOf(write('c.yaml', r'''
+scenarios: [scenarios/a.yaml]
+hooks: {after_campaign: "down ${DUSK_PERF_STATUS}"}
+'''));
+
+        expect(problems, contains(r'hooks.after_campaign holds a "${"'));
       });
     });
 

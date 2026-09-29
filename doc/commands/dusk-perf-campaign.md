@@ -53,6 +53,7 @@ scenarios:                        # relative to this file; `*` in the file name 
 hooks:                            # shell strings, run verbatim, never interpolated
   before_campaign: ./tool/perf/services.sh up
   before_scenario: ./tool/perf/services.sh reset
+  after_campaign: ./tool/perf/services.sh down
 android:
   avd: my_pixel_api35             # matched by name, launched when not running
   reverse: [8001, 8080]           # adb reverse tcp:P tcp:P each
@@ -65,7 +66,7 @@ retries: 1                        # extra attempts per scenario, default 1
 ```
 
 - `scenarios` expands a `*` in the file name against its directory, sorted; a `*` in a directory or `**` is refused. A file with `variants` becomes one scenario per variant. Two scenarios with one name are refused, since each name is a run file.
-- `hooks` run through `/bin/sh -c` in the directory the command was invoked from. `${` in a hook is refused: read a variable in the shell as `$NAME`. Each hook gets the inherited environment minus the credentials the campaign itself consumes (see [secrets](#secrets)), plus `DUSK_PERF_PLATFORM`, `DUSK_PERF_LABEL` and `DUSK_PERF_OUT`; `before_scenario` also gets `DUSK_PERF_SCENARIO`, the scenario name.
+- `hooks` run through `/bin/sh -c` in the directory the command was invoked from. `${` in a hook is refused: read a variable in the shell as `$NAME`. Each hook gets the inherited environment minus the credentials the campaign itself consumes (see [secrets](#secrets)), plus `DUSK_PERF_PLATFORM`, `DUSK_PERF_LABEL` and `DUSK_PERF_OUT`; `before_scenario` also gets `DUSK_PERF_SCENARIO`, the scenario name, and `after_campaign` gets `DUSK_PERF_STATUS`, `ok` or `failed`.
 - `android` is read only with `--platform=android`. Nothing in it has a default: the AVD, the ports and the permissions are the app's. Each `grant` entry must be letters, digits, `_` and `.` only (`android.grant[i]` names one that is not): `adb shell pm grant` hands it to the device's `sh`, which would read anything else as syntax.
 - `after_start` runs once per cold start, before `dusk:perf_run` and so before the scenario's own `setup`. It uses the setup grammar of [dusk:perf_run](dusk-perf-run.md#fragments-parameters-and-variants), fragments, `when` guards and secrets included.
 
@@ -90,6 +91,7 @@ The whole file is validated before anything runs, and every problem is listed at
 
    Every scenario runs from its own cold start: on Chrome, DWDS answers `ext.dusk.*` with `0/1 responses` timeouts that compound over a long session, and a retry in the same session does not clear them. Whatever an attempt throws, or a non-zero exit from stop, start or perf_run, fails that attempt; the next attempt, and the next scenario, still run.
 6. **The end.** The app is stopped once the last scenario is done, whatever happened. A stop that exits non-zero makes the campaign exit 1 even when every scenario passed, and says `artisan stop exited <n> after the campaign; the app may still be running.`
+7. **`hooks.after_campaign`.** Runs once, after that stop, however the campaign ended: every scenario passed, some failed, `before_scenario` stopped it, or the preparation did, a failed `before_campaign` included, since a hook that failed halfway may have started half of what this one tears down. It does not run when the command refused its input or selected nothing (step 1), since nothing was started then. `DUSK_PERF_STATUS` is `ok` when every selected scenario passed and the final stop succeeded, else `failed`. A non-zero exit, or a shell that cannot start, makes the campaign exit 1 and is reported after the scenario results, never instead of them; its output is appended to `campaign-<label>.err`.
 
 ---
 
@@ -98,7 +100,7 @@ The whole file is validated before anything runs, and every problem is listed at
 
 - `<out>/<scenario>-<label>.json`: the run file `dusk:perf_run` writes, masked again for the campaign's secrets.
 - `<out>/<scenario>-<label>.err`: written when an attempt fails, one section per failed attempt: the failure, the stack trace of anything that is not a perf-run failure, what stop, start and perf_run printed, and, when the attempt failed while starting, a copy of the session's `flutter-dev.log`. A scenario that passes on its first attempt has none; a stale one from an earlier run is deleted when the scenario starts.
-- `<out>/campaign-<label>.err`: the output of a hook, `flutter pub get` or Android step that stopped the campaign.
+- `<out>/campaign-<label>.err`: the output of a hook, `flutter pub get` or Android step that stopped the campaign, then that of a failed `after_campaign`.
 
 An `.err` that cannot be written (an `--out` under a file, a full disk) is reported as `dusk:perf_campaign could not write <path>: <reason>.` and the campaign goes on: the scenarios after it still run and the app is still stopped.
 
@@ -129,7 +131,7 @@ With `--json` the lines are replaced by one envelope, printed however the campai
 
 - `results` lists every selected scenario. `not_run` is one the campaign stopped before: every scenario when a hook, `flutter pub get` or an Android step stopped it, the ones after it when `before_scenario` did.
 - `stopped` is present when the campaign stopped, with the sentence it printed (and the `campaign-<label>.err` it wrote, when the failed step printed anything).
-- `errors` is present when something failed after the scenarios, such as the final artisan stop.
+- `errors` is present when something failed after the scenarios: the final artisan stop, `hooks.after_campaign`.
 - `errFile` is also set on an `ok` scenario whose first attempt failed.
 
 ---
@@ -153,7 +155,7 @@ A value read through `${env.*}` or a `secret: true` param, in `after_start` or a
 | Exit code | Meaning |
 |-----------|---------|
 | `0` | Every selected scenario passed. |
-| `1` | A bad input or campaign file, nothing selected, a hook, `flutter pub get` or Android step that failed or could not start, an `applicationId` that could not be used, any scenario that failed every attempt, or an artisan stop after the campaign that exited non-zero. |
+| `1` | A bad input or campaign file, nothing selected, a hook, `flutter pub get` or Android step that failed or could not start, an `applicationId` that could not be used, any scenario that failed every attempt, an artisan stop after the campaign that exited non-zero, or a `hooks.after_campaign` that failed or could not start. |
 
 ---
 

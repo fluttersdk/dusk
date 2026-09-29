@@ -121,13 +121,16 @@ abstract interface class PerfCampaignApp {
 /// hook, `pub get` or preparation step that fails stops the campaign; an
 /// attempt that fails, however it fails, is recorded in
 /// `<out>/<scenario>-<label>.err` and the campaign goes on. The app is
-/// stopped at the end, and the exit code is 1 when any scenario failed.
+/// stopped at the end, then `hooks.after_campaign` runs once, however the
+/// campaign ended. The exit code is 1 when any scenario failed, the
+/// campaign stopped, or the final stop or `after_campaign` failed.
 ///
 /// Everything printed, every `.err`, every run file and the `--json`
 /// envelope are masked for the secrets the campaign loaded. A process that
 /// cannot start stops the campaign like one that fails. Hooks run verbatim
 /// through `/bin/sh -c` with `DUSK_PERF_PLATFORM`, `DUSK_PERF_LABEL`,
-/// `DUSK_PERF_OUT` (and `DUSK_PERF_SCENARIO`) on top of the inherited
+/// `DUSK_PERF_OUT` (and `DUSK_PERF_SCENARIO` before a scenario,
+/// `DUSK_PERF_STATUS` after the campaign) on top of the inherited
 /// environment. Hooks and preparation processes inherit it minus every
 /// variable the campaign read through `${env.NAME}`; artisan start runs
 /// in-process and has no such seam, so the `flutter` it spawns inherits the
@@ -467,13 +470,15 @@ final class _CampaignRun {
     // 1. Everything before the first scenario; a failure stops the campaign.
     final File campaignErr = _errFile('campaign');
     await _clear(campaignErr);
+    final StringBuffer campaignRecord = StringBuffer();
     String? target;
     try {
       target = await _prepare(campaign);
     } on _CampaignStop catch (stop) {
       final String? detail = stop.detail;
+      if (detail != null) campaignRecord.write('${stop.message}\n$detail');
       stopped = detail != null &&
-              await _record(campaignErr, '${stop.message}\n$detail')
+              await _record(campaignErr, campaignRecord.toString())
           ? '${stop.message}; see ${campaignErr.path}'
           : stop.message;
     }
@@ -506,7 +511,23 @@ final class _CampaignRun {
       }
     }
 
-    // 3. The report: every selected scenario, those a stop left untried
+    // 3. The teardown, once, however the campaign ended: a failed
+    //    before_campaign may have started half of what it tears down.
+    final String? teardown = campaign.hooks.afterCampaign;
+    if (teardown != null) {
+      final bool ok = stopped == null &&
+          errors.isEmpty &&
+          results.every((_ScenarioResult r) => r.ok);
+      final String? failure = await _afterCampaign(
+        teardown,
+        ok: ok,
+        err: campaignErr,
+        record: campaignRecord,
+      );
+      if (failure != null) errors.add(failure);
+    }
+
+    // 4. The report: every selected scenario, those a stop left untried
     //    included, so a caller of `--json` always gets the envelope.
     final List<_ScenarioResult> reported = <_ScenarioResult>[
       ...results,
@@ -552,7 +573,7 @@ final class _CampaignRun {
     // 1. The app's services, before anything else touches the project.
     final String? hook = campaign.hooks.beforeCampaign;
     if (hook != null) {
-      final ProcessResult result = await _hook(hook, null);
+      final ProcessResult result = await _hook(hook);
       if (result.exitCode != 0) {
         throw _CampaignStop(
           'hooks.before_campaign exited ${result.exitCode}',
@@ -769,9 +790,15 @@ final class _CampaignRun {
   }
 
   /// Runs [hook] verbatim: never interpolated, and no value of the campaign
-  /// on its command line. [scenario] names the scenario it runs before.
-  /// Throws [_CampaignStop] when the shell cannot start.
-  Future<ProcessResult> _hook(String hook, String? scenario) => _spawn(
+  /// on its command line. [scenario] names the scenario it runs before,
+  /// [status] how the campaign ended for `after_campaign`. Throws
+  /// [_CampaignStop] when the shell cannot start.
+  Future<ProcessResult> _hook(
+    String hook, {
+    String? scenario,
+    String? status,
+  }) =>
+      _spawn(
         '/bin/sh',
         <String>['-c', hook],
         workingDirectory: cwd,
@@ -781,8 +808,33 @@ final class _CampaignRun {
           'DUSK_PERF_LABEL': label,
           'DUSK_PERF_OUT': out,
           if (scenario != null) 'DUSK_PERF_SCENARIO': scenario,
+          if (status != null) 'DUSK_PERF_STATUS': status,
         },
       );
+
+  /// Runs `hooks.after_campaign` with `DUSK_PERF_STATUS` `ok` or `failed`;
+  /// answers the sentence to report when it failed, null when it exited 0.
+  /// What a failed one printed is appended to [record] and written to [err].
+  Future<String?> _afterCampaign(
+    String hook, {
+    required bool ok,
+    required File err,
+    required StringBuffer record,
+  }) async {
+    final ProcessResult result;
+    try {
+      result = await _hook(hook, status: ok ? 'ok' : 'failed');
+    } on _CampaignStop catch (e) {
+      return 'hooks.after_campaign could not run: ${e.message}';
+    }
+    if (result.exitCode == 0) return null;
+    final String failure = 'hooks.after_campaign exited ${result.exitCode}';
+    if (record.isNotEmpty) record.writeln();
+    record.write('$failure\n${_processText(result)}');
+    return await _record(err, record.toString())
+        ? '$failure; see ${err.path}'
+        : failure;
+  }
 
   /// Up to `retries + 1` attempts of [scenario], each from a cold start.
   Future<_ScenarioResult> _scenario(
@@ -803,7 +855,7 @@ final class _CampaignRun {
       if (hook != null) {
         final ProcessResult result;
         try {
-          result = await _hook(hook, name);
+          result = await _hook(hook, scenario: name);
         } on _CampaignStop catch (e) {
           final String stop =
               'hooks.before_scenario could not run before $name: ${e.message}';

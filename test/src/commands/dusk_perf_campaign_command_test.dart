@@ -1627,6 +1627,141 @@ after_start:
       });
     });
 
+    group('.handle() hooks.after_campaign', () {
+      /// The after_campaign runs the host saw.
+      List<_Run> teardowns(_FakeHost host) => <_Run>[
+            for (final _Run r in host.runs)
+              if (r.executable == '/bin/sh' &&
+                  r.arguments.last == './services.sh down')
+                r,
+          ];
+
+      test(
+          'runs once after the final stop with DUSK_PERF_STATUS=ok and the '
+          'hook environment', () async {
+        final _FakeHost host = _FakeHost();
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+            'b': <String>['chrome'],
+          },
+          extra: 'hooks: {after_campaign: ./services.sh down}',
+        );
+
+        final (int code, _) = await handle(
+          host,
+          path,
+          options: <String, dynamic>{'label': 'base', 'out': 'out/perf'},
+        );
+
+        expect(code, 0);
+        final _Run teardown = teardowns(host).single;
+        expect(host.events.last, 'run /bin/sh -c ./services.sh down');
+        expect(host.events[host.events.length - 2], 'stop');
+        expect(teardown.workingDirectory, Directory.current.path);
+        expect(teardown.environment, <String, String>{
+          'HOME': '/home/perf',
+          'DUSK_PERF_PLATFORM': 'chrome',
+          'DUSK_PERF_LABEL': 'base',
+          'DUSK_PERF_OUT': 'out/perf',
+          'DUSK_PERF_STATUS': 'ok',
+        });
+      });
+
+      test('runs with DUSK_PERF_STATUS=failed after a failed scenario',
+          () async {
+        final _FakeHost host = _FakeHost(
+          onPerfRun:
+              (Map<String, dynamic> options, ArtisanOutput output) async => 1,
+        );
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+          },
+          extra: 'retries: 0\nhooks: {after_campaign: ./services.sh down}',
+        );
+
+        final (int code, String out) = await handle(host, path);
+
+        expect(code, 1);
+        expect(
+          teardowns(host).single.environment,
+          containsPair('DUSK_PERF_STATUS', 'failed'),
+        );
+        expect(out, matches(RegExp(r'^\s*a\s+FAILED', multiLine: true)));
+      });
+
+      test(
+          'runs after a before_campaign that failed, to tear down what it '
+          'started, with DUSK_PERF_STATUS=failed', () async {
+        final _FakeHost host = _FakeHost(
+          onRun: (String exe, List<String> args) =>
+              args.last == './services.sh up'
+                  ? (3, 'half up', '')
+                  : (0, '', ''),
+        );
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+          },
+          extra: '''
+hooks:
+  before_campaign: ./services.sh up
+  after_campaign: ./services.sh down
+''',
+        );
+
+        final (int code, _) = await handle(host, path);
+
+        expect(code, 1);
+        expect(host.events, isNot(contains('start')));
+        expect(
+          teardowns(host).single.environment,
+          containsPair('DUSK_PERF_STATUS', 'failed'),
+        );
+      });
+
+      test(
+          'a failing after_campaign exits 1 without hiding the results, its '
+          'output in campaign-<label>.err', () async {
+        final _FakeHost host = _FakeHost(
+          onRun: (String exe, List<String> args) =>
+              args.last == './services.sh down'
+                  ? (4, 'redis would not stop', '')
+                  : (0, '', ''),
+        );
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+          },
+          extra: 'hooks: {after_campaign: ./services.sh down}',
+        );
+
+        final (int code, String out) = await handle(
+          host,
+          path,
+          options: <String, dynamic>{'json': true},
+        );
+
+        expect(code, 1);
+        final Map<String, dynamic> envelope =
+            jsonDecode(out.split('\n').first) as Map<String, dynamic>;
+        expect(
+          (envelope['results'] as List<dynamic>).single,
+          containsPair('status', 'ok'),
+        );
+        expect(
+          envelope['errors'],
+          <Object?>[contains('hooks.after_campaign exited 4')],
+        );
+        expect(out, contains('hooks.after_campaign exited 4'));
+        expect(
+          File('build/perf/campaign-run.err').readAsStringSync(),
+          contains('redis would not stop'),
+        );
+      });
+    });
+
     group('.handle() the end of a campaign', () {
       Map<String, dynamic> envelopeOf(String out) =>
           jsonDecode(out.split('\n').first) as Map<String, dynamic>;
