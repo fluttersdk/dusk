@@ -506,6 +506,8 @@ variants:
         );
         final PerfScenario wide = result.scenarios[0];
         final PerfScenario narrow = result.scenarios[1];
+        expect(wide.variant, '1440');
+        expect(narrow.variant, '390');
         expect(wide.viewport, (width: 1440, height: 900));
         expect(wide.platforms, <PerfPlatform>{PerfPlatform.chrome});
         expect(wide.repeat, 5);

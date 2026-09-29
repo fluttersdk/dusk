@@ -6,6 +6,9 @@ import 'package:fluttersdk_artisan/artisan.dart' hide Error;
 import 'package:meta/meta.dart';
 
 import '../cdp/cdp_client.dart';
+import '../perf/perf_actions.dart';
+import '../perf/perf_redaction.dart';
+import '../perf/perf_setup_runner.dart';
 import '../perf/scenario.dart';
 import 'json_output.dart';
 
@@ -28,43 +31,6 @@ const Duration _kRelaunchTimeout = Duration(seconds: 420);
 
 /// How often the restart wait asks the app for its boot id.
 const Duration _kBootPollInterval = Duration(milliseconds: 500);
-
-/// How many candidates a role target asks `ext.dusk.observe` for: every
-/// interactive node on a screen, so an index deep in a list still resolves.
-const int _kObserveLimit = 5000;
-
-/// The longest single in-app wait: well under the 10 s after which DWDS
-/// abandons a service extension call on the web.
-const int _kWaitSliceMs = 5000;
-
-/// The gap between two ticks of one `wheel` step: one frame at 60 Hz.
-const Duration _kWheelTickInterval = Duration(milliseconds: 16);
-
-/// How long a target may take to show up before it "matched nothing": a
-/// screen still settling after a navigate or a tap has not built it yet.
-const Duration _kResolveBudget = Duration(seconds: 3);
-
-/// The gap between two lookups of a target that has not shown up yet.
-const Duration _kResolvePollInterval = Duration(milliseconds: 100);
-
-/// The most lookups one target gets, so the budget holds on a driver whose
-/// pause returns at once.
-const int _kResolveMaxPolls = 30;
-
-/// How long a setup navigate waits for the app to mount a Router. The boot
-/// id answers from `main()`, which can still be awaiting its own boot or be
-/// showing a loading screen before `runApp` builds the router.
-const Duration _kRouterBudget = Duration(seconds: 10);
-
-/// The most `ext.dusk.get_routes` reads that wait gets, so the budget holds
-/// on a driver whose pause returns at once.
-const int _kRouterMaxPolls = 100;
-
-/// How many `ext.dusk.exceptions` entries a setup failure quotes.
-const int _kDiagnosticExceptions = 3;
-
-/// The longest exception message a setup failure quotes, in characters.
-const int _kDiagnosticMessageChars = 200;
 
 /// A run that cannot go on, with the sentence to print.
 final class PerfRunException implements Exception {
@@ -140,9 +106,15 @@ typedef PerfRunConnector = Future<(PerfRunDriver, PerfRunEnvironment)> Function(
 /// scenario, `<out>/<scenario>-<label>.json`:
 ///
 /// ```text
-/// artisan dusk:perf_run <scenario.yaml> [--label] [--out] [--repeat]
-///   [--timing] [--against <baseline.yaml>] [--semantics-pass] [--json]
+/// artisan dusk:perf_run <scenario.yaml> [--variant] [--label] [--out]
+///   [--repeat] [--timing] [--against <baseline.yaml>] [--semantics-pass]
+///   [--json]
 /// ```
+///
+/// Both files load through [loadPerfScenarios], fragments and all; a file
+/// that declares `variants` needs `--variant` to pick one, a file that does
+/// not refuses it. Everything the command prints, and every string in the
+/// files it writes, is masked for the secrets the files hold.
 ///
 /// Every repeat starts from the scenario's `setup` (so from its hot restart)
 /// and is one attribution session: `perf_begin`, the steps, `perf_end` with
@@ -179,6 +151,12 @@ class DuskPerfRunCommand extends ArtisanCommand {
       ..addOption(
         'scenario',
         help: 'The scenario YAML (or the first argument).',
+      )
+      ..addOption(
+        'variant',
+        help: 'The variant to run, required when the file declares '
+            '`variants` and refused when it does not; applies to --against '
+            'too.',
       )
       ..addOption(
         'label',
@@ -254,33 +232,47 @@ class DuskPerfRunCommand extends ArtisanCommand {
       return 1;
     }
     final String? against = ctx.input.option('against') as String?;
+    // As text: YAML reads a key such as 390 as a number, and so may a caller.
+    final Object? rawVariant = ctx.input.option('variant');
+    final String? variant = rawVariant == null ? null : '$rawVariant';
 
+    // 2. Load both files, fragments and all, and pick the variant.
     final List<PerfScenario> scenarios = <PerfScenario>[];
+    final Set<String> secrets = <String>{};
     for (final String file in <String>[path, if (against != null) against]) {
-      final PerfScenario? scenario = await _load(ctx, file);
+      final PerfLoadResult? loaded = await _load(ctx, file);
+      if (loaded == null) return 1;
+      secrets.addAll(loaded.secrets);
+      final PerfScenario? scenario =
+          _select(ctx, file, loaded.scenarios, variant);
       if (scenario == null) return 1;
       scenarios.add(scenario);
     }
+
+    // 3. From here on every line printed and every string written is masked
+    //    for the secrets the files hold.
+    final PerfRedactor redactor = PerfRedactor(secrets);
+    final ArtisanContext masked = _masked(ctx, redactor);
     if (scenarios.length == 2 && scenarios[0].name == scenarios[1].name) {
-      ctx.output.error('--against names a scenario called '
+      masked.output.error('--against names a scenario called '
           '"${scenarios[0].name}" too; the two run files would collide.');
       return 1;
     }
 
-    // 2. Connect, then refuse a platform a scenario does not list.
+    // 4. Connect, then refuse a platform a scenario does not list.
     final PerfRunDriver driver;
     final PerfRunEnvironment env;
     try {
-      (driver, env) = await _connector(ctx, platform);
+      (driver, env) = await _connector(masked, platform);
     } on PerfRunException catch (e) {
-      ctx.output.error(e.message);
+      masked.output.error(e.message);
       return 1;
     }
 
     try {
       for (final PerfScenario scenario in scenarios) {
         if (!scenario.platforms.contains(env.platform)) {
-          ctx.output.error(
+          masked.output.error(
             'Scenario ${scenario.name} does not list ${env.platform.name}; '
             'it lists ${scenario.platforms.map((PerfPlatform p) => p.name).join(', ')}.',
           );
@@ -288,10 +280,9 @@ class DuskPerfRunCommand extends ArtisanCommand {
         }
       }
 
-      // 3. Run every round.
+      // 5. Run every round.
       final _PerfRunner runner = _PerfRunner(
-        driver,
-        env,
+        PerfActions(driver, env),
         repeat: repeat ?? scenarios.first.repeat,
         timing: _readBool(ctx.input.option('timing')),
         semanticsPass: _readBool(ctx.input.option('semantics-pass')),
@@ -300,37 +291,73 @@ class DuskPerfRunCommand extends ArtisanCommand {
       try {
         runs = await runner.run(scenarios);
       } on PerfRunException catch (e) {
-        ctx.output.error(e.message);
+        masked.output.error(e.message);
         return 1;
       }
 
-      // 4. Write one file per scenario, then report the first.
+      // 6. Write one file per scenario, then report the first. The file is
+      //    masked as a tree, not as text, so it stays valid JSON: a failure
+      //    the semantics pass records as its reason can quote a secret.
       final List<(String, Map<String, Object?>)> written =
           <(String, Map<String, Object?>)>[];
       for (final _ScenarioRun run in runs) {
-        final Map<String, Object?> file = runner.fileFor(
-          run,
-          label,
-          interleavedWith: runs.length == 2
-              ? runs.firstWhere((_ScenarioRun r) => r != run).scenario.name
-              : null,
-        );
+        final Map<String, Object?> file = redactor.redactJson(
+          runner.fileFor(
+            run,
+            label,
+            variant: variant,
+            interleavedWith: runs.length == 2
+                ? runs.firstWhere((_ScenarioRun r) => r != run).scenario.name
+                : null,
+          ),
+        )! as Map<String, Object?>;
         written.add((await _write(out, run.scenario.name, label, file), file));
       }
-      return _report(ctx, written);
+      return _report(masked, written);
     } finally {
       await driver.close();
     }
   }
 
-  Future<PerfScenario?> _load(ArtisanContext ctx, String path) async {
+  Future<PerfLoadResult?> _load(ArtisanContext ctx, String path) async {
     try {
-      return PerfScenario.parse(await File(path).readAsString());
+      return await loadPerfScenarios(path, env: Platform.environment);
     } on PerfScenarioException catch (e) {
       ctx.output.error('$path: $e');
     } on FileSystemException catch (e) {
       ctx.output.error('Cannot read scenario $path: ${e.message}');
     }
+    return null;
+  }
+
+  /// The one of [scenarios], loaded from [path], that [variant] names: the
+  /// only one when the file declares no variants and [variant] is null.
+  /// Null after printing why there is none.
+  PerfScenario? _select(
+    ArtisanContext ctx,
+    String path,
+    List<PerfScenario> scenarios,
+    String? variant,
+  ) {
+    final List<String> keys = <String>[
+      for (final PerfScenario scenario in scenarios)
+        if (scenario.variant case final String key) key,
+    ];
+    if (keys.isEmpty) {
+      if (variant == null) return scenarios.single;
+      ctx.output.error('--variant "$variant": $path declares no variants; '
+          'leave --variant out.');
+      return null;
+    }
+    final int index = variant == null ? -1 : keys.indexOf(variant);
+    if (index >= 0) return scenarios[index];
+    ctx.output.error(
+      variant == null
+          ? '$path declares variants ${keys.join(', ')}; pick one with '
+              '--variant=<key>.'
+          : '--variant "$variant" is not one of ${keys.join(', ')}, the '
+              'variants $path declares.',
+    );
     return null;
   }
 
@@ -710,27 +737,20 @@ final class _ScenarioRun {
 /// Drives the rounds and assembles the run files.
 final class _PerfRunner {
   _PerfRunner(
-    this.driver,
-    this.env, {
+    this.actions, {
     required this.repeat,
     required this.timing,
     required this.semanticsPass,
   });
 
-  final PerfRunDriver driver;
-  final PerfRunEnvironment env;
+  /// The step execution the setup and the measured window share.
+  final PerfActions actions;
   final int repeat;
   final bool timing;
   final bool semanticsPass;
 
-  /// The payload of the current setup's last honored navigate, for
-  /// [_diagnose]; null before the first.
-  Map<String, dynamic>? _lastNavigate;
-
-  /// Whether a navigate in the current setup landed only after
-  /// `ext.dusk.navigate` answered false ([_awaitLanding]); the unit's repeat
-  /// says so as `setupLandedLate`.
-  bool _setupLandedLate = false;
+  PerfRunDriver get driver => actions.driver;
+  PerfRunEnvironment get env => actions.env;
 
   bool get _chrome => env.platform == PerfPlatform.chrome;
 
@@ -789,24 +809,31 @@ final class _PerfRunner {
   }) async {
     final PerfScenario scenario = run.scenario;
 
-    // 1. The same starting state for every repeat.
-    await _prepare(scenario);
+    // 1. The same starting state for every repeat. Whether a navigate in it
+    //    landed only after `ext.dusk.navigate` answered false is recorded on
+    //    the repeat as `setupLandedLate`.
+    final PerfSetupRunner setup = PerfSetupRunner(
+      actions,
+      viewport: scenario.viewport,
+    );
+    final bool landedLate =
+        (await setup.run(scenario.setup, scenario.name)).landedLate;
     if (_chrome) await driver.cdp('Page.bringToFront');
 
     // 2. A target no earlier step can move resolves now, outside the window;
     //    the rest resolve inside it, right before their step, and say so in
     //    `resolves`. The pass replays by coordinates and resolves nothing.
     final List<Map<String, Object?>> resolves = <Map<String, Object?>>[];
-    final Map<int, _Resolved> resolved = series == _Series.semanticsOff
-        ? const <int, _Resolved>{}
-        : await _preResolve(scenario, resolves);
+    final Map<int, PerfResolvedTarget> resolved = series == _Series.semanticsOff
+        ? const <int, PerfResolvedTarget>{}
+        : await _preResolve(scenario, resolves, setup);
 
     // 3. The timed window. A failing step is held rather than thrown so the
     //    session still closes: perf_end restores the profiling flags, and a
     //    released semantics handle must never outlive the window. A release
     //    that left the tree on ends the window at once: what would follow is
     //    the attribution series again, reported as semantics off.
-    await _call(
+    await actions.call(
       'ext.dusk.perf_begin',
       <String, String>{
         'mode': series == _Series.timing ? 'timing' : 'attribution',
@@ -821,7 +848,7 @@ final class _PerfRunner {
         // Marked before the call: a release that landed but whose answer was
         // lost still needs its acquire.
         released = true;
-        final Map<String, dynamic> answer = await _call(
+        final Map<String, dynamic> answer = await actions.call(
           'ext.dusk.semantics_hold',
           <String, String>{'action': 'release'},
           scenario.name,
@@ -856,7 +883,7 @@ final class _PerfRunner {
     //    runs; the first failure is the one rethrown.
     Map<String, dynamic>? report;
     try {
-      report = await _call(
+      report = await actions.call(
         'ext.dusk.perf_end',
         <String, String>{'full': 'true'},
         scenario.name,
@@ -867,7 +894,7 @@ final class _PerfRunner {
     }
     if (released) {
       try {
-        await _call(
+        await actions.call(
           'ext.dusk.semantics_hold',
           <String, String>{'action': 'acquire'},
           scenario.name,
@@ -880,292 +907,10 @@ final class _PerfRunner {
     if (failure != null) Error.throwWithStackTrace(failure, trace!);
     run.reports[series]!.add(<String, dynamic>{
       ...report!,
-      if (_setupLandedLate) 'setupLandedLate': true,
+      if (landedLate) 'setupLandedLate': true,
     });
     run.resolves[series]!.add(resolves);
   }
-
-  /// Runs the scenario's setup. Every failure but a restart's carries
-  /// [_diagnose]: the route the app is on, the last navigate's payload and
-  /// the newest exceptions, since "did not appear" alone does not say which
-  /// screen it did not appear on.
-  Future<void> _prepare(PerfScenario scenario) async {
-    _lastNavigate = null;
-    _setupLandedLate = false;
-    await _viewport(scenario);
-    for (final (int i, PerfSetupStep step) in scenario.setup.indexed) {
-      // 1. A restart names the app's last answer itself, and an app that is
-      //    not back has nothing to diagnose with.
-      if (step.verb == PerfSetupVerb.hotRestart) {
-        await driver.restart();
-        await _viewport(scenario);
-        continue;
-      }
-      final PerfStep? gesture = step.gesture;
-      if (gesture != null && !gesture.runsOn(env.platform)) continue;
-
-      // 2. Everything else says where the app was when it failed.
-      final String where = '${scenario.name} setup[$i] '
-          '(${gesture?.verb.wire ?? step.verb.wire})';
-      try {
-        await _setupStep(step, where);
-      } on Exception catch (e) {
-        throw PerfRunException(
-          '${e is PerfRunException ? e.message : '$where: $e'}\n'
-          '${await _diagnose()}',
-        );
-      }
-    }
-  }
-
-  /// One setup entry other than `hot_restart`, which [_prepare] runs itself.
-  /// Throws [PerfRunException] prefixed with [where].
-  Future<void> _setupStep(PerfSetupStep step, String where) async {
-    switch (step.verb) {
-      case PerfSetupVerb.hotRestart:
-        throw StateError('_prepare runs hot_restart itself.');
-      case PerfSetupVerb.gesture:
-        try {
-          await _drive(step.gesture!, record: false);
-        } on Exception catch (e) {
-          throw PerfRunException(
-            '$where: ${e is PerfRunException ? e.message : e}',
-          );
-        }
-      case PerfSetupVerb.navigate:
-        await _setupNavigate(step.argument!, where);
-      case PerfSetupVerb.waitForText:
-        // In slices: DWDS cuts any service extension call at 10 s and
-        // answers -32603, so one in-app wait of the whole budget died on
-        // every slow web restart. Each slice is a full in-app wait; the
-        // budget is spent slice by slice rather than by the host clock.
-        bool matched = false;
-        final int budget = step.timeoutMs ?? kPerfWaitForTextTimeoutMs;
-        for (int left = budget; left > 0 && !matched;) {
-          final int slice = left < _kWaitSliceMs ? left : _kWaitSliceMs;
-          final Map<String, dynamic> result = await _call(
-            'ext.dusk.wait_for',
-            <String, String>{
-              'text': step.argument!,
-              'timeoutMs': '$slice',
-            },
-            where,
-          );
-          matched = result['matched'] == true;
-          left -= slice;
-        }
-        if (!matched) {
-          throw PerfRunException(
-            '$where: "${step.argument}" did not appear within '
-            '$budget ms.',
-          );
-        }
-      case PerfSetupVerb.waitForNetworkIdle:
-        await _call(
-          'ext.dusk.wait_for_network_idle',
-          const <String, String>{},
-          where,
-        );
-    }
-  }
-
-  /// Navigates to [route] and holds the app to it.
-  ///
-  /// The app has to be routable first ([_awaitRouter]). A `navigated: false`
-  /// then fails with the payload unless the route lands within
-  /// [_kResolveBudget] ([_awaitLanding]): a dropped route never lands and a
-  /// redirected one lands elsewhere, and every later step would run on the
-  /// wrong screen. The router's URI read right after is read again once the
-  /// network is idle, since a first fetch that answers 401 redirects away
-  /// afterwards. The two reads compare paths: a page that normalises its
-  /// query after the first fetch (`/monitors` to `/monitors?page=1`) has not
-  /// moved.
-  Future<void> _setupNavigate(String route, String where) async {
-    // 1. A navigate is verified against the mounted Router, so one sent
-    //    before the Router exists answers false even when it lands later.
-    await _awaitRouter(where);
-
-    // 2. The router has to honor the route, if not within the navigate's
-    //    own two-frame read then shortly after it.
-    Map<String, dynamic> payload = await _call(
-      'ext.dusk.navigate',
-      <String, String>{
-        'route': route,
-        'includeSnapshot': 'false',
-      },
-      where,
-    );
-    if (payload['navigated'] != true) {
-      if (!await _awaitLanding(route, where)) {
-        throw PerfRunException(
-          '$where: the router did not honor "$route"; ext.dusk.navigate '
-          'answered ${jsonEncode(payload)}.',
-        );
-      }
-      payload = <String, dynamic>{...payload, 'landedLate': true};
-      _setupLandedLate = true;
-    }
-    _lastNavigate = payload;
-
-    // 3. And the app has to stay there once its first fetches are done.
-    final Object? landed = (await _call(
-      'ext.dusk.get_routes',
-      const <String, String>{},
-      where,
-    ))['uri'];
-    await _call(
-      'ext.dusk.wait_for_network_idle',
-      const <String, String>{},
-      where,
-    );
-    final Object? settled = (await _call(
-      'ext.dusk.get_routes',
-      const <String, String>{},
-      where,
-    ))['uri'];
-    Object? path(Object? uri) => uri is String ? _routePath(uri) : uri;
-    if (path(settled) != path(landed)) {
-      throw PerfRunException(
-        '$where: navigating to "$route" landed on "$landed", and once the '
-        'network was idle the app had moved to "$settled".',
-      );
-    }
-  }
-
-  /// Whether the Router's `uri` reaches [route]'s path exactly, query ignored,
-  /// within [_kResolveBudget], read every [_kResolvePollInterval] and at most
-  /// [_kResolveMaxPolls] times.
-  ///
-  /// Exact, unlike the prefix match `ext.dusk.navigate` makes: a web hot
-  /// restart keeps the URL, so an app left on `/monitors/7` would pass a
-  /// prefix check for a dropped navigate to `/monitors`. A setup navigate
-  /// names its screen.
-  ///
-  /// `ext.dusk.navigate` reads the Router two frames after dispatching. A
-  /// Router that mounted a moment earlier is still applying its first
-  /// location then and reports a transient one, so the navigate answers
-  /// false for a route that lands right after: measured on a web hot
-  /// restart, false as the Router mounted and true 300 ms later. Only reads:
-  /// a second dispatch would stack a pushed route twice.
-  Future<bool> _awaitLanding(String route, String where) async {
-    final String wanted = _routePath(route);
-    final Stopwatch clock = Stopwatch()..start();
-    for (int poll = 1;; poll++) {
-      final Object? uri = (await _call(
-        'ext.dusk.get_routes',
-        const <String, String>{},
-        where,
-      ))['uri'];
-      if (uri is String) {
-        if (_routePath(uri) == wanted) return true;
-      }
-      if (poll >= _kResolveMaxPolls || clock.elapsed >= _kResolveBudget) {
-        return false;
-      }
-      await driver.pause(_kResolvePollInterval);
-    }
-  }
-
-  /// Waits until `ext.dusk.get_routes` reports a mounted Router's `uri`,
-  /// read every [_kResolvePollInterval] for up to [_kRouterBudget] (and at
-  /// most [_kRouterMaxPolls] reads).
-  ///
-  /// `ext.dusk.boot_id` answers once `DuskPlugin.install()` has run, and a
-  /// host that installs dusk before its own boot (magic_devtools' documented
-  /// order) or shows a loading screen first has no Router yet. Waiting here
-  /// rather than in the restart keeps a scenario that never navigates, or an
-  /// app with no Router at all, free of it.
-  ///
-  /// Throws [PerfRunException] prefixed with [where] when the budget runs out,
-  /// or at once when the answer has no `uri` key: the app runs a dusk older
-  /// than this CLI.
-  Future<void> _awaitRouter(String where) async {
-    final Stopwatch clock = Stopwatch()..start();
-    for (int poll = 1;; poll++) {
-      final Map<String, dynamic> routes = await _call(
-        'ext.dusk.get_routes',
-        const <String, String>{},
-        where,
-      );
-      if (!routes.containsKey('uri')) {
-        throw PerfRunException(
-          '$where: ext.dusk.get_routes answered no "uri", so the app runs a '
-          'dusk older than this CLI. Relaunch the app so it runs the dusk '
-          'this CLI ships with.',
-        );
-      }
-      if (routes['uri'] is String) return;
-      if (poll >= _kRouterMaxPolls || clock.elapsed >= _kRouterBudget) {
-        throw PerfRunException(
-          '$where: no Router was mounted within ${_kRouterBudget.inSeconds} s '
-          '($poll reads of ext.dusk.get_routes), and a navigate is verified '
-          'against the Router\'s location.',
-        );
-      }
-      await driver.pause(_kResolvePollInterval);
-    }
-  }
-
-  /// One line on where the app is: its route, the last setup navigate's
-  /// payload and its newest exceptions. A diagnostic call that fails is named
-  /// in place of its answer: the failure it explains stands either way.
-  Future<String> _diagnose() async {
-    final String route = await _describe(
-      'ext.dusk.get_routes',
-      const <String, String>{},
-      (Map<String, dynamic> r) {
-        final Object? uri = r['uri'];
-        final Object? page = r['location'];
-        final Object? title = r['title'];
-        return 'route ${uri is String ? '"$uri"' : 'none (no Router mounted)'}'
-            '${page is String && page.isNotEmpty ? ' (page "$page")' : ''}'
-            '${title is String && title.isNotEmpty ? ' (title "$title")' : ''}';
-      },
-    );
-    final Map<String, dynamic>? payload = _lastNavigate;
-    final String navigate = payload == null
-        ? 'no setup navigate ran'
-        : 'last setup navigate answered ${jsonEncode(payload)}';
-    final String exceptions = await _describe(
-      'ext.dusk.exceptions',
-      const <String, String>{'limit': '$_kDiagnosticExceptions'},
-      (Map<String, dynamic> r) {
-        final List<dynamic> entries = _list(r['exceptions']);
-        if (entries.isEmpty) return 'last exceptions: none';
-        return 'last exceptions: ${entries.map(_exceptionLine).join(' | ')}';
-      },
-    );
-    return 'Diagnostics: $route; $navigate; $exceptions.';
-  }
-
-  Future<String> _describe(
-    String method,
-    Map<String, String> params,
-    String Function(Map<String, dynamic> result) render,
-  ) async {
-    try {
-      return render(await driver.call(method, params));
-    } on Exception catch (e) {
-      return '$method failed ($e)';
-    }
-  }
-
-  Future<void> _viewport(PerfScenario scenario) async {
-    final ({int width, int height})? viewport = scenario.viewport;
-    if (!_chrome || viewport == null) return;
-    await _resize(viewport.width, viewport.height);
-  }
-
-  Future<void> _resize(int width, int height) => driver.cdp(
-        'Emulation.setDeviceMetricsOverride',
-        <String, dynamic>{
-          'width': width,
-          'height': height,
-          // 0 keeps the browser's own device pixel ratio.
-          'deviceScaleFactor': 0,
-          'mobile': false,
-        },
-      );
 
   /// Runs step [index]: driving it through the live tree, with the target
   /// [resolved] before `perf_begin` when there is one, or replaying its
@@ -1176,7 +921,7 @@ final class _PerfRunner {
     PerfStep step, {
     required _Series series,
     required bool record,
-    required _Resolved? resolved,
+    required PerfResolvedTarget? resolved,
     required List<Map<String, Object?>> resolves,
   }) async {
     final String where =
@@ -1185,7 +930,7 @@ final class _PerfRunner {
       if (series == _Series.semanticsOff) {
         await _replay(run, index, step);
       } else {
-        final Map<String, dynamic>? points = await _drive(
+        final Map<String, dynamic>? points = await actions.drive(
           step,
           record: record,
           resolved: resolved,
@@ -1206,29 +951,33 @@ final class _PerfRunner {
   /// it; stops after the first step that can move what follows. Each resolve
   /// is added to [resolves] as `beforeBegin`.
   ///
-  /// Throws [PerfRunException] with [_diagnose] when a target does not show
-  /// up: no session is open yet, so there is nothing to close.
-  Future<Map<int, _Resolved>> _preResolve(
+  /// Throws [PerfRunException] with the [setup]'s diagnostics, its last
+  /// navigate included, when a target does not show up: no session is open
+  /// yet, so there is nothing to close.
+  Future<Map<int, PerfResolvedTarget>> _preResolve(
     PerfScenario scenario,
     List<Map<String, Object?>> resolves,
+    PerfSetupRunner setup,
   ) async {
-    final Map<int, _Resolved> resolved = <int, _Resolved>{};
+    final Map<int, PerfResolvedTarget> resolved = <int, PerfResolvedTarget>{};
     for (int i = 0; i < scenario.steps.length; i++) {
       final PerfStep step = scenario.steps[i];
       if (!step.runsOn(env.platform)) continue;
       if (step.verb.takesTarget) {
         final Stopwatch clock = Stopwatch()..start();
         try {
-          final String ref = await _resolve(step.target!);
+          final String ref = await actions.resolve(step.target!);
           resolved[i] = (
             ref: ref,
-            point: step.verb == PerfStepVerb.wheel ? await _hover(ref) : null,
+            point: step.verb == PerfStepVerb.wheel
+                ? await actions.hover(ref)
+                : null,
           );
         } on Exception catch (e) {
           throw PerfRunException(
             '${scenario.name} steps[$i] (${step.verb.wire}), resolved before '
             'perf_begin: ${e is PerfRunException ? e.message : e}\n'
-            '${await _diagnose()}',
+            '${await setup.diagnose()}',
           );
         }
         resolves.add(_resolveEntry(i, step, 'beforeBegin', clock));
@@ -1251,107 +1000,9 @@ final class _PerfRunner {
         'resolveMs': _round(clock.elapsedMicroseconds / 1000, 1),
       };
 
-  /// Hovers [ref] and answers the point it hovered: what a mouse does before
-  /// it wheels, and where the wheel then goes.
-  Future<Map<String, dynamic>> _hover(String ref) async => _map(
-        (await driver.call(
-          'ext.dusk.hover',
-          <String, String>{
-            'ref': ref,
-            'reportPoint': 'true',
-            'includeSnapshot': 'false',
-          },
-        ))['point'],
-      );
-
-  /// Drives [step] through the live tree. Returns the dispatch points when
-  /// [record] asks for them and the verb has any, for the semantics pass to
-  /// replay; null otherwise.
-  ///
-  /// The target is [resolved] when [_preResolve] got it, else resolved here,
-  /// and [onResolved] is handed the clock of that resolve.
-  Future<Map<String, dynamic>?> _drive(
-    PerfStep step, {
-    required bool record,
-    _Resolved? resolved,
-    void Function(Stopwatch clock)? onResolved,
-  }) async {
-    const Map<String, String> quiet = <String, String>{
-      'includeSnapshot': 'false',
-    };
-    final Map<String, String> report = <String, String>{
-      if (record) 'reportPoint': 'true',
-    };
-    Future<String> target() async {
-      final _Resolved? early = resolved;
-      if (early != null) return early.ref;
-      final Stopwatch clock = Stopwatch()..start();
-      final String ref = await _resolve(step.target!);
-      onResolved?.call(clock);
-      return ref;
-    }
-
-    switch (step.verb) {
-      case PerfStepVerb.tap:
-        final Map<String, dynamic> result = await driver.call(
-          'ext.dusk.tap',
-          <String, String>{
-            'ref': await target(),
-            ...quiet,
-            ...report,
-          },
-        );
-        return record ? <String, dynamic>{'point': result['point']} : null;
-      case PerfStepVerb.wheel:
-        final Map<String, dynamic> point =
-            resolved?.point ?? await _hover(await target());
-        await _wheel(point, step);
-        return record ? <String, dynamic>{'point': point} : null;
-      case PerfStepVerb.drag:
-        final Map<String, dynamic> result = await driver.call(
-          'ext.dusk.drag',
-          <String, String>{
-            'startRef': await target(),
-            'dx': '${step.dx}',
-            'dy': '${step.dy}',
-            ...quiet,
-            ...report,
-          },
-        );
-        return record
-            ? <String, dynamic>{'from': result['from'], 'to': result['to']}
-            : null;
-      case PerfStepVerb.fill:
-      case PerfStepVerb.type:
-        await driver.call(
-          'ext.dusk.${step.verb.wire}',
-          <String, String>{
-            'ref': await target(),
-            'text': step.text!,
-            ...quiet,
-          },
-        );
-      case PerfStepVerb.scroll:
-        await driver.call(
-          'ext.dusk.scroll',
-          <String, String>{
-            'ref': await target(),
-            'dx': '${step.dx}',
-            'dy': '${step.dy}',
-            ...quiet,
-          },
-        );
-      case PerfStepVerb.pressKey:
-      case PerfStepVerb.navigate:
-      case PerfStepVerb.resize:
-      case PerfStepVerb.wait:
-        await _untargeted(step);
-    }
-    return null;
-  }
-
-  /// Replays a step by the points [_drive] recorded. Nothing here resolves a
-  /// target: with the handle released there is no tree to resolve through.
+  /// Replays a step by the points [PerfActions.drive] recorded. Nothing here
+  /// resolves a target: with the handle released there is no tree to resolve
+  /// through.
   Future<void> _replay(_ScenarioRun run, int index, PerfStep step) async {
     final Map<String, dynamic>? recorded = run.points[index];
     switch (step.verb) {
@@ -1374,143 +1025,18 @@ final class _PerfRunner {
           },
         );
       case PerfStepVerb.wheel:
-        await _wheel(_recorded(recorded, 'point'), step);
+        await actions.wheel(_recorded(recorded, 'point'), step);
       case PerfStepVerb.pressKey:
       case PerfStepVerb.navigate:
       case PerfStepVerb.resize:
       case PerfStepVerb.wait:
-        await _untargeted(step);
+        await actions.untargeted(step);
       case PerfStepVerb.fill:
       case PerfStepVerb.type:
       case PerfStepVerb.scroll:
         // Ruled out before the pass by _unsupportedReason.
         throw PerfRunException(
             '${step.verb.wire} cannot replay by coordinates');
-    }
-  }
-
-  Future<void> _untargeted(PerfStep step) async {
-    switch (step.verb) {
-      case PerfStepVerb.pressKey:
-        await driver.call(
-          'ext.dusk.press_key',
-          <String, String>{'key': step.key!, 'includeSnapshot': 'false'},
-        );
-      case PerfStepVerb.navigate:
-        await driver.call(
-          'ext.dusk.navigate',
-          <String, String>{'route': step.route!, 'includeSnapshot': 'false'},
-        );
-      case PerfStepVerb.resize:
-        await _resize(step.width!, step.height!);
-      case PerfStepVerb.wait:
-        await driver.pause(Duration(milliseconds: step.ms!));
-      case PerfStepVerb.tap:
-      case PerfStepVerb.fill:
-      case PerfStepVerb.type:
-      case PerfStepVerb.scroll:
-      case PerfStepVerb.wheel:
-      case PerfStepVerb.drag:
-        throw StateError('${step.verb.wire} takes a target');
-    }
-  }
-
-  /// Sends [PerfStep.ticks] wheel events at [point], one frame apart, the
-  /// way a real wheel scrolls: a single large event jumps the list in one
-  /// frame, and a session built on it measured five frames.
-  Future<void> _wheel(Map<String, dynamic> point, PerfStep step) async {
-    for (int tick = 0; tick < step.ticks; tick++) {
-      if (tick > 0) await driver.pause(_kWheelTickInterval);
-      await driver.cdp(
-        'Input.dispatchMouseEvent',
-        <String, dynamic>{
-          'type': 'mouseWheel',
-          'x': point['x'],
-          'y': point['y'],
-          'deltaX': step.dx,
-          'deltaY': step.dy,
-        },
-      );
-    }
-  }
-
-  /// Resolves [target] against the live tree in this repeat: a ref from an
-  /// earlier repeat is stale after the restart.
-  ///
-  /// A target that is not there yet is looked up again every
-  /// [_kResolvePollInterval] for up to [_kResolveBudget] (and at most
-  /// [_kResolveMaxPolls] lookups) before it "matched nothing": a screen that
-  /// is still building after a navigate or a tap has not drawn it yet.
-  Future<String> _resolve(PerfTarget target) async {
-    final Stopwatch clock = Stopwatch()..start();
-    for (int poll = 1;; poll++) {
-      final String? ref = await _lookup(target);
-      if (ref != null) return ref;
-      if (poll >= _kResolveMaxPolls || clock.elapsed >= _kResolveBudget) {
-        throw PerfRunException(
-          'target ${jsonEncode(target.toJson())} matched nothing on the live '
-          'screen within ${_kResolveBudget.inSeconds} s ($poll lookups).',
-        );
-      }
-      await driver.pause(_kResolvePollInterval);
-    }
-  }
-
-  /// One lookup of [target]; null when nothing matches.
-  ///
-  /// Text, label and key go through `ext.dusk.find`, the re-resolvable
-  /// handle; a text index through the list `ext.dusk.find_by_text` returns.
-  /// A role goes through `ext.dusk.observe`, which lists every interactive
-  /// node with the role and the merged label `dusk:snap` prints, each behind
-  /// a `q<N>` handle already pinned to its own node. Scenario validation
-  /// refuses an index on a label, since nothing can serve one.
-  Future<String?> _lookup(PerfTarget target) async =>
-      switch ((target.kind, target.index)) {
-        (PerfTargetKind.text, 0) => (await driver.call(
-            'ext.dusk.find',
-            <String, String>{'text': target.value},
-          ))['ref'] as String?,
-        (PerfTargetKind.label, 0) => (await driver.call(
-            'ext.dusk.find',
-            <String, String>{'semanticsLabel': target.value},
-          ))['ref'] as String?,
-        (PerfTargetKind.key, _) => (await driver.call(
-            'ext.dusk.find',
-            <String, String>{'key': target.value},
-          ))['ref'] as String?,
-        (PerfTargetKind.text, final int index) => _at(
-            await driver.call(
-              'ext.dusk.find_by_text',
-              <String, String>{'text': target.value},
-            ),
-            index,
-          ),
-        (PerfTargetKind.label, _) => throw StateError(
-            'PerfScenario.parse refuses an index on a label target.',
-          ),
-        (PerfTargetKind.role, final int index) => _named(
-            await driver.call(
-              'ext.dusk.observe',
-              <String, String>{
-                'roles': target.role!,
-                'includeEnrichers': 'false',
-                'limit': '$_kObserveLimit',
-              },
-            ),
-            target.value,
-            index,
-          ),
-      };
-
-  Future<Map<String, dynamic>> _call(
-    String method,
-    Map<String, String> params,
-    String where,
-  ) async {
-    try {
-      return await driver.call(method, params);
-    } on Exception catch (e) {
-      throw PerfRunException('$where: $method failed: $e');
     }
   }
 
@@ -1566,10 +1092,11 @@ final class _PerfRunner {
         'on: $holder.';
   }
 
-  /// The run file for [run].
+  /// The run file for [run]; [variant] is the `--variant` it was run with.
   Map<String, Object?> fileFor(
     _ScenarioRun run,
     String label, {
+    String? variant,
     String? interleavedWith,
   }) {
     final List<Map<String, dynamic>> attribution =
@@ -1584,6 +1111,7 @@ final class _PerfRunner {
     return <String, Object?>{
       'scenario': run.scenario.toJson(),
       'label': label,
+      if (variant != null) 'variant': variant,
       if (interleavedWith != null) 'interleavedWith': interleavedWith,
       'env': <String, Object?>{
         ..._map(median?['env']),
@@ -1627,22 +1155,6 @@ final class _PerfRunner {
             'resolves': run.resolves[series]![i],
           },
       ];
-}
-
-/// A target [_PerfRunner._preResolve] resolved before `perf_begin`, and the
-/// hover point when its step is a wheel.
-typedef _Resolved = ({String ref, Map<String, dynamic>? point});
-
-/// One `ext.dusk.exceptions` entry as a setup failure quotes it: the type,
-/// the first line of the message, cut to [_kDiagnosticMessageChars], and
-/// when it happened.
-String _exceptionLine(Object? entry) {
-  final Map<String, dynamic> e = _map(entry);
-  final String message = '${e['message'] ?? ''}'.split('\n').first;
-  final String cut = message.length > _kDiagnosticMessageChars
-      ? '${message.substring(0, _kDiagnosticMessageChars)}...'
-      : message;
-  return '${e['type']}: $cut${e['time'] == null ? '' : ' at ${e['time']}'}';
 }
 
 /// The measured report whose total per-frame count is the median, the one
@@ -1693,21 +1205,6 @@ Map<String, dynamic> _recorded(Map<String, dynamic>? recorded, String key) {
     'no $key was recorded for this step with the tree on, so it has no '
     'coordinates to replay.',
   );
-}
-
-String? _at(Map<String, dynamic> result, int index) {
-  final List<dynamic> refs = _list(result['refs']);
-  return index < refs.length ? refs[index] as String? : null;
-}
-
-/// The ref of the [index]th `ext.dusk.observe` candidate labelled [name],
-/// in walk order; null when there are not that many.
-String? _named(Map<String, dynamic> result, String name, int index) {
-  final List<String?> refs = <String?>[
-    for (final Object? candidate in _list(result['candidates']))
-      if (_map(candidate)['label'] == name) _map(candidate)['ref'] as String?,
-  ];
-  return index < refs.length ? refs[index] : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1927,10 +1424,18 @@ Future<String?> _runLog() async {
 // Private helpers
 // ---------------------------------------------------------------------------
 
-/// The path of a route or a router URI, `/` when it has none.
-String _routePath(String route) {
-  final String path = Uri.tryParse(route)?.path ?? route;
-  return path.isEmpty ? '/' : path;
+/// [ctx] with its output wrapped in a [RedactingOutput] for [redactor].
+ArtisanContext _masked(ArtisanContext ctx, PerfRedactor redactor) {
+  final ArtisanOutput output = RedactingOutput(ctx.output, redactor);
+  final VmServiceClient? client = ctx.vmClient;
+  return client == null
+      ? ArtisanContext.bare(ctx.input, output, registry: ctx.registry)
+      : ArtisanContext.connected(
+          ctx.input,
+          output,
+          client,
+          registry: ctx.registry,
+        );
 }
 
 /// An iOS simulator UDID; a physical device's id has a different shape.
