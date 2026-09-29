@@ -1821,6 +1821,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '\n'
               'Usage:\n'
               '- Pass scenario (a path) and a label ([a-z0-9_-]).\n'
+              '- Pass variant when the file declares variants (required '
+              'then, refused otherwise); it applies to against too.\n'
               '- Pass json=true for the summary as JSON (repeats stay in the '
               'file).\n'
               '- Set timing=true for interleaved timing-mode repeats, the only '
@@ -1839,6 +1841,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'scenario': <String, dynamic>{
                 'type': 'string',
                 'description': 'Path to the scenario YAML.',
+              },
+              'variant': <String, dynamic>{
+                'type': 'string',
+                'description': 'The variants key to run; required when the '
+                    'file declares variants.',
               },
               'label': <String, dynamic>{
                 'type': 'string',

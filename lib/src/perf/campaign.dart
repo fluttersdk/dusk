@@ -14,7 +14,7 @@
 ///   before_campaign: ./services.sh up
 ///   before_scenario: ./services.sh reset
 /// android:
-///   avd: uptizm_pixel8_api35
+///   avd: my_pixel_api35
 ///   reverse: [8001, 8080]
 ///   grant: [android.permission.POST_NOTIFICATIONS]
 /// after_start:                    # the scenario `setup` grammar, includes and all
@@ -47,7 +47,10 @@ final class PerfCampaignException implements Exception {
 final class PerfHooks {
   const PerfHooks({this.beforeCampaign, this.beforeScenario});
 
+  /// Runs once, before `flutter pub get` and the first scenario.
   final String? beforeCampaign;
+
+  /// Runs before every attempt of every scenario, with `DUSK_PERF_SCENARIO`.
   final String? beforeScenario;
 }
 
@@ -65,7 +68,8 @@ final class PerfAndroid {
   /// TCP ports `adb reverse` exposes from the host.
   final List<int> reverse;
 
-  /// Permissions `pm grant` gives the app after it is installed.
+  /// Permissions `pm grant` gives the app after it is installed; each is
+  /// letters, digits, `_` and `.` only, since the device's shell reads it.
   final List<String> grant;
 }
 
@@ -149,6 +153,10 @@ const Set<String> _kHookKeys = <String>{'before_campaign', 'before_scenario'};
 const Set<String> _kAndroidKeys = <String>{'avd', 'reverse', 'grant'};
 
 const int _kDefaultRetries = 1;
+
+/// A permission name `adb shell pm grant` can pass through the device's `sh`
+/// as one word, with nothing that shell would read as syntax.
+final RegExp _kPermissionName = RegExp(r'^[A-Za-z0-9_.]+$');
 
 String _absolutePath(String path) =>
     Uri.file(File(path).absolute.path).normalizePath().toFilePath();
@@ -352,8 +360,9 @@ final class _CampaignReader {
   }
 
   String? _permission(Object? raw, String at) {
-    if (raw is String && raw.isNotEmpty) return raw;
-    problems.add('$at must be a non-empty string.');
+    if (raw is String && _kPermissionName.hasMatch(raw)) return raw;
+    problems.add('$at must be a permission name of letters, digits, _ and . '
+        'only, since the device shell reads it (got $raw).');
     return null;
   }
 

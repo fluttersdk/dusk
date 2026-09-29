@@ -590,6 +590,7 @@ instead.
 | Param | Type | Required | Default | Note |
 |---|---|---|---|---|
 | `scenario` | string | yes | -- | Path to the scenario YAML |
+| `variant` | string | no | -- | The `variants` key to run; required when the file declares `variants`, refused otherwise |
 | `label` | string | no | `run` | Run label in the output file name, `[a-z0-9_-]` |
 | `out` | string | no | `build/perf` | Output directory |
 | `repeat` | integer | no | scenario's own | Repeats per series |

@@ -79,6 +79,9 @@ final class _FakeHost implements PerfCampaignHost {
   /// The session log a failed start leaves.
   String? sessionLog;
 
+  /// What `ext.dusk.exceptions` lists to a setup failure's diagnostics.
+  List<Map<String, dynamic>> exceptions = <Map<String, dynamic>>[];
+
   /// Every event, in order: `run <exe> <args>`, `stop`, `start`,
   /// `alive:<pid>=<bool>`, `free:<port>=<bool>`, `pause`, `connect`,
   /// `boot:miss`, `boot:ok`, `driver <method>`, `perf_run <scenario>`,
@@ -213,7 +216,20 @@ final class _FakeApp implements PerfCampaignApp {
   ) async {
     host.perfRuns.add(options);
     host.events.add('perf_run ${_stem(options['scenario'] as String)}');
-    return host.onPerfRun?.call(options, output) ?? 0;
+    final int code = await host.onPerfRun?.call(options, output) ?? 0;
+    // A perf_run that exits 0 has written its run file; one a handler wrote
+    // itself is left as it is.
+    final File runFile = _runFileOf(options);
+    if (code == 0 && !runFile.existsSync()) {
+      runFile
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          jsonEncode(<String, Object?>{
+            'scenario': <String, Object?>{'name': _nameOf(options)},
+          }),
+        );
+    }
+    return code;
   }
 
   @override
@@ -235,6 +251,9 @@ final class _FakeDriver implements PerfRunDriver {
     return switch (method) {
       'ext.dusk.get_routes' => <String, dynamic>{'uri': '/'},
       'ext.dusk.wait_for_network_idle' => <String, dynamic>{'matched': true},
+      'ext.dusk.exceptions' => <String, dynamic>{
+          'exceptions': host.exceptions,
+        },
       _ => <String, dynamic>{},
     };
   }
@@ -266,6 +285,19 @@ final class _Reached implements Exception {
 
 String _stem(String path) =>
     path.split('/').last.replaceFirst(RegExp(r'\.yaml$'), '');
+
+/// The scenario name perf_run writes under: every fixture names a scenario
+/// after its file, and a variant appends its key.
+String _nameOf(Map<String, dynamic> options) {
+  final Object? variant = options['variant'];
+  final String stem = _stem(options['scenario'] as String);
+  return variant == null ? stem : '$stem-$variant';
+}
+
+/// `<out>/<scenario>-<label>.json`, the run file perf_run writes.
+File _runFileOf(Map<String, dynamic> options) => File(
+      '${options['out']}/${_nameOf(options)}-${options['label']}.json',
+    ).absolute;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -454,6 +486,30 @@ $extra
         expect(host.events, isEmpty);
       });
 
+      test(
+          'a --cdp-port that is not a port exits 1 before any hook or '
+          'process', () async {
+        for (final String bad in <String>['abc', '0', '70000']) {
+          final _FakeHost host = _FakeHost();
+          final String path = campaign(
+            <String, List<String>>{
+              'a': <String>['chrome'],
+            },
+            extra: 'hooks: {before_campaign: ./services.sh up}',
+          );
+
+          final (int code, String out) = await handle(
+            host,
+            path,
+            options: <String, dynamic>{'cdp-port': bad},
+          );
+
+          expect(code, 1, reason: bad);
+          expect(out, contains('--cdp-port "$bad"'), reason: bad);
+          expect(host.events, isEmpty, reason: bad);
+        }
+      });
+
       test('an invalid campaign names its problems and exits 1', () async {
         final _FakeHost host = _FakeHost();
         final String path = write('campaign.yaml', 'retries: -1\n');
@@ -581,6 +637,36 @@ hooks:
         expect(errOf('a'), contains('reset failed'));
         expect(out, contains('hooks.before_scenario exited 2'));
       });
+
+      test(
+          'a before_scenario hook whose shell cannot start stops the campaign '
+          'with the reason', () async {
+        final _FakeHost host = _FakeHost(
+          onRun: (String exe, List<String> args) => exe == '/bin/sh'
+              ? throw const ProcessException(
+                  '/bin/sh',
+                  <String>[],
+                  'No such file or directory',
+                  2,
+                )
+              : (0, '', ''),
+        );
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+            'b': <String>['chrome'],
+          },
+          extra: 'hooks: {before_scenario: ./services.sh reset}',
+        );
+
+        final (int code, String out) = await handle(host, path);
+
+        expect(code, 1);
+        expect(out, contains('/bin/sh could not start: No such file'));
+        expect(errOf('a'), contains('/bin/sh could not start'));
+        expect(host.events, isNot(contains('start')));
+        expect(host.events, isNot(contains('perf_run b')));
+      });
     });
 
     group('.handle() preparation', () {
@@ -614,6 +700,95 @@ hooks:
           File('build/perf/campaign-run.err').readAsStringSync(),
           contains('version solving failed'),
         );
+        expect(host.events, isNot(contains('start')));
+      });
+
+      test('a flutter that cannot start stops the campaign with the reason',
+          () async {
+        final _FakeHost host = _FakeHost(
+          onRun: (String exe, List<String> args) => exe == 'flutter'
+              ? throw const ProcessException(
+                  'flutter',
+                  <String>['pub', 'get'],
+                  'No such file or directory',
+                  2,
+                )
+              : (0, '', ''),
+        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        });
+
+        final (int code, String out) = await handle(host, path);
+
+        expect(code, 1);
+        expect(out, contains('flutter could not start: No such file'));
+        expect(host.events, isNot(contains('start')));
+      });
+
+      test('an adb that cannot start while matching the AVD stops the campaign',
+          () async {
+        final _FakeHost host = _FakeHost(
+          onRun: (String exe, List<String> args) {
+            if (args.contains('devices')) {
+              return (0, 'emulator-5554\tdevice\n', '');
+            }
+            if (args.contains('emu')) {
+              throw const ProcessException(
+                'adb',
+                <String>[],
+                'Permission denied',
+                13,
+              );
+            }
+            return (0, '', '');
+          },
+        );
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['android'],
+          },
+          extra: 'android: {avd: perf_avd}',
+        );
+
+        final (int code, String out) = await handle(
+          host,
+          path,
+          platform: 'android',
+        );
+
+        expect(code, 1);
+        expect(out, contains('adb could not start: Permission denied'));
+        expect(host.events, isNot(contains('start')));
+      });
+
+      test(
+          'an applicationId Gradle interpolates is refused before anything '
+          'reaches the device', () async {
+        write(
+          'android/app/build.gradle',
+          'android {\n  defaultConfig {\n    applicationId '
+              '"com.example.\${flavor}"\n  }\n}\n',
+        );
+        final _FakeHost host = _FakeHost();
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['android'],
+          },
+          extra: 'android: {grant: [android.permission.CAMERA]}',
+        );
+
+        final (int code, String out) = await handle(
+          host,
+          path,
+          platform: 'android',
+          options: <String, dynamic>{'device': 'emulator-5554'},
+        );
+
+        expect(code, 1);
+        expect(out, contains('could not be used'));
+        expect(out, contains(r'com.example.${flavor}'));
+        expect(host.commandLines, <String>['flutter pub get']);
         expect(host.events, isNot(contains('start')));
       });
 
@@ -862,6 +1037,35 @@ android:
         expect(host.starts, hasLength(1));
       });
 
+      test(
+          'a browser session with no CDP port still waits for its web port, '
+          'told by its device', () async {
+        final _FakeHost host = _FakeHost()
+          ..session = <String, dynamic>{
+            'pid': 41,
+            'webPort': 3100,
+            'vmServicePort': 8181,
+            'device': 'web-server',
+          };
+        host.busyReads[3100] = 2;
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        });
+
+        final (int code, _) = await handle(host, path);
+
+        expect(code, 0);
+        final List<String> between = host.events.sublist(
+          host.events.indexOf('stop') + 1,
+          host.events.indexOf('start'),
+        );
+        expect(
+          between.where((String e) => e == 'free:3100=false'),
+          hasLength(2),
+        );
+        expect(between.last, 'free:3100=true');
+      });
+
       test('a port that never frees fails the attempt', () async {
         final _FakeHost host = _FakeHost()
           ..session = <String, dynamic>{
@@ -1104,6 +1308,103 @@ android:
         expect(result['errFile'], File('build/perf/a-run.err').absolute.path);
       });
 
+      test('a retry that passes names its attempt and its .err in the summary',
+          () async {
+        int calls = 0;
+        final _FakeHost host = _FakeHost(
+          onPerfRun:
+              (Map<String, dynamic> options, ArtisanOutput output) async =>
+                  calls++ == 0 ? 1 : 0,
+        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+          'bb': <String>['chrome'],
+        });
+
+        final (int code, String out) = await handle(host, path);
+
+        expect(code, 0);
+        expect(
+          out,
+          matches(
+            RegExp(
+              r'^\s*a\s+ok \(attempt 2, see .*/build/perf/a-run\.err\)$',
+              multiLine: true,
+            ),
+          ),
+        );
+        expect(out, matches(RegExp(r'^\s*bb\s+ok$', multiLine: true)));
+      });
+
+      test(
+          'the run file perf_run wrote is masked for the campaign\'s secrets '
+          'and stays valid JSON', () async {
+        final _FakeHost host = _FakeHost(
+          onPerfRun:
+              (Map<String, dynamic> options, ArtisanOutput output) async {
+            // perf_run masks only its own scenario's secrets; an app
+            // exception quoting the after_start credential is not one.
+            _runFileOf(options)
+              ..createSync(recursive: true)
+              ..writeAsStringSync(
+                const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+                  'scenario': <String, Object?>{'name': 'a'},
+                  'semanticsPassReason': 'login failed for $_secret',
+                  'summary': <String, Object?>{'repeats': 3, 'refused': 0},
+                }),
+              );
+            return 0;
+          },
+        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        });
+
+        final (int code, _) = await handle(host, path);
+
+        expect(code, 0);
+        final String text = File('build/perf/a-run.json').readAsStringSync();
+        expectMasked(text);
+        final Map<String, dynamic> run =
+            jsonDecode(text) as Map<String, dynamic>;
+        expect(run['semanticsPassReason'], 'login failed for ***');
+        expect(run['summary'], <String, dynamic>{'repeats': 3, 'refused': 0});
+        expect(
+            run.keys, <String>['scenario', 'semanticsPassReason', 'summary']);
+      });
+
+      test(
+          'a numeric secret leaves the --json envelope parseable with its '
+          'numbers intact', () async {
+        int calls = 0;
+        final _FakeHost host = _FakeHost(
+          onPerfRun:
+              (Map<String, dynamic> options, ArtisanOutput output) async =>
+                  calls++ == 0 ? 1 : 0,
+        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        });
+
+        // `2` is the attempt count the envelope reports: a text pass over
+        // the encoded envelope turns `"attempts":2` into invalid JSON.
+        final (int code, String out) = await handle(
+          host,
+          path,
+          options: <String, dynamic>{'json': true},
+          env: <String, String>{'DEMO_PASSWORD': '2'},
+        );
+
+        expect(code, 0);
+        final Map<String, dynamic> envelope =
+            jsonDecode(out.trim()) as Map<String, dynamic>;
+        final Map<String, dynamic> result =
+            (envelope['results'] as List<dynamic>).single
+                as Map<String, dynamic>;
+        expect(result['attempts'], 2);
+        expect(result['status'], 'ok');
+      });
+
       test('a failed start attaches the session log to the .err', () async {
         final _FakeHost host = _FakeHost(startCode: 1)
           ..sessionLog = 'Launching lib/main.dart\nGradle task failed\n';
@@ -1220,6 +1521,40 @@ android:
         }
         for (final Map<String, dynamic> start in host.starts) {
           expectMasked(jsonEncode(start));
+        }
+      });
+
+      test(
+          'an after_start failure masks a secret its diagnostics quote before '
+          'cutting the exception message', () async {
+        // The secret straddles the 200-character cut: a mask after the cut
+        // no longer matches, and its prefix would leak.
+        final String head = 'x' * 197;
+        final _FakeHost host = _FakeHost()
+          ..exceptions = <Map<String, dynamic>>[
+            <String, dynamic>{
+              'type': 'StateError',
+              'message': '$head$_secret was refused',
+            },
+          ];
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+          },
+          extra: '''
+retries: 0
+after_start:
+  - wait_for_text: {text: Never, timeout_ms: 10}
+''',
+        );
+
+        final (int code, String out) = await handle(host, path);
+
+        expect(code, 1);
+        final String err = errOf('a');
+        expect(err, contains('$head***'));
+        for (final String sink in <String>[err, out]) {
+          expect(sink, isNot(contains('${head}ab')));
         }
       });
 

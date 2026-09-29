@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/commands/dusk_perf_run_command.dart';
 import 'package:fluttersdk_dusk/src/perf/perf_actions.dart';
+import 'package:fluttersdk_dusk/src/perf/perf_redaction.dart';
 import 'package:fluttersdk_dusk/src/perf/perf_setup_runner.dart';
 import 'package:fluttersdk_dusk/src/perf/scenario.dart';
 
@@ -16,7 +17,11 @@ final class _ScreenDriver implements PerfRunDriver {
     this.shown = const <String>{},
     this.navigateHonoured = true,
     this.answersUri = true,
+    this.exceptions = const <Map<String, dynamic>>[],
   }) : appearsAfter = appearsAfter ?? <String, int>{};
+
+  /// What `ext.dusk.exceptions` lists, newest first.
+  final List<Map<String, dynamic>> exceptions;
 
   /// Texts on screen from the first poll.
   final Set<String> shown;
@@ -75,7 +80,7 @@ final class _ScreenDriver implements PerfRunDriver {
         }
         return <String, dynamic>{if (answersUri) 'uri': uri};
       case 'ext.dusk.exceptions':
-        return <String, dynamic>{'exceptions': <Object?>[]};
+        return <String, dynamic>{'exceptions': exceptions};
       default:
         return <String, dynamic>{'ok': true};
     }
@@ -111,10 +116,12 @@ PerfSetupRunner _runner(
   _ScreenDriver driver, {
   PerfPlatform platform = PerfPlatform.android,
   ({int width, int height})? viewport,
+  PerfRedactor? redactor,
 }) =>
     PerfSetupRunner(
       PerfActions(driver, PerfRunEnvironment(platform: platform)),
       viewport: viewport,
+      redactor: redactor,
     );
 
 PerfSetupStep _tap(String text, {PerfSetupGuard? guard, String? origin}) =>
@@ -386,6 +393,45 @@ void main() {
             ),
           ),
         );
+      });
+    });
+
+    group('.diagnose()', () {
+      test(
+          'masks a secret before cutting a long exception message, so no '
+          'prefix of it survives the cut', () async {
+        const String secret = r'ab"c$d';
+        final String head = 'x' * 197;
+        final _ScreenDriver driver = _ScreenDriver(
+          exceptions: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'type': 'StateError',
+              'message': '$head$secret was refused',
+            },
+          ],
+        );
+
+        final String line = await _runner(
+          driver,
+          redactor: PerfRedactor(<String>{secret}),
+        ).diagnose();
+
+        expect(line, contains('StateError: $head***...'));
+        expect(line, isNot(contains('${head}ab')));
+      });
+
+      test('cuts a long message at 200 characters without a redactor',
+          () async {
+        final _ScreenDriver driver = _ScreenDriver(
+          exceptions: <Map<String, dynamic>>[
+            <String, dynamic>{'type': 'StateError', 'message': 'y' * 250},
+          ],
+        );
+
+        final String line = await _runner(driver).diagnose();
+
+        expect(line, contains('StateError: ${'y' * 200}...'));
+        expect(line, isNot(contains('y' * 201)));
       });
     });
 

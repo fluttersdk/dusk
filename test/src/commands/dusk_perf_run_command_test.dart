@@ -2011,6 +2011,7 @@ repeat: 1
         final Map<String, dynamic> printed =
             jsonDecode(out.trim()) as Map<String, dynamic>;
         expect(printed['semanticsPassReason'], contains('***'));
+        expect(printed.keys, contains('path'));
         expect(
           (run['scenario'] as Map<String, dynamic>)['setup'],
           contains(
@@ -2021,6 +2022,58 @@ repeat: 1
               },
             }),
           ),
+        );
+      });
+
+      test(
+          'a setup failure masks the secret an app exception quotes before '
+          'its diagnostics cut the message', () async {
+        // The secret straddles the 200-character cut, so a mask applied
+        // after the cut would leave its prefix behind.
+        final String head = 'x' * 195;
+        final _FakeDriver driver = _FakeDriver(
+          waitMisses: 1 << 20,
+          exceptions: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'type': 'StateError',
+              'message': '$head$_kSecret was refused',
+            },
+          ],
+        );
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 1);
+        expect(out, contains('$head***'));
+        expect(out, isNot(contains('${head}hun')));
+      });
+
+      test(
+          'a numeric secret leaves the --json envelope parseable with its '
+          'numbers intact', () async {
+        await File(scenarioPath).writeAsString(
+          _kLoginScenario.replaceFirst(r"'hun" r'"ter$$2' "'", "'1234'"),
+        );
+        final _FakeDriver driver = _FakeDriver(
+          perfEnds: <Map<String, dynamic>>[_report(painted: 1234)],
+        );
+
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1', 'json': true}),
+        );
+
+        expect(code, 0, reason: out);
+        final Map<String, dynamic> printed =
+            jsonDecode(out.trim()) as Map<String, dynamic>;
+        final Map<String, dynamic> frames = (printed['summary']
+            as Map<String, dynamic>)['frames'] as Map<String, dynamic>;
+        expect(frames['painted'], 1234);
+        expect(
+          driver.callsTo('ext.dusk.fill').map((_Call c) => c.params['text']),
+          contains('1234'),
+          reason: 'the secret param is the one the envelope must not mangle',
         );
       });
     });

@@ -247,8 +247,13 @@ final class PerfSetupGuard {
     this.parent,
   });
 
+  /// The text whose showing runs the guarded steps.
   final String text;
+
+  /// The text whose showing skips them; it wins when both show.
   final String? unlessText;
+
+  /// How long the guard polls for either text, in milliseconds.
   final int timeoutMs;
 
   /// The include entry the guard belongs to, as [PerfSetupStep.origin]

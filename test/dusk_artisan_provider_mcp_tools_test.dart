@@ -241,6 +241,7 @@ void main() {
         properties.keys,
         containsAll(<String>[
           'scenario',
+          'variant',
           'label',
           'out',
           'repeat',
@@ -250,6 +251,12 @@ void main() {
           'semantics-pass',
           'json',
         ]),
+      );
+      // Every file with `variants` needs one picked; the tool's arguments
+      // reach dusk:perf_run's MapInput under the same key.
+      expect(
+        (properties['variant'] as Map<String, dynamic>)['type'],
+        'string',
       );
     });
 

@@ -34,6 +34,14 @@ const Duration _kPipeGrace = Duration(seconds: 5);
 /// Where `flutter build apk --profile` writes the APK, from the project root.
 const String _kProfileApk = 'build/app/outputs/flutter-apk/app-profile.apk';
 
+/// The `flutter run` device ids that build for a browser. A copy of artisan's
+/// `StartCommand.browserDevices`, which no published artisan has yet.
+const Set<String> _kBrowserDevices = <String>{'chrome', 'edge', 'web-server'};
+
+/// What an `applicationId` must look like before it reaches `adb shell`,
+/// whose arguments the device's `sh` reads again.
+final RegExp _kDeviceShellWord = RegExp(r'^[A-Za-z0-9_.]+$');
+
 /// Everything a campaign drives outside itself: host processes, artisan's
 /// session and a connection to the started app. The production host runs
 /// artisan's own commands in-process; a test records the calls.
@@ -59,11 +67,13 @@ abstract interface class PerfCampaignHost {
   /// artisan's `start` with [options] as its parsed flags.
   Future<int> start(Map<String, dynamic> options, ArtisanOutput output);
 
+  /// Whether a process with [pid] still runs.
   bool isAlive(int pid);
 
   /// Whether [port] can be bound on loopback.
   Future<bool> isPortFree(int port);
 
+  /// Waits [duration] between two polls.
   Future<void> pause(Duration duration);
 
   /// Connects to the VM Service at [vmServiceUri].
@@ -81,6 +91,7 @@ abstract interface class PerfCampaignApp {
   /// `dusk:perf_run` in-process, with [options] as its parsed flags.
   Future<int> perfRun(Map<String, dynamic> options, ArtisanOutput output);
 
+  /// Closes the VM Service connection; the app keeps running.
   Future<void> close();
 }
 
@@ -102,9 +113,10 @@ abstract interface class PerfCampaignApp {
 /// `<out>/<scenario>-<label>.err` and the campaign goes on. The app is
 /// stopped at the end, and the exit code is 1 when any scenario failed.
 ///
-/// Everything printed, every `.err` and the `--json` envelope are masked for
-/// the secrets the campaign loaded. Hooks run verbatim through `/bin/sh -c`
-/// with `DUSK_PERF_PLATFORM`, `DUSK_PERF_LABEL`, `DUSK_PERF_OUT` (and
+/// Everything printed, every `.err`, every run file and the `--json`
+/// envelope are masked for the secrets the campaign loaded. A process that
+/// cannot start stops the campaign like one that fails. Hooks run verbatim
+/// through `/bin/sh -c` with `DUSK_PERF_PLATFORM`, `DUSK_PERF_LABEL`, `DUSK_PERF_OUT` (and
 /// `DUSK_PERF_SCENARIO`) on top of the inherited environment.
 ///
 /// The command runs inside the compiled dispatcher, so a dispatcher built
@@ -164,7 +176,8 @@ class DuskPerfCampaignCommand extends ArtisanCommand {
       ..addOption(
         'device',
         help: 'The device to start on: required on ios (a USB device), an '
-            'adb serial on android (default: the first emulator).',
+            'adb serial on android (default: the emulator running '
+            'android.avd when set, else the first emulator).',
       )
       ..addOption(
         'cdp-port',
@@ -222,6 +235,16 @@ class DuskPerfCampaignCommand extends ArtisanCommand {
       );
       return 1;
     }
+    final Object? rawCdpPort = ctx.input.option('cdp-port') ?? '9222';
+    final int? cdpPort = switch (rawCdpPort) {
+      final int value => value,
+      final String value => int.tryParse(value),
+      _ => null,
+    };
+    if (cdpPort == null || cdpPort < 1 || cdpPort > 65535) {
+      ctx.output.error('--cdp-port "$rawCdpPort" must be a port, 1 to 65535.');
+      return 1;
+    }
 
     // 2. The campaign, then a redactor for everything printed from here on.
     final Map<String, String> env = _environment ?? Platform.environment;
@@ -256,17 +279,17 @@ class DuskPerfCampaignCommand extends ArtisanCommand {
       return 1;
     }
 
-    final Object? cdpPort = ctx.input.option('cdp-port');
     return _CampaignRun(
       host: _host,
       env: env,
       redactor: redactor,
       output: output,
+      envelopeOutput: ctx.output,
       platform: platform,
       label: label,
       out: (ctx.input.option('out') as String?) ?? 'build/perf',
       device: device,
-      cdpPort: cdpPort == null ? '9222' : '$cdpPort',
+      cdpPort: '$cdpPort',
       timing: _readBool(ctx.input.option('timing')),
       semanticsPass: _readBool(ctx.input.option('semantics-pass')),
       json: wantsJson(ctx),
@@ -317,6 +340,14 @@ final class _ScenarioResult {
   /// Why the campaign stops at this scenario, or null to go on.
   final String? stop;
 
+  /// The summary's word for it: a pass on a later attempt names that attempt
+  /// and the `.err` that holds the earlier ones.
+  String get line => switch ((ok, attempts)) {
+        (false, _) => 'FAILED (see $errFile)',
+        (true, 1) => 'ok',
+        (true, _) => 'ok (attempt $attempts, see $errFile)',
+      };
+
   Map<String, Object?> toJson() => <String, Object?>{
         'scenario': name,
         'status': ok ? 'ok' : 'failed',
@@ -333,6 +364,7 @@ final class _CampaignRun {
     required this.env,
     required this.redactor,
     required this.output,
+    required this.envelopeOutput,
     required this.platform,
     required this.label,
     required this.out,
@@ -348,6 +380,11 @@ final class _CampaignRun {
   final Map<String, String> env;
   final PerfRedactor redactor;
   final ArtisanOutput output;
+
+  /// The unwrapped output the `--json` envelope is written to, once, after
+  /// [PerfRedactor.redactJson]: [output]'s text pass could rewrite a number
+  /// a secret matches into invalid JSON.
+  final ArtisanOutput envelopeOutput;
   final PerfPlatform platform;
   final String label;
   final String out;
@@ -398,10 +435,7 @@ final class _CampaignRun {
             await _scenario(scenario, campaign, target);
         results.add(result);
         if (!json) {
-          output.writeln(
-            '  ${result.name.padRight(width)}  '
-            '${result.ok ? 'ok' : 'FAILED (see ${result.errFile})'}',
-          );
+          output.writeln('  ${result.name.padRight(width)}  ${result.line}');
         }
         if (result.stop != null) break;
       }
@@ -417,7 +451,7 @@ final class _CampaignRun {
 
     // 3. The report.
     if (json) {
-      output.writeln(
+      envelopeOutput.writeln(
         jsonEncode(
           redactor.redactJson(<String, Object?>{
             'results': <Object?>[
@@ -485,6 +519,14 @@ final class _CampaignRun {
         throw _CampaignStop(
           'android.grant needs the app\'s applicationId, and '
           '$projectRoot/android/app/build.gradle(.kts) declares none.',
+        );
+      }
+      if (!_kDeviceShellWord.hasMatch(applicationId)) {
+        throw _CampaignStop(
+          'the applicationId "$applicationId" read from '
+          '$projectRoot/android/app/build.gradle(.kts) could not be used: '
+          'pm grant runs in the device shell, so it must be letters, digits, '
+          '_ and . only, and a Gradle expression in it is not resolved.',
         );
       }
     }
@@ -573,7 +615,7 @@ final class _CampaignRun {
   /// The ready emulator whose `adb emu avd name` is [avd], or null.
   Future<String?> _runningAvd(String adb, String avd) async {
     for (final String serial in await _emulatorSerials(adb)) {
-      final ProcessResult result = await host.run(
+      final ProcessResult result = await _spawn(
         adb,
         <String>['-s', serial, 'emu', 'avd', 'name'],
         workingDirectory: projectRoot,
@@ -603,7 +645,7 @@ final class _CampaignRun {
     final int maxPolls = _kBootCompletedBudget.inMilliseconds ~/
         _kBootCompletedPollInterval.inMilliseconds;
     for (int poll = 1;; poll++) {
-      final ProcessResult result = await host.run(
+      final ProcessResult result = await _spawn(
         adb,
         <String>['-s', serial, 'shell', 'getprop', 'sys.boot_completed'],
         workingDirectory: projectRoot,
@@ -623,7 +665,7 @@ final class _CampaignRun {
   /// [_CampaignStop] with its output when it exits non-zero.
   Future<ProcessResult> _step(String executable, List<String> args) async {
     final ProcessResult result =
-        await host.run(executable, args, workingDirectory: projectRoot);
+        await _spawn(executable, args, workingDirectory: projectRoot);
     if (result.exitCode != 0) {
       throw _CampaignStop(
         '${<String>[executable, ...args].join(' ')} exited '
@@ -634,9 +676,30 @@ final class _CampaignRun {
     return result;
   }
 
+  /// [PerfCampaignHost.run], with a process that cannot start at all (no
+  /// such executable, no permission) turned into a [_CampaignStop].
+  Future<ProcessResult> _spawn(
+    String executable,
+    List<String> arguments, {
+    required String workingDirectory,
+    Map<String, String>? environment,
+  }) async {
+    try {
+      return await host.run(
+        executable,
+        arguments,
+        workingDirectory: workingDirectory,
+        environment: environment,
+      );
+    } on ProcessException catch (e) {
+      throw _CampaignStop('$executable could not start: ${e.message}');
+    }
+  }
+
   /// Runs [hook] verbatim: never interpolated, and no value of the campaign
   /// on its command line. [scenario] names the scenario it runs before.
-  Future<ProcessResult> _hook(String hook, String? scenario) => host.run(
+  /// Throws [_CampaignStop] when the shell cannot start.
+  Future<ProcessResult> _hook(String hook, String? scenario) => _spawn(
         '/bin/sh',
         <String>['-c', hook],
         workingDirectory: cwd,
@@ -666,7 +729,22 @@ final class _CampaignRun {
       //    every scenario after it would run against the same broken state.
       final String? hook = campaign.hooks.beforeScenario;
       if (hook != null) {
-        final ProcessResult result = await _hook(hook, name);
+        final ProcessResult result;
+        try {
+          result = await _hook(hook, name);
+        } on _CampaignStop catch (e) {
+          final String stop =
+              'hooks.before_scenario could not run before $name: ${e.message}';
+          record.writeln('=== $stop');
+          await _write(err, record.toString());
+          return _ScenarioResult(
+            name: name,
+            ok: false,
+            attempts: attempt,
+            errFile: err.path,
+            stop: stop,
+          );
+        }
         if (result.exitCode != 0) {
           final String stop =
               'hooks.before_scenario exited ${result.exitCode} before $name';
@@ -700,7 +778,7 @@ final class _CampaignRun {
           name: name,
           ok: true,
           attempts: attempt,
-          runFile: File('$out/$name-$label.json').absolute.path,
+          runFile: _runFile(name).path,
           errFile: record.isEmpty ? null : err.path,
         );
       } catch (e, st) {
@@ -773,7 +851,7 @@ final class _CampaignRun {
             await app.driver(platform);
         try {
           final PerfSetupRunner runner =
-              PerfSetupRunner(PerfActions(driver, env));
+              PerfSetupRunner(PerfActions(driver, env), redactor: redactor);
           await runner.awaitRouter(name);
           await runner.run(afterStart, name);
         } finally {
@@ -784,9 +862,21 @@ final class _CampaignRun {
       // 4. The measured run.
       final int code = await app.perfRun(_perfRunOptions(scenario), captured);
       if (code != 0) throw PerfRunException('dusk:perf_run exited $code');
+      await _maskRunFile(_runFile(name));
     } finally {
       await app.close();
     }
+  }
+
+  /// Masks [file] for every secret the campaign holds. perf_run masks it for
+  /// its own scenario's secrets only, and an app exception it records can
+  /// quote an `after_start` credential. Masked as a tree, so it stays valid
+  /// JSON with the same keys and numbers.
+  Future<void> _maskRunFile(File file) async {
+    final Object? run = jsonDecode(await file.readAsString());
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(redactor.redactJson(run)),
+    );
   }
 
   /// Polls until [previous]'s pid is gone and its ports are free. Throws
@@ -795,7 +885,7 @@ final class _CampaignRun {
     final int? pid = previous['pid'] as int?;
     final int? cdp = previous['cdpPort'] as int?;
     final bool browser =
-        cdp != null || StartCommand.browserDevices.contains(previous['device']);
+        cdp != null || _kBrowserDevices.contains(previous['device']);
     // The ports artisan start refuses to start on: the web port (recorded on
     // every session, bound only by a browser build) and the CDP port. Not the
     // VM Service port: on Android `adb forward` keeps listening on it after
@@ -881,6 +971,9 @@ final class _CampaignRun {
 
   File _errFile(String name) => File('$out/$name-$label.err').absolute;
 
+  /// The file perf_run writes for the scenario [name].
+  File _runFile(String name) => File('$out/$name-$label.json').absolute;
+
   /// Removes a previous campaign's `.err`, which a `see <path>` would
   /// otherwise point at.
   Future<void> _clear(File file) async {
@@ -943,14 +1036,20 @@ final class _ArtisanPerfCampaignHost implements PerfCampaignHost {
     );
     final StringBuffer stdout = StringBuffer();
     final StringBuffer stderr = StringBuffer();
-    final Future<void> out =
-        process.stdout.transform(systemEncoding.decoder).forEach(stdout.write);
-    final Future<void> err =
-        process.stderr.transform(systemEncoding.decoder).forEach(stderr.write);
+    // Malformed bytes decode to U+FFFD rather than throwing: a byte that
+    // arrives after the grace below would raise where nothing listens.
+    const Utf8Decoder decoder = Utf8Decoder(allowMalformed: true);
+    final StreamSubscription<String> out =
+        process.stdout.transform(decoder).listen(stdout.write);
+    final StreamSubscription<String> err =
+        process.stderr.transform(decoder).listen(stderr.write);
     final int exitCode = await process.exitCode;
     try {
-      await Future.wait(<Future<void>>[out, err]).timeout(_kPipeGrace);
+      await Future.wait(
+              <Future<void>>[out.asFuture<void>(), err.asFuture<void>()])
+          .timeout(_kPipeGrace);
     } on TimeoutException {
+      await Future.wait(<Future<void>>[out.cancel(), err.cancel()]);
       stderr.writeln(
         '\n[dusk:perf_campaign] $executable exited $exitCode, but a process '
         'it left running still holds its stdout or stderr; output after the '
