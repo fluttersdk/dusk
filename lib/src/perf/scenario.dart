@@ -441,6 +441,7 @@ final class PerfScenario {
     this.viewport,
     this.repeat = 3,
     this.thresholds = const PerfThresholds(),
+    this.variant,
   });
 
   /// Parses and validates [source], interpolating `$$` and `${env.*}`
@@ -455,6 +456,11 @@ final class PerfScenario {
 
   /// Also the file name stem, so restricted to [isSafePerfName].
   final String name;
+
+  /// The `variants:` key this scenario was read from, as text (the name
+  /// ends in `-<variant>`); null for a file without variants. Not echoed by
+  /// [toJson]: the name already carries it.
+  final String? variant;
 
   /// Applied through CDP on Chrome; the device's own on android and ios.
   final ({int width, int height})? viewport;
@@ -601,6 +607,7 @@ final class _ScenarioReader {
       steps: steps,
       repeat: repeat,
       thresholds: thresholds,
+      variant: variant,
     );
   }
 

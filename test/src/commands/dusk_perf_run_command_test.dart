@@ -380,6 +380,53 @@ steps:
 repeat: 3
 ''';
 
+/// The list scroll at two viewports, one scenario per key.
+const String _kVariantsScenario = '''
+name: list-scroll
+viewport: {width: 1440, height: 900}
+platforms: [chrome]
+steps:
+  - tap: {target: {text: Monitors}}
+repeat: 1
+variants:
+  1440: {}
+  390:
+    viewport: {width: 390, height: 844}
+''';
+
+/// A secret with both characters that change under `jsonEncode` or a shell.
+const String _kSecret = r'hun"ter$2';
+
+/// How [_kSecret] reads inside a JSON string.
+const String _kSecretJsonInner = r'hun\"ter$2';
+
+/// A login form behind a `when` guard, its password a secret param.
+const String _kLoginFragment = r'''
+params:
+  password: {secret: true}
+steps:
+  - fill: {target: {label: Email Address}, text: me@example.com}
+  - fill: {target: {label: Password}, text: "${password}"}
+''';
+
+/// [_scenario] with the login fragment included right after the restart.
+const String _kLoginScenario = r'''
+name: list-scroll
+viewport: {width: 1440, height: 900}
+platforms: [chrome, android]
+setup:
+  - hot_restart
+  - include: fragments/login.yaml
+    with: {password: 'hun"ter$$2'}
+    when: {text: Email Address, timeout_ms: 2000}
+  - navigate: /monitors
+  - wait_for_text: Monitors
+steps:
+  - tap: {target: {text: Monitors}}
+  - wait: 200
+repeat: 3
+''';
+
 /// Runs the command against [driver] with [options], [platform] as the
 /// connected target.
 Future<(int, String)> _run(
@@ -1733,6 +1780,250 @@ repeat: 1
         expect(run['semanticsPassReason'], contains('coordinates'));
       });
     });
+
+    group('--variant', () {
+      late String variantsPath;
+
+      setUp(() async {
+        variantsPath = '${temp.path}/variants.yaml';
+        await File(variantsPath).writeAsString(_kVariantsScenario);
+      });
+
+      test('is required when the file declares variants, naming the keys',
+          () async {
+        final _FakeDriver driver = _FakeDriver();
+
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{'scenario': variantsPath}),
+        );
+
+        expect(code, 1);
+        expect(out, contains('--variant'));
+        expect(out, contains('1440, 390'));
+        expect(driver.calls, isEmpty);
+      });
+
+      test('is rejected when the file declares none', () async {
+        final _FakeDriver driver = _FakeDriver();
+
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{'variant': '390'}),
+        );
+
+        expect(code, 1);
+        expect(out, contains('--variant "390"'));
+        expect(out, contains('declares no variants'));
+        expect(driver.calls, isEmpty);
+      });
+
+      test('names the keys when it matches none of them', () async {
+        final _FakeDriver driver = _FakeDriver();
+
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{
+            'scenario': variantsPath,
+            'variant': '800',
+          }),
+        );
+
+        expect(code, 1);
+        expect(out, contains('--variant "800"'));
+        expect(out, contains('1440, 390'));
+        expect(driver.calls, isEmpty);
+      });
+
+      test('selects one variant and records it in the file and the envelope',
+          () async {
+        final _FakeDriver driver = _FakeDriver();
+
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{
+            'scenario': variantsPath,
+            'variant': '390',
+            'json': true,
+          }),
+        );
+
+        expect(code, 0, reason: out);
+        final Map<String, dynamic> run = readRun('list-scroll-390', 'base');
+        expect(run['variant'], '390');
+        expect(
+          (run['scenario'] as Map<String, dynamic>)['name'],
+          'list-scroll-390',
+        );
+        expect(
+          driver.callsTo('cdp:Emulation.setDeviceMetricsOverride').first.params,
+          containsPair('width', 390),
+        );
+        final Map<String, dynamic> printed =
+            jsonDecode(out.trim()) as Map<String, dynamic>;
+        expect(printed['variant'], '390');
+      });
+
+      test('takes a numeric key as the text YAML reads it as', () async {
+        final (int code, String out) = await _run(
+          _FakeDriver(),
+          options(<String, dynamic>{
+            'scenario': variantsPath,
+            'variant': 390,
+          }),
+        );
+
+        expect(code, 0, reason: out);
+        expect(readRun('list-scroll-390', 'base')['variant'], '390');
+      });
+
+      test('a run of a file without variants carries no variant key', () async {
+        final (int code, _) = await _run(
+          _FakeDriver(),
+          options(<String, dynamic>{'repeat': '1'}),
+        );
+
+        expect(code, 0);
+        expect(readRun('list-scroll', 'base').containsKey('variant'), isFalse);
+      });
+
+      test('applies to --against too', () async {
+        final String baseline = '${temp.path}/baseline.yaml';
+        await File(baseline).writeAsString(
+          _kVariantsScenario.replaceFirst(
+            'name: list-scroll',
+            'name: list-baseline',
+          ),
+        );
+        final _FakeDriver driver = _FakeDriver();
+
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{
+            'scenario': variantsPath,
+            'against': baseline,
+            'variant': '1440',
+          }),
+        );
+
+        expect(code, 0, reason: out);
+        expect(readRun('list-scroll-1440', 'base')['variant'], '1440');
+        expect(
+          readRun('list-baseline-1440', 'base')['interleavedWith'],
+          'list-scroll-1440',
+        );
+      });
+
+      test('is rejected when --against declares no variants', () async {
+        final _FakeDriver driver = _FakeDriver();
+
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{
+            'scenario': variantsPath,
+            'against': scenarioPath,
+            'variant': '1440',
+          }),
+        );
+
+        expect(code, 1);
+        expect(out, contains(scenarioPath));
+        expect(out, contains('declares no variants'));
+        expect(driver.calls, isEmpty);
+      });
+    });
+
+    group('fragments', () {
+      setUp(() async {
+        await Directory('${temp.path}/fragments').create();
+        await File('${temp.path}/fragments/login.yaml')
+            .writeAsString(_kLoginFragment);
+        await File(scenarioPath).writeAsString(_kLoginScenario);
+      });
+
+      test(
+          'a when guard polls until its text shows, then runs the fragment '
+          'before the rest of the setup', () async {
+        // The login form draws "Email Address" on the third poll.
+        final _FakeDriver driver = _FakeDriver(
+          findMisses: <String, int>{'Email Address': 2},
+        );
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 0, reason: out);
+        final List<String> m = driver.methods;
+        final int firstFill = m.indexOf('ext.dusk.fill');
+        final List<_Call> polls = driver.calls
+            .sublist(m.indexOf('restart'), firstFill)
+            .where(
+              (_Call c) =>
+                  c.method == 'ext.dusk.find' &&
+                  c.params['text'] == 'Email Address',
+            )
+            .toList();
+        expect(polls, hasLength(3));
+        expect(driver.callsTo('ext.dusk.fill'), hasLength(2));
+        expect(firstFill, lessThan(m.indexOf('ext.dusk.navigate')));
+      });
+
+      test('a failing secret fill leaves the secret out of the error',
+          () async {
+        final _FakeDriver driver = _FailingSecretFillDriver(failFrom: 1);
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 1);
+        expect(out, contains('fragments/login.yaml steps[1] (fill)'));
+        expect(out, contains('***'));
+        expect(out, isNot(contains(_kSecret)));
+        expect(out, isNot(contains(_kSecretJsonInner)));
+      });
+
+      test(
+          'a secret fill that fails in the semantics pass leaves the secret '
+          'out of the envelope and the run file', () async {
+        // The pass records the failure as semanticsPassReason, which both the
+        // run file and the --json envelope carry.
+        final _FakeDriver driver = _FailingSecretFillDriver(failFrom: 2);
+
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{
+            'repeat': '1',
+            'semantics-pass': true,
+            'json': true,
+          }),
+        );
+
+        expect(code, 0, reason: out);
+        final String file =
+            File('${temp.path}/out/list-scroll-base.json').readAsStringSync();
+        for (final String sink in <String>[out, file]) {
+          expect(sink, isNot(contains(_kSecret)));
+          expect(sink, isNot(contains(_kSecretJsonInner)));
+        }
+        final Map<String, dynamic> run = readRun('list-scroll', 'base');
+        expect(run['semanticsPass'], 'unsupported');
+        expect(run['semanticsPassReason'], contains('***'));
+        final Map<String, dynamic> printed =
+            jsonDecode(out.trim()) as Map<String, dynamic>;
+        expect(printed['semanticsPassReason'], contains('***'));
+        expect(
+          (run['scenario'] as Map<String, dynamic>)['setup'],
+          contains(
+            equals(<String, dynamic>{
+              'fill': <String, dynamic>{
+                'target': <String, dynamic>{'label': 'Password'},
+                'text': '***',
+              },
+            }),
+          ),
+        );
+      });
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -1902,6 +2193,31 @@ final class _FailingReleasedEndDriver extends _FakeDriver {
       _released = false;
       calls.add((method: method, params: params));
       throw Exception('perf_end exploded');
+    }
+    return super.call(method, params);
+  }
+}
+
+/// Fails the [failFrom]th fill of [_kSecret] and every later one, echoing
+/// the text raw and JSON-encoded as an RPC error that quotes its params does.
+final class _FailingSecretFillDriver extends _FakeDriver {
+  _FailingSecretFillDriver({required this.failFrom});
+
+  final int failFrom;
+  int _secretFills = 0;
+
+  @override
+  Future<Map<String, dynamic>> call(
+    String method, [
+    Map<String, String> params = const <String, String>{},
+  ]) async {
+    if (method == 'ext.dusk.fill' &&
+        params['text'] == _kSecret &&
+        ++_secretFills >= failFrom) {
+      calls.add((method: method, params: params));
+      throw Exception(
+        'fill refused text=${params['text']} in ${jsonEncode(params)}',
+      );
     }
     return super.call(method, params);
   }
