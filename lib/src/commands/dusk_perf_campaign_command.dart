@@ -1116,6 +1116,47 @@ final class _CampaignRun {
 
 String _processText(ProcessResult result) => '${result.stdout}${result.stderr}';
 
+/// Reads a process's [stdout] and [stderr] until both close, waiting for the
+/// [exitCode] and then at most [grace] more: a hook that backgrounds a server
+/// without redirecting it leaves that server holding the pipes for as long as
+/// it lives. Output still open after the grace is cut, and the cut is said in
+/// `stderr`. Malformed bytes decode to U+FFFD rather than throwing: a byte
+/// that arrives after the cut would raise where nothing listens.
+Future<({int exitCode, String stdout, String stderr})> drainProcessOutput({
+  required Stream<List<int>> stdout,
+  required Stream<List<int>> stderr,
+  required Future<int> exitCode,
+  required Duration grace,
+  String executable = 'the process',
+}) async {
+  final StringBuffer out = StringBuffer();
+  final StringBuffer err = StringBuffer();
+  const Utf8Decoder decoder = Utf8Decoder(allowMalformed: true);
+  final StreamSubscription<String> outSub =
+      stdout.transform(decoder).listen(out.write);
+  final StreamSubscription<String> errSub =
+      stderr.transform(decoder).listen(err.write);
+  // Taken now, not after the exit: `asFuture` replaces the done handler, and
+  // one set after a short-lived process already closed its pipes never
+  // completes, which cut every hook at the grace and blamed a server.
+  final Future<void> closed = Future.wait(
+    <Future<void>>[outSub.asFuture<void>(), errSub.asFuture<void>()],
+  );
+  final int code = await exitCode;
+  try {
+    await closed.timeout(grace);
+  } on TimeoutException {
+    await Future.wait(<Future<void>>[outSub.cancel(), errSub.cancel()]);
+    err.writeln(
+      '\n[dusk:perf_campaign] $executable exited $code, but a process it '
+      'left running still holds its stdout or stderr; output after the exit '
+      'is not shown. Redirect a background server\'s output '
+      '(`cmd >log 2>&1 </dev/null &`).',
+    );
+  }
+  return (exitCode: code, stdout: '$out', stderr: '$err');
+}
+
 /// How long `after_start` waits for the app to mount a Router: the largest
 /// `timeout_ms` among its guards, the guard default when it has none, never
 /// less than perf_run's own [kPerfRouterBudget]. A login guard written to
@@ -1173,30 +1214,20 @@ final class _ArtisanPerfCampaignHost implements PerfCampaignHost {
       environment: environment,
       includeParentEnvironment: false,
     );
-    final StringBuffer stdout = StringBuffer();
-    final StringBuffer stderr = StringBuffer();
-    // Malformed bytes decode to U+FFFD rather than throwing: a byte that
-    // arrives after the grace below would raise where nothing listens.
-    const Utf8Decoder decoder = Utf8Decoder(allowMalformed: true);
-    final StreamSubscription<String> out =
-        process.stdout.transform(decoder).listen(stdout.write);
-    final StreamSubscription<String> err =
-        process.stderr.transform(decoder).listen(stderr.write);
-    final int exitCode = await process.exitCode;
-    try {
-      await Future.wait(
-              <Future<void>>[out.asFuture<void>(), err.asFuture<void>()])
-          .timeout(_kPipeGrace);
-    } on TimeoutException {
-      await Future.wait(<Future<void>>[out.cancel(), err.cancel()]);
-      stderr.writeln(
-        '\n[dusk:perf_campaign] $executable exited $exitCode, but a process '
-        'it left running still holds its stdout or stderr; output after the '
-        'exit is not shown. Redirect a background server\'s output '
-        '(`cmd >log 2>&1 </dev/null &`).',
-      );
-    }
-    return ProcessResult(process.pid, exitCode, '$stdout', '$stderr');
+    final ({int exitCode, String stdout, String stderr}) drained =
+        await drainProcessOutput(
+      stdout: process.stdout,
+      stderr: process.stderr,
+      exitCode: process.exitCode,
+      grace: _kPipeGrace,
+      executable: executable,
+    );
+    return ProcessResult(
+      process.pid,
+      drained.exitCode,
+      drained.stdout,
+      drained.stderr,
+    );
   }
 
   @override
