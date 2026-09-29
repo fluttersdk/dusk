@@ -36,7 +36,7 @@ Future<PerfLoadResult> loadPerfScenarios(
   String path, {
   Map<String, String> env = const <String, String>{},
 }) async {
-  final String file = _absolutePath(path);
+  final String file = perfAbsolutePath(path);
   final Map<Object?, Object?> document =
       _scenarioDocument(await File(file).readAsString());
   final _ScenarioReader reader = _ScenarioReader(env: env, file: file);
@@ -65,7 +65,7 @@ PerfSetupLoadResult loadPerfSetup(
 }) {
   final _ScenarioReader reader = _ScenarioReader(
     env: env,
-    file: _absolutePath(path),
+    file: perfAbsolutePath(path),
   );
   final List<PerfSetupStep> setup = reader.readSetup(
     entries,
@@ -114,9 +114,6 @@ const Set<String> _kIncludeKeys = <String>{'include', 'with', 'when'};
 const Set<String> _kFragmentKeys = <String>{'params', 'when', 'steps'};
 const Set<String> _kParamKeys = <String>{'secret', 'default'};
 const Set<String> _kWhenKeys = <String>{'text', 'unless_text', 'timeout_ms'};
-
-String _absolutePath(String path) =>
-    Uri.file(File(path).absolute.path).normalizePath().toFilePath();
 
 /// [include] resolved against the directory of [from].
 String _resolvePath(String from, String include) =>
@@ -370,11 +367,5 @@ extension on _ScenarioReader {
 
   /// [target] as problems and origins show it: relative to the directory
   /// of the file being loaded when it is under it.
-  String _shown(String target) {
-    final String dir = File(file!).parent.path;
-    final String prefix = dir.endsWith(Platform.pathSeparator)
-        ? dir
-        : '$dir${Platform.pathSeparator}';
-    return target.startsWith(prefix) ? target.substring(prefix.length) : target;
-  }
+  String _shown(String target) => perfShownPath(target, file: file!);
 }

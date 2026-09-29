@@ -1,8 +1,9 @@
 import 'dart:convert';
 
-import '../commands/dusk_perf_run_command.dart';
 import 'perf_actions.dart';
 import 'perf_redaction.dart';
+import 'perf_run_driver.dart';
+import 'perf_support.dart';
 import 'scenario.dart';
 
 /// The longest single in-app wait: well under the 10 s after which DWDS
@@ -390,7 +391,7 @@ final class PerfSetupRunner {
       'ext.dusk.exceptions',
       const <String, String>{'limit': '$_kDiagnosticExceptions'},
       (Map<String, dynamic> r) {
-        final List<dynamic> entries = _list(r['exceptions']);
+        final List<dynamic> entries = perfList(r['exceptions']);
         if (entries.isEmpty) return 'last exceptions: none';
         return 'last exceptions: ${entries.map(_exceptionLine).join(' | ')}';
       },
@@ -402,7 +403,7 @@ final class PerfSetupRunner {
   /// the first line of the message, masked and then cut to
   /// [_kDiagnosticMessageChars], and when it happened.
   String _exceptionLine(Object? entry) {
-    final Map<String, dynamic> e = _map(entry);
+    final Map<String, dynamic> e = perfMap(entry);
     final String line = '${e['message'] ?? ''}'.split('\n').first;
     final String message = redactor?.redact(line) ?? line;
     final String cut = message.length > _kDiagnosticMessageChars
@@ -429,9 +430,3 @@ String _routePath(String route) {
   final String path = Uri.tryParse(route)?.path ?? route;
   return path.isEmpty ? '/' : path;
 }
-
-Map<String, dynamic> _map(Object? value) =>
-    value is Map<String, dynamic> ? value : const <String, dynamic>{};
-
-List<dynamic> _list(Object? value) =>
-    value is List<dynamic> ? value : const <dynamic>[];

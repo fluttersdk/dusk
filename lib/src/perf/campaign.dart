@@ -28,6 +28,7 @@ import 'dart:io';
 
 import 'package:yaml/yaml.dart';
 
+import 'perf_support.dart';
 import 'scenario.dart';
 
 /// A campaign that failed validation, with every problem found rather than
@@ -132,7 +133,7 @@ Future<PerfCampaign> loadPerfCampaign(
   String path, {
   Map<String, String> env = const <String, String>{},
 }) async {
-  final String file = _absolutePath(path);
+  final String file = perfAbsolutePath(path);
   final Map<Object?, Object?> document =
       _campaignDocument(await File(file).readAsString());
   return _CampaignReader(file: file, env: env).read(document);
@@ -157,9 +158,6 @@ const int _kDefaultRetries = 1;
 /// A permission name `adb shell pm grant` can pass through the device's `sh`
 /// as one word, with nothing that shell would read as syntax.
 final RegExp _kPermissionName = RegExp(r'^[A-Za-z0-9_.]+$');
-
-String _absolutePath(String path) =>
-    Uri.file(File(path).absolute.path).normalizePath().toFilePath();
 
 Map<Object?, Object?> _campaignDocument(String source) {
   final Object? document;
@@ -414,11 +412,5 @@ final class _CampaignReader {
 
   /// [target] as problems show it: relative to the campaign's directory when
   /// under it.
-  String _shown(String target) {
-    final String dir = File(file).parent.path;
-    final String prefix = dir.endsWith(Platform.pathSeparator)
-        ? dir
-        : '$dir${Platform.pathSeparator}';
-    return target.startsWith(prefix) ? target.substring(prefix.length) : target;
-  }
+  String _shown(String target) => perfShownPath(target, file: file);
 }

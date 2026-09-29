@@ -8,7 +8,9 @@ import 'package:fluttersdk_artisan/artisan.dart' hide Error;
 import '../perf/campaign.dart';
 import '../perf/perf_actions.dart';
 import '../perf/perf_redaction.dart';
+import '../perf/perf_run_driver.dart';
 import '../perf/perf_setup_runner.dart';
+import '../perf/perf_support.dart';
 import '../perf/scenario.dart';
 import 'dusk_perf_run_command.dart';
 import 'json_output.dart';
@@ -85,11 +87,18 @@ abstract interface class PerfCampaignApp {
   /// The id `ext.dusk.boot_id` answers; throws while the app is not there.
   Future<String> bootId();
 
-  /// The driver `dusk:perf_run` drives the app with, for `after_start`.
+  /// The driver an attempt drives the app with: `after_start` first, then
+  /// `dusk:perf_run`. Opened once per attempt; the caller closes it.
   Future<(PerfRunDriver, PerfRunEnvironment)> driver(PerfPlatform platform);
 
-  /// `dusk:perf_run` in-process, with [options] as its parsed flags.
-  Future<int> perfRun(Map<String, dynamic> options, ArtisanOutput output);
+  /// `dusk:perf_run` in-process, with [options] as its parsed flags, on the
+  /// [driver] and [environment] the attempt opened; it leaves both open.
+  Future<int> perfRun(
+    Map<String, dynamic> options,
+    ArtisanOutput output, {
+    required PerfRunDriver driver,
+    required PerfRunEnvironment environment,
+  });
 
   /// Closes the VM Service connection; the app keeps running.
   Future<void> close();
@@ -290,8 +299,8 @@ class DuskPerfCampaignCommand extends ArtisanCommand {
       out: (ctx.input.option('out') as String?) ?? 'build/perf',
       device: device,
       cdpPort: '$cdpPort',
-      timing: _readBool(ctx.input.option('timing')),
-      semanticsPass: _readBool(ctx.input.option('semantics-pass')),
+      timing: perfReadBool(ctx.input.option('timing')),
+      semanticsPass: perfReadBool(ctx.input.option('semantics-pass')),
       json: wantsJson(ctx),
     ).run(campaign, selected);
   }
@@ -840,29 +849,44 @@ final class _CampaignRun {
     }
     final PerfCampaignApp app = await host.connect(uri);
     try {
-      await _awaitBoot(app);
+      await pollDuskBoot(
+        app.bootId,
+        replacing: null,
+        timeout: _kBootBudget,
+        pollInterval: _kBootPollInterval,
+        pause: host.pause,
+        failure: 'the app did not answer ext.dusk.boot_id within '
+            '${_kBootBudget.inSeconds} s of the start',
+      );
       progress.phase = _Phase.running;
 
-      // 3. The campaign's setup, the Router first: boot_id answers before
-      //    the app has mounted one, and a login screen needs it.
-      final String name = scenario.scenario.name;
-      if (afterStart.isNotEmpty) {
-        final (PerfRunDriver driver, PerfRunEnvironment env) =
-            await app.driver(platform);
-        try {
+      // 3. One driver for the attempt: after_start and perf_run share it, so
+      //    the host is described and the run log read once.
+      final (PerfRunDriver driver, PerfRunEnvironment env) =
+          await app.driver(platform);
+      try {
+        // 4. The campaign's setup, the Router first: boot_id answers before
+        //    the app has mounted one, and a login screen needs it.
+        final String name = scenario.scenario.name;
+        if (afterStart.isNotEmpty) {
           final PerfSetupRunner runner =
               PerfSetupRunner(PerfActions(driver, env), redactor: redactor);
           await runner.awaitRouter(name);
           await runner.run(afterStart, name);
-        } finally {
-          await driver.close();
         }
-      }
 
-      // 4. The measured run.
-      final int code = await app.perfRun(_perfRunOptions(scenario), captured);
-      if (code != 0) throw PerfRunException('dusk:perf_run exited $code');
-      await _maskRunFile(_runFile(name));
+        // 5. The measured run.
+        final int code = await app.perfRun(
+          _perfRunOptions(scenario),
+          captured,
+          driver: driver,
+          environment: env,
+        );
+        if (code != 0) throw PerfRunException('dusk:perf_run exited $code');
+        await _maskRunFile(_runFile(name));
+      } finally {
+        await driver.close();
+      }
     } finally {
       await app.close();
     }
@@ -914,35 +938,6 @@ final class _CampaignRun {
         );
       }
       await host.pause(_kStopPollInterval);
-    }
-  }
-
-  /// Polls `ext.dusk.boot_id` until it answers. Throws [PerfRunException]
-  /// with the last answer after [_kBootBudget].
-  Future<void> _awaitBoot(PerfCampaignApp app) async {
-    final Stopwatch clock = Stopwatch()..start();
-    final int maxPolls =
-        _kBootBudget.inMilliseconds ~/ _kBootPollInterval.inMilliseconds;
-    Object? last;
-    for (int poll = 1;; poll++) {
-      // Errors are the state being waited out (no isolate yet, the
-      // extension not registered yet); a read that hangs is cut at the time
-      // left.
-      try {
-        await app.bootId().timeout(_kBootBudget - clock.elapsed);
-        return;
-      } on Exception catch (e) {
-        last = e;
-      } on StateError catch (e) {
-        last = e;
-      }
-      if (poll >= maxPolls || clock.elapsed >= _kBootBudget) {
-        throw PerfRunException(
-          'the app did not answer ext.dusk.boot_id within '
-          '${_kBootBudget.inSeconds} s of the start (last answer: $last).',
-        );
-      }
-      await host.pause(_kBootPollInterval);
     }
   }
 
@@ -1001,13 +996,6 @@ String? _androidApplicationId(String projectRoot) {
   }
   return null;
 }
-
-/// CLI flags arrive as bools, a hand-built input may carry text.
-bool _readBool(Object? raw) => switch (raw) {
-      final bool value => value,
-      final String value => value == 'true' || value == '1',
-      _ => false,
-    };
 
 // ---------------------------------------------------------------------------
 // The artisan host
@@ -1126,8 +1114,13 @@ final class _ArtisanPerfCampaignApp implements PerfCampaignApp {
       );
 
   @override
-  Future<int> perfRun(Map<String, dynamic> options, ArtisanOutput output) =>
-      DuskPerfRunCommand().handle(
+  Future<int> perfRun(
+    Map<String, dynamic> options,
+    ArtisanOutput output, {
+    required PerfRunDriver driver,
+    required PerfRunEnvironment environment,
+  }) =>
+      DuskPerfRunCommand.connected(driver, environment).handle(
         ArtisanContext.connected(MapInput(options), output, _client),
       );
 

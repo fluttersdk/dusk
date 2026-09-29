@@ -1,6 +1,6 @@
-import 'dart:convert';
-
 import 'package:fluttersdk_artisan/artisan.dart';
+
+import 'perf_support.dart';
 
 /// Masks the secrets a scenario load collected (every `${env.*}` value and
 /// every `secret: true` param) as `***`, in a line of text or a JSON tree.
@@ -13,7 +13,7 @@ final class PerfRedactor {
   PerfRedactor(Set<String> secrets)
       : _masks = <String>{
           for (final String secret in secrets)
-            if (secret.isNotEmpty) ...<String>[secret, _jsonInner(secret)],
+            if (secret.isNotEmpty) ...<String>[secret, perfJsonInner(secret)],
         }.toList()
           // Longest first: a secret that contains another would otherwise
           // leave the rest of itself behind the shorter one's mask.
@@ -81,10 +81,4 @@ final class RedactingOutput implements ArtisanOutput {
 
   @override
   void debug(String text) => _inner.debug(_redactor.redact(text));
-}
-
-/// `jsonEncode(value)` without its quotes: how [value] reads inside JSON.
-String _jsonInner(String value) {
-  final String encoded = jsonEncode(value);
-  return encoded.substring(1, encoded.length - 1);
 }

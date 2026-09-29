@@ -31,10 +31,11 @@
 /// without the includes a string has no directory to resolve.
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:yaml/yaml.dart';
+
+import 'perf_support.dart';
 
 part 'scenario_loader.dart';
 
@@ -687,7 +688,7 @@ final class _ScenarioReader {
     final List<String> masks = <String>[
       for (final String secret in secrets) ...<String>{
         secret,
-        _jsonInner(secret),
+        perfJsonInner(secret),
       },
     ]..sort((String a, String b) => b.length.compareTo(a.length));
     throw PerfScenarioException(<String>[
@@ -1255,12 +1256,6 @@ Map<Object?, Object?> _scenarioDocument(String source) {
     ]);
   }
   return document;
-}
-
-/// `jsonEncode(value)` without its quotes: how [value] reads inside JSON.
-String _jsonInner(String value) {
-  final String encoded = jsonEncode(value);
-  return encoded.substring(1, encoded.length - 1);
 }
 
 /// A string any part of which came from `${env.*}` or a `secret: true`

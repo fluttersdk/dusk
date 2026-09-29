@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/commands/dusk_perf_run_command.dart';
 import 'package:fluttersdk_dusk/src/perf/perf_actions.dart';
 import 'package:fluttersdk_dusk/src/perf/perf_redaction.dart';
+import 'package:fluttersdk_dusk/src/perf/perf_run_driver.dart';
 import 'package:fluttersdk_dusk/src/perf/perf_setup_runner.dart';
 import 'package:fluttersdk_dusk/src/perf/scenario.dart';
 

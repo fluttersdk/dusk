@@ -3,12 +3,13 @@ import 'dart:io';
 
 // `hide Error`: the installer's `Error` result would shadow dart:core's.
 import 'package:fluttersdk_artisan/artisan.dart' hide Error;
-import 'package:meta/meta.dart';
 
 import '../cdp/cdp_client.dart';
 import '../perf/perf_actions.dart';
 import '../perf/perf_redaction.dart';
+import '../perf/perf_run_driver.dart';
 import '../perf/perf_setup_runner.dart';
+import '../perf/perf_support.dart';
 import '../perf/scenario.dart';
 import 'json_output.dart';
 
@@ -28,75 +29,6 @@ const Duration _kHotRestartTimeout = Duration(seconds: 90);
 
 /// How long a relaunch may take: a profile build compiles from scratch.
 const Duration _kRelaunchTimeout = Duration(seconds: 420);
-
-/// How often the restart wait asks the app for its boot id.
-const Duration _kBootPollInterval = Duration(milliseconds: 500);
-
-/// A run that cannot go on, with the sentence to print.
-final class PerfRunException implements Exception {
-  PerfRunException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
-
-/// Everything `dusk:perf_run` needs from outside the command: the app's
-/// `ext.dusk.*` extensions, Chrome's DevTools, the runner's restart and the
-/// clock. The production driver talks to artisan; a test drives a fake.
-abstract interface class PerfRunDriver {
-  /// Calls [method] on the running app. Throws on an extension error.
-  Future<Map<String, dynamic>> call(
-    String method, [
-    Map<String, String> params,
-  ]);
-
-  /// Sends one DevTools command to the page. Chrome only.
-  Future<Map<String, dynamic>> cdp(
-    String method, [
-    Map<String, dynamic> params,
-  ]);
-
-  /// Restarts the app from scratch, a hot restart or a full relaunch as the
-  /// build allows, and returns once `ext.dusk.*` answers again.
-  Future<void> restart();
-
-  Future<void> pause(Duration duration);
-
-  /// Releases whatever the driver opened.
-  Future<void> close();
-}
-
-/// What the run was measured on, beyond what the app reports about itself.
-final class PerfRunEnvironment {
-  const PerfRunEnvironment({
-    required this.platform,
-    this.device,
-    this.emulator = false,
-    this.restartMode = 'hot_restart',
-    this.host = const <String, Object?>{},
-    this.renderer = 'unknown',
-  });
-
-  final PerfPlatform platform;
-
-  /// The runner's device id (`chrome`, `emulator-5554`, a simulator UDID).
-  final String? device;
-
-  /// An Android emulator or an iOS simulator, whose raster ms are not a
-  /// device's.
-  final bool emulator;
-
-  /// `hot_restart` on a debug build, `relaunch` on one that cannot.
-  final String restartMode;
-
-  /// `uname`, CPU and core count of the machine that ran it.
-  final Map<String, Object?> host;
-
-  /// The rendering backend scraped from the run log, or `unknown`.
-  final String renderer;
-}
 
 /// Opens the driver and describes the environment for one run.
 typedef PerfRunConnector = Future<(PerfRunDriver, PerfRunEnvironment)> Function(
@@ -129,9 +61,23 @@ typedef PerfRunConnector = Future<(PerfRunDriver, PerfRunEnvironment)> Function(
 /// left out of the medians.
 class DuskPerfRunCommand extends ArtisanCommand {
   DuskPerfRunCommand({PerfRunConnector? connector})
-      : _connector = connector ?? connectArtisanPerfRun;
+      : _connector = connector ?? connectArtisanPerfRun,
+        _ownsDriver = true;
+
+  /// Runs on a driver the caller already connected, in-process: the
+  /// `dusk:perf_campaign` attempt that ran `after_start` on it. The caller
+  /// owns [driver] and closes it; the run never does.
+  DuskPerfRunCommand.connected(
+    PerfRunDriver driver,
+    PerfRunEnvironment environment,
+  )   : _connector = ((ArtisanContext ctx, PerfPlatform? platform) async =>
+            (driver, environment)),
+        _ownsDriver = false;
 
   final PerfRunConnector _connector;
+
+  /// Whether [handle] closes the driver [_connector] answered.
+  final bool _ownsDriver;
 
   @override
   String get name => 'dusk:perf_run';
@@ -285,8 +231,8 @@ class DuskPerfRunCommand extends ArtisanCommand {
         PerfActions(driver, env),
         redactor: redactor,
         repeat: repeat ?? scenarios.first.repeat,
-        timing: _readBool(ctx.input.option('timing')),
-        semanticsPass: _readBool(ctx.input.option('semantics-pass')),
+        timing: perfReadBool(ctx.input.option('timing')),
+        semanticsPass: perfReadBool(ctx.input.option('semantics-pass')),
       );
       final List<_ScenarioRun> runs;
       try {
@@ -316,7 +262,7 @@ class DuskPerfRunCommand extends ArtisanCommand {
       }
       return _report(ctx, masked, redactor, written);
     } finally {
-      await driver.close();
+      if (_ownsDriver) await driver.close();
     }
   }
 
@@ -486,8 +432,8 @@ Map<String, Object?> perfSpread(List<num> values) {
 /// left out. A missing `perFrame` is computed from the count and the painted
 /// frames, so nothing is ever compared raw.
 Map<String, double> perfPerFrameMetrics(Map<String, dynamic> report) {
-  final Map<String, dynamic> summary = _map(report['summary']);
-  final num painted = _num(_map(summary['frames'])['painted']);
+  final Map<String, dynamic> summary = perfMap(report['summary']);
+  final num painted = _num(perfMap(summary['frames'])['painted']);
   double perFrame(Object? given, Object? count) => given is num
       ? given.toDouble()
       : painted == 0
@@ -495,14 +441,14 @@ Map<String, double> perfPerFrameMetrics(Map<String, dynamic> report) {
           : _num(count) / painted;
 
   final Map<String, double> metrics = <String, double>{};
-  for (final Object? block in _list(summary['blocksByCount'])) {
-    final Map<String, dynamic> row = _map(block);
+  for (final Object? block in perfList(summary['blocksByCount'])) {
+    final Map<String, dynamic> row = perfMap(block);
     metrics['blocks.${row['name']}'] = perFrame(row['perFrame'], row['count']);
   }
-  final Map<String, dynamic> counters = _map(report['counters']);
+  final Map<String, dynamic> counters = perfMap(report['counters']);
   for (final String section in const <String>['wind', 'magic']) {
     for (final MapEntry<String, dynamic> entry
-        in _map(counters[section]).entries) {
+        in perfMap(counters[section]).entries) {
       final Object? value = entry.value;
       if (value is Map<String, dynamic>) {
         metrics['$section.${entry.key}'] =
@@ -522,12 +468,13 @@ Map<String, double> perfPerFrameMetrics(Map<String, dynamic> report) {
 
 /// The frame durations of a report, in ms: build and raster p50 and p90.
 Map<String, double> perfMsMetrics(Map<String, dynamic> report) {
-  final Map<String, dynamic> frames = _map(_map(report['summary'])['frames']);
+  final Map<String, dynamic> frames =
+      perfMap(perfMap(report['summary'])['frames']);
   return <String, double>{
     for (final String thread in const <String>['buildMs', 'rasterMs'])
       for (final String pct in const <String>['p50', 'p90'])
-        if (_map(frames[thread])[pct] is num)
-          '$thread.$pct': _num(_map(frames[thread])[pct]).toDouble(),
+        if (perfMap(frames[thread])[pct] is num)
+          '$thread.$pct': _num(perfMap(frames[thread])[pct]).toDouble(),
   };
 }
 
@@ -545,7 +492,7 @@ Map<String, Object?> summarizePerfSeries(List<Map<String, dynamic>> reports) {
   final List<Map<String, dynamic>> measured = answered
       .where(
         (Map<String, dynamic> r) =>
-            _map(r['coverage'])['sessionClockMismatch'] != true,
+            perfMap(r['coverage'])['sessionClockMismatch'] != true,
       )
       .toList();
   final Map<String, Object?> summary = <String, Object?>{
@@ -567,7 +514,7 @@ Map<String, Object?> summarizePerfSeries(List<Map<String, dynamic>> reports) {
       key: _plain(
         perfMedian(<num>[
           for (final Map<String, dynamic> r in measured)
-            _num(_map(_map(r['summary'])['frames'])[key]),
+            _num(perfMap(perfMap(r['summary'])['frames'])[key]),
         ]),
       ),
   };
@@ -1121,7 +1068,7 @@ final class _PerfRunner {
         .any((PerfSetupStep s) => s.verb == PerfSetupVerb.hotRestart);
     // The app knows its own renderer on web (rendererReader); the run log
     // scrape covers native, where the app answers `unknown`.
-    final Object? inApp = _map(median?['env'])['renderer'];
+    final Object? inApp = perfMap(median?['env'])['renderer'];
 
     return <String, Object?>{
       'scenario': run.scenario.toJson(),
@@ -1129,7 +1076,7 @@ final class _PerfRunner {
       if (variant != null) 'variant': variant,
       if (interleavedWith != null) 'interleavedWith': interleavedWith,
       'env': <String, Object?>{
-        ..._map(median?['env']),
+        ...perfMap(median?['env']),
         'target': env.platform.name,
         'device': env.device,
         'emulator': env.emulator,
@@ -1142,7 +1089,7 @@ final class _PerfRunner {
         ...summarizePerfSeries(attribution),
         if (timing) 'timing': summarizePerfSeries(run.reports[_Series.timing]!),
       },
-      'insights': _list(median?['insights']),
+      'insights': perfList(median?['insights']),
       'repeats': <Map<String, Object?>>[
         ..._repeats(run, _Series.attribution),
         if (timing) ..._repeats(run, _Series.timing),
@@ -1344,61 +1291,6 @@ final class _ArtisanPerfRunDriver implements PerfRunDriver {
   }
 }
 
-/// The boot id the running app's `DuskPlugin.install()` minted, read from
-/// `ext.dusk.boot_id` on the main isolate.
-///
-/// Throws whatever the VM Service throws when the extension does not answer:
-/// an RPC error while the app restarts, or on an app built with a dusk older
-/// than this one. `dusk:perf_campaign` polls it after each cold start.
-Future<String> readDuskBootId(VmServiceClient client) async {
-  final String isolateId = await client.getMainIsolateId();
-  final Map<String, dynamic> result =
-      await client.callServiceExtension<Map<String, dynamic>>(
-    'ext.dusk.boot_id',
-    isolateId: isolateId,
-  );
-  return result['bootId'] as String;
-}
-
-/// Polls until `ext.dusk.boot_id` answers with an id other than [replacing]
-/// (any id when [replacing] is null, after a relaunch), which is when
-/// `main()` has run `DuskPlugin.install()` again. The boot id registers last,
-/// so every other `ext.dusk.*` answers by then.
-///
-/// The isolate id proves nothing: DWDS keeps `"1"` across a web hot restart.
-/// While the app restarts the extension answers with errors (DWDS -32603 for
-/// one not registered yet, no isolate, an isolate going away); those are the
-/// state being waited out, retried every [pollInterval] until [timeout], and
-/// the last one is named when it runs out. A read that hangs is cut at the
-/// time left, so [timeout] holds.
-@visibleForTesting
-Future<void> awaitDuskBoot(
-  VmServiceClient client, {
-  required String? replacing,
-  required Duration timeout,
-  Duration pollInterval = _kBootPollInterval,
-}) async {
-  final Stopwatch clock = Stopwatch()..start();
-  Object? last;
-  while (clock.elapsed < timeout) {
-    try {
-      final String id =
-          await readDuskBootId(client).timeout(timeout - clock.elapsed);
-      if (id != replacing) return;
-      last = null;
-    } on Exception catch (e) {
-      last = e;
-    } on StateError catch (e) {
-      last = e;
-    }
-    await Future<void>.delayed(pollInterval);
-  }
-  throw PerfRunException(
-    'the app did not come back within ${timeout.inSeconds} s of the restart'
-    '${last == null ? '' : ' (last answer: $last)'}.',
-  );
-}
-
 Future<Map<String, Object?>> _hostInfo() async {
   Future<String?> firstLine(String executable, List<String> args) async {
     final ProcessResult result = await Process.run(executable, args);
@@ -1457,12 +1349,6 @@ final RegExp _kSimulatorUdid = RegExp(
   r'^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$',
 );
 
-Map<String, dynamic> _map(Object? value) =>
-    value is Map<String, dynamic> ? value : const <String, dynamic>{};
-
-List<dynamic> _list(Object? value) =>
-    value is List<dynamic> ? value : const <dynamic>[];
-
 num _num(Object? value) => value is num ? value : 0;
 
 /// An int when the value is whole, so a median of frame counts reads `42`.
@@ -1483,10 +1369,4 @@ int? _readInt(Object? raw) => switch (raw) {
       final int value => value,
       final String value => int.tryParse(value),
       _ => null,
-    };
-
-bool _readBool(Object? raw) => switch (raw) {
-      final bool value => value,
-      final String value => value == 'true' || value == '1',
-      _ => false,
     };

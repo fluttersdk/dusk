@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluttersdk_dusk/src/commands/dusk_perf_campaign_command.dart';
 import 'package:fluttersdk_dusk/src/commands/dusk_perf_run_command.dart';
 import 'package:fluttersdk_dusk/src/commands/json_output.dart';
+import 'package:fluttersdk_dusk/src/perf/perf_run_driver.dart';
 import 'package:fluttersdk_dusk/src/perf/scenario.dart';
 
 /// A secret with both a quote and a dollar sign, so a redaction that masks
@@ -84,12 +85,16 @@ final class _FakeHost implements PerfCampaignHost {
 
   /// Every event, in order: `run <exe> <args>`, `stop`, `start`,
   /// `alive:<pid>=<bool>`, `free:<port>=<bool>`, `pause`, `connect`,
-  /// `boot:miss`, `boot:ok`, `driver <method>`, `perf_run <scenario>`,
-  /// `close`.
+  /// `boot:miss`, `boot:ok`, `driver open`, `driver <method>`,
+  /// `perf_run <scenario>`, `driver close`, `close`.
   final List<String> events = <String>[];
   final List<_Run> runs = <_Run>[];
   final List<Map<String, dynamic>> starts = <Map<String, dynamic>>[];
   final List<Map<String, dynamic>> perfRuns = <Map<String, dynamic>>[];
+
+  /// Every driver an attempt opened, and the one each perf_run was handed.
+  final List<PerfRunDriver> openedDrivers = <PerfRunDriver>[];
+  final List<PerfRunDriver> perfRunDrivers = <PerfRunDriver>[];
 
   /// Reads left for which a pid still answers alive, by pid.
   final Map<int, int> aliveReads = <int, int>{};
@@ -206,15 +211,22 @@ final class _FakeApp implements PerfCampaignApp {
   @override
   Future<(PerfRunDriver, PerfRunEnvironment)> driver(
     PerfPlatform platform,
-  ) async =>
-      (_FakeDriver(host), PerfRunEnvironment(platform: platform));
+  ) async {
+    host.events.add('driver open');
+    final _FakeDriver driver = _FakeDriver(host);
+    host.openedDrivers.add(driver);
+    return (driver, PerfRunEnvironment(platform: platform));
+  }
 
   @override
   Future<int> perfRun(
     Map<String, dynamic> options,
-    ArtisanOutput output,
-  ) async {
+    ArtisanOutput output, {
+    required PerfRunDriver driver,
+    required PerfRunEnvironment environment,
+  }) async {
     host.perfRuns.add(options);
+    host.perfRunDrivers.add(driver);
     host.events.add('perf_run ${_stem(options['scenario'] as String)}');
     final int code = await host.onPerfRun?.call(options, output) ?? 0;
     // A perf_run that exits 0 has written its run file; one a handler wrote
@@ -1132,7 +1144,7 @@ android:
         final List<String> events = host.events;
         final int connect = events.indexOf('connect');
         expect(
-          events.sublist(connect + 1, events.indexOf('perf_run a')),
+          events.sublist(connect + 1, events.indexOf('driver open')),
           <String>['boot:miss', 'pause', 'boot:miss', 'pause', 'boot:ok'],
         );
       });
@@ -1170,16 +1182,48 @@ android:
         final List<String> events = host.events;
         final int bootA = events.indexOf('boot:ok');
         expect(
-          events.sublist(bootA + 1, events.indexOf('perf_run a')),
+          events.sublist(bootA + 1, events.indexOf('close')),
           <String>[
+            'driver open',
             'driver ext.dusk.get_routes',
             'driver ext.dusk.wait_for_network_idle',
+            'perf_run a',
             'driver close',
           ],
         );
         expect(
           events.where(
               (String e) => e == 'driver ext.dusk.wait_for_network_idle'),
+          hasLength(2),
+        );
+      });
+
+      test(
+          'opens one driver per attempt, hands perf_run the one after_start '
+          'drove, and closes it once the run is done', () async {
+        int calls = 0;
+        final _FakeHost host = _FakeHost(
+          onPerfRun:
+              (Map<String, dynamic> options, ArtisanOutput output) async =>
+                  calls++ == 0 ? 1 : 0,
+        );
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+          },
+          extra: 'after_start: [wait_for_network_idle]',
+        );
+
+        final (int code, _) = await handle(host, path);
+
+        expect(code, 0);
+        expect(host.openedDrivers, hasLength(2));
+        expect(host.perfRunDrivers, hasLength(2));
+        for (int i = 0; i < 2; i++) {
+          expect(host.perfRunDrivers[i], same(host.openedDrivers[i]));
+        }
+        expect(
+          host.events.where((String e) => e == 'driver close'),
           hasLength(2),
         );
       });

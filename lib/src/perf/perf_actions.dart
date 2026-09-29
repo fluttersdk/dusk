@@ -1,6 +1,7 @@
 import 'dart:convert';
 
-import '../commands/dusk_perf_run_command.dart';
+import 'perf_run_driver.dart';
+import 'perf_support.dart';
 import 'scenario.dart';
 
 /// How long a target may take to show up before it "matched nothing": a
@@ -189,7 +190,7 @@ final class PerfActions {
 
   /// Hovers [ref] and answers the point it hovered: what a mouse does before
   /// it wheels, and where the wheel then goes.
-  Future<Map<String, dynamic>> hover(String ref) async => _map(
+  Future<Map<String, dynamic>> hover(String ref) async => perfMap(
         (await driver.call(
           'ext.dusk.hover',
           <String, String>{
@@ -289,7 +290,7 @@ final class PerfActions {
 }
 
 String? _at(Map<String, dynamic> result, int index) {
-  final List<dynamic> refs = _list(result['refs']);
+  final List<dynamic> refs = perfList(result['refs']);
   return index < refs.length ? refs[index] as String? : null;
 }
 
@@ -297,14 +298,9 @@ String? _at(Map<String, dynamic> result, int index) {
 /// in walk order; null when there are not that many.
 String? _named(Map<String, dynamic> result, String name, int index) {
   final List<String?> refs = <String?>[
-    for (final Object? candidate in _list(result['candidates']))
-      if (_map(candidate)['label'] == name) _map(candidate)['ref'] as String?,
+    for (final Object? candidate in perfList(result['candidates']))
+      if (perfMap(candidate)['label'] == name)
+        perfMap(candidate)['ref'] as String?,
   ];
   return index < refs.length ? refs[index] : null;
 }
-
-Map<String, dynamic> _map(Object? value) =>
-    value is Map<String, dynamic> ? value : const <String, dynamic>{};
-
-List<dynamic> _list(Object? value) =>
-    value is List<dynamic> ? value : const <dynamic>[];
