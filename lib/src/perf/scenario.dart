@@ -268,6 +268,17 @@ final class PerfSetupGuard {
 
   /// The guard of the include this one is nested in, if that one has one.
   final PerfSetupGuard? parent;
+
+  /// The `when:` as the run file echoes it, [parentJson] as its `parent`
+  /// when the enclosing guard is echoed on the same step. Never holds a
+  /// secret: the loader refuses one anywhere in a `when`.
+  Map<String, Object?> toJson({Map<String, Object?>? parentJson}) =>
+      <String, Object?>{
+        'text': text,
+        if (unlessText != null) 'unless_text': unlessText,
+        'timeout_ms': timeoutMs,
+        if (parentJson != null) 'parent': parentJson,
+      };
 }
 
 /// One setup entry.
@@ -321,19 +332,58 @@ final class PerfSetupStep {
               guard: guard,
             );
 
-  Object toJson() => switch (verb) {
-        PerfSetupVerb.hotRestart ||
-        PerfSetupVerb.waitForNetworkIdle =>
-          verb.wire,
-        PerfSetupVerb.waitForText => <String, Object?>{
-            verb.wire: <String, Object?>{
-              'text': argument,
-              'timeout_ms': timeoutMs,
-            },
+  /// The entry as the run file writes it: the verb alone, or a map of the
+  /// verb and its arguments.
+  ///
+  /// [opens] are the guards this entry is the first of its list to carry,
+  /// outermost first ([PerfScenario.toJson] works them out): the innermost
+  /// is echoed as `when`, each enclosing one as the `parent` of the one it
+  /// encloses. A verb written alone becomes `{verb: null, when: ...}` then,
+  /// so a reader sees which steps a guard may have skipped.
+  Object toJson({List<PerfSetupGuard> opens = const <PerfSetupGuard>[]}) {
+    final Object entry = switch (verb) {
+      PerfSetupVerb.hotRestart || PerfSetupVerb.waitForNetworkIdle => verb.wire,
+      PerfSetupVerb.waitForText => <String, Object?>{
+          verb.wire: <String, Object?>{
+            'text': argument,
+            'timeout_ms': timeoutMs,
           },
-        PerfSetupVerb.navigate => <String, Object?>{verb.wire: argument},
-        PerfSetupVerb.gesture => gesture!.toJson(),
-      };
+        },
+      PerfSetupVerb.navigate => <String, Object?>{verb.wire: argument},
+      PerfSetupVerb.gesture => gesture!.toJson(),
+    };
+    if (opens.isEmpty) return entry;
+    Map<String, Object?>? when;
+    for (final PerfSetupGuard guard in opens) {
+      when = guard.toJson(parentJson: when);
+    }
+    return <String, Object?>{
+      if (entry is Map<String, Object?>) ...entry else entry as String: null,
+      'when': when,
+    };
+  }
+}
+
+/// [setup] as the run file writes it: each guard echoed once, on the first
+/// entry it governs, so a guarded group reads as guarded.
+List<Object> _setupJson(List<PerfSetupStep> setup) {
+  final Set<PerfSetupGuard> echoed = Set<PerfSetupGuard>.identity();
+  final List<Object> entries = <Object>[];
+  for (final PerfSetupStep step in setup) {
+    // The entry's chain, outermost first; the guards not echoed yet are a
+    // suffix of it, since an enclosing guard governs every entry its inner
+    // ones do.
+    final List<PerfSetupGuard> chain = <PerfSetupGuard>[
+      for (PerfSetupGuard? g = step.guard; g != null; g = g.parent) g,
+    ].reversed.toList();
+    final List<PerfSetupGuard> opens = <PerfSetupGuard>[
+      for (final PerfSetupGuard guard in chain)
+        if (!echoed.contains(guard)) guard,
+    ];
+    echoed.addAll(opens);
+    entries.add(step.toJson(opens: opens));
+  }
+  return entries;
 }
 
 /// One step of the measured window.
@@ -494,7 +544,7 @@ final class PerfScenario {
             .where(platforms.contains)
             .map((PerfPlatform p) => p.name)
             .toList(),
-        'setup': setup.map((PerfSetupStep s) => s.toJson()).toList(),
+        'setup': _setupJson(setup),
         'steps': steps.map((PerfStep s) => s.toJson()).toList(),
         'repeat': repeat,
         'thresholds': thresholds.toJson(),

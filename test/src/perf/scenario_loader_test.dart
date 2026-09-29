@@ -328,6 +328,118 @@ steps:
         expect(identical(overridden, outer), isFalse);
         expect(identical(setup[3].guard!.parent, overridden), isTrue);
       });
+
+      test(
+          'echoes each guard in the setup JSON on the first step it governs, '
+          'a guard entered there with it as its parent', () async {
+        write('fragments/guarded.yaml', '''
+when: {text: Sign in, unless_text: Monitors, timeout_ms: 5000}
+steps:
+  - tap: {target: {text: Sign in}}
+  - include: inner.yaml
+''');
+        write('fragments/inner.yaml', '''
+when: {text: Accept cookies}
+steps:
+  - tap: {target: {text: Accept}}
+''');
+        write('fragments/wrap.yaml', '''
+steps:
+  - include: inner.yaml
+  - wait: 100
+''');
+        write('fragments/restart.yaml', '''
+when: {text: Stale}
+steps:
+  - hot_restart
+''');
+        final PerfLoadResult result = await loadPerfScenarios(
+          write('echo.yaml', '''
+name: echo
+setup:
+  - include: fragments/guarded.yaml
+  - include: fragments/wrap.yaml
+    when: {text: Outer, timeout_ms: 1000}
+  - include: fragments/restart.yaml
+  - wait_for_network_idle
+steps:
+  - wait: 100
+'''),
+        );
+
+        final Map<String, Object?> accept = <String, Object?>{
+          'target': <String, Object?>{'text': 'Accept'},
+        };
+        expect(result.scenarios.single.toJson()['setup'], <Object?>[
+          <String, Object?>{
+            'tap': <String, Object?>{
+              'target': <String, Object?>{'text': 'Sign in'},
+            },
+            'when': <String, Object?>{
+              'text': 'Sign in',
+              'unless_text': 'Monitors',
+              'timeout_ms': 5000,
+            },
+          },
+          <String, Object?>{
+            'tap': accept,
+            'when': <String, Object?>{
+              'text': 'Accept cookies',
+              'timeout_ms': kPerfWhenTimeoutMs,
+            },
+          },
+          <String, Object?>{
+            'tap': accept,
+            'when': <String, Object?>{
+              'text': 'Accept cookies',
+              'timeout_ms': kPerfWhenTimeoutMs,
+              'parent': <String, Object?>{'text': 'Outer', 'timeout_ms': 1000},
+            },
+          },
+          <String, Object?>{'wait': 100},
+          <String, Object?>{
+            'hot_restart': null,
+            'when': <String, Object?>{
+              'text': 'Stale',
+              'timeout_ms': kPerfWhenTimeoutMs,
+            },
+          },
+          'wait_for_network_idle',
+        ]);
+      });
+
+      test('refuses a secret in a when guard, so none can be echoed', () async {
+        write('fragments/guarded.yaml', r'''
+params:
+  who: {secret: true}
+when: {text: "${who}"}
+steps:
+  - tap: {target: {text: Sign in}}
+''');
+        final String problems = await problemsOf(
+          write('secret-guard.yaml', r'''
+name: secret-guard
+setup:
+  - include: fragments/guarded.yaml
+    with: {who: "${env.WHO}"}
+  - include: fragments/guarded.yaml
+    with: {who: "${env.WHO}"}
+    when: {text: "${env.WHO}", unless_text: Done}
+steps:
+  - wait: 100
+'''),
+          env: <String, String>{'WHO': 'ops@uptizm.test'},
+        );
+
+        expect(
+          problems,
+          contains('a secret may only be typed: fragments/guarded.yaml when'),
+        );
+        expect(
+          problems,
+          contains('a secret may only be typed: setup[1].when.text'),
+        );
+      });
     });
 
     group('interpolation', () {

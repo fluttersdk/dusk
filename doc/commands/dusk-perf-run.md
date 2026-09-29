@@ -122,6 +122,8 @@ A fragment takes `params`, `when` and `steps` and nothing else. Every param is r
 
 At run time the guard is a poll of `ext.dusk.find --text` every 250 ms, `unless_text` first, then `text`, up to `timeout_ms`. Each guard is decided once per pass over the setup (so once per repeat in `dusk:perf_run`), at the first of its steps that runs on the platform, and the decision covers every step the include flattened. A guard nested in another is decided only after the outer one decided to run, so a skipped outer fragment never polls for its inner one. The timeout failure names both texts and the include (`list-scroll setup[1] (when): neither "Sign in" nor "Monitors" showed within 60000 ms, ...`) and ends with the same `Diagnostics:` line as any setup failure.
 
+The run file's `scenario.setup` echoes each guard once, as `when`, on the first step it governs, so a reader can tell which steps a guard may have skipped: `{"tap": {"target": {"text": "Sign in"}}, "when": {"text": "Sign in", "unless_text": "Monitors", "timeout_ms": 60000}}`. A guard entered on the same step as one nested in it is that one's `parent`; a step written as a bare verb becomes `{"hot_restart": null, "when": {...}}`. Unguarded steps are written as before. A `when` never holds a secret: the loader refuses one there.
+
 ### Interpolation
 
 Every scalar value in a scenario or fragment file (never a key) is interpolated once, in its own file:
