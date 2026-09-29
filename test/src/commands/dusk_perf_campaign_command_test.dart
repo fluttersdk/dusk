@@ -132,7 +132,7 @@ final class _FakeHost implements PerfCampaignHost {
     final Map<String, dynamic>? previous = session;
     if (lingering && previous != null) {
       aliveReads[previous['pid'] as int] = 1;
-      busyReads[previous['vmServicePort'] as int] = 1;
+      busyReads[previous['webPort'] as int] = 1;
     }
     session = null;
     return 0;
@@ -829,9 +829,37 @@ android:
         expect(between, contains('free:9222=true'));
         expect(between, contains('alive:41=false'));
         expect(between, contains('free:3100=true'));
-        expect(between, contains('free:8181=true'));
+        expect(between, isNot(contains(startsWith('free:8181'))));
         expect(between.where((String e) => e == 'pause'), hasLength(3));
         expect(events.lastIndexOf('free:9222=true'), lessThan(start));
+      });
+
+      test(
+          'a VM Service port adb still forwards does not hold the start: '
+          'artisan start never probes it', () async {
+        final _FakeHost host = _FakeHost()
+          ..session = <String, dynamic>{
+            'pid': 41,
+            'vmServicePort': 8181,
+            'device': 'emulator-5554',
+          };
+        host.busyReads[8181] = 1 << 20;
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['android'],
+          },
+          extra: 'retries: 0',
+        );
+
+        final (int code, _) = await handle(
+          host,
+          path,
+          platform: 'android',
+          options: <String, dynamic>{'device': 'emulator-5554'},
+        );
+
+        expect(code, 0);
+        expect(host.starts, hasLength(1));
       });
 
       test('a port that never frees fails the attempt', () async {
@@ -876,8 +904,12 @@ android:
         for (int cycle = 1; cycle < 10; cycle++) {
           final int start = events.indexOf('start', from);
           final List<String> window = events.sublist(from, start);
-          expect(window, contains('free:8181=false'), reason: 'cycle $cycle');
-          expect(window.last, 'free:8181=true', reason: 'cycle $cycle');
+          expect(window, contains('free:3100=false'), reason: 'cycle $cycle');
+          expect(
+            window.lastIndexOf('free:3100=true'),
+            greaterThan(window.lastIndexOf('free:3100=false')),
+            reason: 'cycle $cycle',
+          );
           expect(window, contains('alive:${99 + cycle}=false'));
           from = start + 1;
         }

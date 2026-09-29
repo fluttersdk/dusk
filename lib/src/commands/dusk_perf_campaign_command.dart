@@ -796,12 +796,14 @@ final class _CampaignRun {
     final int? cdp = previous['cdpPort'] as int?;
     final bool browser =
         cdp != null || StartCommand.browserDevices.contains(previous['device']);
-    // The web port is recorded on every session, but bound only by a
-    // browser build.
+    // The ports artisan start refuses to start on: the web port (recorded on
+    // every session, bound only by a browser build) and the CDP port. Not the
+    // VM Service port: on Android `adb forward` keeps listening on it after
+    // the app is gone, for as long as the adb server lives, and flutter
+    // starts over it regardless.
     final List<int> ports = <int>[
       if (browser && previous['webPort'] is int) previous['webPort'] as int,
       if (cdp != null) cdp,
-      if (previous['vmServicePort'] is int) previous['vmServicePort'] as int,
     ];
     final Stopwatch clock = Stopwatch()..start();
     final int maxPolls =
