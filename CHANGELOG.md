@@ -8,6 +8,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+---
+
+## [0.0.17] - 2026-09-29
+
 ### Fixed
 
 - **`dusk:perf_campaign` keeps the credentials it reads out of the processes it starts.** Hooks got the whole inherited environment spread under `DUSK_PERF_*`, and the preparation processes inherited it too, so a server `hooks.before_campaign` backgrounded kept the password the campaign reads through `${env.*}` for as long as it lived. The loader now names every variable a `${env.NAME}` read (`PerfLoadResult.envNames`, `PerfSetupLoadResult.envNames`, `PerfCampaign.secretEnvNames`), and hooks and preparation processes run with `includeParentEnvironment: false` on the invoking environment minus those names. The filter is by name, not by value: `CI=1` survives a secret that reads `1`. artisan `start` and `stop` run in-process with no environment seam, so the `flutter run`, the Chrome and the Android `adb force-stop` they spawn still inherit the dispatcher's environment; the campaign doc says so. (`lib/src/perf/scenario.dart`, `lib/src/perf/scenario_loader.dart`, `lib/src/perf/campaign.dart`, `lib/src/commands/dusk_perf_campaign_command.dart`, `doc/commands/dusk-perf-campaign.md`)
@@ -77,8 +81,6 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 - **Breaking: `ext.dusk.perf_end` answers an LLM-first report instead of a raw dump, with no alias of the old keys.** A real session's payload was 7 to 13 KB of mixed micros and millis, top-N lists that did not say what they cut, and an overhead caveat buried in prose. The payload is now `{sessionToken, refused, mode, env, coverage, summary, counters, insights, omitted}`, bounded to about 6 KB for a 3600-frame session over 500 block names. Every duration is in ms against a stated `budgetMs` of 16.7; `summary.frames` gives `count`, `painted`, `dropped` (frame-number gaps), over-budget counts split by thread, and p50/p90/p99/worst build and raster; blocks are ranked by SELF time (`selfMicros`, never the nested `micros`, which blames a parent for its child's work) and by count per painted frame; every counter is given raw and per painted frame; `omitted` counts what each ranked list cut. `env` states `platform`, `isWeb`, `buildMode` (from `kProfileMode`/`kDebugMode`), `semanticsEnabled` and `phases`. `coverage.missing` names sources never read, so `counters.wind: null` plus `missing: ['wind']` is no longer confusable with a wind that counted nothing. Built-in insight rules (over budget, dropped frames, a dominant self-time block, a count-per-frame outlier, incomplete coverage) each state their threshold in the evidence. Removed top-level keys: `frameSummary`, `blockAttribution`, `note`, `wind`, `magic`, `liveness`, `phases` (now `env.phases`); the refusal carries the liveness numbers under `coverage`. The stalled-engine refusal (1 frame or fewer) and the flag receipt are unchanged. (`lib/src/extensions/ext_perf.dart`, `lib/src/utils/frame_summary.dart`, `lib/src/utils/perf_insights.dart`, `lib/src/commands/dusk_perf_end_command.dart`, `doc/commands/dusk-perf-end.md`, `doc/mcp/tool-reference.md`)
 - **`perfExtrasReader` documents the full magic key set** (`controllerNotifies`, `notifyCauses`, `queryReloads`, `actions`, `events`, `casts`, `timerTicks`, `broadcasts`, `routeTransitions`), and its default returns an empty structure for each. Hosts that still return only the first and last keep working: unknown or absent keys cost nothing. (`lib/src/utils/perf_readers.dart`)
 - **`ext.dusk.snap` registers in profile builds too** (`!kReleaseMode` instead of `kDebugMode`), so a profile-mode perf session can still be driven. `ext.dusk.evaluate` stays debug-only. (`lib/src/extensions/ext_snapshot.dart`)
-
----
 
 ## [0.0.16] - 2026-09-23
 
@@ -439,7 +441,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.16...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.17...HEAD
+[0.0.17]: https://github.com/fluttersdk/dusk/compare/0.0.16...0.0.17
 [0.0.16]: https://github.com/fluttersdk/dusk/compare/0.0.15...0.0.16
 [0.0.15]: https://github.com/fluttersdk/dusk/compare/0.0.14...0.0.15
 [0.0.14]: https://github.com/fluttersdk/dusk/compare/0.0.13...0.0.14
