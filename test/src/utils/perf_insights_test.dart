@@ -168,6 +168,24 @@ void main() {
       );
     });
 
+    test('forwards sessionClockMismatch into coverage, as analysePerf does',
+        () {
+      final Map<String, Object?> report = buildPerfReport(
+        _perf(<Map<String, Object?>>[
+          _frame(frameNumber: 1),
+        ]),
+        const <String, Object?>{},
+        null,
+        env: _env,
+        sessionClockMismatch: true,
+      );
+
+      expect(
+        (report['coverage']! as Map<String, Object?>)['sessionClockMismatch'],
+        isTrue,
+      );
+    });
+
     test(
         'a 3600-frame session over 500+ block names stays under 6 KB, counts '
         'what it cut, and gives every insight its five keys', () {

@@ -344,6 +344,8 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
 ///    walk. A Router-based app nests one Navigator per shell (a go_router
 ///    `ShellRoute`), and a page stacked inside a shell is popped by that
 ///    shell's Navigator: the root one holds the shell alone and never can.
+///    A branch kept alive offstage (a go_router `StatefulShellRoute`) is
+///    skipped, so only what the user sees is popped.
 /// 2. Pop it; when none can pop, silently no-op (bottom of stack).
 /// 3. Wait for two endOfFrame ticks so the post-pop tree settles.
 /// 4. Return the confirmation envelope.
@@ -456,11 +458,17 @@ NavigatorState? _findNavigator(Element root) {
 /// The walk visits an outer Navigator before the ones nested in it, so a page
 /// pushed on the root (which covers whatever a shell shows) is left first, and
 /// a page stacked inside a shell is left once the root has nothing to pop.
+///
+/// A subtree the user cannot see is skipped: go_router's `StatefulShellRoute`
+/// keeps every branch Navigator alive and hides the inactive ones under
+/// `Offstage(offstage: true)` and `TickerMode(enabled: false)`, so a page
+/// stacked on a hidden branch is not the one back should leave.
 NavigatorState? _findPoppableNavigator(Element root) {
   NavigatorState? found;
 
   void visit(Element element) {
     if (found != null) return;
+    if (_hidesSubtree(element.widget)) return;
     if (element is StatefulElement) {
       final State state = element.state;
       if (state is NavigatorState && state.canPop()) {
@@ -474,6 +482,15 @@ NavigatorState? _findPoppableNavigator(Element root) {
   visit(root);
   return found;
 }
+
+/// Whether [widget] keeps its subtree mounted but out of the user's sight: an
+/// active [Offstage], a disabled [TickerMode], or a hidden [Visibility].
+bool _hidesSubtree(Widget widget) => switch (widget) {
+      Offstage(offstage: true) => true,
+      TickerMode(enabled: false) => true,
+      Visibility(visible: false) => true,
+      _ => false,
+    };
 
 /// Returns the active route name from the Navigator stack, or an empty string
 /// when no Navigator is active or the current route is unnamed.

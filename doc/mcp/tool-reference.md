@@ -254,7 +254,10 @@ error when the ref is unknown.
 Dispatch: `artisan:dusk:device`
 
 Emulate a named device profile (viewport + DPR + touch + user agent) via Chrome DevTools
-Protocol. Requires the substrate to have been started with `--cdp-port`.
+Protocol. Requires the substrate to have been started with `--cdp-port`. The emulated
+viewport, DPR, touch and user agent last only as long as the CDP session the call opens,
+which closes when it returns; only the Chrome window size it sets stays. For a viewport
+that lasts, run the CLI `dusk:resize --hold` in the background.
 
 ### Input schema
 
@@ -626,7 +629,11 @@ The Navigator popped is the outermost one that can pop. A page pushed on the roo
 covers whatever a shell shows, so it is left first; a page stacked inside a shell (a
 go_router `ShellRoute` builds its own nested Navigator, and MagicRouter's `.stacked()` pushes
 onto it) is left once the root has nothing to pop. The root Navigator of such an app holds
-the shell alone, so popping it would do nothing.
+the shell alone, so popping it would do nothing. A Navigator the user cannot see is skipped:
+a go_router `StatefulShellRoute` keeps every branch alive and hides the inactive ones under
+`Offstage` and a disabled `TickerMode`, so a page stacked on a hidden branch is never the one
+left (a subtree under `Offstage(offstage: true)`, `TickerMode(enabled: false)` or
+`Visibility(visible: false)` is not walked).
 
 ### Input schema
 

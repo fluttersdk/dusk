@@ -120,8 +120,11 @@ through to `SystemNavigator.routeInformationUpdated`; the response
 carries `reason` when the router rejected the push. For static routes
 the `Navigator.pushNamed` path works directly.
 
-`dusk_get_routes` returns the CURRENT route + page title only; it does
-NOT enumerate every declared route. To discover available routes, scan
+`dusk_get_routes` returns where the app is now: `uri` is the mounted
+Router's location (the same read `dusk_navigate` verifies against; null
+while no Router is mounted), and `location` / `title` are the root
+Navigator's page name and a title hint, both empty in a Router-based app.
+It does NOT enumerate every declared route. To discover available routes, scan
 the source (`grep -rEn 'GoRoute|MaterialPage|name:' lib/`) or evaluate
 the router config directly via `./bin/fsa tinker` against whatever the
 app exposes its `RouterConfig` through.

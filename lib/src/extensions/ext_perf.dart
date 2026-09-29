@@ -481,7 +481,7 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
       List<Map<String, Object?>> inSession,
       int outside,
       bool clockMismatch,
-    }) window = _sessionFrames(flushed['frames'], session.startUs, endUs);
+    }) window = perfSessionFrames(flushed['frames'], session.startUs, endUs);
 
     // 4. The cross-package sections. Timing mode reads neither: it reports
     //    frame timings only, and a counter read it then discards is still a
@@ -668,11 +668,14 @@ Map<String, Object?> _env(_PerfSession session) => <String, Object?>{
 /// NONE of them lands in the window means the clocks disagree, not that the
 /// session was empty. Then every frame is kept and `clockMismatch` is set, so
 /// the report describes the frames it has and says it could not cut them.
+///
+/// `ext.dusk.perf_trace` cuts its frames by the same rule, so the trace and
+/// the report it sits beside never disagree on which frames the session had.
 ({
   List<Map<String, Object?>> inSession,
   int outside,
   bool clockMismatch,
-}) _sessionFrames(
+}) perfSessionFrames(
   Object? rawFrames,
   int startUs,
   int endUs,

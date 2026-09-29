@@ -727,6 +727,11 @@ final class _PerfRunner {
   /// [_diagnose]; null before the first.
   Map<String, dynamic>? _lastNavigate;
 
+  /// Whether a navigate in the current setup landed only after
+  /// `ext.dusk.navigate` answered false ([_awaitLanding]); the unit's repeat
+  /// says so as `setupLandedLate`.
+  bool _setupLandedLate = false;
+
   bool get _chrome => env.platform == PerfPlatform.chrome;
 
   Future<List<_ScenarioRun>> run(List<PerfScenario> scenarios) async {
@@ -873,7 +878,10 @@ final class _PerfRunner {
       }
     }
     if (failure != null) Error.throwWithStackTrace(failure, trace!);
-    run.reports[series]!.add(report!);
+    run.reports[series]!.add(<String, dynamic>{
+      ...report!,
+      if (_setupLandedLate) 'setupLandedLate': true,
+    });
     run.resolves[series]!.add(resolves);
   }
 
@@ -883,6 +891,7 @@ final class _PerfRunner {
   /// screen it did not appear on.
   Future<void> _prepare(PerfScenario scenario) async {
     _lastNavigate = null;
+    _setupLandedLate = false;
     await _viewport(scenario);
     for (final (int i, PerfSetupStep step) in scenario.setup.indexed) {
       // 1. A restart names the app's last answer itself, and an app that is
@@ -968,7 +977,9 @@ final class _PerfRunner {
   /// redirected one lands elsewhere, and every later step would run on the
   /// wrong screen. The router's URI read right after is read again once the
   /// network is idle, since a first fetch that answers 401 redirects away
-  /// afterwards.
+  /// afterwards. The two reads compare paths: a page that normalises its
+  /// query after the first fetch (`/monitors` to `/monitors?page=1`) has not
+  /// moved.
   Future<void> _setupNavigate(String route, String where) async {
     // 1. A navigate is verified against the mounted Router, so one sent
     //    before the Router exists answers false even when it lands later.
@@ -992,6 +1003,7 @@ final class _PerfRunner {
         );
       }
       payload = <String, dynamic>{...payload, 'landedLate': true};
+      _setupLandedLate = true;
     }
     _lastNavigate = payload;
 
@@ -1011,7 +1023,8 @@ final class _PerfRunner {
       const <String, String>{},
       where,
     ))['uri'];
-    if (settled != landed) {
+    Object? path(Object? uri) => uri is String ? _routePath(uri) : uri;
+    if (path(settled) != path(landed)) {
       throw PerfRunException(
         '$where: navigating to "$route" landed on "$landed", and once the '
         'network was idle the app had moved to "$settled".',
@@ -1019,9 +1032,14 @@ final class _PerfRunner {
     }
   }
 
-  /// Whether the Router's `uri` reaches [route] (the same path or one under
-  /// it, the match `ext.dusk.navigate` makes) within [_kResolveBudget], read
-  /// every [_kResolvePollInterval] and at most [_kResolveMaxPolls] times.
+  /// Whether the Router's `uri` reaches [route]'s path exactly, query ignored,
+  /// within [_kResolveBudget], read every [_kResolvePollInterval] and at most
+  /// [_kResolveMaxPolls] times.
+  ///
+  /// Exact, unlike the prefix match `ext.dusk.navigate` makes: a web hot
+  /// restart keeps the URL, so an app left on `/monitors/7` would pass a
+  /// prefix check for a dropped navigate to `/monitors`. A setup navigate
+  /// names its screen.
   ///
   /// `ext.dusk.navigate` reads the Router two frames after dispatching. A
   /// Router that mounted a moment earlier is still applying its first
@@ -1039,8 +1057,7 @@ final class _PerfRunner {
         where,
       ))['uri'];
       if (uri is String) {
-        final String path = _routePath(uri);
-        if (path == wanted || path.startsWith('$wanted/')) return true;
+        if (_routePath(uri) == wanted) return true;
       }
       if (poll >= _kResolveMaxPolls || clock.elapsed >= _kResolveBudget) {
         return false;

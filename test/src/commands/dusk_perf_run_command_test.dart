@@ -29,6 +29,7 @@ final class _FakeDriver implements PerfRunDriver {
     this.routerMountReads = 0,
     this.answersUri = true,
     this.landingReads,
+    this.landsOn,
     this.releaseAnswer = _kReleasedOff,
   })  : perfEnds = perfEnds ?? <Map<String, dynamic>>[],
         findMisses = findMisses ?? <String, int>{};
@@ -79,6 +80,11 @@ final class _FakeDriver implements PerfRunDriver {
   /// Router still applying its first location right after it mounts.
   final int? landingReads;
 
+  /// Where a late landing ([landingReads]) puts the Router instead of the
+  /// requested route: a child path is an app a hot restart left on a detail
+  /// page while the navigate itself was dropped.
+  final String? landsOn;
+
   String? _landing;
   int _landingLeft = 0;
 
@@ -111,7 +117,7 @@ final class _FakeDriver implements PerfRunDriver {
     switch (method) {
       case 'ext.dusk.navigate':
         if (landingReads != null) {
-          _landing = params['route'];
+          _landing = landsOn ?? params['route'];
           _landingLeft = landingReads!;
           return <String, dynamic>{
             'navigated': false,
@@ -1162,6 +1168,57 @@ repeat: 1
 
         expect(code, 0, reason: out);
         expect(driver.callsTo('ext.dusk.navigate'), hasLength(1));
+        expect(driver.callsTo('ext.dusk.perf_begin'), hasLength(1));
+        final List<dynamic> repeats =
+            readRun('list-scroll', 'base')['repeats'] as List<dynamic>;
+        expect(
+          (repeats.single as Map<String, dynamic>)['setupLandedLate'],
+          isTrue,
+        );
+      });
+
+      test('a unit whose navigate landed at once carries no late mark',
+          () async {
+        final _FakeDriver driver = _FakeDriver();
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 0, reason: out);
+        final List<dynamic> repeats =
+            readRun('list-scroll', 'base')['repeats'] as List<dynamic>;
+        expect(
+          (repeats.single as Map<String, dynamic>)
+              .containsKey('setupLandedLate'),
+          isFalse,
+        );
+      });
+
+      test('a late landing on a page under the route does not count', () async {
+        // A web hot restart keeps the URL: a dropped navigate to /monitors
+        // while the app still sits on /monitors/7 is not a landing.
+        final _FakeDriver driver = _FakeDriver(
+          landingReads: 1,
+          landsOn: '/monitors/7',
+        );
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 1);
+        expect(out, contains('the router did not honor "/monitors"'));
+        expect(driver.callsTo('ext.dusk.perf_begin'), isEmpty);
+      });
+
+      test('a query the page adds once the network is idle is not a move',
+          () async {
+        final _FakeDriver driver =
+            _FakeDriver(redirectOnIdle: '/monitors?page=1');
+
+        final (int code, String out) =
+            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+
+        expect(code, 0, reason: out);
         expect(driver.callsTo('ext.dusk.perf_begin'), hasLength(1));
       });
 

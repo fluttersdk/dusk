@@ -523,6 +523,82 @@ void main() {
       expect(find.text('root-cover'), findsNothing);
       expect(find.text('nested-b'), findsOneWidget);
     });
+
+    testWidgets('leaves a hidden branch alone when the visible one is bare',
+        (WidgetTester tester) async {
+      // A go_router StatefulShellRoute keeps every branch alive offstage. A
+      // page stacked on the hidden branch is not what the user sees, so back
+      // must not pop it and must not answer popped: true for it.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: _TwoBranchShell(
+            activeIndex: 1,
+            branches: <List<String>>[
+              <String>['hidden-list', 'hidden-detail'],
+              <String>['visible-list'],
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateBackHandler(
+        'ext.dusk.navigate_back',
+        <String, String>{'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+      await tester.pumpAndSettle();
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body['popped'], isFalse);
+      expect(
+        find.text('hidden-detail', skipOffstage: false),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('pops the visible branch, not a hidden one before it',
+        (WidgetTester tester) async {
+      // The hidden branch comes first in tree order, so a plain pre-order walk
+      // reaches it before the visible branch.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: _TwoBranchShell(
+            activeIndex: 1,
+            branches: <List<String>>[
+              <String>['hidden-list', 'hidden-detail'],
+              <String>['visible-list', 'visible-detail'],
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('visible-detail'), findsOneWidget);
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateBackHandler(
+        'ext.dusk.navigate_back',
+        <String, String>{'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+      await tester.pumpAndSettle();
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body['popped'], isTrue);
+      expect(find.text('visible-detail'), findsNothing);
+      expect(find.text('visible-list'), findsOneWidget);
+      expect(
+        find.text('hidden-detail', skipOffstage: false),
+        findsOneWidget,
+      );
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -903,6 +979,54 @@ final class _InstantPage extends Page<void> {
           Animation<double> secondaryAnimation,
         ) =>
             child,
+      );
+}
+
+/// One Navigator per branch, each seeded with its own page names, stacked the
+/// way go_router's default `StatefulShellRoute` container keeps them: an
+/// [IndexedStack] whose inactive children sit under `Offstage` and a disabled
+/// `TickerMode`.
+final class _TwoBranchShell extends StatelessWidget {
+  const _TwoBranchShell({
+    required this.activeIndex,
+    required this.branches,
+  });
+
+  final int activeIndex;
+
+  final List<List<String>> branches;
+
+  @override
+  Widget build(BuildContext context) => IndexedStack(
+        index: activeIndex,
+        children: <Widget>[
+          for (int index = 0; index < branches.length; index++)
+            Offstage(
+              offstage: index != activeIndex,
+              child: TickerMode(
+                enabled: index == activeIndex,
+                child: Navigator(
+                  onGenerateInitialRoutes: (
+                    NavigatorState navigator,
+                    String name,
+                  ) =>
+                      <Route<void>>[
+                    for (final String page in branches[index])
+                      PageRouteBuilder<void>(
+                        transitionDuration: Duration.zero,
+                        reverseTransitionDuration: Duration.zero,
+                        pageBuilder: (
+                          BuildContext context,
+                          Animation<double> animation,
+                          Animation<double> secondaryAnimation,
+                        ) =>
+                            Text(page),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       );
 }
 

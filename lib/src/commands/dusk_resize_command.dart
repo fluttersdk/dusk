@@ -27,7 +27,8 @@ final class DuskResizeCommand extends ArtisanCommand {
 
   @override
   String get description =>
-      'Resize the running Flutter web app viewport via Chrome DevTools Protocol.';
+      'Resize the running Flutter web app viewport via Chrome DevTools '
+      'Protocol, for as long as the CDP session lasts (--hold keeps it).';
 
   @override
   CommandBoot get boot => CommandBoot.none;
@@ -154,8 +155,9 @@ final class DuskResizeCommand extends ArtisanCommand {
       }
 
       ctx.output.success(
-        'Viewport set to ${width}x$height @ ${dpr}x '
-        '(mobile=$mobile touch=$touch).',
+        'Viewport override sent: ${width}x$height @ ${dpr}x '
+        '(mobile=$mobile touch=$touch). It lasts only as long as this '
+        "command's CDP session.",
       );
       if (!hold) {
         ctx.output.warning(

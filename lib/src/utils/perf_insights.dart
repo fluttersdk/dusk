@@ -110,6 +110,7 @@ Map<String, Object?> buildPerfReport(
   PerfMode mode = PerfMode.attribution,
   int? framesDrawn,
   int framesOutsideSession = 0,
+  bool sessionClockMismatch = false,
   double? durationMs,
   bool full = false,
 }) =>
@@ -121,6 +122,7 @@ Map<String, Object?> buildPerfReport(
       mode: mode,
       framesDrawn: framesDrawn,
       framesOutsideSession: framesOutsideSession,
+      sessionClockMismatch: sessionClockMismatch,
       durationMs: durationMs,
       full: full,
     ).report;

@@ -70,8 +70,8 @@
 - `dusk_hot_reload_and_snap` (`artisan:dusk:hot_reload_and_snap`): Hot reload app, capture snapshot + screenshot + recent exceptions in one round-trip.
 
 *Viewport / Device Emulation (substrate-routed, CDP)*
-- `dusk_resize_viewport` (`artisan:dusk:resize`): Resize Flutter web viewport via Chrome DevTools Protocol.
-- `dusk_device_profile` (`artisan:dusk:device`): Emulate named device preset via CDP.
+- `dusk_resize_viewport` (`artisan:dusk:resize`): Resize Flutter web viewport via Chrome DevTools Protocol; the override lasts only as long as the call's CDP session (the CLI's `dusk:resize --hold` keeps it).
+- `dusk_device_profile` (`artisan:dusk:device`): Emulate named device preset via CDP; the emulation lasts only as long as the call's CDP session, only the window size stays.
 
 ## Docs
 - [Installation](https://fluttersdk.com/dusk/getting-started/installation.md)

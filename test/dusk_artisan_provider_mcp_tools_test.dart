@@ -312,6 +312,20 @@ void main() {
       expect(reset.inputSchema.containsKey('required'), isFalse);
     });
 
+    test(
+        'the CDP emulation tools say the override lasts only for the call\'s '
+        'session', () {
+      // Chrome drops an Emulation.* override when the DevTools session that
+      // sent it detaches, and each call opens and closes its own session.
+      final resize = tools.firstWhere((t) => t.name == 'dusk_resize_viewport');
+      final device = tools.firstWhere((t) => t.name == 'dusk_device_profile');
+      for (final tool in <McpToolDescriptor>[resize, device]) {
+        expect(tool.description, contains('only as long as'));
+        expect(tool.description, contains('CDP session'));
+      }
+      expect(resize.description, contains('--hold'));
+    });
+
     test('no two descriptors share an extensionMethod (no overlap, no gap)',
         () {
       final methods = tools.map((t) => t.extensionMethod).toList();

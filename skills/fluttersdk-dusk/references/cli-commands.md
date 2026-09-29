@@ -232,9 +232,15 @@ Empty arrays when telescope is not wired.
 ./bin/fsa dusk:device --preset=desktop-1440
 ./bin/fsa dusk:device --reset                                   # clear overrides
 
-./bin/fsa dusk:resize --width=1280 --height=800 --dpr=2.0
+./bin/fsa dusk:resize --width=1280 --height=800 --dpr=2.0 --hold &   # keep it while you drive
 ./bin/fsa dusk:resize --reset
 ```
+
+An `Emulation.*` override lasts only as long as the CDP session that sent
+it: `dusk:device` and `dusk:resize` without `--hold` close theirs on exit,
+so the page is back at its own size at once (only `dusk:device`'s window
+bounds stay). The MCP `dusk_resize_viewport` and `dusk_device_profile`
+cannot hold it; `dusk:resize --hold` in the background can.
 
 Launch Chrome with the debug port first: `./bin/fsa start --device=chrome --cdp-port=9222`.
 

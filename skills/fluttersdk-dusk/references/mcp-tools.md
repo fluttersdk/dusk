@@ -440,7 +440,8 @@ found", "adapter rejected", "router did not accept").
 ### dusk_navigate_back
 
 `includeSnapshot` (default true). Pops the top page of the outermost
-Navigator that can pop (a page stacked inside a shell included). Returns
+Navigator that can pop (a page stacked inside a shell included; a branch
+kept alive offstage by a `StatefulShellRoute` is skipped). Returns
 `{ navigatedBack: true, popped, snapshot? }`; `popped: false` means nothing
 could pop and the call did nothing.
 

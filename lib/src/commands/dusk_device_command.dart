@@ -12,6 +12,11 @@ import '../cdp/device_presets.dart';
 ///
 /// Use `--list` to print all available preset names without connecting
 /// to Chrome, and `--reset` to clear all emulation overrides.
+///
+/// The `Emulation.*` overrides belong to the DevTools session that sent them,
+/// and Chrome drops them when this command closes it on exit: only the OS
+/// window bounds (`Browser.setWindowBounds`) outlive the command. A lasting
+/// viewport is `dusk:resize --hold`, run in the background.
 final class DuskDeviceCommand extends ArtisanCommand {
   @override
   String get name => 'dusk:device';
@@ -19,7 +24,8 @@ final class DuskDeviceCommand extends ArtisanCommand {
   @override
   String get description =>
       'Emulate a device profile (viewport + DPR + touch + user agent) via'
-      ' Chrome DevTools Protocol.';
+      " Chrome DevTools Protocol, for as long as the command's CDP session"
+      ' lasts.';
 
   @override
   CommandBoot get boot => CommandBoot.none;
@@ -134,6 +140,12 @@ final class DuskDeviceCommand extends ArtisanCommand {
         'Emulating $presetInput:'
         ' ${preset.width}x${preset.height}'
         ' @ ${preset.deviceScaleFactor}x.',
+      );
+      ctx.output.warning(
+        'The emulation lasts only as long as this command\'s CDP session, '
+        'which closes as it exits; only the Chrome window size stays. Run '
+        'dusk:resize --hold in the background for a viewport that lasts '
+        'while you drive the app.',
       );
       return 0;
     } on DuskCdpException catch (e) {

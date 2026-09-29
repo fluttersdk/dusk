@@ -201,6 +201,11 @@ void main() {
         expect(capturedMetricsParams!['height'], equals(720));
         expect(capturedMetricsParams!['deviceScaleFactor'], equals(2.0));
         expect(capturedMetricsParams!['mobile'], equals(false));
+        // The override dies with this command's CDP session: the output must
+        // not read as a lasting resize.
+        expect(output.content, isNot(contains('Viewport set to')));
+        expect(output.content, contains('only as long as'));
+        expect(output.content, contains('--hold'));
       },
     );
 

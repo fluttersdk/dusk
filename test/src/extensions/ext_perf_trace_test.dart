@@ -395,6 +395,42 @@ void main() {
         hasLength(1),
       );
     });
+
+    test(
+        'keeps every frame and says so when no frame lands in the window, '
+        'as perf_end does', () {
+      // The engine's vsync clock and the session's FlutterTimeline clock
+      // disagree: perf_end keeps all the frames then, and a trace dropping
+      // them all would contradict the report it sits beside.
+      final Map<String, Object?> trace = buildPerfTrace(
+        token: 'perf-8',
+        startUs: _start,
+        endUs: _end,
+        interactions: const <Map<String, Object?>>[],
+        frames: <Map<String, Object?>>[
+          for (final int at in <int>[5000000, 5020000])
+            <String, Object?>{
+              'frameNumber': at,
+              'vsyncStartUs': at,
+              'totalSpanMicros': 10000,
+            },
+          // No vsync timestamp: still nothing to place it at.
+          <String, Object?>{'frameNumber': 9, 'totalSpanMicros': 10000},
+        ],
+        rows: const <Map<String, Object?>>[],
+      );
+
+      final Map<String, Object?> other =
+          trace['otherData']! as Map<String, Object?>;
+      expect(other['frames'], 2);
+      expect(other['framesOutsideWindow'], 0);
+      expect(other['sessionClockMismatch'], isTrue);
+      expect(
+        _phase(trace, 'X')
+            .where((Map<String, Object?> e) => e['cat'] == 'frame'),
+        hasLength(2),
+      );
+    });
   });
 
   group('ext.dusk.perf_trace', () {
