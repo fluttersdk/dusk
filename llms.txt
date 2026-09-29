@@ -1,6 +1,6 @@
 # fluttersdk_dusk
 
-> E2E driver for Flutter apps targeting LLM agents and CI. 40 CLI commands and 39 MCP tools drive a running Flutter app over 38 `ext.dusk.*` VM Service extensions, 33 of which are reached directly by an MCP tool, plus 6 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). The consumer gates with `!kReleaseMode` (debug and profile); release builds tree-shake the entire subsystem.
+> E2E driver for Flutter apps targeting LLM agents and CI. 41 CLI commands and 39 MCP tools drive a running Flutter app over 38 `ext.dusk.*` VM Service extensions, 33 of which are reached directly by an MCP tool, plus 6 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). The consumer gates with `!kReleaseMode` (debug and profile); release builds tree-shake the entire subsystem.
 
 **MCP tools (39)**, see `doc/mcp/tool-reference.md` for full input schemas. The 33 `ext.dusk.*` and 6 `artisan:dusk:*` (substrate-routed) tools are listed below.
 
@@ -89,6 +89,7 @@
 - [dusk:perf_end](https://fluttersdk.com/dusk/commands/dusk-perf-end.md)
 - [dusk:perf_insight](https://fluttersdk.com/dusk/commands/dusk-perf-insight.md)
 - [dusk:perf_run](https://fluttersdk.com/dusk/commands/dusk-perf-run.md)
+- [dusk:perf_campaign](https://fluttersdk.com/dusk/commands/dusk-perf-campaign.md): every scenario of a campaign YAML on one platform, each from a cold start, with hooks, Android preparation, retries and a pass/fail summary. CLI only.
 - [dusk:perf_compare](https://fluttersdk.com/dusk/commands/dusk-perf-compare.md)
 - [dusk:perf_trace](https://fluttersdk.com/dusk/commands/dusk-perf-trace.md)
 - [dusk:doctor](https://fluttersdk.com/dusk/commands/dusk-doctor.md)

@@ -1334,8 +1334,7 @@ final class _ArtisanPerfRunDriver implements PerfRunDriver {
 ///
 /// Throws whatever the VM Service throws when the extension does not answer:
 /// an RPC error while the app restarts, or on an app built with a dusk older
-/// than this one.
-@visibleForTesting
+/// than this one. `dusk:perf_campaign` polls it after each cold start.
 Future<String> readDuskBootId(VmServiceClient client) async {
   final String isolateId = await client.getMainIsolateId();
   final Map<String, dynamic> result =
