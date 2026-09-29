@@ -256,6 +256,9 @@ Launch Chrome with the debug port first: `./bin/fsa start --device=chrome --cdp-
 ./bin/fsa dusk:perf_run --scenario=perf/login.yaml --label=baseline
 ./bin/fsa dusk:perf_compare build/perf/login-baseline.json build/perf/login-candidate.json
 ./bin/fsa dusk:perf_trace --out=build/perf/trace.json           # last closed session as Chrome Trace JSON
+
+rm -f .artisan/build.stamp                                      # rebuild a dispatcher a dusk change missed
+./bin/fsa dusk:perf_campaign tool/perf/campaign.yaml --platform=chrome --label=base
 ```
 
 Check `refused` in `dusk:perf_end`'s output first: a session the engine did
@@ -264,7 +267,11 @@ than a report reading all zeros as "fast". `dusk:perf_run` repeats a
 scenario from a clean start and writes medians to a file; `dusk:perf_compare`
 gates on counts per painted frame, never on raw counts, and exits 1 on an
 error-level regression. `dusk:perf_trace` writes to disk because a trace is
-too large for a terminal or an agent's context.
+too large for a terminal or an agent's context. `dusk:perf_campaign` runs every
+scenario of a campaign YAML on one platform, each from a cold start (its
+hooks, Android preparation and `after_start` first), retries a failed one,
+prints `ok` or `FAILED (see <.err>)` per scenario and exits 1 when any
+failed; it starts and stops the app itself, so no app needs to be running.
 
 ## Install + doctor (no app required)
 

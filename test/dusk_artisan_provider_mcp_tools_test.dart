@@ -13,8 +13,8 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 40 commands', () {
-      expect(cmds, hasLength(40));
+    test('returns exactly 41 commands', () {
+      expect(cmds, hasLength(41));
     });
 
     test(
@@ -71,6 +71,8 @@ void main() {
           'DuskPerfRunCommand',
           'DuskPerfCompareCommand',
           'DuskPerfTraceCommand',
+          // Perf campaign.
+          'DuskPerfCampaignCommand',
         ]),
       );
     });

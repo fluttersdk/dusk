@@ -23,6 +23,7 @@ import 'commands/dusk_navigate_back_command.dart';
 import 'commands/dusk_navigate_command.dart';
 import 'commands/dusk_observe_command.dart';
 import 'commands/dusk_perf_begin_command.dart';
+import 'commands/dusk_perf_campaign_command.dart';
 import 'commands/dusk_perf_compare_command.dart';
 import 'commands/dusk_perf_end_command.dart';
 import 'commands/dusk_perf_insight_command.dart';
@@ -140,6 +141,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         DuskPerfRunCommand(),
         DuskPerfCompareCommand(),
         DuskPerfTraceCommand(),
+        // The whole campaign, one cold start per scenario (CLI only).
+        DuskPerfCampaignCommand(),
       ];
 
   @override

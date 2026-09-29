@@ -12,14 +12,14 @@ lib/
 ├── cli.dart                     # Flutter-free codegen barrel (FluttersdkDuskArtisanProvider typedef)
 └── src/
     ├── extensions/              # 22 files: 21 ext_*.dart (snapshot/pointer/text_input/screenshot/scroll/wait_find/modal_router/navigation/evaluate/close_app/find/console/exceptions/checkbox/observe/focus/fill/perf/perf_trace/semantics_hold/boot) + register_dusk_extensions.dart aggregator
-    ├── commands/                # 40 ArtisanCommand subclasses (one file each)
+    ├── commands/                # 41 ArtisanCommand subclasses (one file each)
     ├── utils/                   # actionability_gate (6-step: defunct/enabled/zero-rect/off-viewport/stable/receives-events), error_envelope, chrome_reaper, dusk_exceptions, dusk_response, frame_sync, frame_summary, perf_readers
     ├── cdp/                     # cdp_client + chrome_finder + 8 device_presets
     ├── dusk_plugin.dart         # DuskPlugin.install() entry, enricher list, navigate adapter, installErrorCapture call
     ├── dusk_error_capture.dart  # Non-fatal FlutterError ring buffer (cap 50, dedup); installErrorCapture / uninstallErrorCapture / recentCapturedExceptions
     ├── ref_registry.dart        # e<N> + q<N> dual token system; live re-resolution for q-refs
     ├── dusk_snapshot_enricher.dart  # FROZEN typedef: String? Function(Element, RefRegistry)
-    └── dusk_artisan_provider.dart   # 40 commands + 39 MCP tool descriptors
+    └── dusk_artisan_provider.dart   # 41 commands + 39 MCP tool descriptors
 bin/fluttersdk_dusk.dart           # Flutter-free CLI entry (no dart:ui import)
 install.yaml                       # V1 plugin manifest, zero stubs, post_install bootstrap
 ```
@@ -51,7 +51,7 @@ The Flutter-free CLI wrapper applies two interceptions before delegating to `run
 
 ## CLI commands
 
-The 40 commands registered by `DuskArtisanProvider.commands()`:
+The 41 commands registered by `DuskArtisanProvider.commands()`:
 
 ```
 dusk:install           dusk:doctor              dusk:close_app
@@ -67,7 +67,7 @@ dusk:navigate_back     dusk:get_routes          dusk:modal
 dusk:reset_overlays    dusk:resize              dusk:device
 dusk:console           dusk:exceptions          dusk:perf_begin
 dusk:perf_end          dusk:perf_insight        dusk:perf_run
-dusk:perf_compare      dusk:perf_trace
+dusk:perf_compare      dusk:perf_trace          dusk:perf_campaign
 ```
 
 Each command file declares `name`, `description`, `boot` (`none` or `connected`), `configure(parser)` (flags), and `handle(ctx)` (validates args, calls `ctx.callExtension('ext.dusk.X', params)`, writes formatted output).
