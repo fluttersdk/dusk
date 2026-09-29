@@ -439,8 +439,10 @@ found", "adapter rejected", "router did not accept").
 
 ### dusk_navigate_back
 
-`includeSnapshot` (default true). Pops the top route if `canPop` is
-true. Returns `{ navigatedBack: true, snapshot? }`.
+`includeSnapshot` (default true). Pops the top page of the outermost
+Navigator that can pop (a page stacked inside a shell included). Returns
+`{ navigatedBack: true, popped, snapshot? }`; `popped: false` means nothing
+could pop and the call did nothing.
 
 ### dusk_get_routes
 

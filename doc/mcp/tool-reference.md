@@ -620,15 +620,25 @@ invalidated.
 Dispatch: `ext.dusk.navigate_back`
 
 Pop the top route off the active navigator stack. Equivalent to pressing the system Back
-button. No-op when the stack has only one route.
+button. No-op when no Navigator has a page to leave.
+
+The Navigator popped is the outermost one that can pop. A page pushed on the root Navigator
+covers whatever a shell shows, so it is left first; a page stacked inside a shell (a
+go_router `ShellRoute` builds its own nested Navigator, and MagicRouter's `.stacked()` pushes
+onto it) is left once the root has nothing to pop. The root Navigator of such an app holds
+the shell alone, so popping it would do nothing.
 
 ### Input schema
 
-No parameters.
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `includeSnapshot` | boolean | `true` | Embed the post-pop snapshot in the response. |
 
 ### Returns
 
-Success: `{ popped: bool }`. `false` when the stack already had only one route.
+Success: `{ navigatedBack: true, popped, snapshot? }`. `popped` is `false` when no Navigator
+had a page to leave (the bottom of every stack), so the call did nothing; read
+`dusk_get_routes` `uri`, or the snapshot, to see where the app is.
 
 ### Example call
 

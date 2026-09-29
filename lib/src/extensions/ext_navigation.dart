@@ -145,10 +145,12 @@ Map<String, dynamic> buildNavigateResponse(String route) => <String, dynamic>{
 /// Builds the success payload for `ext.dusk.navigate_back`.
 ///
 /// Returns a map with:
-/// - `navigatedBack`: always `true`
+/// - `navigatedBack`: always `true` (the call completed)
+/// - `popped`: whether a Navigator had a page to leave; `false` is a no-op at
+///   the bottom of every stack
 @visibleForTesting
-Map<String, dynamic> buildNavigateBackResponse() =>
-    <String, dynamic>{'navigatedBack': true};
+Map<String, dynamic> buildNavigateBackResponse({bool popped = true}) =>
+    <String, dynamic>{'navigatedBack': true, 'popped': popped};
 
 /// Builds the success payload for `ext.dusk.get_routes`.
 ///
@@ -334,11 +336,15 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
 ///   embedding the post-pop accessibility snapshot in the response.
 ///
 /// On success (default):
-/// `{ "navigatedBack": true, "snapshot": "<yaml>" }`.
+/// `{ "navigatedBack": true, "popped": true, "snapshot": "<yaml>" }`;
+/// `popped` is `false` when no Navigator could pop.
 ///
 /// Steps:
-/// 1. Find the [NavigatorState] via a depth-first tree walk.
-/// 2. Pop if the Navigator can pop; otherwise silently no-op (bottom of stack).
+/// 1. Find the outermost [NavigatorState] that can pop, by a depth-first tree
+///    walk. A Router-based app nests one Navigator per shell (a go_router
+///    `ShellRoute`), and a page stacked inside a shell is popped by that
+///    shell's Navigator: the root one holds the shell alone and never can.
+/// 2. Pop it; when none can pop, silently no-op (bottom of stack).
 /// 3. Wait for two endOfFrame ticks so the post-pop tree settles.
 /// 4. Return the confirmation envelope.
 Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
@@ -346,11 +352,13 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
   Map<String, String> params,
 ) async {
   try {
-    // 1. Walk the tree for the active Navigator.
+    // 1. Walk the tree for the Navigator that has a page to leave.
     final Element? root = WidgetsBinding.instance.rootElement;
+    bool popped = false;
     if (root != null) {
-      final NavigatorState? navigator = _findNavigator(root);
-      if (navigator != null && navigator.canPop()) {
+      final NavigatorState? navigator = _findPoppableNavigator(root);
+      if (navigator != null) {
+        popped = true;
         // 2. Pop the top route.
         await runPerfInteraction<void>('navigate_back', null, () async {
           navigator.pop();
@@ -367,7 +375,8 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
 
     // 4. Embed post-action snapshot (opt-out via includeSnapshot:'false')
     //    + return confirmation.
-    final Map<String, dynamic> payload = buildNavigateBackResponse();
+    final Map<String, dynamic> payload =
+        buildNavigateBackResponse(popped: popped);
     try {
       await _appendSnapshotIfRequested(payload, params);
     } catch (e) {
@@ -432,6 +441,32 @@ NavigatorState? _findNavigator(Element root) {
     if (element is StatefulElement && element.state is NavigatorState) {
       found = element.state as NavigatorState;
       return;
+    }
+    element.visitChildren(visit);
+  }
+
+  visit(root);
+  return found;
+}
+
+/// Walks the element tree depth-first from [root] and returns the first
+/// [NavigatorState] whose [NavigatorState.canPop] is true, or `null` when every
+/// Navigator is at the bottom of its stack.
+///
+/// The walk visits an outer Navigator before the ones nested in it, so a page
+/// pushed on the root (which covers whatever a shell shows) is left first, and
+/// a page stacked inside a shell is left once the root has nothing to pop.
+NavigatorState? _findPoppableNavigator(Element root) {
+  NavigatorState? found;
+
+  void visit(Element element) {
+    if (found != null) return;
+    if (element is StatefulElement) {
+      final State state = element.state;
+      if (state is NavigatorState && state.canPop()) {
+        found = state;
+        return;
+      }
     }
     element.visitChildren(visit);
   }
