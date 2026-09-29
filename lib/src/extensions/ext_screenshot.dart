@@ -380,7 +380,7 @@ RenderObject _findRepaintBoundaryAncestor(RenderObject start) {
 /// typically the framework's [RenderView]. `RenderView.isRepaintBoundary`
 /// is `true`, so the ancestor walk in [_findRepaintBoundaryAncestor] stops
 /// immediately and we capture the full viewport. Hosts that wrap their root
-/// in an explicit [RepaintBoundary] under `kDebugMode` (the pattern
+/// in an explicit [RepaintBoundary] under `!kReleaseMode` (the pattern
 /// uptizm-app uses) get pixel-tight captures of that subtree; hosts that
 /// don't still get the full viewport via the RenderView fallback.
 ///

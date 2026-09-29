@@ -280,7 +280,7 @@ dart run fluttersdk_dusk dusk:install                           # one-time setup
 ./bin/fsa dusk:doctor                                           # 7 preflight checks
 ```
 
-`dusk:install` patches `lib/main.dart` (adds `kDebugMode` guard +
+`dusk:install` patches `lib/main.dart` (adds `!kReleaseMode` guard +
 `DuskPlugin.install()`), scaffolds `./bin/fsa`, registers the provider in
 `lib/app/_plugins.g.dart`, and (when `magic_devtools` is in pubspec AND
 `lib/main.dart` contains an `await Magic.init(` anchor) injects

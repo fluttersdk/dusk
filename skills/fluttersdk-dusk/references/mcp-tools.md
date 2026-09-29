@@ -57,7 +57,7 @@ present. It is omitted entirely on a healthy engine.
 Prerequisites for every `dusk_*` MCP tool:
 
 1. The app is running (`./bin/fsa start --device=<dev>`).
-2. `DuskPlugin.install()` ran inside `kDebugMode` (handled by the
+2. `DuskPlugin.install()` ran inside `!kReleaseMode` (handled by the
    one-time `dusk:install` CLI command).
 3. The MCP server is wired in `.mcp.json` (handled by the one-time
    `mcp:install` CLI command).

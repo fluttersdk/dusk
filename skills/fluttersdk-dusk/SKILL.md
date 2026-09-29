@@ -15,7 +15,7 @@ exposes a `ext.dusk.*` VM Service surface plus an MCP server; the agent calls
 tree, mint ref tokens, gesture against them, wait for conditions, screenshot,
 and hot-reload, all without a test file or rebuild between actions.
 
-This skill assumes the app already has dusk installed (a `kDebugMode`-gated
+This skill assumes the app already has dusk installed (a `!kReleaseMode`-gated
 `DuskPlugin.install()` in `lib/main.dart`, the MCP server in `.mcp.json`).
 If not, run `dart run fluttersdk_dusk dusk:install` once from the app root
 and verify with `./bin/fsa dusk:doctor`.

@@ -5,7 +5,7 @@ snap, a tap, and a screenshot via the dusk CLI.
 
 Prerequisites: Flutter `>= 3.22.0` SDK installed, `fluttersdk_dusk` added to your
 project (see [Installation](installation)), and `DuskPlugin.install()` wired inside
-`kDebugMode` in your `main.dart`.
+`!kReleaseMode` in your `main.dart`.
 
 ---
 

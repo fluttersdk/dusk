@@ -33,7 +33,8 @@ dependencies:
 
 executables:
   # `dart run fluttersdk_dusk <cmd>` is the dusk-flavoured artisan wrapper.
-  # Surfaces 41 CLI commands + 39 MCP tools (33 ext.dusk.* + 6 artisan:dusk:*) via DuskArtisanProvider.
+  # Surfaces 41 CLI commands + 39 MCP tools (33 call an ext.dusk.* extension directly, 6 route
+  # through artisan:dusk:*; 38 ext.dusk.* extensions in all) via DuskArtisanProvider.
   fluttersdk_dusk: fluttersdk_dusk
 
 dev_dependencies:
