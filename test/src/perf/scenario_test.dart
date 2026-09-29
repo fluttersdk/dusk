@@ -401,6 +401,52 @@ steps:
       expect(_problems('- just\n- a list\n'), isNotEmpty);
     });
 
+    test('refuses an include, which has no base path to resolve against', () {
+      final String problems = _problems('''
+name: in-memory
+setup:
+  - include: fragments/login.yaml
+steps:
+  - wait: 100
+''').join('\n');
+
+      expect(problems, contains('setup[0].include'));
+      expect(problems, contains("including file's path"));
+      expect(problems, contains('loadPerfScenarios'));
+    });
+
+    test('refuses variants, which yield several scenarios', () {
+      final String problems = _problems('''
+name: in-memory
+steps:
+  - wait: 100
+variants:
+  "390": {}
+''').join('\n');
+
+      expect(problems, contains('variants'));
+      expect(problems, contains('loadPerfScenarios'));
+    });
+
+    test(r'reads $$ as a literal dollar and refuses an unset env name', () {
+      expect(
+        PerfScenario.parse(r'''
+name: dollars
+steps:
+  - navigate: "/pay?amount=$$5"
+''').steps.single.route,
+        r'/pay?amount=$5',
+      );
+      expect(
+        _problems(r'''
+name: dollars
+steps:
+  - navigate: "${env.HOME}"
+''').join('\n'),
+        contains(r'${env.HOME}'),
+      );
+    });
+
     test('toJson carries the scenario for the run file', () {
       final Map<String, Object?> json = PerfScenario.parse(_valid).toJson();
 
@@ -415,6 +461,26 @@ steps:
         'tap': <String, Object?>{
           'target': <String, Object?>{'text': 'Monitors'},
         },
+      });
+    });
+  });
+
+  group('PerfStep', () {
+    group('.toJson()', () {
+      test('masks the text of a secret fill', () {
+        const PerfStep step = PerfStep(
+          PerfStepVerb.fill,
+          target: PerfTarget(kind: PerfTargetKind.label, value: 'Password'),
+          text: r'ab"c$d',
+          secret: true,
+        );
+
+        expect(step.toJson(), <String, Object?>{
+          'fill': <String, Object?>{
+            'target': <String, Object?>{'label': 'Password'},
+            'text': '***',
+          },
+        });
       });
     });
   });

@@ -24,9 +24,19 @@
 /// repeat: 3
 /// thresholds: {warn: 10, error: 25}          # percent, per metric
 /// ```
+///
+/// A file on disk loads through [loadPerfScenarios] (`scenario_loader.dart`),
+/// which adds setup fragments (`include`), `${...}` interpolation, secrets
+/// and `variants`; [PerfScenario.parse] reads the same grammar from a string,
+/// without the includes a string has no directory to resolve.
 library;
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:yaml/yaml.dart';
+
+part 'scenario_loader.dart';
 
 /// Where a scenario can run.
 enum PerfPlatform {
@@ -155,6 +165,13 @@ const Set<PerfStepVerb> kPerfSetupGestures = <PerfStepVerb>{
 /// on Flutter web recompiles, so the first text can take several seconds.
 const int kPerfWaitForTextTimeoutMs = 15000;
 
+/// How long a `when` guard polls when it names no `timeout_ms`: a cold start
+/// on a device can take most of a minute to show its first screen.
+const int kPerfWhenTimeoutMs = 60000;
+
+/// How deep includes may nest, the scenario file itself not counted.
+const int kPerfMaxIncludeDepth = 8;
+
 /// The most events one `wheel` step may send: at one frame apart, 200 ticks
 /// is about three seconds of scrolling, longer than any single gesture.
 const int _kMaxWheelTicks = 200;
@@ -208,14 +225,56 @@ final class PerfTarget {
       };
 }
 
+/// The `when:` of an include: whether the steps it flattened run at all.
+///
+/// A runner polls the screen for up to [timeoutMs]. [text] on screen runs
+/// the group; [unlessText] on screen skips it, and wins when both are there,
+/// since it names the state the group would produce (a login that already
+/// happened). On timeout the group is skipped when [unlessText] is null, and
+/// the run fails when it is set: the screen showed neither state.
+///
+/// Every step flattened out of one guarded include carries the same instance
+/// (compare with `identical`, never `==`), and the guard of an include nested
+/// inside it names it as [parent]. A runner decides each guard once per pass
+/// over the setup, outermost first, at the first step that carries it, and
+/// skips every step whose chain holds a guard it decided to skip.
+final class PerfSetupGuard {
+  PerfSetupGuard({
+    required this.text,
+    required this.origin,
+    this.unlessText,
+    this.timeoutMs = kPerfWhenTimeoutMs,
+    this.parent,
+  });
+
+  final String text;
+  final String? unlessText;
+  final int timeoutMs;
+
+  /// The include entry the guard belongs to, as [PerfSetupStep.origin]
+  /// spells a location: `setup[1]`, `fragments/login.yaml steps[0]`.
+  final String origin;
+
+  /// The guard of the include this one is nested in, if that one has one.
+  final PerfSetupGuard? parent;
+}
+
 /// One setup entry.
 final class PerfSetupStep {
-  const PerfSetupStep(this.verb, {this.argument, this.timeoutMs})
-      : gesture = null;
+  const PerfSetupStep(
+    this.verb, {
+    this.argument,
+    this.timeoutMs,
+    this.origin,
+    this.guard,
+  }) : gesture = null;
 
   /// A gesture from the steps' grammar, run unmeasured before the window.
-  const PerfSetupStep.gesture(PerfStep this.gesture)
-      : verb = PerfSetupVerb.gesture,
+  const PerfSetupStep.gesture(
+    PerfStep this.gesture, {
+    this.origin,
+    this.guard,
+  })  : verb = PerfSetupVerb.gesture,
         argument = null,
         timeoutMs = null;
 
@@ -229,6 +288,27 @@ final class PerfSetupStep {
 
   /// `wait_for_text`'s ceiling in milliseconds.
   final int? timeoutMs;
+
+  /// Where the entry was written, for a runner's error messages: `setup[2]`
+  /// in the scenario, `fragments/login.yaml steps[1]` when an include
+  /// flattened it here. Null only on a step built by hand.
+  final String? origin;
+
+  /// The innermost `when` guard of the includes that flattened the entry;
+  /// null when it runs unconditionally.
+  final PerfSetupGuard? guard;
+
+  /// This entry at its place in the flattened list.
+  PerfSetupStep _placed(String origin, PerfSetupGuard? guard) =>
+      verb == PerfSetupVerb.gesture
+          ? PerfSetupStep.gesture(gesture!, origin: origin, guard: guard)
+          : PerfSetupStep(
+              verb,
+              argument: argument,
+              timeoutMs: timeoutMs,
+              origin: origin,
+              guard: guard,
+            );
 
   Object toJson() => switch (verb) {
         PerfSetupVerb.hotRestart ||
@@ -260,6 +340,7 @@ final class PerfStep {
     this.height,
     this.ms,
     this.only,
+    this.secret = false,
   });
 
   final PerfStepVerb verb;
@@ -267,6 +348,10 @@ final class PerfStep {
 
   /// The text `fill` and `type` enter.
   final String? text;
+
+  /// Whether [text] came from `${env.*}` or a `secret: true` param, so
+  /// [toJson] writes `***` in its place.
+  final bool secret;
 
   /// The key `press_key` sends.
   final String? key;
@@ -307,7 +392,7 @@ final class PerfStep {
         },
       _ => <String, Object?>{
           'target': target!.toJson(),
-          if (text != null) 'text': text,
+          if (text != null) 'text': secret ? '***' : text,
           if (dx != 0) 'dx': dx,
           if (dy != 0) 'dy': dy,
           if (ticks != 1) 'ticks': ticks,
@@ -358,24 +443,15 @@ final class PerfScenario {
     this.thresholds = const PerfThresholds(),
   });
 
-  /// Parses and validates [source].
+  /// Parses and validates [source], interpolating `$$` and `${env.*}`
+  /// against an empty environment.
   ///
   /// Throws [PerfScenarioException] listing every problem found; a YAML
-  /// syntax error is reported as one problem.
-  static PerfScenario parse(String source) {
-    final Object? document;
-    try {
-      document = loadYaml(source);
-    } on YamlException catch (e) {
-      throw PerfScenarioException(<String>['not valid YAML: ${e.message}']);
-    }
-    if (document is! Map<Object?, Object?>) {
-      throw PerfScenarioException(<String>[
-        'the document must be a map with name, steps and the optional keys',
-      ]);
-    }
-    return _ScenarioReader(document).read();
-  }
+  /// syntax error is reported as one problem. An `include` or `variants` is
+  /// one of them: an include resolves against the including file's directory
+  /// and variants yield several scenarios, so both need [loadPerfScenarios].
+  static PerfScenario parse(String source) =>
+      _ScenarioReader().readScenarios(_scenarioDocument(source)).single;
 
   /// Also the file name stem, so restricted to [isSafePerfName].
   final String name;
@@ -412,16 +488,85 @@ final class PerfScenario {
 // Private helpers
 // ---------------------------------------------------------------------------
 
-/// Reads one YAML document into a [PerfScenario], collecting every problem.
+/// Reads a scenario document, or a bare setup list, into the model,
+/// collecting every problem.
+///
+/// Reading is one pass per source file: [_plain] copies the YAML into plain
+/// values and interpolates every scalar once, a value from `${env.*}` or a
+/// secret param becoming a [_Secret]; the readers then take a [_Secret] only
+/// as the text of a `fill` or `type` ([_screenEntry]) and pass it through an
+/// include's `with:`. Includes are the loader's (`scenario_loader.dart`).
 final class _ScenarioReader {
-  _ScenarioReader(this.document);
+  _ScenarioReader({this.env = const <String, String>{}, this.file});
 
-  final Map<Object?, Object?> document;
+  final Map<String, String> env;
+
+  /// The absolute path of the file being read; null for a string, which
+  /// can hold neither an include nor variants.
+  final String? file;
+
   final List<String> problems = <String>[];
 
-  PerfScenario read() {
-    // 1. The scalar keys.
-    final Object? rawName = document['name'];
+  /// Every tainted value read so far; [_fail] masks them in [problems].
+  final Set<String> secrets = <String>{};
+
+  /// The scenarios [source] holds: one per variant, or itself.
+  List<PerfScenario> readScenarios(Map<Object?, Object?> source) {
+    // 1. One interpolation pass over the whole file, so every scalar is read
+    //    exactly once whichever variant ends up using it.
+    final Map<Object?, Object?> document =
+        _plain(source, const <String, Object>{}, _rootLabel, '')!
+            as Map<Object?, Object?>;
+
+    // 2. Keys no scenario takes.
+    final Set<String> allowed = <String>{
+      ..._kTopLevelKeys,
+      if (file != null) 'variants',
+    };
+    for (final Object? key in document.keys) {
+      if (key == 'variants' && file == null) {
+        problems.add('variants: a file with variants holds several scenarios; '
+            'load it with loadPerfScenarios.');
+      } else if (!allowed.contains(key)) {
+        problems.add('unknown key "$key"; allowed: ${allowed.join(', ')}.');
+      }
+    }
+
+    // 3. Each variant is a scenario of its own, validated on its own.
+    final Object? variants = document['variants'];
+    final List<PerfScenario> scenarios = variants == null || file == null
+        ? <PerfScenario>[_readOne(document)]
+        : _readVariants(document, variants);
+    _fail();
+    return scenarios;
+  }
+
+  /// The flattened setup a bare entry list (a campaign's `after_start:`)
+  /// holds, read at [at].
+  List<PerfSetupStep> readSetup(
+    Object? entries,
+    String at,
+    Set<PerfPlatform> platforms,
+  ) {
+    final List<PerfSetupStep> setup = <PerfSetupStep>[];
+    final Object? plain = _plain(
+      entries,
+      const <String, Object>{},
+      _rootLabel,
+      at,
+    );
+    if (plain != null) _setupList(plain, at, platforms, _rootFrame, setup);
+    _fail();
+    return setup;
+  }
+
+  PerfScenario _readOne(
+    Map<Object?, Object?> document, {
+    String? variant,
+    String stepsAt = 'steps',
+  }) {
+    // 1. The scalar keys. None takes a secret.
+    final Object? rawName = _screen(document['name'], 'name');
     final String name = rawName is String ? rawName : '';
     if (!isSafePerfName(name)) {
       problems.add(
@@ -429,29 +574,27 @@ final class _ScenarioReader {
         'it becomes part of the output file name.',
       );
     }
-    final int repeat = _positiveInt(document['repeat'], 'repeat') ?? 3;
-    final ({int width, int height})? viewport = _viewport(document['viewport']);
+    final int repeat =
+        _positiveInt(_screen(document['repeat'], 'repeat'), 'repeat') ?? 3;
+    final ({int width, int height})? viewport =
+        _viewport(_screen(document['viewport'], 'viewport'));
     final Set<PerfPlatform> platforms = _platforms(
-          document['platforms'],
+          _screen(document['platforms'], 'platforms'),
           'platforms',
         ) ??
         PerfPlatform.values.toSet();
-    final PerfThresholds thresholds = _thresholds(document['thresholds']);
+    final PerfThresholds thresholds =
+        _thresholds(_screen(document['thresholds'], 'thresholds'));
 
     // 2. The lists. Steps are checked against the platforms read above.
-    final List<PerfSetupStep> setup = _setup(document['setup'], platforms);
-    final List<PerfStep> steps = _steps(document['steps'], platforms);
-
-    for (final Object? key in document.keys) {
-      if (!_kTopLevelKeys.contains(key)) {
-        problems
-            .add('unknown key "$key"; allowed: ${_kTopLevelKeys.join(', ')}.');
-      }
+    final List<PerfSetupStep> setup = <PerfSetupStep>[];
+    if (document['setup'] != null) {
+      _setupList(document['setup'], 'setup', platforms, _rootFrame, setup);
     }
+    final List<PerfStep> steps = _steps(document['steps'], stepsAt, platforms);
 
-    if (problems.isNotEmpty) throw PerfScenarioException(problems);
     return PerfScenario(
-      name: name,
+      name: variant == null ? name : '$name-$variant',
       viewport: viewport,
       platforms: platforms,
       setup: setup,
@@ -460,6 +603,236 @@ final class _ScenarioReader {
       thresholds: thresholds,
     );
   }
+
+  List<PerfScenario> _readVariants(
+    Map<Object?, Object?> document,
+    Object? raw,
+  ) {
+    if (raw is! Map<Object?, Object?> || raw.isEmpty) {
+      problems.add('variants must be a non-empty map of <key>: {viewport, '
+          'platforms, repeat, steps}; leave it out for one scenario.');
+      return const <PerfScenario>[];
+    }
+    final List<PerfScenario> scenarios = <PerfScenario>[];
+    final Set<String> seen = <String>{};
+    for (final MapEntry<Object?, Object?>(:Object? key, :Object? value)
+        in raw.entries) {
+      // 1. YAML reads `1440:` as an int, so the key is checked as the text
+      //    it becomes in the name.
+      final String suffix = '$key';
+      if (!isSafePerfName(suffix)) {
+        problems.add('variants: key "$suffix" must use [a-z0-9_-] only: it '
+            'ends the scenario name and the file name.');
+        continue;
+      }
+      if (!seen.add(suffix)) {
+        problems.add('variants: key "$suffix" appears twice; 390 and "390" '
+            'name one variant.');
+        continue;
+      }
+      final Object overrides = value ?? const <Object?, Object?>{};
+      if (overrides is! Map<Object?, Object?>) {
+        problems.add('variants.$suffix must be a map of '
+            '${_kVariantKeys.join(', ')}.');
+        continue;
+      }
+      final Iterable<Object?> unknown =
+          overrides.keys.where((Object? k) => !_kVariantKeys.contains(k));
+      for (final Object? k in unknown) {
+        problems.add('variants.$suffix: unknown key "$k"; allowed: '
+            '${_kVariantKeys.join(', ')}.');
+      }
+      if (unknown.isNotEmpty) continue;
+
+      // 2. Each key the variant names replaces the base's whole value, so a
+      //    variant's steps are its steps, checked against its platforms.
+      final int from = problems.length;
+      final PerfScenario scenario = _readOne(
+        <Object?, Object?>{...document, ...overrides}..remove('variants'),
+        variant: suffix,
+        stepsAt:
+            overrides.containsKey('steps') ? 'variants.$suffix.steps' : 'steps',
+      );
+      for (int i = from; i < problems.length; i++) {
+        problems[i] = '${scenario.name}: ${problems[i]}';
+      }
+      scenarios.add(scenario);
+    }
+    return scenarios;
+  }
+
+  _Frame get _rootFrame => _Frame(
+        file: file,
+        chain: <String>[if (file != null) file!],
+      );
+
+  /// How interpolation problems name the file being read.
+  String get _rootLabel => file == null ? '' : _shown(file!);
+
+  /// Throws the problems collected so far, secrets masked.
+  void _fail() {
+    if (problems.isEmpty) return;
+    final List<String> masks = <String>[
+      for (final String secret in secrets) ...<String>{
+        secret,
+        _jsonInner(secret),
+      },
+    ]..sort((String a, String b) => b.length.compareTo(a.length));
+    throw PerfScenarioException(<String>[
+      for (final String problem in problems)
+        masks.fold(
+          problem,
+          (String line, String mask) => line.replaceAll(mask, '***'),
+        ),
+    ]);
+  }
+
+  // -------------------------------------------------------------------------
+  // Interpolation and secrets
+  // -------------------------------------------------------------------------
+
+  /// A plain copy of [node] with every string scalar interpolated once in
+  /// [scope] (param name to a String or a [_Secret]); keys are copied as
+  /// written. [label] and [at] name the file and the path in a problem.
+  Object? _plain(
+    Object? node,
+    Map<String, Object> scope,
+    String label,
+    String at,
+  ) =>
+      switch (node) {
+        Map<Object?, Object?>() => <Object?, Object?>{
+            for (final MapEntry<Object?, Object?>(:Object? key, :Object? value)
+                in node.entries)
+              key: _plain(
+                value,
+                scope,
+                label,
+                at.isEmpty ? '$key' : '$at.$key',
+              ),
+          },
+        List<Object?>() => <Object?>[
+            for (final (int i, Object? value) in node.indexed)
+              _plain(value, scope, label, '$at[$i]'),
+          ],
+        String() => _interpolate(node, scope, label, at),
+        _ => node,
+      };
+
+  /// [source] with `${name}` read from [scope], `${env.NAME}` from [env] and
+  /// `$$` as one `$`. A substituted value is never scanned again, so a `$`
+  /// inside it stays as it is. Answers a [_Secret] when any part was one.
+  Object _interpolate(
+    String source,
+    Map<String, Object> scope,
+    String label,
+    String at,
+  ) {
+    if (!source.contains(r'$')) return source;
+    final String where = label.isEmpty ? at : '$label $at';
+    final StringBuffer out = StringBuffer();
+    bool tainted = false;
+    int i = 0;
+    while (i < source.length) {
+      final String next = i + 1 < source.length ? source[i + 1] : '';
+      if (source[i] != r'$' || (next != r'$' && next != '{')) {
+        out.write(source[i]);
+        i++;
+        continue;
+      }
+      if (next == r'$') {
+        out.write(r'$');
+        i += 2;
+        continue;
+      }
+      final int close = source.indexOf('}', i + 2);
+      if (close < 0) {
+        problems.add(
+          '$where: "\${" is never closed; write \$\$ for a literal \$.',
+        );
+        return source;
+      }
+      final String name = source.substring(i + 2, close);
+      final Object? value = _lookup(name, scope, where);
+      if (value is _Secret) tainted = true;
+      out.write(value is _Secret ? value.value : value ?? '');
+      i = close + 1;
+    }
+    return tainted ? _Secret(out.toString()) : out.toString();
+  }
+
+  /// What `${name}` stands for; null after reporting it undefined.
+  Object? _lookup(String name, Map<String, Object> scope, String where) {
+    if (name.startsWith('env.')) {
+      final String? value = env[name.substring(4)];
+      if (value == null) {
+        problems.add('$where: \${$name} is not set in the environment.');
+        return null;
+      }
+      if (value.isNotEmpty) secrets.add(value);
+      return _Secret(value);
+    }
+    final Object? value = scope[name];
+    if (value == null) {
+      final String known = scope.isEmpty
+          ? 'this file declares no params'
+          : 'params: ${scope.keys.join(', ')}';
+      problems.add(
+        '$where: \${$name} is not defined here; $known, '
+        r'and ${env.NAME} reads the environment.',
+      );
+    }
+    return value;
+  }
+
+  /// [node] with every [_Secret] in it refused, reported at its path and
+  /// replaced by `***`, so no later problem can quote it.
+  Object? _screen(Object? node, String at) => switch (node) {
+        _Secret() => _refuseSecret(at),
+        Map<Object?, Object?>() => <Object?, Object?>{
+            for (final MapEntry<Object?, Object?>(:Object? key, :Object? value)
+                in node.entries)
+              key: _screen(value, '$at.$key'),
+          },
+        List<Object?>() => <Object?>[
+            for (final (int i, Object? value) in node.indexed)
+              _screen(value, '$at[$i]'),
+          ],
+        _ => node,
+      };
+
+  /// [_screen] for a step or setup entry, which leaves the `text` of a
+  /// `fill` or `type` as it is: the one place a secret may go.
+  Object? _screenEntry(Object? raw, String where) {
+    if (raw is! Map<Object?, Object?>) return _screen(raw, where);
+    return <Object?, Object?>{
+      for (final MapEntry<Object?, Object?>(:Object? key, :Object? value)
+          in raw.entries)
+        key: (key == 'fill' || key == 'type') && value is Map<Object?, Object?>
+            ? <Object?, Object?>{
+                for (final MapEntry<Object?, Object?>(
+                      key: Object? arg,
+                      value: Object? given,
+                    ) in value.entries)
+                  arg: arg == 'text'
+                      ? given
+                      : _screen(given, '$where.$key.$arg'),
+              }
+            : _screen(value, '$where.$key'),
+    };
+  }
+
+  String _refuseSecret(String at) {
+    problems.add(
+      'a secret may only be typed: $at takes a value from \${env.*} or a '
+      'secret param, and only the text of a fill or type may.',
+    );
+    return '***';
+  }
+
+  // -------------------------------------------------------------------------
+  // Keys and lists
+  // -------------------------------------------------------------------------
 
   ({int width, int height})? _viewport(Object? raw) {
     if (raw == null) return null;
@@ -512,18 +885,28 @@ final class _ScenarioReader {
     return thresholds;
   }
 
-  List<PerfSetupStep> _setup(Object? raw, Set<PerfPlatform> platforms) {
-    if (raw == null) return const <PerfSetupStep>[];
+  /// Appends the entries of [raw], a list at [at] in [frame]'s file, to
+  /// [out], an include flattened in place.
+  void _setupList(
+    Object? raw,
+    String at,
+    Set<PerfPlatform> platforms,
+    _Frame frame,
+    List<PerfSetupStep> out,
+  ) {
     if (raw is! List<Object?>) {
-      problems.add('setup must be a list.');
-      return const <PerfSetupStep>[];
+      problems.add('${frame.at(at)} must be a list.');
+      return;
     }
-    final List<PerfSetupStep> setup = <PerfSetupStep>[];
-    for (int i = 0; i < raw.length; i++) {
-      final PerfSetupStep? step = _setupStep(raw[i], 'setup[$i]', platforms);
-      if (step != null) setup.add(step);
+    for (final (int i, Object? entry) in raw.indexed) {
+      final String where = frame.at('$at[$i]');
+      if (entry is Map<Object?, Object?> && entry.containsKey('include')) {
+        _include(entry, where, platforms, frame, out);
+        continue;
+      }
+      final PerfSetupStep? step = _setupStep(entry, where, platforms);
+      if (step != null) out.add(step._placed(where, frame.guard));
     }
-    return setup;
   }
 
   PerfSetupStep? _setupStep(
@@ -531,6 +914,7 @@ final class _ScenarioReader {
     String where,
     Set<PerfPlatform> platforms,
   ) {
+    raw = _screenEntry(raw, where);
     final (String? wire, Object? args) =
         _verbEntry(raw, where, const <String>{'only'});
     if (wire == null) return null;
@@ -588,21 +972,32 @@ final class _ScenarioReader {
     }
   }
 
-  List<PerfStep> _steps(Object? raw, Set<PerfPlatform> platforms) {
+  List<PerfStep> _steps(
+    Object? raw,
+    String at,
+    Set<PerfPlatform> platforms,
+  ) {
     if (raw is! List<Object?> || raw.isEmpty) {
-      problems.add('steps must be a non-empty list: a session that drives '
+      problems.add('$at must be a non-empty list: a session that drives '
           'nothing draws no frames and perf_end refuses it.');
       return const <PerfStep>[];
     }
     final List<PerfStep> steps = <PerfStep>[];
     for (int i = 0; i < raw.length; i++) {
-      final PerfStep? step = _step(raw[i], 'steps[$i]', platforms);
+      final Object? entry = raw[i];
+      if (entry is Map<Object?, Object?> && entry.containsKey('include')) {
+        problems.add('$at[$i]: include is a setup entry; the measured steps '
+            'are written out, so the file shows everything the window times.');
+        continue;
+      }
+      final PerfStep? step = _step(entry, '$at[$i]', platforms);
       if (step != null) steps.add(step);
     }
     return steps;
   }
 
   PerfStep? _step(Object? raw, String where, Set<PerfPlatform> platforms) {
+    raw = _screenEntry(raw, where);
     final (String? wire, Object? args) =
         _verbEntry(raw, where, const <String>{'only'});
     if (wire == null) return null;
@@ -692,7 +1087,11 @@ final class _ScenarioReader {
     final PerfTarget? target = _target(args['target'], '$at.target');
 
     final bool typing = verb == PerfStepVerb.fill || verb == PerfStepVerb.type;
-    final String? text = typing ? _string(args['text'], '$at.text') : null;
+    final Object? given = args['text'];
+    final bool secret = typing && given is _Secret;
+    final String? text = typing
+        ? _string(given is _Secret ? given.value : given, '$at.text')
+        : null;
     final double dx = _number(args['dx'], '$at.dx');
     final double dy = _number(args['dy'], '$at.dy');
     final bool moves = verb == PerfStepVerb.scroll ||
@@ -725,6 +1124,7 @@ final class _ScenarioReader {
       dy: dy,
       ticks: ticks,
       only: only,
+      secret: secret,
     );
   }
 
@@ -828,6 +1228,47 @@ final class _ScenarioReader {
     return 0;
   }
 }
+
+/// Parses [source] into the map a scenario file is; throws otherwise.
+Map<Object?, Object?> _scenarioDocument(String source) {
+  final Object? document;
+  try {
+    document = loadYaml(source);
+  } on YamlException catch (e) {
+    throw PerfScenarioException(<String>['not valid YAML: ${e.message}']);
+  }
+  if (document is! Map<Object?, Object?>) {
+    throw PerfScenarioException(<String>[
+      'the document must be a map with name, steps and the optional keys',
+    ]);
+  }
+  return document;
+}
+
+/// `jsonEncode(value)` without its quotes: how [value] reads inside JSON.
+String _jsonInner(String value) {
+  final String encoded = jsonEncode(value);
+  return encoded.substring(1, encoded.length - 1);
+}
+
+/// A string any part of which came from `${env.*}` or a `secret: true`
+/// param. It prints as `***`, so a problem that quotes one leaks nothing.
+final class _Secret {
+  const _Secret(this.value);
+
+  final String value;
+
+  @override
+  String toString() => '***';
+}
+
+/// The keys a variant may replace.
+const Set<String> _kVariantKeys = <String>{
+  'viewport',
+  'platforms',
+  'repeat',
+  'steps',
+};
 
 const Set<String> _kTopLevelKeys = <String>{
   'name',

@@ -8,6 +8,7 @@ Run a perf scenario several times from a clean start and write one file per scen
 
 - [Synopsis](#synopsis)
 - [The scenario file](#the-scenario-file)
+- [Fragments, parameters and variants](#fragments-parameters-and-variants)
 - [What one run does](#what-one-run-does)
 - [The run file](#the-run-file)
 - [Refusals and exit codes](#refusals-and-exit-codes)
@@ -79,6 +80,81 @@ A target is resolved on the live screen in every repeat, never written as a ref:
 | `{key: ...}` | `ext.dusk.find --key`; a key names one widget, so no `index` |
 
 `wheel` is a CDP mouseWheel, because `dusk:scroll` moves the parent scrollable programmatically and some screens only respond to the wheel. `wheel` and `resize` are Chrome only, and the file is rejected when one could run elsewhere: on android and ios scroll with a `drag`. Every problem in the file is reported at once.
+
+---
+
+<a name="fragments-parameters-and-variants"></a>
+## Fragments, parameters and variants
+
+A scenario file is loaded through `loadPerfScenarios` (`lib/src/perf/scenario_loader.dart`), which adds three things to the grammar above: setup fragments, `${...}` interpolation with secrets, and variants. `PerfScenario.parse` reads the same grammar from a string, except that it refuses an `include` (a string has no directory to resolve one against) and `variants` (they yield several scenarios).
+
+### Fragments
+
+A setup entry `- include: <path>` flattens a fragment file into `setup` in place. The path is relative to the file that holds the entry.
+
+```yaml
+# scenarios/monitors-list.yaml
+setup:
+  - hot_restart
+  - include: fragments/login.yaml
+    with: {email: "${env.PERF_EMAIL}", password: "${env.PERF_PASSWORD}"}
+    when: {text: Sign in, unless_text: Monitors, timeout_ms: 60000}
+  - navigate: /monitors
+```
+
+```yaml
+# scenarios/fragments/login.yaml
+params:
+  email: {}                         # required: no default
+  password: {secret: true}
+  submit: {default: Sign in}
+when: {text: Sign in}               # used when the include names no `when`
+steps:                              # the setup grammar, nested includes too
+  - fill: {target: {label: Email}, text: "${email}"}
+  - fill: {target: {label: Password}, text: "${password}"}
+  - tap: {target: {role: button, name: "${submit}"}}
+```
+
+A fragment takes `params`, `when` and `steps` and nothing else. Every param is required unless it has a `default`; a `with:` key the fragment does not declare, a missing required param, an include cycle (a includes b includes a) and includes nested deeper than 8 are each a problem. An include is a setup entry only: the measured `steps` are written out, so the file shows everything the window times. A problem inside a fragment names it and the entry, `fragments/login.yaml steps[1].fill.text`, and so does every flattened entry at run time.
+
+`when: {text, unless_text, timeout_ms}` guards the whole fragment; the include's own `when` replaces the fragment's. The runner polls the screen for up to `timeout_ms` (default 60000): `text` on screen runs the fragment, `unless_text` on screen skips it (and wins when both are there). On timeout the fragment is skipped when there is no `unless_text`, and the run fails when there is one, since the screen showed neither state.
+
+### Interpolation
+
+Every scalar value in a scenario or fragment file (never a key) is interpolated once, in its own file:
+
+| Written | Reads |
+|---|---|
+| `${name}` | the fragment's param `name` |
+| `${env.NAME}` | the environment variable `NAME` |
+| `$$` | one literal `$` |
+
+A `with:` value is resolved in the including file and passed on as it is, never scanned again: `Pa$$w0rd` arrives as `Pa$w0rd` however many includes it goes through, and an environment value `a${b}` arrives as `a${b}`. A `default` reads the environment only. An undefined name is a problem that names the file and the path.
+
+### Secrets
+
+A value any part of which came from `${env.*}` or from a param declared `secret: true` is a secret, and stays one through every `with:`. It may only be the `text` of a `fill` or `type`; anywhere else (a route, a `wait_for_text`, a target, a `when`) the file is refused with "a secret may only be typed". The run file writes the text of a secret step as `***`, and a problem never prints a secret, raw or JSON-encoded.
+
+### Variants
+
+`variants` turns one file into one scenario per key, named `<name>-<key>`, so twin files that differ in the viewport become one:
+
+```yaml
+name: monitors-list-scroll
+platforms: [chrome]
+viewport: {width: 1440, height: 900}
+steps:
+  - wheel: {target: {key: monitor-list}, dy: 1200}
+variants:
+  1440: {}
+  390:
+    viewport: {width: 390, height: 844}
+    platforms: [chrome, android, ios]
+    steps:
+      - drag: {target: {text: Monitors}, dy: -600}
+```
+
+A variant may replace `viewport`, `platforms`, `repeat` and `steps`; each key it names replaces the base's whole value (a variant's `steps` replaces the whole list). A key is read as text (YAML reads `1440` as a number) and must use `[a-z0-9_-]`. Each resulting scenario is validated on its own, so a step's `only:` is checked against that variant's `platforms`, and a problem in one names it (`monitors-list-scroll-390: variants.390.steps[0]...`).
 
 ---
 
