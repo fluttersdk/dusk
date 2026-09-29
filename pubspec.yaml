@@ -25,10 +25,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  fluttersdk_artisan: ^0.0.16
+  fluttersdk_artisan: ^0.0.17
   image: ^4.0.0
   meta: ^1.16.0
-  fluttersdk_wind_diagnostics_contracts: ^1.1.0
+  fluttersdk_wind_diagnostics_contracts: ^1.2.0
   yaml: ^3.1.0
 
 executables:

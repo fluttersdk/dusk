@@ -36,10 +36,6 @@ const Duration _kPipeGrace = Duration(seconds: 5);
 /// Where `flutter build apk --profile` writes the APK, from the project root.
 const String _kProfileApk = 'build/app/outputs/flutter-apk/app-profile.apk';
 
-/// The `flutter run` device ids that build for a browser. A copy of artisan's
-/// `StartCommand.browserDevices`, which no published artisan has yet.
-const Set<String> _kBrowserDevices = <String>{'chrome', 'edge', 'web-server'};
-
 /// What an `applicationId` must look like before it reaches `adb shell`,
 /// whose arguments the device's `sh` reads again.
 final RegExp _kDeviceShellWord = RegExp(r'^[A-Za-z0-9_.]+$');
@@ -1036,7 +1032,7 @@ final class _CampaignRun {
     final int? pid = previous['pid'] as int?;
     final int? cdp = previous['cdpPort'] as int?;
     final bool browser =
-        cdp != null || _kBrowserDevices.contains(previous['device']);
+        cdp != null || StartCommand.browserDevices.contains(previous['device']);
     // The ports artisan start refuses to start on: the web port (recorded on
     // every session, bound only by a browser build) and the CDP port. Not the
     // VM Service port: on Android `adb forward` keeps listening on it after
