@@ -49,12 +49,13 @@ final RegExp _kDeviceShellWord = RegExp(r'^[A-Za-z0-9_.]+$');
 /// artisan's own commands in-process; a test records the calls.
 abstract interface class PerfCampaignHost {
   /// Runs [executable] with [arguments] as an argv, never through a shell of
-  /// its own. [environment] is added to the inherited one.
+  /// its own, with [environment] as its whole environment: nothing is
+  /// inherited on top of it.
   Future<ProcessResult> run(
     String executable,
     List<String> arguments, {
     required String workingDirectory,
-    Map<String, String>? environment,
+    required Map<String, String> environment,
   });
 
   /// artisan's session state for this project, null when none is recorded.
@@ -125,8 +126,12 @@ abstract interface class PerfCampaignApp {
 /// Everything printed, every `.err`, every run file and the `--json`
 /// envelope are masked for the secrets the campaign loaded. A process that
 /// cannot start stops the campaign like one that fails. Hooks run verbatim
-/// through `/bin/sh -c` with `DUSK_PERF_PLATFORM`, `DUSK_PERF_LABEL`, `DUSK_PERF_OUT` (and
-/// `DUSK_PERF_SCENARIO`) on top of the inherited environment.
+/// through `/bin/sh -c` with `DUSK_PERF_PLATFORM`, `DUSK_PERF_LABEL`,
+/// `DUSK_PERF_OUT` (and `DUSK_PERF_SCENARIO`) on top of the inherited
+/// environment. Hooks and preparation processes inherit it minus every
+/// variable the campaign read through `${env.NAME}`; artisan start runs
+/// in-process and has no such seam, so the `flutter` it spawns inherits the
+/// dispatcher's environment whole.
 ///
 /// The command runs inside the compiled dispatcher, so a dispatcher built
 /// before a dusk change is the caller's to rebuild (`rm -f
@@ -291,6 +296,11 @@ class DuskPerfCampaignCommand extends ArtisanCommand {
     return _CampaignRun(
       host: _host,
       env: env,
+      inherited: <String, String>{
+        for (final MapEntry<String, String>(:String key, :String value)
+            in env.entries)
+          if (!campaign.secretEnvNames.contains(key)) key: value,
+      },
       redactor: redactor,
       output: output,
       envelopeOutput: ctx.output,
@@ -371,6 +381,7 @@ final class _CampaignRun {
   _CampaignRun({
     required this.host,
     required this.env,
+    required this.inherited,
     required this.redactor,
     required this.output,
     required this.envelopeOutput,
@@ -387,6 +398,11 @@ final class _CampaignRun {
 
   final PerfCampaignHost host;
   final Map<String, String> env;
+
+  /// What a hook or a preparation process inherits: [env] minus every
+  /// variable the campaign read through `${env.NAME}`, so a credential the
+  /// campaign consumes never reaches a server a hook leaves running.
+  final Map<String, String> inherited;
   final PerfRedactor redactor;
   final ArtisanOutput output;
 
@@ -628,6 +644,7 @@ final class _CampaignRun {
         adb,
         <String>['-s', serial, 'emu', 'avd', 'name'],
         workingDirectory: projectRoot,
+        environment: inherited,
       );
       // The console answers the name, then `OK`, CRLF-separated.
       final String name = '${result.stdout}'.split('\n').first.trim();
@@ -658,6 +675,7 @@ final class _CampaignRun {
         adb,
         <String>['-s', serial, 'shell', 'getprop', 'sys.boot_completed'],
         workingDirectory: projectRoot,
+        environment: inherited,
       );
       if ('${result.stdout}'.trim() == '1') return;
       if (poll >= maxPolls || clock.elapsed >= _kBootCompletedBudget) {
@@ -673,8 +691,12 @@ final class _CampaignRun {
   /// Runs one preparation process in the project root. Throws
   /// [_CampaignStop] with its output when it exits non-zero.
   Future<ProcessResult> _step(String executable, List<String> args) async {
-    final ProcessResult result =
-        await _spawn(executable, args, workingDirectory: projectRoot);
+    final ProcessResult result = await _spawn(
+      executable,
+      args,
+      workingDirectory: projectRoot,
+      environment: inherited,
+    );
     if (result.exitCode != 0) {
       throw _CampaignStop(
         '${<String>[executable, ...args].join(' ')} exited '
@@ -691,7 +713,7 @@ final class _CampaignRun {
     String executable,
     List<String> arguments, {
     required String workingDirectory,
-    Map<String, String>? environment,
+    required Map<String, String> environment,
   }) async {
     try {
       return await host.run(
@@ -713,7 +735,7 @@ final class _CampaignRun {
         <String>['-c', hook],
         workingDirectory: cwd,
         environment: <String, String>{
-          ...env,
+          ...inherited,
           'DUSK_PERF_PLATFORM': platform.name,
           'DUSK_PERF_LABEL': label,
           'DUSK_PERF_OUT': out,
@@ -1014,13 +1036,14 @@ final class _ArtisanPerfCampaignHost implements PerfCampaignHost {
     String executable,
     List<String> arguments, {
     required String workingDirectory,
-    Map<String, String>? environment,
+    required Map<String, String> environment,
   }) async {
     final Process process = await Process.start(
       executable,
       arguments,
       workingDirectory: workingDirectory,
       environment: environment,
+      includeParentEnvironment: false,
     );
     final StringBuffer stdout = StringBuffer();
     final StringBuffer stderr = StringBuffer();

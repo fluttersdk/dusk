@@ -96,6 +96,7 @@ final class PerfCampaign {
     required this.scenarios,
     required this.afterStart,
     required this.secrets,
+    this.secretEnvNames = const <String>{},
     this.hooks = const PerfHooks(),
     this.android = const PerfAndroid(),
     this.retries = 1,
@@ -110,6 +111,12 @@ final class PerfCampaign {
   /// Every tainted value read while loading the scenarios and [afterStart],
   /// for the command to build its redactor from.
   final Set<String> secrets;
+
+  /// The name of every environment variable a `${env.NAME}` read while
+  /// loading the scenarios and [afterStart]: the credentials the campaign
+  /// itself consumes, kept out of the processes it starts. Names, not
+  /// values: a short value would match unrelated variables (`CI=1`).
+  final Set<String> secretEnvNames;
 
   final PerfHooks hooks;
   final PerfAndroid android;
@@ -185,6 +192,7 @@ final class _CampaignReader {
 
   final List<String> problems = <String>[];
   final Set<String> secrets = <String>{};
+  final Set<String> envNames = <String>{};
 
   Future<PerfCampaign> read(Map<Object?, Object?> document) async {
     // 1. Keys nothing reads.
@@ -210,6 +218,7 @@ final class _CampaignReader {
       scenarios: scenarios,
       afterStart: afterStart,
       secrets: Set<String>.unmodifiable(secrets),
+      secretEnvNames: Set<String>.unmodifiable(envNames),
       hooks: hooks,
       android: android,
       retries: retries,
@@ -251,6 +260,7 @@ final class _CampaignReader {
         continue;
       }
       secrets.addAll(loaded.secrets);
+      envNames.addAll(loaded.envNames);
 
       // 3. A name is the run file's stem, so two files sharing one would
       //    overwrite each other.
@@ -394,6 +404,7 @@ final class _CampaignReader {
         env: env,
       );
       secrets.addAll(loaded.secrets);
+      envNames.addAll(loaded.envNames);
       return loaded.setup;
     } on PerfScenarioException catch (e) {
       problems.addAll(e.problems);

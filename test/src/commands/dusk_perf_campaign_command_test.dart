@@ -33,7 +33,7 @@ typedef _Run = ({
   String executable,
   List<String> arguments,
   String workingDirectory,
-  Map<String, String>? environment,
+  Map<String, String> environment,
 });
 
 /// Answers a process run: exit code, stdout, stderr.
@@ -114,7 +114,7 @@ final class _FakeHost implements PerfCampaignHost {
     String executable,
     List<String> arguments, {
     required String workingDirectory,
-    Map<String, String>? environment,
+    required Map<String, String> environment,
   }) async {
     runs.add((
       executable: executable,
@@ -589,7 +589,8 @@ $extra
 
       test(
           'hooks run through /bin/sh in the invoking directory with '
-          'DUSK_PERF_* on top of the inherited environment', () async {
+          'DUSK_PERF_* on top of the inherited environment, minus every '
+          'variable the campaign read', () async {
         final _FakeHost host = _FakeHost();
         final String path = campaign(
           <String, List<String>>{
@@ -606,12 +607,19 @@ hooks:
           host,
           path,
           options: <String, dynamic>{'label': 'base', 'out': 'out/perf'},
+          env: <String, String>{..._env, 'COPY': _secret},
         );
 
         expect(code, 0);
         final List<_Run> hooks =
             host.runs.where((_Run r) => r.executable == '/bin/sh').toList();
         expect(hooks, hasLength(2));
+        for (final _Run hook in hooks) {
+          expect(hook.environment, isNot(contains('DEMO_PASSWORD')));
+          // Filtered by name, not by value: a variable the campaign never
+          // read stays, whatever it holds.
+          expect(hook.environment, containsPair('COPY', _secret));
+        }
         expect(hooks[0].arguments, <String>['-c', './services.sh up']);
         expect(hooks[1].arguments, <String>['-c', './services.sh reset']);
         for (final _Run hook in hooks) {
@@ -692,6 +700,31 @@ hooks:
 
         expect(host.events.first, 'run flutter pub get');
         expect(host.runs.first.workingDirectory, Directory.current.path);
+      });
+
+      test(
+          'every preparation process gets the whole environment minus the '
+          'variables the campaign read, and no DUSK_PERF_*', () async {
+        final _FakeHost host = _FakeHost();
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['android'],
+          },
+          extra: 'android: {reverse: [8001]}',
+        );
+
+        final (int code, _) = await handle(
+          host,
+          path,
+          platform: 'android',
+          options: <String, dynamic>{'device': 'emulator-5554'},
+        );
+
+        expect(code, 0);
+        expect(host.runs, hasLength(2));
+        for (final _Run run in host.runs) {
+          expect(run.environment, <String, String>{'HOME': '/home/perf'});
+        }
       });
 
       test('a failing flutter pub get stops the campaign', () async {
@@ -1418,8 +1451,8 @@ android:
       });
 
       test(
-          'a numeric secret leaves the --json envelope parseable with its '
-          'numbers intact', () async {
+          'a secret that spells an envelope key leaves the --json envelope '
+          'with its keys and numbers intact', () async {
         int calls = 0;
         final _FakeHost host = _FakeHost(
           onPerfRun:
@@ -1430,13 +1463,13 @@ android:
           'a': <String>['chrome'],
         });
 
-        // `2` is the attempt count the envelope reports: a text pass over
-        // the encoded envelope turns `"attempts":2` into invalid JSON.
+        // `attempts` is a key of the envelope: a text pass over the encoded
+        // envelope would turn `"attempts":2` into `"***":2`.
         final (int code, String out) = await handle(
           host,
           path,
           options: <String, dynamic>{'json': true},
-          env: <String, String>{'DEMO_PASSWORD': '2'},
+          env: <String, String>{'DEMO_PASSWORD': 'attempts'},
         );
 
         expect(code, 0);

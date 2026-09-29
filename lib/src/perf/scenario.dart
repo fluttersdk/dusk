@@ -173,6 +173,11 @@ const int kPerfWhenTimeoutMs = 60000;
 /// How deep includes may nest, the scenario file itself not counted.
 const int kPerfMaxIncludeDepth = 8;
 
+/// The fewest characters a secret may have. Every output is masked for every
+/// secret wherever its text appears, so a shorter one (`1`, `80`) would mask
+/// every such number in every log line, run file and envelope.
+const int kPerfMinSecretLength = 4;
+
 /// The most events one `wheel` step may send: at one frame apart, 200 ticks
 /// is about three seconds of scrolling, longer than any single gesture.
 const int _kMaxWheelTicks = 200;
@@ -522,6 +527,15 @@ final class _ScenarioReader {
   /// Every tainted value read so far; [_fail] masks them in [problems].
   final Set<String> secrets = <String>{};
 
+  /// Problems that quote no value, so [_fail] leaves them unmasked: a short
+  /// secret's own report would otherwise lose its length and the variable's
+  /// name to the mask it explains.
+  final List<String> _unmasked = <String>[];
+
+  /// The name of every environment variable a `${env.NAME}` read, so a
+  /// caller can keep them out of the processes it starts.
+  final Set<String> envNames = <String>{};
+
   /// The scenarios [source] holds: one per variant, or itself.
   List<PerfScenario> readScenarios(Map<Object?, Object?> source) {
     // 1. One interpolation pass over the whole file, so every scalar is read
@@ -684,7 +698,7 @@ final class _ScenarioReader {
 
   /// Throws the problems collected so far, secrets masked.
   void _fail() {
-    if (problems.isEmpty) return;
+    if (problems.isEmpty && _unmasked.isEmpty) return;
     final List<String> masks = <String>[
       for (final String secret in secrets) ...<String>{
         secret,
@@ -697,6 +711,7 @@ final class _ScenarioReader {
           problem,
           (String line, String mask) => line.replaceAll(mask, '***'),
         ),
+      ..._unmasked,
     ]);
   }
 
@@ -777,10 +792,15 @@ final class _ScenarioReader {
   /// What `${name}` stands for; null after reporting it undefined.
   Object? _lookup(String name, Map<String, Object> scope, String where) {
     if (name.startsWith('env.')) {
-      final String? value = env[name.substring(4)];
+      final String variable = name.substring(4);
+      final String? value = env[variable];
       if (value == null) {
         problems.add('$where: \${$name} is not set in the environment.');
         return null;
+      }
+      // Reported once per variable, at the first place that reads it.
+      if (envNames.add(variable) && value.isNotEmpty) {
+        _refuseShortSecret(value, where, '\${$name}');
       }
       if (value.isNotEmpty) secrets.add(value);
       return _Secret(value);
@@ -833,6 +853,19 @@ final class _ScenarioReader {
               }
             : _screen(value, '$where.$key'),
     };
+  }
+
+  /// Reports [value], the secret [what] names, at [at] when it is shorter
+  /// than [kPerfMinSecretLength]. Names the length, never the value.
+  void _refuseShortSecret(String value, String at, String what) {
+    final int length = value.length;
+    if (length >= kPerfMinSecretLength) return;
+    _unmasked.add(
+      '$at: $what is $length character${length == 1 ? '' : 's'}; a secret '
+      'shorter than $kPerfMinSecretLength would be masked wherever its text '
+      'appears, inside every number and word of every log line, so give it a '
+      'longer value.',
+    );
   }
 
   String _refuseSecret(String at) {

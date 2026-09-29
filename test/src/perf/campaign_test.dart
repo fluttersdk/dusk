@@ -514,6 +514,22 @@ after_start:
         );
 
         expect(campaign.secrets, <String>{'tok"1', _secret});
+        expect(campaign.secretEnvNames, <String>{'TOKEN', 'PASSWORD'});
+      });
+
+      test('a short secret in after_start is a problem naming the variable',
+          () async {
+        write('scenarios/a.yaml', 'name: a\nsteps:\n  - wait: 400\n');
+        final String problems = await problemsOf(
+          write('campaign.yaml', r'''
+scenarios: [scenarios/a.yaml]
+after_start:
+  - fill: {target: {label: Pin}, text: "${env.PIN}"}
+'''),
+          env: <String, String>{'PIN': '1'},
+        );
+
+        expect(problems, contains(r'${env.PIN} is 1 character'));
       });
 
       test('a secret in a scenario problem stays masked', () async {

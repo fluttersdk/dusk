@@ -165,7 +165,7 @@ params:
 steps:
   - navigate: /login
   - include: ../login.yaml
-    with: {user: "${who}", password: pw}
+    with: {user: "${who}", password: pw-nested}
 ''');
         final PerfLoadResult result = await loadPerfScenarios(
           write('nested.yaml', '''
@@ -474,6 +474,80 @@ steps:
           result.scenarios.single.steps.single.toJson()['fill'],
           containsPair('text', '***'),
         );
+      });
+
+      test('names every variable read through env, and no other', () async {
+        write('fragments/login.yaml', _loginFragment);
+        final PerfLoadResult result = await loadPerfScenarios(
+          write('names.yaml', r'''
+name: names
+setup:
+  - include: fragments/login.yaml
+    with: {user: "${env.USER_EMAIL}", password: hunter2}
+steps:
+  - fill: {target: {label: Search}, text: "${env.SEARCH}"}
+'''),
+          env: <String, String>{
+            'USER_EMAIL': 'ops@uptizm.test',
+            'SEARCH': _secret,
+            'UNUSED': _secret,
+          },
+        );
+
+        expect(result.envNames, <String>{'USER_EMAIL', 'SEARCH'});
+      });
+
+      test(
+          'shorter than 4 characters is refused, naming the variable and '
+          'never the value', () async {
+        final String problems = await problemsOf(
+          write('short.yaml', r'''
+name: short
+steps:
+  - fill: {target: {label: Pin}, text: "${env.PIN}"}
+'''),
+          env: <String, String>{'PIN': '80'},
+        );
+
+        expect(problems, contains(r'steps[0].fill.text: ${env.PIN} is 2'));
+        expect(problems, contains('shorter than 4'));
+        expect(problems, isNot(contains('80')));
+      });
+
+      test('shorter than 4 characters is refused as a secret param', () async {
+        write('fragments/login.yaml', _loginFragment);
+        final String problems = await problemsOf(
+          write('short-param.yaml', '''
+name: short-param
+setup:
+  - include: fragments/login.yaml
+    with: {user: ops, password: "123"}
+steps:
+  - wait: 400
+'''),
+        );
+
+        expect(
+          problems,
+          contains('setup[0].with.password: the secret param password of '
+              'fragments/login.yaml is 3 characters'),
+        );
+        expect(problems, isNot(contains('"123"')));
+      });
+
+      test('of exactly 4 characters loads, and an empty one is no secret',
+          () async {
+        final PerfLoadResult result = await loadPerfScenarios(
+          write('edge.yaml', r'''
+name: edge
+steps:
+  - fill: {target: {label: Pin}, text: "${env.PIN}${env.CODE}"}
+'''),
+          env: <String, String>{'PIN': '1234', 'CODE': ''},
+        );
+
+        expect(result.secrets, <String>{'1234'});
+        expect(result.envNames, <String>{'PIN', 'CODE'});
       });
     });
 

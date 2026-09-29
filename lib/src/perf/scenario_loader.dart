@@ -1,14 +1,22 @@
 part of 'scenario.dart';
 
 /// What [loadPerfScenarios] read: the file expanded by its variants (one
-/// scenario when it has none), and every tainted value met while loading,
-/// for a caller to build its redactor from.
-typedef PerfLoadResult = ({List<PerfScenario> scenarios, Set<String> secrets});
+/// scenario when it has none), every tainted value met while loading, for a
+/// caller to build its redactor from, and the name of every environment
+/// variable a `${env.NAME}` read, for a caller to keep out of the processes
+/// it starts.
+typedef PerfLoadResult = ({
+  List<PerfScenario> scenarios,
+  Set<String> secrets,
+  Set<String> envNames,
+});
 
-/// What [loadPerfSetup] read: the flattened entries and the tainted values.
+/// What [loadPerfSetup] read: the flattened entries, the tainted values and
+/// the environment variables read.
 typedef PerfSetupLoadResult = ({
   List<PerfSetupStep> setup,
   Set<String> secrets,
+  Set<String> envNames,
 });
 
 /// Loads the scenario file at [path] with its fragments and variants.
@@ -24,7 +32,9 @@ typedef PerfSetupLoadResult = ({
 ///
 /// A value from `${env.*}` or a `secret: true` param is a secret: it may
 /// only be the `text` of a `fill` or `type`, where the step is marked
-/// [PerfStep.secret], and it never appears in a problem.
+/// [PerfStep.secret], and it never appears in a problem. A non-empty secret
+/// shorter than [kPerfMinSecretLength] is a problem naming the variable or
+/// the param, since its mask would hit unrelated text.
 ///
 /// `variants: {<key>: {viewport, platforms, repeat, steps}}` yields one
 /// scenario per key, named `<name>-<key>`, each key replacing the base's.
@@ -43,7 +53,8 @@ Future<PerfLoadResult> loadPerfScenarios(
   final List<PerfScenario> scenarios = reader.readScenarios(document);
   return (
     scenarios: scenarios,
-    secrets: Set<String>.unmodifiable(reader.secrets)
+    secrets: Set<String>.unmodifiable(reader.secrets),
+    envNames: Set<String>.unmodifiable(reader.envNames),
   );
 }
 
@@ -72,7 +83,11 @@ PerfSetupLoadResult loadPerfSetup(
     at,
     platforms ?? PerfPlatform.values.toSet(),
   );
-  return (setup: setup, secrets: Set<String>.unmodifiable(reader.secrets));
+  return (
+    setup: setup,
+    secrets: Set<String>.unmodifiable(reader.secrets),
+    envNames: Set<String>.unmodifiable(reader.envNames),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +313,14 @@ extension on _ScenarioReader {
         continue;
       }
       if (filled == null) continue;
+      // A value from `${env.*}` was checked where it was read.
+      if (secret == true && filled is String && filled.isNotEmpty) {
+        _refuseShortSecret(
+          filled,
+          given.containsKey(name) ? '$where.with.$name' : '$at.default',
+          'the secret param $name of $shown',
+        );
+      }
       final Object bound =
           secret == true && filled is String ? _Secret(filled) : filled;
       if (bound is _Secret && bound.value.isNotEmpty) secrets.add(bound.value);
