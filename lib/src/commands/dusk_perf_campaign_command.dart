@@ -468,64 +468,75 @@ final class _CampaignRun {
     // What went wrong after the scenarios, each a sentence of its own.
     final List<String> errors = <String>[];
 
-    // 1. Everything before the first scenario; a failure stops the campaign.
     final File campaignErr = _errFile('campaign');
-    await _clear(campaignErr);
     final StringBuffer campaignRecord = StringBuffer();
-    String? target;
-    try {
-      target = await _prepare(campaign);
-    } on _CampaignStop catch (stop) {
-      final String? detail = stop.detail;
-      if (detail != null) campaignRecord.write('${stop.message}\n$detail');
-      stopped = detail != null &&
-              await _record(campaignErr, campaignRecord.toString())
-          ? '${stop.message}; see ${campaignErr.path}'
-          : stop.message;
-    }
 
-    // 2. The scenarios, each one's line printed as it finishes, then the app
-    //    stopped whatever happened.
-    if (target != null) {
-      final int width = scenarios
-          .map((PerfCampaignScenario s) => s.scenario.name.length)
-          .reduce((int a, int b) => a > b ? a : b);
+    // Set once steps 1 and 2 ran to their end; an exception that escapes
+    // them still gets the teardown below, reported as failed, and then
+    // propagates.
+    bool finished = false;
+    try {
+      // 1. Everything before the first scenario; a failure stops the
+      //    campaign.
+      await _clear(campaignErr);
+      String? target;
       try {
-        for (final PerfCampaignScenario scenario in scenarios) {
-          final _ScenarioResult result =
-              await _scenario(scenario, campaign, target);
-          results.add(result);
-          if (!json) {
-            output.writeln('  ${result.name.padRight(width)}  ${result.line}');
+        target = await _prepare(campaign);
+      } on _CampaignStop catch (stop) {
+        final String? detail = stop.detail;
+        if (detail != null) campaignRecord.write('${stop.message}\n$detail');
+        stopped = detail != null &&
+                await _record(campaignErr, campaignRecord.toString())
+            ? '${stop.message}; see ${campaignErr.path}'
+            : stop.message;
+      }
+
+      // 2. The scenarios, each one's line printed as it finishes, then the
+      //    app stopped whatever happened.
+      if (target != null) {
+        final int width = scenarios
+            .map((PerfCampaignScenario s) => s.scenario.name.length)
+            .reduce((int a, int b) => a > b ? a : b);
+        try {
+          for (final PerfCampaignScenario scenario in scenarios) {
+            final _ScenarioResult result =
+                await _scenario(scenario, campaign, target);
+            results.add(result);
+            if (!json) {
+              output
+                  .writeln('  ${result.name.padRight(width)}  ${result.line}');
+            }
+            stopped = result.stop;
+            if (stopped != null) break;
           }
-          stopped = result.stop;
-          if (stopped != null) break;
-        }
-      } finally {
-        if (_started) {
-          final int code = await host.stop(BufferedOutput());
-          if (code != 0) {
-            errors.add('artisan stop exited $code after the campaign; the '
-                'app may still be running.');
+        } finally {
+          if (_started) {
+            final int code = await host.stop(BufferedOutput());
+            if (code != 0) {
+              errors.add('artisan stop exited $code after the campaign; the '
+                  'app may still be running.');
+            }
           }
         }
       }
-    }
-
-    // 3. The teardown, once, however the campaign ended: a failed
-    //    before_campaign may have started half of what it tears down.
-    final String? teardown = campaign.hooks.afterCampaign;
-    if (teardown != null) {
-      final bool ok = stopped == null &&
-          errors.isEmpty &&
-          results.every((_ScenarioResult r) => r.ok);
-      final String? failure = await _afterCampaign(
-        teardown,
-        ok: ok,
-        err: campaignErr,
-        record: campaignRecord,
-      );
-      if (failure != null) errors.add(failure);
+      finished = true;
+    } finally {
+      // 3. The teardown, once, however the campaign ended: a failed
+      //    before_campaign may have started half of what it tears down.
+      final String? teardown = campaign.hooks.afterCampaign;
+      if (teardown != null) {
+        final bool ok = finished &&
+            stopped == null &&
+            errors.isEmpty &&
+            results.every((_ScenarioResult r) => r.ok);
+        final String? failure = await _afterCampaign(
+          teardown,
+          ok: ok,
+          err: campaignErr,
+          record: campaignRecord,
+        );
+        if (failure != null) errors.add(failure);
+      }
     }
 
     // 4. The report: every selected scenario, those a stop left untried
@@ -1139,12 +1150,22 @@ Future<({int exitCode, String stdout, String stderr})> drainProcessOutput({
   // Taken now, not after the exit: `asFuture` replaces the done handler, and
   // one set after a short-lived process already closed its pipes never
   // completes, which cut every hook at the grace and blamed a server.
-  final Future<void> closed = Future.wait(
+  // The failure is held as a value, so a pipe that errors before the exit
+  // code arrives never becomes an unhandled error that ends the campaign.
+  final Future<Object?> closed = Future.wait(
     <Future<void>>[outSub.asFuture<void>(), errSub.asFuture<void>()],
-  );
+    eagerError: true,
+  ).then<Object?>((_) => null, onError: (Object error) => error);
   final int code = await exitCode;
   try {
-    await closed.timeout(grace);
+    final Object? failure = await closed.timeout(grace);
+    if (failure != null) {
+      await Future.wait(<Future<void>>[outSub.cancel(), errSub.cancel()]);
+      err.writeln(
+        '\n[dusk:perf_campaign] reading the output of $executable failed: '
+        '$failure',
+      );
+    }
   } on TimeoutException {
     await Future.wait(<Future<void>>[outSub.cancel(), errSub.cancel()]);
     err.writeln(

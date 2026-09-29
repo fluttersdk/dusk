@@ -68,6 +68,9 @@ final class _FakeHost implements PerfCampaignHost {
   /// in a one-scenario campaign.
   int stopCodeAfterRun = 0;
 
+  /// Thrown by `stop` once a perf_run has run, in place of an exit code.
+  Object? stopThrowsAfterRun;
+
   /// Written to the start output, as artisan's start prints its own lines.
   String startOutput = 'flutter run pid=1';
 
@@ -151,6 +154,8 @@ final class _FakeHost implements PerfCampaignHost {
       busyReads[previous['webPort'] as int] = 1;
     }
     session = null;
+    final Object? thrown = stopThrowsAfterRun;
+    if (perfRuns.isNotEmpty && thrown != null) throw thrown;
     return perfRuns.isEmpty ? 0 : stopCodeAfterRun;
   }
 
@@ -1666,6 +1671,28 @@ after_start:
           'DUSK_PERF_OUT': 'out/perf',
           'DUSK_PERF_STATUS': 'ok',
         });
+      });
+
+      test(
+          'still runs, with DUSK_PERF_STATUS=failed, when the final stop '
+          'throws, and the throw is not swallowed', () async {
+        final _FakeHost host = _FakeHost()
+          ..stopThrowsAfterRun = const FileSystemException('state.json');
+        final String path = campaign(
+          <String, List<String>>{
+            'a': <String>['chrome'],
+          },
+          extra: 'hooks: {after_campaign: ./services.sh down}',
+        );
+
+        await expectLater(
+          handle(host, path),
+          throwsA(isA<FileSystemException>()),
+        );
+        expect(
+          teardowns(host).single.environment,
+          containsPair('DUSK_PERF_STATUS', 'failed'),
+        );
       });
 
       test('runs with DUSK_PERF_STATUS=failed after a failed scenario',

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -57,6 +58,33 @@ void main() {
       expect(result.stdout, 'up\n');
       expect(result.stderr, contains('still holds its stdout or stderr'));
       expect(out.hasListener, isFalse);
+      await err.close();
+    });
+
+    test(
+        'a pipe error before the exit is reported, not thrown, and the other '
+        'pipe is released', () async {
+      final StreamController<List<int>> out = StreamController<List<int>>();
+      final StreamController<List<int>> err = StreamController<List<int>>();
+      final Completer<int> exit = Completer<int>();
+
+      final Future<({int exitCode, String stdout, String stderr})> drained =
+          drainProcessOutput(
+        stdout: out.stream,
+        stderr: err.stream,
+        exitCode: exit.future,
+        grace: const Duration(seconds: 2),
+      );
+      out.addError(const SocketException('pipe broken'));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      exit.complete(1);
+      final ({int exitCode, String stdout, String stderr}) result =
+          await drained;
+
+      expect(result.exitCode, 1);
+      expect(result.stderr, contains('pipe broken'));
+      expect(err.hasListener, isFalse);
+      await out.close();
       await err.close();
     });
 
