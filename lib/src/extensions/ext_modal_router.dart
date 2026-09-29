@@ -9,6 +9,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
+import '../utils/perf_interaction.dart';
 
 // ---------------------------------------------------------------------------
 // Self-registration entry point
@@ -147,7 +148,11 @@ Future<developer.ServiceExtensionResponse> aiTestDismissModalsHandler(
   Map<String, String> params,
 ) async {
   try {
-    final int popped = await dismissAllModals();
+    final int popped = await runPerfInteraction(
+      'dismiss_modals',
+      null,
+      dismissAllModals,
+    );
 
     return duskResult(<String, dynamic>{'popped': popped});
   } catch (e, st) {
@@ -204,25 +209,34 @@ Future<developer.ServiceExtensionResponse> aiTestResetOverlaysHandler(
   Map<String, String> params,
 ) async {
   try {
-    // 1. Pop every PopupRoute. This alone clears the common cases (showDialog,
-    //    showModalBottomSheet, showMenu) and is fully idempotent.
-    final int popped = await dismissAllModals();
-    await _settleFrame();
-
-    // 2. Escape key — dismisses overlays driven by the dismiss shortcut that
-    //    are not PopupRoutes. Best-effort: a no-op when nothing listens.
-    final bool escaped = _pressEscape();
-    await _settleFrame();
-
-    // 3. Cancel / Dismiss labelled tap: the last-resort affordance for modal
-    //    barriers that require an explicit button. Only attempted when a
-    //    PopupRoute still persists (see [_hasOpenOverlay]) so a clean screen
-    //    never has a legitimate Cancel/OK/Done button tapped by accident.
-    bool dismissTapped = false;
-    if (_hasOpenOverlay()) {
-      dismissTapped = _tapDismissAffordance();
+    // The three layers are one gesture to the app, so one interaction spans
+    // them.
+    final (int popped, bool escaped, bool dismissTapped) =
+        await runPerfInteraction('reset_overlays', null, () async {
+      // 1. Pop every PopupRoute. This alone clears the common cases
+      //    (showDialog, showModalBottomSheet, showMenu) and is fully
+      //    idempotent.
+      final int popped = await dismissAllModals();
       await _settleFrame();
-    }
+
+      // 2. Escape key: dismisses overlays driven by the dismiss shortcut
+      //    that are not PopupRoutes. Best-effort: a no-op when nothing
+      //    listens.
+      final bool escaped = _pressEscape();
+      await _settleFrame();
+
+      // 3. Cancel / Dismiss labelled tap: the last-resort affordance for
+      //    modal barriers that require an explicit button. Only attempted
+      //    when a PopupRoute still persists (see [_hasOpenOverlay]) so a clean
+      //    screen never has a legitimate Cancel/OK/Done button tapped by
+      //    accident.
+      bool dismissTapped = false;
+      if (_hasOpenOverlay()) {
+        dismissTapped = _tapDismissAffordance();
+        await _settleFrame();
+      }
+      return (popped, escaped, dismissTapped);
+    });
 
     return duskResult(<String, dynamic>{
       'popped': popped,

@@ -1,6 +1,6 @@
 # dusk:perf_end
 
-Close the measurement session opened by `dusk:perf_begin` and read the attribution: which widget and RenderObject types ran, how many times and for how long, next to wind's cache counters and magic's controller notifies. It also restores every profiling flag the session changed, so a session you forget to close is the one that taxes every later frame.
+Close the measurement session opened by `dusk:perf_begin` and read a bounded report: frame percentiles against a stated budget, blocks ranked by self time and by count per painted frame, wind and magic counters, and ranked insights you can drill into with `dusk:perf_insight`. It also restores every profiling flag the session changed, so a session you forget to close is the one that taxes every later frame.
 
 ---
 
@@ -8,6 +8,7 @@ Close the measurement session opened by `dusk:perf_begin` and read the attributi
 
 - [Synopsis](#synopsis)
 - [Returns](#returns)
+- [Insights](#insights)
 - [The refusal](#the-refusal)
 - [Examples](#examples)
 - [See also](#see-also)
@@ -23,6 +24,8 @@ dart run fluttersdk_dusk dusk:perf_end [--json]
 
 `dusk:perf_end` requires a running Flutter session (`CommandBoot.connected`) and calls `ext.dusk.perf_end`. It takes no arguments beyond `--json`. Without a prior `dusk:perf_begin` it returns a typed error: the session carries the flag values to restore and the liveness baseline the report is judged against, and neither can be reconstructed afterwards.
 
+`ext.dusk.perf_end` itself also accepts `full: 'true'`, which the command does not pass. It lifts every cut: the block rankings, counter breakdowns, route transitions and insights carry every row, and `omitted` reads all zeros. That form is for a runner that writes the report to a file; the bounded default is the one to read.
+
 ---
 
 <a name="returns"></a>
@@ -33,38 +36,73 @@ dart run fluttersdk_dusk dusk:perf_end [--json]
 | `0` | Report returned. |
 | `1` | The run was REFUSED (see below), or the handler returned an error. |
 
-**Success envelope:**
+**Success envelope** (bounded to about 6 KB; the rows behind each insight stay behind `dusk:perf_insight`):
 
 ```json
 {
   "sessionToken": "perf-1",
   "refused": false,
-  "phases": true,
-  "liveness": {"baseline": 412, "final": 457, "advanced": 45},
-  "coverage": {"framesDrawn": 45, "framesSummarized": 45, "complete": true},
-  "frameSummary": {
-    "average_frame_build_time_millis": 3.2,
-    "90th_percentile_frame_build_time_millis": 8.1,
-    "worst_frame_build_time_millis": 20.0,
-    "missed_frame_build_budget_count": 1,
-    "dropped_frame_count": 0,
-    "frame_count": 45,
-    "worst_frames": []
+  "mode": "attribution",
+  "env": {"platform": "macOS", "isWeb": true, "buildMode": "debug", "renderer": "canvaskit", "semanticsEnabled": true, "phases": false},
+  "coverage": {"framesDrawn": 45, "framesSummarized": 45, "framesOutsideSession": 2, "complete": true, "missing": []},
+  "summary": {
+    "durationMs": 2310.4,
+    "budgetMs": 16.7,
+    "frames": {
+      "count": 45, "painted": 45, "dropped": 0,
+      "overBudget": 3, "overBudgetBuild": 3, "overBudgetRaster": 0,
+      "buildMs": {"p50": 3.1, "p90": 8.1, "p99": 31.2, "worst": 31.2},
+      "rasterMs": {"p50": 1.2, "p90": 1.9, "p99": 2.4, "worst": 2.4}
+    },
+    "blocksBySelf": [{"name": "MonitorRow", "selfMs": 21.4, "frames": 12}],
+    "blocksByCount": [{"name": "WText", "count": 540, "perFrame": 12.0}],
+    "routeTransitions": [{"route": "/monitors", "ms": 118.2}]
   },
-  "blockAttribution": [
-    {"name": "MonitorRow", "micros": 10200, "count": 10, "frames": 2}
+  "counters": {
+    "columns": ["name", "count", "perFrame"],
+    "wind": {"cacheHits": {"count": 812, "perFrame": 18.04}, "cacheSize": 64, "widgetBuilds": [["WDiv", 402, 8.93]]},
+    "magic": {"controllerNotifies": [["MonitorController", 12, 0.27]]}
+  },
+  "insights": [
+    {
+      "id": "I1",
+      "severity": "warn",
+      "title": "3 of 45 frames over the 16.7ms budget",
+      "evidence": {"metric": "framesOverBudget", "value": 3, "perFrame": 0.07, "threshold": {"budgetMs": 16.7, "errorShare": 0.1}},
+      "estimatedSavingsMs": 29.4,
+      "nextStep": "Build-bound: drill in for the worst frames and their self-time blocks."
+    }
   ],
-  "wind": {"cacheHits": 12, "cacheMisses": 3, "cacheBypasses": 40},
-  "magic": {"controllerNotifies": {"MonitorController": 12}, "routeTransitions": []},
-  "note": "Per-type absolute durations are indicative, not representative ..."
+  "omitted": {"blocksBySelf": 212, "blocksByCount": 212, "routeTransitions": 0, "wind.widgetBuilds": 9, "insights": 0}
 }
 ```
 
-- `coverage` says whether the summary describes every frame the engine drew. `framesDrawn` comes from the liveness counter, which a post-frame callback increments once per frame; `framesSummarized` counts the records Flutter's `onReportTimings` delivered, and Flutter batches those, so a session that ends shortly after the work can close before the last timings arrive. When `complete` is `false` a `detail` string is present and `frameSummary` plus `blockAttribution` describe a SUBSET: an empty attribution then means "not reported", not "nothing was slow". Read this before reading the numbers. Measured driving a real app: a theme toggle drew 4 frames, 2 were reported, and the report looked complete.
-- `frameSummary` uses `flutter_driver`'s metric-name strings verbatim, so a reading here is comparable to devicelab's. `dropped_frame_count` comes from gaps in the frame-number sequence, because on web a dropped scene is a missing frame number rather than a slow frame.
-- `blockAttribution` aggregates every frame's spans across the whole session, ranked by microseconds. `frames` separates a block that cost 10ms once from one that cost 0.1ms in each of a hundred frames; those need opposite fixes.
-- `wind` is `null` when no wind perf resolver registered. That is a different finding from a wind section of zeros, so the two are not collapsed.
-- `note` says per-type absolute durations are indicative rather than representative. Flutter's own docs say the instrumentation overhead is significant relative to the work it measures, and this is a debug build. Read the counts, the ratios and the ranking; do not quote a per-type millisecond as a fact about production.
+- `env` says where the numbers came from, read in the app: `buildMode` from `kProfileMode` / `kDebugMode`, and `semanticsEnabled`, which is `true` whenever dusk is installed because dusk holds a semantics handle for the whole process. `renderer` is what the `rendererReader` pointer answers: `canvaskit` or `skwasm` on web, `unknown` elsewhere until a host assigns one (a `dusk:perf_run` run fills it from the launch log).
+- `coverage` says whether the summary describes every frame the engine drew. `framesDrawn` comes from the liveness counter, which a post-frame callback increments once per frame; `framesSummarized` counts the records Flutter's `onReportTimings` delivered, and Flutter batches those. The summary describes the session window only: a frame drawn before `perf_begin` whose timings arrived late, and the idle frame `perf_end` draws to flush the tail, are read but left out, and `framesOutsideSession` counts them (a frame is placed by its `vsyncStartUs`; a record without one is kept). A large `framesOutsideSession` next to few summarized frames on a non-web target means `vsyncStartUs` and the session clock disagree there. When `complete` is `false` the report describes a SUBSET and the coverage insight says so: an empty ranking then means "not reported", not "nothing was slow". `missing` names sources that were never read: `wind` (no wind perf resolver, so `counters.wind` is `null`, which is a different finding from zeros), `blocks`, `blockSelfTime`. Read this before the numbers.
+- `summary.frames`: `painted` is the frames Flutter reported, `dropped` the frames missing from the `frameNumber` sequence (how a dropped scene shows on web), `count` their sum. A frame is over budget when its slower thread took longer than `budgetMs`.
+- `blocksBySelf` ranks by EXCLUSIVE time. A parent's inclusive time contains its children's, so ranking by it blames the parent for the child's work. `frames` separates a block that cost 10ms once from one that cost 0.1ms in each of a hundred frames; those need opposite fixes. Both block lists keep the top 10; `omitted` counts the rest.
+- `counters` are given raw and per painted frame. A breakdown keeps its top 3 as positional rows in `columns` order.
+- In `timing` mode `counters` is `null` and `summary` carries `durationMs`, `budgetMs` and `frames` only.
+
+Attribution milliseconds are inflated by the profiling that makes attribution possible. Rank by them; compare milliseconds only between `--mode=timing` sessions.
+
+---
+
+<a name="insights"></a>
+## Insights
+
+At most six, sorted by severity (`error`, `warn`, `info`) then `estimatedSavingsMs`. Each carries `id`, `severity`, `title`, `evidence {metric, value, perFrame, threshold}` and `nextStep`; the threshold it was judged against is always in the evidence, so a verdict can be checked rather than trusted. Ids are assigned before the sort and the cut, so an insight counted in `omitted.insights` is still drillable.
+
+| Metric | Fires when | Severity |
+|---|---|---|
+| `framesOverBudget` | a frame's slower thread exceeds 16.7ms | `error` past a 0.1 share of painted frames, else `warn` |
+| `framesDropped` | the `frameNumber` sequence steps by 2 or more | `error` past a 0.1 share, else `warn` |
+| `blockSelfMs` | one block owns at least 0.3 of all self time and at least 1ms per painted frame | `error` past 8.35ms per frame, else `warn` |
+| `blockCountPerFrame` | one block runs at least 20 times per painted frame and 10 times the median block | `warn` |
+| `framesUnreported` / `sourcesMissing` | coverage is incomplete, or a source was never read | `warn`, or `info` when only wind is missing |
+| `contributorErrors` | a host-contributed rule threw or returned a malformed insight | `warn` |
+
+The host adds its own rules through `perfInsightContributors` (magic_devtools fills it with wind and magic rules). A contributor that fails costs its own insights and never the report.
 
 ---
 
@@ -77,13 +115,13 @@ Check `refused` before anything else.
 {
   "sessionToken": "perf-1",
   "refused": true,
-  "phases": true,
-  "liveness": {"baseline": 412, "final": 412, "advanced": 0},
-  "reason": "The liveness counter did not advance between perf_begin and perf_end ..."
+  "mode": "attribution",
+  "coverage": {"framesDrawn": 0, "livenessBaseline": 412, "livenessFinal": 412, "complete": false},
+  "reason": "The liveness counter advanced by 0 between perf_begin and perf_end ..."
 }
 ```
 
-When the liveness counter did not advance, the engine rendered nothing during the session and every metric would be a zero that reads as "fast". The response therefore carries no metrics at all, and the command exits `1` so a shell caller cannot chain on a report that does not exist.
+When the liveness counter advanced by 1 or less, the engine rendered nothing worth measuring and every metric would be a zero or a single sample that reads as "fast". The response therefore carries no metrics at all, `dusk:perf_insight` has nothing to drill into, and the command exits `1` so a shell caller cannot chain on a report that does not exist.
 
 The ordinary cause is an idle app, not a broken one. Flutter schedules a frame only when something is dirty, so a session that opens, sleeps and closes legitimately draws nothing: drive an interaction inside the session, and aim a scroll at something that actually scrolls. The second cause is a hidden or backgrounded page, which produces exactly one frame rather than zero, which is why the threshold is `1` and not `0`.
 
@@ -94,10 +132,10 @@ That counter is the authority here, not the `warnings` block that may sit on the
 <a name="examples"></a>
 ## Examples
 
-### 1. Read the ranking after a scroll
+### 1. Read the insights after a scroll
 
 ```bash
-dart run fluttersdk_dusk dusk:perf_end --json | jq '.blockAttribution[:5]'
+dart run fluttersdk_dusk dusk:perf_end --json | jq '.insights'
 ```
 
 ### 2. Human summary at a terminal
@@ -107,7 +145,7 @@ dart run fluttersdk_dusk dusk:perf_end
 ```
 
 ```
-✓ Performance session closed: 45 frames, worst build 20.0ms. Pass --json for the full attribution.
+✓ Performance session perf-1 closed (attribution): 45 painted frames, 3 over the 16.7ms budget, worst build 31.2ms. 2 insights; top [warn] I1: 3 of 45 frames over the 16.7ms budget. Drill in with dusk:perf_insight --id=I1, or pass --json for the report.
 ```
 
 ---
@@ -115,6 +153,7 @@ dart run fluttersdk_dusk dusk:perf_end
 <a name="see-also"></a>
 ## See also
 
-- [dusk:perf_begin](dusk-perf-begin.md): opens the session and records the liveness baseline.
+- [dusk:perf_begin](dusk-perf-begin.md): opens the session, picks the mode, records the liveness baseline.
+- [dusk:perf_insight](dusk-perf-insight.md): the rows behind one insight.
+- [Interactions and the perf trace](../reference/perf-trace.md): what each gesture in the session opened, exported as Chrome Trace Event JSON.
 - [Frame production](../reference/frame-production.md): the backgrounded-tab failure mode the refusal exists for.
-- [dusk:screenshot](dusk-screenshot.md): confirm visually that the screen you measured is the screen you meant.

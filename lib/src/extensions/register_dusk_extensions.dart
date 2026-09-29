@@ -1,3 +1,4 @@
+import 'ext_boot.dart';
 import 'ext_checkbox.dart';
 import 'ext_close_app.dart';
 import 'ext_console.dart';
@@ -10,9 +11,11 @@ import 'ext_modal_router.dart';
 import 'ext_navigation.dart';
 import 'ext_observe.dart';
 import 'ext_perf.dart';
+import 'ext_perf_trace.dart';
 import 'ext_pointer.dart';
 import 'ext_screenshot.dart';
 import 'ext_scroll.dart';
+import 'ext_semantics_hold.dart';
 import 'ext_snapshot.dart';
 import 'ext_text_input.dart';
 import 'ext_wait_find.dart';
@@ -49,11 +52,23 @@ import 'ext_wait_find.dart';
 /// - `ext.dusk.dblclick` is registered INSIDE [registerPointerExtensions].
 /// - [registerCheckboxExtensions]: ext.dusk.set_checkbox — checkbox setter.
 ///
-/// Perf pair:
+/// Perf trio:
 /// - [registerPerfExtensions]: ext.dusk.perf_begin / ext.dusk.perf_end, the
-///   measurement session that switches Flutter's profiling flags on, reads
-///   the frame, wind and magic counters back through the pointers in
-///   `lib/src/utils/perf_readers.dart`, and restores every flag afterwards.
+///   measurement session that switches Flutter's profiling flags on (or, in
+///   timing mode, touches none), reads the frame, wind and magic counters back
+///   through the pointers in `lib/src/utils/perf_readers.dart`, reports ranked
+///   insights and restores every flag afterwards; plus ext.dusk.perf_insight,
+///   the drill-down into one of those insights.
+/// - [registerPerfTraceExtension]: ext.dusk.perf_trace, the closed session's
+///   interactions, frames and host rows as Chrome Trace Event JSON.
+/// - [registerSemanticsHoldExtension]: ext.dusk.semantics_hold, which releases
+///   dusk's semantics handle for one timed window of `dusk:perf_run
+///   --semantics-pass` and re-acquires it after perf_end.
+///
+/// Last, and it has to stay last: [registerBootExtension], ext.dusk.boot_id,
+/// the id `DuskPlugin.install()` minted for this boot. `dusk:perf_run` waits
+/// for a new one after a hot restart, and reads an answer as every extension
+/// above being registered again.
 void registerAllDuskExtensions() {
   registerSnapExtension();
   registerPointerExtensions();
@@ -75,4 +90,7 @@ void registerAllDuskExtensions() {
   // ext.dusk.reset_overlays registers inside registerModalRouterExtension.
   registerFillExtension();
   registerPerfExtensions();
+  registerPerfTraceExtension();
+  registerSemanticsHoldExtension();
+  registerBootExtension();
 }

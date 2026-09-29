@@ -475,6 +475,32 @@ void main() {
       expect(refs, isA<List<String>>());
     });
 
+    testWidgets(
+        'finds a label in a child pipeline owner, where the harness and a '
+        'nested view mount the app', (tester) async {
+      // The Flutter test harness mounts the widget tree under a CHILD
+      // pipeline owner of the root one, the same shape a multi-view or
+      // embedded app has; a walk that stops at rootPipelineOwner finds
+      // nothing there.
+      await tester.pumpWidget(
+        _wrap(
+          Semantics(
+            label: 'child-owner-label',
+            container: true,
+            child: const SizedBox(width: 40, height: 40),
+          ),
+        ),
+      );
+
+      final refs = findByLabelInSemantics(
+        label: 'child-owner-label',
+        role: null,
+        groupId: 'g-child-owner',
+      );
+
+      expect(refs, hasLength(1));
+    });
+
     testWidgets('returns empty when no labels match', (tester) async {
       await tester.pumpWidget(_wrap(const SizedBox(width: 40, height: 40)));
       final refs = findByLabelInSemantics(

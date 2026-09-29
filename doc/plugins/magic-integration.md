@@ -9,7 +9,7 @@ alongside the standard Semantics tree.
 
 `MagicDuskIntegration` ships in the **`magic_devtools`** package, not in magic
 core. Add it as a dev_dependency (it is debug-only; release builds tree-shake
-the `kDebugMode` branch that calls `install()`):
+the `!kReleaseMode` branch that calls `install()`):
 
 ```yaml
 dev_dependencies:
@@ -45,7 +45,7 @@ import 'package:magic_devtools/dusk.dart'; // from magic_devtools dev_dependency
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Magic.init();
-  if (kDebugMode) {
+  if (!kReleaseMode) {
     DuskPlugin.install();
     MagicDuskIntegration.install();
   }
@@ -55,7 +55,7 @@ void main() async {
 
 `install()` is idempotent; calling it twice in the same isolate is a no-op
 after the first call, matching `DuskPlugin.install()` semantics. Release
-builds tree-shake the entire `kDebugMode` branch.
+builds tree-shake the entire `!kReleaseMode` branch.
 
 ## The five core enrichers
 

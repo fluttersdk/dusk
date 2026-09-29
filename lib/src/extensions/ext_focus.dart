@@ -6,6 +6,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
+import '../utils/perf_interaction.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
 import 'ext_snapshot.dart' show duskSnapBuild;
 
@@ -85,7 +86,10 @@ Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
         ),
       );
     }
-    node.requestFocus();
+    final FocusNode target = node;
+    await runPerfInteraction<void>('focus', ref, () async {
+      target.requestFocus();
+    });
     await awaitFrameOrTimeout();
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,
@@ -119,7 +123,9 @@ Future<developer.ServiceExtensionResponse> aiTestBlurHandler(
   try {
     final FocusManager fm = FocusManager.instance;
     final FocusNode? primary = fm.primaryFocus;
-    primary?.unfocus();
+    await runPerfInteraction<void>('blur', null, () async {
+      primary?.unfocus();
+    });
     await awaitFrameOrTimeout();
     final Map<String, dynamic> payload = <String, dynamic>{
       'blurred': true,

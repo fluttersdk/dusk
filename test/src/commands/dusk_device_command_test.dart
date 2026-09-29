@@ -211,6 +211,10 @@ void main() {
       // Success message includes preset name and dimensions.
       expect(output.content, contains('iphone-x'));
       expect(output.content, contains('375x812'));
+      // The emulation dies with this command's CDP session; only the window
+      // bounds outlive it.
+      expect(output.content, contains('only as long as'));
+      expect(output.content, contains('CDP session'));
     },
   );
 

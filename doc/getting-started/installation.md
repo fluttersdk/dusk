@@ -8,7 +8,7 @@
 - [Verify installation](#verify-installation)
 
 Getting `fluttersdk_dusk` running requires adding the package, calling
-`DuskPlugin.install()` inside a `kDebugMode` guard in your app's `main.dart`, and
+`DuskPlugin.install()` inside a `!kReleaseMode` guard in your app's `main.dart`, and
 (optionally) wiring the MCP server so your AI client can reach the dusk tools.
 
 <a name="requirements"></a>
@@ -62,11 +62,11 @@ The recommended path is the CLI installer. From your project root, run:
 dart run fluttersdk_dusk dusk:install
 ```
 
-This patches your `lib/main.dart` automatically: it adds the `kDebugMode` import, wraps `DuskPlugin.install()` in a `kDebugMode` guard, injects `WidgetsFlutterBinding.ensureInitialized()` when missing, and detects Magic-stack apps so `MagicDuskIntegration.install()` lands AFTER `Magic.init(...)`. The command is idempotent; re-running it is safe. See [`dusk:install`](../commands/dusk-install.md) for the full sub-step list and the anchor strings the injector searches for.
+This patches your `lib/main.dart` automatically: it adds the `kReleaseMode` import, wraps `DuskPlugin.install()` in a `!kReleaseMode` guard, injects `WidgetsFlutterBinding.ensureInitialized()` when missing, and detects Magic-stack apps so `MagicDuskIntegration.install()` lands AFTER `Magic.init(...)`. The command is idempotent; re-running it is safe. See [`dusk:install`](../commands/dusk-install.md) for the full sub-step list and the anchor strings the injector searches for.
 
 ### Manual wiring (when you'd rather edit `main.dart` yourself)
 
-Skip the CLI installer and edit `lib/main.dart` directly. Call `DuskPlugin.install()` inside a `kDebugMode` guard, after `WidgetsFlutterBinding.ensureInitialized()` and before `runApp()`. The guard is mandatory: release builds tree-shake the entire subsystem, so dusk never ships to end users.
+Skip the CLI installer and edit `lib/main.dart` directly. Call `DuskPlugin.install()` inside a `!kReleaseMode` guard, after `WidgetsFlutterBinding.ensureInitialized()` and before `runApp()`. The guard is mandatory: release builds tree-shake the entire subsystem, so dusk never ships to end users. It is `!kReleaseMode` rather than `kDebugMode` so a profile build carries dusk too, which is the build `dusk:perf_run` measures; an app wired under `kDebugMode` keeps working in debug, and `dusk:install` leaves that block alone, but it registers no `ext.dusk.*` in a profile build until the guard is changed by hand.
 
 ```dart
 import 'package:flutter/foundation.dart';
@@ -75,7 +75,7 @@ import 'package:fluttersdk_dusk/dusk.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (kDebugMode) {
+  if (!kReleaseMode) {
     DuskPlugin.install();
   }
 
@@ -88,7 +88,7 @@ Future<void> main() async {
 <a name="optional-integrations"></a>
 ## Optional integrations
 
-Call additional `install()` methods inside the same `kDebugMode` block to enrich
+Call additional `install()` methods inside the same `!kReleaseMode` block to enrich
 snapshots with framework-specific metadata. Both integrations are independent; install
 either, both, or neither depending on your stack.
 
@@ -100,7 +100,7 @@ either, both, or neither depending on your stack.
 ```dart
 import 'package:magic_devtools/dusk.dart'; // magic_devtools only
 // ...
-if (kDebugMode) {
+if (!kReleaseMode) {
   DuskPlugin.install();
   MagicDuskIntegration.install(); // magic-stack only (from magic_devtools)
   Wind.installDebugResolver();    // wind UI only (alpha-10+)

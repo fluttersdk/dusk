@@ -1,6 +1,6 @@
 # Commands
 
-Catalog of every user-facing command shipped by `fluttersdk_dusk`. Thirty-four commands, grouped by intent.
+Catalog of every user-facing command shipped by `fluttersdk_dusk`. Forty commands, grouped by intent.
 
 Every command is invoked as `dart run fluttersdk_dusk <name>` (Flutter-free wrapper at `bin/fluttersdk_dusk.dart`), or via the consumer-side artisan dispatcher (`./bin/fsa <name>` / `dart run artisan <name>`) once the project has run `dusk:install`. Commands are auto-discovered through `DuskArtisanProvider`; nothing wires by hand.
 
@@ -21,6 +21,7 @@ Need a quick reminder of what a command does without leaving the terminal? Run `
 - [Console and exceptions](#console-and-exceptions)
 - [Observe](#observe)
 - [Hot reload and snap](#hot-reload-and-snap)
+- [Performance](#performance)
 
 ## How to read this page
 
@@ -31,7 +32,7 @@ Each group section ships a single table with four columns:
 - **Boot Mode** is the `CommandBoot` value the dispatcher reads before invoking `handle()`. `none` means pure CLI: no VM Service connection. `connected` means the command dials `~/.artisan/state.json` and fails fast if no app is running.
 - **VM Extension** is the `ext.dusk.*` method the command calls over the VM Service. `none` for commands that operate purely on the consumer filesystem.
 
-Deep-dive pages exist for the seven commands whose flag surface, return shape, or composition rules outgrow a single table row. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.
+Deep-dive pages exist for the fifteen commands whose flag surface, return shape, or composition rules outgrow a single table row. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.
 
 ## Snapshot and screenshot
 
@@ -76,7 +77,7 @@ Route-table manipulation against the active `Navigator`. `dusk:modal` dismisses 
 |---------|-------------|-----------|--------------|
 | `dusk:navigate` | Navigate the running app to a named route via the active Navigator. | connected | ext.dusk.navigate |
 | `dusk:navigate_back` | Pop the topmost route off the active Navigator (mirrors browser back). | connected | ext.dusk.navigate_back |
-| `dusk:get_routes` | Print the active Navigator's route table + current location as JSON. | connected | ext.dusk.get_routes |
+| `dusk:get_routes` | Print the mounted Router's location (`uri`), the top page name and a title hint as JSON. | connected | ext.dusk.get_routes |
 | `dusk:modal` | Dismiss all open modals, bottom sheets, and dialogs in the running app. | connected | ext.dusk.dismiss_modals |
 | [`dusk:reset_overlays`](dusk-reset-overlays.md) | Reset to a clean screen: dismiss modals + Escape + Cancel-tap fallback (idempotent). | connected | ext.dusk.reset_overlays |
 | `dusk:close_app` | Gracefully close the running app via SystemNavigator.pop(). | connected | ext.dusk.close_app |
@@ -103,7 +104,7 @@ The one-shot bootstrap. Injects three lines into the consumer's `lib/main.dart` 
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:install`](dusk-install.md) | Wire DuskPlugin.install() into lib/main.dart AND chain artisan install + plugin:install so ./bin/fsa surfaces all 34 dusk:* commands (idempotent on re-run; Phase 2 chain is best-effort). | none | none |
+| [`dusk:install`](dusk-install.md) | Wire DuskPlugin.install() into lib/main.dart AND chain artisan install + plugin:install so ./bin/fsa surfaces all 40 dusk:* commands (idempotent on re-run; Phase 2 chain is best-effort). | none | none |
 
 ## CDP
 
@@ -111,8 +112,8 @@ Chrome DevTools Protocol commands that manipulate the browser viewport directly.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `dusk:device` | Emulate a device profile (viewport + DPR + touch + user agent) via Chrome DevTools Protocol. | connected | none (CDP direct) |
-| `dusk:resize` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. | connected | none (CDP direct) |
+| `dusk:device` | Emulate a device profile (viewport + DPR + touch + user agent) via Chrome DevTools Protocol. The emulation lasts only as long as the command's CDP session, which closes on exit; only the window size stays. | none | none (CDP direct) |
+| `dusk:resize` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. Chrome drops the override when the command exits; `--hold` keeps it until Ctrl-C or Chrome exits. | none | none (CDP direct) |
 
 ## Click variants
 
@@ -172,8 +173,21 @@ The single-round-trip composite that hot-reloads the running app and then captur
 |---------|-------------|-----------|--------------|
 | `dusk:hot_reload_and_snap` | Hot reload the running app, then capture snapshot + screenshot + recent exceptions in a single round-trip. | connected | artisan:reload + ext.dusk.snap |
 
+## Performance
+
+One measurement session and its drill-down. `dusk:perf_begin` opens it (`--mode=attribution` profiles builds, `--mode=timing` touches no flag), you drive one interaction, `dusk:perf_end` closes it with a bounded report of ranked insights, and `dusk:perf_insight` returns the rows behind one of them. `dusk:perf_run` repeats a scenario from a clean start and writes the medians to a file, `dusk:perf_compare` judges one such file against another, and `dusk:perf_trace` writes a session's timeline for Perfetto.
+
+| Command | Description | Boot Mode | VM Extension |
+|---------|-------------|-----------|--------------|
+| [`dusk:perf_begin`](dusk-perf-begin.md) | Open a performance measurement session: zero the frame, wind and magic counters and, in attribution mode, switch on build profiling. | connected | ext.dusk.perf_begin |
+| [`dusk:perf_end`](dusk-perf-end.md) | Close the performance measurement session and report frames, ranked blocks, counters and insights. | connected | ext.dusk.perf_end |
+| [`dusk:perf_insight`](dusk-perf-insight.md) | Drill into one insight of the last perf_end report: title, summary, the rows behind it, estimated savings and the next step. | connected | ext.dusk.perf_insight |
+| [`dusk:perf_run`](dusk-perf-run.md) | Run a perf scenario N times from a clean start and write medians, spread, insights and every repeat to <out>/<scenario>-<label>.json. | connected | ext.dusk.perf_begin + perf_end (+ semantics_hold) |
+| [`dusk:perf_compare`](dusk-perf-compare.md) | Compare two dusk:perf_run files on counts per painted frame (and timing-mode ms) and print a verdict table. | none | none |
+| [`dusk:perf_trace`](dusk-perf-trace.md) | Write the last closed perf session as a Chrome Trace JSON file (ui.perfetto.dev, chrome://tracing) and print its path. | connected | ext.dusk.perf_trace |
+
 ## Boot mode and deep-dives
 
-Two of thirty-four commands run with `CommandBoot.none` (`dusk:install`, `dusk:doctor`). Every other command is `CommandBoot.connected`: it dials the VM Service URI in `~/.artisan/state.json` and fails fast when the running app cannot be reached.
+Five of forty commands run with `CommandBoot.none` (`dusk:install`, `dusk:doctor`, `dusk:perf_compare`, `dusk:device`, `dusk:resize`; the last two dial Chrome DevTools Protocol directly rather than the VM Service). Every other command is `CommandBoot.connected`: it dials the VM Service URI in `~/.artisan/state.json` and fails fast when the running app cannot be reached.
 
-Nine commands earn their own pages: [dusk:install](dusk-install.md), [dusk:snap](dusk-snap.md), [dusk:tap](dusk-tap.md), [dusk:fill](dusk-fill.md), [dusk:reset_overlays](dusk-reset-overlays.md), [dusk:screenshot](dusk-screenshot.md), [dusk:find](dusk-find.md), [dusk:doctor](dusk-doctor.md), [dusk:observe](dusk-observe.md). Slug rule: the URL replaces the `:` separator with `-`. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.
+Fifteen commands earn their own pages: [dusk:install](dusk-install.md), [dusk:snap](dusk-snap.md), [dusk:tap](dusk-tap.md), [dusk:fill](dusk-fill.md), [dusk:reset_overlays](dusk-reset-overlays.md), [dusk:screenshot](dusk-screenshot.md), [dusk:find](dusk-find.md), [dusk:doctor](dusk-doctor.md), [dusk:observe](dusk-observe.md), [dusk:perf_begin](dusk-perf-begin.md), [dusk:perf_end](dusk-perf-end.md), [dusk:perf_insight](dusk-perf-insight.md), [dusk:perf_run](dusk-perf-run.md), [dusk:perf_compare](dusk-perf-compare.md), [dusk:perf_trace](dusk-perf-trace.md). Slug rule: the URL replaces the `:` separator with `-`. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.

@@ -1,7 +1,7 @@
 # Dusk MCP Tool Reference
 
 Per-tool input schema, return shape, and example payload for every `dusk_*` MCP tool
-contributed by `DuskArtisanProvider`. 35 tools total: 32 dispatch through `ext.dusk.*` VM
+contributed by `DuskArtisanProvider`. 36 tools total: 33 dispatch through `ext.dusk.*` VM
 Service extensions and 3 (`dusk_hot_reload_and_snap`, `dusk_resize_viewport`,
 `dusk_device_profile`) route through the `artisan:dusk:*` substrate path to a CLI command
 because the orchestration cannot run inside the target isolate.
@@ -75,6 +75,10 @@ story survived two rewrites of the widget before anyone read the field back.
 - [`dusk_observe`](#dusk_observe)
 - [`dusk_perf_begin`](#dusk_perf_begin)
 - [`dusk_perf_end`](#dusk_perf_end)
+- [`dusk_perf_compare`](#dusk_perf_compare)
+- [`dusk_perf_insight`](#dusk_perf_insight)
+- [`dusk_perf_run`](#dusk_perf_run)
+- [`dusk_perf_trace`](#dusk_perf_trace)
 - [`dusk_press_key`](#dusk_press_key)
 - [`dusk_reset_overlays`](#dusk_reset_overlays)
 - [`dusk_resize_viewport`](#dusk_resize_viewport)
@@ -250,7 +254,10 @@ error when the ref is unknown.
 Dispatch: `artisan:dusk:device`
 
 Emulate a named device profile (viewport + DPR + touch + user agent) via Chrome DevTools
-Protocol. Requires the substrate to have been started with `--cdp-port`.
+Protocol. Requires the substrate to have been started with `--cdp-port`. The emulated
+viewport, DPR, touch and user agent last only as long as the CDP session the call opens,
+which closes when it returns; only the Chrome window size it sets stays. For a viewport
+that lasts, run the CLI `dusk:resize --hold` in the background.
 
 ### Input schema
 
@@ -496,8 +503,9 @@ Success: `{ ref: "<ref>", focused: true }`.
 
 Dispatch: `ext.dusk.get_routes`
 
-List the route paths declared by the running app's `MagicRouter`. Returns an empty list
-when no Magic router is installed.
+Report where the running app is: the mounted Router's location, the top page's name and a
+title hint. Read it to confirm a `dusk_navigate` landed or to see where a redirect took the
+app; it does not list the declared routes.
 
 ### Input schema
 
@@ -505,8 +513,13 @@ No parameters.
 
 ### Returns
 
-Success: `{ routes: [ { path, name }, ... ] }`. Parameterised paths render with `:id`-style
-placeholders.
+Success: `{ location, title, uri }`.
+
+| Field | Meaning |
+|---|---|
+| `uri` | The first mounted `Router`'s location, the value `dusk_navigate` verifies against. `null` while no Router is mounted, as on a loading screen right after a restart. |
+| `location` | The root Navigator's top page name. A Router-based app (go_router, MagicRouter) names no page, so it reads `""` on every screen there; read `uri`. |
+| `title` | A location hint from the platform's default route name; `""` when there is none. |
 
 ### Example call
 
@@ -517,7 +530,7 @@ placeholders.
 Response:
 
 ```json
-{ "routes": [ { "path": "/monitors", "name": "monitors.index" }, { "path": "/monitors/:id", "name": "monitors.show" } ] }
+{ "location": "", "title": "", "uri": "/monitors?page=2" }
 ```
 
 ---
@@ -610,15 +623,29 @@ invalidated.
 Dispatch: `ext.dusk.navigate_back`
 
 Pop the top route off the active navigator stack. Equivalent to pressing the system Back
-button. No-op when the stack has only one route.
+button. No-op when no Navigator has a page to leave.
+
+The Navigator popped is the outermost one that can pop. A page pushed on the root Navigator
+covers whatever a shell shows, so it is left first; a page stacked inside a shell (a
+go_router `ShellRoute` builds its own nested Navigator, and MagicRouter's `.stacked()` pushes
+onto it) is left once the root has nothing to pop. The root Navigator of such an app holds
+the shell alone, so popping it would do nothing. A Navigator the user cannot see is skipped:
+a go_router `StatefulShellRoute` keeps every branch alive and hides the inactive ones under
+`Offstage` and a disabled `TickerMode`, so a page stacked on a hidden branch is never the one
+left (a subtree under `Offstage(offstage: true)`, `TickerMode(enabled: false)` or
+`Visibility(visible: false)` is not walked).
 
 ### Input schema
 
-No parameters.
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `includeSnapshot` | boolean | `true` | Embed the post-pop snapshot in the response. |
 
 ### Returns
 
-Success: `{ popped: bool }`. `false` when the stack already had only one route.
+Success: `{ navigatedBack: true, popped, snapshot? }`. `popped` is `false` when no Navigator
+had a page to leave (the bottom of every stack), so the call did nothing; read
+`dusk_get_routes` `uri`, or the snapshot, to see where the app is.
 
 ### Example call
 
@@ -667,30 +694,36 @@ default.
 Dispatch: `ext.dusk.perf_begin`
 
 Open a performance measurement session around an interaction you are about to
-drive. Switches `FlutterTimeline` collection and Flutter's build profiling on,
-zeroes the frame buffer and wind's counters, and records the liveness baseline
-`dusk_perf_end` judges the run against. The instrumentation costs real time, so
-keep the session tight: begin, drive one interaction, end.
+drive. Zeroes the frame buffer and the wind and magic counters and records the
+liveness baseline `dusk_perf_end` judges the run against. In `attribution` mode
+it also switches `FlutterTimeline` collection and Flutter's build profiling on;
+that instrumentation costs real time, so keep the session tight: begin, drive
+one interaction, end.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `phases` | boolean | no | Also profile layout and paint, not just builds. Default `false`; the span volume multiplies. |
+| `mode` | string | no | `attribution` (default): blocks by self time, counts per painted frame, wind and magic counters, insights. `timing`: no profiling flag is touched and the report carries frame timings only. |
+| `phases` | boolean | no | Also profile layout and paint, not just builds. Default `false`; the span volume multiplies. Rejected with `mode: "timing"`. |
 
 ### Returns
 
-Success: `{ sessionToken: "perf-1", phases: bool, livenessBaseline: <int>,
-restartedPreviousSession: bool }`.
+Success: `{ sessionToken: "perf-1", mode: "attribution", phases: bool,
+livenessBaseline: <int>, restartedPreviousSession: bool }`.
 
-A begin on an already-open session RESTARTS it rather than failing, restoring
-the previous session's flags before saving the current ones, so a `perf_end`
-that never landed cannot strand the profiling flags on.
+An unknown `mode`, or `phases` with `timing`, is an `invalidParams` error and
+opens nothing. A begin on an already-open session RESTARTS it rather than
+failing, restoring the previous session's flags before saving the current ones,
+so a `perf_end` that never landed cannot strand the profiling flags on.
+
+Attribution milliseconds are inflated by the profiling. Rank by them; compare
+milliseconds only between `timing` sessions.
 
 ### Example call
 
 ```json
-{ "name": "dusk_perf_begin", "arguments": { "phases": true } }
+{ "name": "dusk_perf_begin", "arguments": { "mode": "timing" } }
 ```
 
 ---
@@ -699,10 +732,9 @@ that never landed cannot strand the profiling flags on.
 
 Dispatch: `ext.dusk.perf_end`
 
-Close the session and read the attribution: which widget and RenderObject types
-ran, how often and for how long, next to wind's cache hit/miss/bypass counters
-and magic's controller-notify counts. Restores every profiling flag to the value
-it had BEFORE the session, not to `false`.
+Close the session and read a bounded report (about 6 KB at most) with ranked
+insights. Restores every profiling flag to the value it had BEFORE the session,
+not to `false`.
 
 ### Input schema
 
@@ -711,35 +743,210 @@ a typed error rather than an empty report.
 
 ### Returns
 
-Success: `{ sessionToken, refused: false, phases, liveness: {baseline, final,
-advanced}, coverage, frameSummary, blockAttribution, wind, magic, note }`.
-`coverage` is `{framesDrawn, framesSummarized, complete}` plus a `detail` string
-when incomplete. Flutter batches `onReportTimings`, so a session can close
-before the last frames' timings arrive; when `complete` is `false` the summary
-and the attribution describe a SUBSET, and an empty attribution then means "not
-reported" rather than "nothing was slow". Read it before the numbers.
-`frameSummary` uses `flutter_driver`'s metric-name strings verbatim (average /
-90th / 99th / worst build and rasterizer millis, missed-budget counts) plus a
-`dropped_frame_count` derived from gaps in the frame-number sequence.
-`blockAttribution` ranks blocks across the whole session as
-`{name, micros, count, frames}`. `wind` is `null` when no wind perf resolver
-registered, which is a different finding from a wind section of zeros.
+Success: `{ sessionToken, refused: false, mode, env, coverage, summary,
+counters, insights, omitted }`. Every duration is in milliseconds; every count
+is given raw and per painted frame.
 
-Check `refused` FIRST. When the liveness counter did not advance, the engine
-rendered nothing, the response carries NO metrics block at all, and the reason
+- `env`: `{platform, isWeb, buildMode, renderer, semanticsEnabled, phases}`,
+  read in the app. `buildMode` comes from `kProfileMode` / `kDebugMode`;
+  `renderer` is `canvaskit` or `skwasm` on web and `unknown` elsewhere unless a
+  host assigns `rendererReader`; `semanticsEnabled` is `true` whenever dusk is
+  installed, because dusk holds a semantics handle for the whole process.
+- `coverage`: `{framesDrawn, framesSummarized, framesOutsideSession, complete,
+  missing}`. `framesDrawn` is the liveness counter's advance;
+  `framesSummarized` counts the frame records Flutter delivered inside the
+  session window, which it batches, so a session can close before the last
+  arrive; `framesOutsideSession` counts the delivered records left out because
+  they lie outside the window (drawn before `perf_begin`, or the flush frame). `missing` names sources never read: `wind` (no perf
+  resolver, so `counters.wind` is `null`, not zeros), `blocks` (profiling was
+  on and no frame carried a block map), `blockSelfTime` (blocks without
+  `selfMicros`). Read it before the numbers.
+- `summary`: `{durationMs, budgetMs: 16.7, frames, blocksBySelf,
+  blocksByCount, routeTransitions}`. `frames` is `{count, painted, dropped,
+  overBudget, overBudgetBuild, overBudgetRaster, buildMs, rasterMs}`, the last
+  two as `{p50, p90, p99, worst}`; `dropped` comes from `frameNumber` gaps and
+  `count` is `painted + dropped`. `blocksBySelf` is `[{name, selfMs, frames}]`
+  ranked by EXCLUSIVE time (a parent's inclusive time contains its children's,
+  so ranking by it blames the parent); `blocksByCount` is `[{name, count,
+  perFrame}]`. Both keep the top 10. `timing` mode carries `durationMs`,
+  `budgetMs` and `frames` only.
+- `counters`: `{columns: ["name", "count", "perFrame"], wind, magic}`, `null`
+  in `timing` mode. A scalar counter is `{count, perFrame}` (`cacheSize` is a
+  gauge and stays bare); a breakdown (`widgetBuilds`, `controllerNotifies`,
+  ...) is its top 3 as positional rows in `columns` order.
+- `insights`: at most 6, sorted by severity then `estimatedSavingsMs`, each
+  `{id, severity, title, evidence: {metric, value, perFrame, threshold},
+  estimatedSavingsMs?, nextStep}`. Ids (`I1`, `I2`, ...) are assigned before
+  the sort and the cut. Built-in rules, with the thresholds each states in its
+  evidence: `framesOverBudget` (slower thread past 16.7ms; `error` past a 0.1
+  share), `framesDropped` (a `frameNumber` step of 2 or more; `error` past a
+  0.1 share), `blockSelfMs` (one block owning at least 0.3 of all self time and
+  1ms per painted frame; `error` past 8.35ms per frame), `blockCountPerFrame`
+  (at least 20 runs per painted frame and 10 times the median block),
+  `framesUnreported` / `sourcesMissing` (coverage). The host may add rules
+  through `perfInsightContributors`; a contributor that throws becomes a
+  `warn` insight named `contributorErrors`.
+- `omitted`: how many entries each ranked list cut, keyed by list
+  (`blocksBySelf`, `blocksByCount`, `routeTransitions`, `insights`,
+  `wind.widgetBuilds`, `magic.controllerNotifies`, ...).
+
+Refusal: `{ sessionToken, refused: true, mode, coverage: {framesDrawn,
+livenessBaseline, livenessFinal, complete: false}, reason }`.
+
+Check `refused` FIRST. When the liveness counter advanced by 1 or less, the
+engine rendered nothing, the response carries NO metrics at all, and the reason
 says so. A zero report would have read as "fast"; that is the reading a live
 probe produced three times against a tab that was merely behind another window.
 The liveness counter is the authority rather than the `warnings` block on the
 same response, because `SchedulerBinding.framesEnabled` was measured reporting
 `true` on a hidden page.
 
-Treat per-type millisecond values as indicative, not as facts about production;
-the payload's own `note` says why.
-
 ### Example call
 
 ```json
 { "name": "dusk_perf_end", "arguments": {} }
+```
+
+---
+
+## dusk_perf_compare
+
+Dispatch: `artisan:dusk:perf_compare` (runs the CLI command in the MCP server's
+process; reads two files, needs no app)
+
+Judge run `b` against run `a`, both `dusk_perf_run` files. Gates on counts per
+painted frame, never raw counts; milliseconds only from timing-mode medians;
+emulator raster ms are info. A change inside either run's repeat-to-repeat
+range is `unchanged`. Thresholds: warn +10%, error +25%, or the scenario's.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `a` | string | yes | Baseline run file. |
+| `b` | string | yes | Candidate run file. |
+| `json` | boolean | no | Return the JSON result instead of the table. |
+
+### Returns
+
+`{ verdict, thresholds, frames: {painted: {a, b}}, rows: [{metric, a, b,
+deltaPct, verdict, severity}], unchanged, timing: {gated, note?} }`. `rows`
+lists what changed plus info rows, worst first. The call fails on an
+error-level regression, or when a run has no measured repeat.
+
+### Example call
+
+```json
+{ "name": "dusk_perf_compare", "arguments": { "a": "build/perf/list-before.json", "b": "build/perf/list-after.json", "json": true } }
+```
+
+---
+
+## dusk_perf_insight
+
+Dispatch: `ext.dusk.perf_insight`
+
+Drill into one insight of the report `dusk_perf_end` last returned. Only the
+most recent closed session is kept.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes | Insight id (`I<n>`) from `insights[]`. One counted in `omitted.insights` is drillable too. |
+| `token` | string | no | The report's `sessionToken`; a token naming any other session is refused. |
+
+### Returns
+
+Success: `{ sessionToken, id, severity, title, summary, detail,
+estimatedSavingsMs, nextStep }`. `detail` holds the rows behind the insight:
+`worstFrames` (each `{frameNumber, buildMs, rasterMs, blocks: [{name, selfMs,
+count}]}`) for the budget rule, `gaps` (`{after, next, missing}`) for dropped
+frames, the block and the frames where it weighed most for the block rules,
+and the coverage map for a coverage insight.
+
+Errors, each naming what to read instead: no `id` (`invalidParams`), no closed
+session, a stale token, a refused session, and an id the session never issued,
+which points at `perf_end`'s `insights[]`.
+
+### Example call
+
+```json
+{ "name": "dusk_perf_insight", "arguments": { "id": "I1", "token": "perf-3" } }
+```
+
+---
+
+## dusk_perf_run
+
+Dispatch: `artisan:dusk:perf_run` (runs the CLI command in the MCP server's
+process: it restarts the app, drives Chrome DevTools and writes files)
+
+Run a scenario YAML several times from a clean start: setup (its hot restart,
+or a relaunch on a profile build), `perf_begin`, the steps with targets
+resolved on the live screen, `perf_end` with `full=true`. Writes
+`<out>/<scenario>-<label>.json`.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `scenario` | string | yes | Scenario YAML path. |
+| `label` | string | no | `[a-z0-9_-]`, default `run`. |
+| `out` | string | no | Output directory, default `build/perf`. |
+| `repeat` | integer | no | Repeats per series; overrides the scenario's. |
+| `platform` | string | no | `chrome`, `android` or `ios`; read from the session when omitted. |
+| `timing` | boolean | no | Interleaved timing-mode repeats, the ms `dusk_perf_compare` gates on. |
+| `against` | string | no | Baseline scenario run in the same rounds, one file each. |
+| `semantics-pass` | boolean | no | Also measure with the semantics tree released (`semanticsOff`). |
+| `json` | boolean | no | Return the run file minus `repeats[]`, plus `path`. |
+
+### Returns
+
+The run file: `scenario`, `label`, `env` (the app's own plus `target`,
+`device`, `emulator`, `restartMode`, `host`, `renderer`), `summary`
+(`repeats`, `refused`, median `frames`, `perFrame`, `ms`, `spread`, and
+`timing` with `--timing`), `insights` of the median repeat, `repeats[]`, and
+with the semantics pass `semanticsPass` plus `semanticsOff` or
+`semanticsPassReason`. `semanticsPass` is `unsupported` when a release leaves
+semantics on, which on chrome is every app dusk has snapshotted (the web
+engine keeps semantics on once it has received a tree); the reason names the
+platform and what holds it. A refused repeat is recorded and left out of the
+medians; the call fails when every repeat refused. See
+[dusk:perf_run](../commands/dusk-perf-run.md).
+
+### Example call
+
+```json
+{ "name": "dusk_perf_run", "arguments": { "scenario": "tool/perf/scenarios/list.yaml", "label": "before", "timing": true, "json": true } }
+```
+
+---
+
+## dusk_perf_trace
+
+Dispatch: `artisan:dusk:perf_trace` (runs the CLI command in the MCP server's
+process, so the trace goes to a file and only the path comes back)
+
+Write the last closed session's `ext.dusk.perf_trace` export as a Chrome Trace
+JSON file. Export before the next `dusk_perf_begin`, which clears the frames
+the trace reads.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `out` | string | yes | File to write. |
+| `token` | string | no | The session's `sessionToken`; a stale one is refused. |
+
+### Returns
+
+The absolute path of the written file.
+
+### Example call
+
+```json
+{ "name": "dusk_perf_trace", "arguments": { "out": "build/perf/list.trace.json" } }
 ```
 
 ---
@@ -803,7 +1010,10 @@ three indicate no work was done, confirming idempotency.
 Dispatch: `artisan:dusk:resize`
 
 Resize the running Flutter web app viewport via Chrome DevTools Protocol. Requires
-artisan to have been started with `--cdp-port`.
+artisan to have been started with `--cdp-port`. Chrome drops the override when the
+DevTools session that sent it detaches, so through this tool it ends when the call
+returns; the CLI's `--hold` flag (`dusk:resize --hold`, run in the background) keeps
+the session open and is the way to drive the app at the new size.
 
 ### Input schema
 
@@ -896,7 +1106,7 @@ meaningless without the widget it is relative to.
 Success: `{ format: "<jpeg|png>", base64: "<base64>", width: <int>, height: <int> }`.
 
 Without `ref` the capture is the app-root viewport (the `RepaintBoundary` the host wraps
-the app in under `kDebugMode`). With `ref` it is the widget's own render-object region,
+the app in under `!kReleaseMode`). With `ref` it is the widget's own render-object region,
 rasterised out of its nearest repaint-boundary ancestor.
 
 A third mode, `geometry: "true"`, returns

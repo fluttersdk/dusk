@@ -109,11 +109,13 @@ void stampChecks(Map<String, dynamic> payload, ActionabilityReport report) {
 ///    `rect.center` and almost always indicates the widget has been
 ///    collapsed or detached between snapshot and action.
 /// 3. **Off-viewport** — the entry's [RefEntry.rect] does not intersect the
-///    current root view's logical-pixel viewport. Off-screen widgets cannot
-///    be tapped without scrolling first; the agent should call
+///    current root view's visible logical-pixel viewport (the view minus its
+///    `viewInsets`, so the area under a soft keyboard does not count). A
+///    target whose center is outside it is first scrolled into view when a
+///    `Scrollable` ancestor exists; the agent should call
 ///    `dusk_scroll_to_ref` before retrying.
-/// 4. **Not stable** — the entry's bounding box (re-resolved from
-///    [RefEntry.element]'s live [RenderBox]) shifted by more than 0.5
+/// 4. **Not stable** — the entry's bounding box, sampled twice from
+///    [RefEntry.element]'s live [RenderBox], shifted by more than 0.5
 ///    logical pixels on any side between two consecutive frames. Animated
 ///    widgets (sliding sheets, expanding tiles, page transitions) fail this
 ///    gate so the agent waits for the animation to settle before retrying.
@@ -233,16 +235,12 @@ Future<ActionabilityReport> ensureActionableForViews(
       why: 'no FlutterView is attached',
     );
   }
-  final Size physical = view.physicalSize;
-  final double dpr = view.devicePixelRatio;
-  final Rect viewport = Rect.fromLTWH(
-    0,
-    0,
-    physical.width / dpr,
-    physical.height / dpr,
-  );
+  final Rect viewport = _visibleViewportOf(view);
   Rect currentRect = rect;
-  if (!currentRect.overlaps(viewport)) {
+  // The pointer lands at the center, so a target whose center sits outside
+  // the visible viewport (half under the keyboard, say) is scrolled in too;
+  // refusing still needs the whole rect outside, as it always has.
+  if (!viewport.contains(currentRect.center)) {
     final RenderObject? renderObject = entry.element.renderObject;
     if (renderObject != null && renderObject.attached) {
       // Only attempt scroll-into-view when a `Scrollable` ancestor exists —
@@ -270,19 +268,22 @@ Future<ActionabilityReport> ensureActionableForViews(
     }
   }
 
-  // 4. Stable check — re-resolve the rect from the live render object after
-  //    awaiting one frame. If any side has drifted by more than 0.5 logical
-  //    pixels the widget is still animating; the agent should wait or
-  //    re-snap rather than tap a moving target.
+  // 4. Stable check — sample the live rect, await one frame, sample again.
+  //    If any side has drifted by more than 0.5 logical pixels the widget is
+  //    still animating; the agent should wait or re-snap rather than tap a
+  //    moving target.
   //
-  //    Baseline is [currentRect] (post-auto-scroll, if step 3 ran) instead of
-  //    the original entry.rect — otherwise the deliberate scroll motion from
-  //    step 3 would always trip this gate.
+  //    Both samples are live. The snapshot rect is not a frame: measuring
+  //    against it reports every layout change since the snapshot as motion,
+  //    so a page the soft keyboard reflowed once refused every ref until the
+  //    next snap, however still it was. [currentRect] is the baseline only
+  //    when the live rect cannot be read.
   if (checkStable) {
+    final Rect baseline = _liveRectOf(entry.element) ?? currentRect;
     await awaitFrameOrTimeout();
     final Rect? liveRect = _liveRectOf(entry.element);
     if (liveRect != null) {
-      final double delta = _maxSideDelta(currentRect, liveRect);
+      final double delta = _maxSideDelta(baseline, liveRect);
       if (delta > 0.5) {
         final String formatted = delta.toStringAsFixed(1);
         throw DuskActionabilityException(
@@ -373,6 +374,24 @@ Future<ActionabilityReport> ensureActionableForViews(
 /// gate stays portable across both.
 bool _isRootRenderView(HitTestTarget target) {
   return target.runtimeType.toString().endsWith('RenderView');
+}
+
+/// The part of [view] a pointer can reach, in logical pixels.
+///
+/// `viewInsets` is what the system UI covers outright, the soft keyboard in
+/// practice. The engine keeps laying the app out under it, so a widget there
+/// still has an on-screen rect, but a person's touch lands on the keyboard
+/// and a synthetic one lands on whatever the app drew beneath it.
+Rect _visibleViewportOf(FlutterView view) {
+  final double dpr = view.devicePixelRatio;
+  final Size physical = view.physicalSize;
+  final ViewPadding insets = view.viewInsets;
+  return Rect.fromLTRB(
+    insets.left / dpr,
+    insets.top / dpr,
+    (physical.width - insets.right) / dpr,
+    (physical.height - insets.bottom) / dpr,
+  );
 }
 
 /// Re-resolves the live global-coordinate bounding rect of [entry]'s element,

@@ -13,8 +13,8 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 36 commands', () {
-      expect(cmds, hasLength(36));
+    test('returns exactly 40 commands', () {
+      expect(cmds, hasLength(40));
     });
 
     test(
@@ -66,6 +66,11 @@ void main() {
           // Perf session pair.
           'DuskPerfBeginCommand',
           'DuskPerfEndCommand',
+          'DuskPerfInsightCommand',
+          // Perf runner, compare and trace export.
+          'DuskPerfRunCommand',
+          'DuskPerfCompareCommand',
+          'DuskPerfTraceCommand',
         ]),
       );
     });
@@ -82,8 +87,8 @@ void main() {
     // Length
     // -------------------------------------------------------------------------
 
-    test('returns exactly 35 descriptors', () {
-      expect(tools, hasLength(35));
+    test('returns exactly 39 descriptors', () {
+      expect(tools, hasLength(39));
     });
 
     // -------------------------------------------------------------------------
@@ -135,6 +140,10 @@ void main() {
           // Perf session pair.
           'dusk_perf_begin',
           'dusk_perf_end',
+          'dusk_perf_insight',
+          'dusk_perf_run',
+          'dusk_perf_compare',
+          'dusk_perf_trace',
         ]),
       );
     });
@@ -214,6 +223,63 @@ void main() {
       // Perf session pair.
       expect(byName['dusk_perf_begin'], equals('ext.dusk.perf_begin'));
       expect(byName['dusk_perf_end'], equals('ext.dusk.perf_end'));
+      expect(byName['dusk_perf_insight'], equals('ext.dusk.perf_insight'));
+      // Host-side: the run, the compare and the file write happen in the
+      // MCP server's process, so all three route through the substrate.
+      expect(byName['dusk_perf_run'], equals('artisan:dusk:perf_run'));
+      expect(byName['dusk_perf_compare'], equals('artisan:dusk:perf_compare'));
+      expect(byName['dusk_perf_trace'], equals('artisan:dusk:perf_trace'));
+    });
+
+    test('dusk_perf_run requires scenario and names every option', () {
+      final run = tools.firstWhere((t) => t.name == 'dusk_perf_run');
+      expect(run.inputSchema['required'], <String>['scenario']);
+      final properties = run.inputSchema['properties'] as Map<String, dynamic>;
+      expect(
+        properties.keys,
+        containsAll(<String>[
+          'scenario',
+          'label',
+          'out',
+          'repeat',
+          'platform',
+          'timing',
+          'against',
+          'semantics-pass',
+          'json',
+        ]),
+      );
+    });
+
+    test('dusk_perf_compare requires a and b', () {
+      final compare = tools.firstWhere((t) => t.name == 'dusk_perf_compare');
+      expect(compare.inputSchema['required'], <String>['a', 'b']);
+    });
+
+    test('dusk_perf_trace requires out and takes an optional token', () {
+      final trace = tools.firstWhere((t) => t.name == 'dusk_perf_trace');
+      expect(trace.inputSchema['required'], <String>['out']);
+      final properties =
+          trace.inputSchema['properties'] as Map<String, dynamic>;
+      expect(properties.keys, containsAll(<String>['out', 'token']));
+    });
+
+    test('dusk_perf_begin declares mode as an attribution|timing enum', () {
+      final begin = tools.firstWhere((t) => t.name == 'dusk_perf_begin');
+      final properties =
+          begin.inputSchema['properties'] as Map<String, dynamic>;
+      expect(
+        (properties['mode'] as Map<String, dynamic>)['enum'],
+        <String>['attribution', 'timing'],
+      );
+    });
+
+    test('dusk_perf_insight requires id and takes an optional token', () {
+      final insight = tools.firstWhere((t) => t.name == 'dusk_perf_insight');
+      expect(insight.inputSchema['required'], <String>['id']);
+      final properties =
+          insight.inputSchema['properties'] as Map<String, dynamic>;
+      expect(properties.keys, containsAll(<String>['id', 'token']));
     });
 
     test('dusk_perf_begin declares the phases flag and requires nothing', () {
@@ -244,6 +310,20 @@ void main() {
     test('dusk_reset_overlays does not declare required params', () {
       final reset = tools.firstWhere((t) => t.name == 'dusk_reset_overlays');
       expect(reset.inputSchema.containsKey('required'), isFalse);
+    });
+
+    test(
+        'the CDP emulation tools say the override lasts only for the call\'s '
+        'session', () {
+      // Chrome drops an Emulation.* override when the DevTools session that
+      // sent it detaches, and each call opens and closes its own session.
+      final resize = tools.firstWhere((t) => t.name == 'dusk_resize_viewport');
+      final device = tools.firstWhere((t) => t.name == 'dusk_device_profile');
+      for (final tool in <McpToolDescriptor>[resize, device]) {
+        expect(tool.description, contains('only as long as'));
+        expect(tool.description, contains('CDP session'));
+      }
+      expect(resize.description, contains('--hold'));
     });
 
     test('no two descriptors share an extensionMethod (no overlap, no gap)',

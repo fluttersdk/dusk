@@ -10,6 +10,7 @@ import '../dusk_plugin.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
+import '../utils/perf_interaction.dart';
 import 'ext_modal_router.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
 
@@ -43,11 +44,11 @@ Future<void> _appendSnapshotIfRequested(
 ///
 /// Three extensions are registered:
 ///
-/// | Extension                 | Description                                      |
-/// |---------------------------|--------------------------------------------------|
-/// | `ext.dusk.navigate`       | Navigate to a route by pushing onto the stack.   |
-/// | `ext.dusk.navigate_back`  | Pop the current route off the navigation stack.  |
-/// | `ext.dusk.get_routes`     | Return current router location + page title.     |
+/// | Extension                 | Description                                       |
+/// |---------------------------|---------------------------------------------------|
+/// | `ext.dusk.navigate`       | Navigate to a route by pushing onto the stack.    |
+/// | `ext.dusk.navigate_back`  | Pop the current route off the navigation stack.   |
+/// | `ext.dusk.get_routes`     | Return the page name, a title and the router URI. |
 ///
 /// Each registration goes through [registerExtensionIdempotent] so hot-restart
 /// duplicate-registration [ArgumentError]s are swallowed safely.
@@ -144,23 +145,30 @@ Map<String, dynamic> buildNavigateResponse(String route) => <String, dynamic>{
 /// Builds the success payload for `ext.dusk.navigate_back`.
 ///
 /// Returns a map with:
-/// - `navigatedBack`: always `true`
+/// - `navigatedBack`: always `true` (the call completed)
+/// - `popped`: whether a Navigator had a page to leave; `false` is a no-op at
+///   the bottom of every stack
 @visibleForTesting
-Map<String, dynamic> buildNavigateBackResponse() =>
-    <String, dynamic>{'navigatedBack': true};
+Map<String, dynamic> buildNavigateBackResponse({bool popped = true}) =>
+    <String, dynamic>{'navigatedBack': true, 'popped': popped};
 
 /// Builds the success payload for `ext.dusk.get_routes`.
 ///
 /// Returns a map with:
-/// - `location`: current Navigator location string (empty when no Navigator
-///   is active — this is the framework-agnostic fallback; Step 17 wires in
-///   MagicRouter-aware location detection).
-/// - `title`: current window title from [WidgetsBinding.instance.title] when
-///   available, otherwise empty string.
+/// - `location`: the name of the root Navigator's top page, empty when no
+///   Navigator is active or the page is unnamed. A Router-based app
+///   (go_router, MagicRouter) names no page, so it reads empty on every
+///   screen there.
+/// - `title`: a location hint from the platform dispatcher's default route
+///   name, empty when there is none.
+/// - `uri`: the location the first mounted [Router] reports, the same read
+///   `ext.dusk.navigate` verifies against; null while no Router is mounted,
+///   which after a restart means the app cannot be navigated yet.
 @visibleForTesting
 Map<String, dynamic> buildGetRoutesResponse() => <String, dynamic>{
       'location': _currentLocation(),
       'title': _currentTitle(),
+      'uri': _readActiveRouterUri(),
     };
 
 // ---------------------------------------------------------------------------
@@ -201,70 +209,72 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
       );
     }
 
-    // 2. Dismiss open modal overlays so navigation is unobstructed.
-    await dismissAllModals();
+    await runPerfInteraction<void>('navigate', route, () async {
+      // 2. Dismiss open modal overlays so navigation is unobstructed.
+      await dismissAllModals();
 
-    // 3. Push the route. Prefer a consumer-registered navigate adapter
-    //    (typically MagicRoute.to wired in host main.dart) when present: it
-    //    dispatches through the app's own router public API (go_router /
-    //    auto_route), which is the correct path for Router-based apps and
-    //    avoids the spurious "no corresponding route" FlutterError that
-    //    `Navigator.pushNamed` raises on a Router-only stack (its
-    //    `onGenerateRoute` is null there, and the failure is asynchronous so a
-    //    try/catch around the call cannot suppress it; it lands in the
-    //    FlutterError buffer and pollutes ext.dusk.snap / ext.dusk.exceptions).
-    //    `pushed = true` means dispatch attempted, NOT that the route was
-    //    honored; the URL verify below is the source of truth.
-    bool pushed = false;
-    final adapter = DuskPlugin.navigateAdapter;
-    if (adapter != null) {
-      try {
-        pushed = await adapter(route);
-      } catch (e) {
-        developer.log(
-          '[fluttersdk_dusk] extDuskNavigateHandler: navigateAdapter '
-          'threw for "$route" ($e); falling back to Navigator / '
-          'SystemNavigator.routeInformationUpdated.',
-          name: 'dusk',
-        );
+      // 3. Push the route. Prefer a consumer-registered navigate adapter
+      //    (typically MagicRoute.to wired in host main.dart) when present: it
+      //    dispatches through the app's own router public API (go_router /
+      //    auto_route), which is the correct path for Router-based apps and
+      //    avoids the spurious "no corresponding route" FlutterError that
+      //    `Navigator.pushNamed` raises on a Router-only stack (its
+      //    `onGenerateRoute` is null there, and the failure is asynchronous so a
+      //    try/catch around the call cannot suppress it; it lands in the
+      //    FlutterError buffer and pollutes ext.dusk.snap / ext.dusk.exceptions).
+      //    `pushed = true` means dispatch attempted, NOT that the route was
+      //    honored; the URL verify below is the source of truth.
+      bool pushed = false;
+      final adapter = DuskPlugin.navigateAdapter;
+      if (adapter != null) {
+        try {
+          pushed = await adapter(route);
+        } catch (e) {
+          developer.log(
+            '[fluttersdk_dusk] extDuskNavigateHandler: navigateAdapter '
+            'threw for "$route" ($e); falling back to Navigator / '
+            'SystemNavigator.routeInformationUpdated.',
+            name: 'dusk',
+          );
+        }
       }
-    }
 
-    // Fallback for apps WITHOUT a registered adapter: Navigator 1.0 pushNamed.
-    if (!pushed) {
-      final Element? root = WidgetsBinding.instance.rootElement;
-      if (root != null) {
-        final NavigatorState? navigator = _findNavigator(root);
-        if (navigator != null) {
-          try {
-            // Fire-and-forget. `Navigator.pushNamed` returns a Future that
-            // completes when the pushed route is POPPED, not when it lands.
-            // Awaiting it would block this handler until the agent navigates
-            // away, which deadlocks any test that never pops. The push itself
-            // happens synchronously inside the call; the post-dispatch
-            // endOfFrame ticks below guarantee the new route is mounted before
-            // we URL-verify.
-            unawaited(navigator.pushNamed(route));
-            pushed = true;
-          } catch (e) {
-            developer.log(
-              '[fluttersdk_dusk] extDuskNavigateHandler: Navigator.pushNamed '
-              'failed for "$route" ($e); falling back to '
-              'SystemNavigator.routeInformationUpdated.',
-              name: 'dusk',
-            );
+      // Fallback for apps WITHOUT a registered adapter: Navigator 1.0 pushNamed.
+      if (!pushed) {
+        final Element? root = WidgetsBinding.instance.rootElement;
+        if (root != null) {
+          final NavigatorState? navigator = _findNavigator(root);
+          if (navigator != null) {
+            try {
+              // Fire-and-forget. `Navigator.pushNamed` returns a Future that
+              // completes when the pushed route is POPPED, not when it lands.
+              // Awaiting it would block this handler until the agent navigates
+              // away, which deadlocks any test that never pops. The push itself
+              // happens synchronously inside the call; the post-dispatch
+              // endOfFrame ticks below guarantee the new route is mounted before
+              // we URL-verify.
+              unawaited(navigator.pushNamed(route));
+              pushed = true;
+            } catch (e) {
+              developer.log(
+                '[fluttersdk_dusk] extDuskNavigateHandler: Navigator.pushNamed '
+                'failed for "$route" ($e); falling back to '
+                'SystemNavigator.routeInformationUpdated.',
+                name: 'dusk',
+              );
+            }
           }
         }
       }
-    }
-    if (!pushed) {
-      // Router-based (go_router, auto_route, Navigator 2.0): broadcast a
-      // route-information update. Every Router widget's
-      // routeInformationProvider picks this up via the system message bus,
-      // which then calls routerDelegate.setNewRoutePath. This is the
-      // framework-agnostic fallback when no consumer adapter is wired.
-      SystemNavigator.routeInformationUpdated(uri: Uri.parse(route));
-    }
+      if (!pushed) {
+        // Router-based (go_router, auto_route, Navigator 2.0): broadcast a
+        // route-information update. Every Router widget's
+        // routeInformationProvider picks this up via the system message bus,
+        // which then calls routerDelegate.setNewRoutePath. This is the
+        // framework-agnostic fallback when no consumer adapter is wired.
+        SystemNavigator.routeInformationUpdated(uri: Uri.parse(route));
+      }
+    });
 
     // 4. Settle two frame ticks before returning so MCP snapshot calls that
     //    immediately follow see the post-navigation widget tree. Guard on
@@ -326,11 +336,17 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
 ///   embedding the post-pop accessibility snapshot in the response.
 ///
 /// On success (default):
-/// `{ "navigatedBack": true, "snapshot": "<yaml>" }`.
+/// `{ "navigatedBack": true, "popped": true, "snapshot": "<yaml>" }`;
+/// `popped` is `false` when no Navigator could pop.
 ///
 /// Steps:
-/// 1. Find the [NavigatorState] via a depth-first tree walk.
-/// 2. Pop if the Navigator can pop; otherwise silently no-op (bottom of stack).
+/// 1. Find the outermost [NavigatorState] that can pop, by a depth-first tree
+///    walk. A Router-based app nests one Navigator per shell (a go_router
+///    `ShellRoute`), and a page stacked inside a shell is popped by that
+///    shell's Navigator: the root one holds the shell alone and never can.
+///    A branch kept alive offstage (a go_router `StatefulShellRoute`) is
+///    skipped, so only what the user sees is popped.
+/// 2. Pop it; when none can pop, silently no-op (bottom of stack).
 /// 3. Wait for two endOfFrame ticks so the post-pop tree settles.
 /// 4. Return the confirmation envelope.
 Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
@@ -338,13 +354,17 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
   Map<String, String> params,
 ) async {
   try {
-    // 1. Walk the tree for the active Navigator.
+    // 1. Walk the tree for the Navigator that has a page to leave.
     final Element? root = WidgetsBinding.instance.rootElement;
+    bool popped = false;
     if (root != null) {
-      final NavigatorState? navigator = _findNavigator(root);
-      if (navigator != null && navigator.canPop()) {
+      final NavigatorState? navigator = _findPoppableNavigator(root);
+      if (navigator != null) {
+        popped = true;
         // 2. Pop the top route.
-        navigator.pop();
+        await runPerfInteraction<void>('navigate_back', null, () async {
+          navigator.pop();
+        });
       }
     }
 
@@ -357,7 +377,8 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
 
     // 4. Embed post-action snapshot (opt-out via includeSnapshot:'false')
     //    + return confirmation.
-    final Map<String, dynamic> payload = buildNavigateBackResponse();
+    final Map<String, dynamic> payload =
+        buildNavigateBackResponse(popped: popped);
     try {
       await _appendSnapshotIfRequested(payload, params);
     } catch (e) {
@@ -384,12 +405,8 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
 ///
 /// Params: none.
 ///
-/// On success: `{ "location": "/current/path", "title": "Page Title" }`.
-///
-/// The `location` field is derived from the active Navigator's current route
-/// name (framework-agnostic). Step 17 (Wave 3) wires in MagicRouter-aware
-/// location detection; for now an empty string is returned when no named
-/// route is on the stack.
+/// On success: `{ "location": "", "title": "", "uri": "/monitors" }`; see
+/// [buildGetRoutesResponse] for what each field reads.
 Future<developer.ServiceExtensionResponse> extDuskGetRoutesHandler(
   String method,
   Map<String, String> params,
@@ -433,6 +450,47 @@ NavigatorState? _findNavigator(Element root) {
   visit(root);
   return found;
 }
+
+/// Walks the element tree depth-first from [root] and returns the first
+/// [NavigatorState] whose [NavigatorState.canPop] is true, or `null` when every
+/// Navigator is at the bottom of its stack.
+///
+/// The walk visits an outer Navigator before the ones nested in it, so a page
+/// pushed on the root (which covers whatever a shell shows) is left first, and
+/// a page stacked inside a shell is left once the root has nothing to pop.
+///
+/// A subtree the user cannot see is skipped: go_router's `StatefulShellRoute`
+/// keeps every branch Navigator alive and hides the inactive ones under
+/// `Offstage(offstage: true)` and `TickerMode(enabled: false)`, so a page
+/// stacked on a hidden branch is not the one back should leave.
+NavigatorState? _findPoppableNavigator(Element root) {
+  NavigatorState? found;
+
+  void visit(Element element) {
+    if (found != null) return;
+    if (_hidesSubtree(element.widget)) return;
+    if (element is StatefulElement) {
+      final State state = element.state;
+      if (state is NavigatorState && state.canPop()) {
+        found = state;
+        return;
+      }
+    }
+    element.visitChildren(visit);
+  }
+
+  visit(root);
+  return found;
+}
+
+/// Whether [widget] keeps its subtree mounted but out of the user's sight: an
+/// active [Offstage], a disabled [TickerMode], or a hidden [Visibility].
+bool _hidesSubtree(Widget widget) => switch (widget) {
+      Offstage(offstage: true) => true,
+      TickerMode(enabled: false) => true,
+      Visibility(visible: false) => true,
+      _ => false,
+    };
 
 /// Returns the active route name from the Navigator stack, or an empty string
 /// when no Navigator is active or the current route is unnamed.

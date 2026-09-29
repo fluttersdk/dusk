@@ -17,6 +17,7 @@ For interactive agent loops, MCP is faster (no process spawn per call).
 - [Common flags across commands](#common-flags-across-commands)
 - [Output](#output)
 - [Commands by family](#commands-by-family)
+- [Performance](#performance)
 - [Install + doctor (no app required)](#install--doctor-no-app-required)
 - [Exit codes and pipeline patterns](#exit-codes-and-pipeline-patterns)
 - [MCP-only: there is no CLI for evaluate](#mcp-only-there-is-no-cli-for-evaluate)
@@ -231,11 +232,39 @@ Empty arrays when telescope is not wired.
 ./bin/fsa dusk:device --preset=desktop-1440
 ./bin/fsa dusk:device --reset                                   # clear overrides
 
-./bin/fsa dusk:resize --width=1280 --height=800 --dpr=2.0
+./bin/fsa dusk:resize --width=1280 --height=800 --dpr=2.0 --hold &   # keep it while you drive
 ./bin/fsa dusk:resize --reset
 ```
 
+An `Emulation.*` override lasts only as long as the CDP session that sent
+it: `dusk:device` and `dusk:resize` without `--hold` close theirs on exit,
+so the page is back at its own size at once (only `dusk:device`'s window
+bounds stay). The MCP `dusk_resize_viewport` and `dusk_device_profile`
+cannot hold it; `dusk:resize --hold` in the background can.
+
 Launch Chrome with the debug port first: `./bin/fsa start --device=chrome --cdp-port=9222`.
+
+## Performance
+
+```bash
+./bin/fsa dusk:perf_begin                                      # attribution mode (default)
+./bin/fsa dusk:perf_begin --mode=timing                        # frame timings only, no profiling flag
+./bin/fsa dusk:tap --ref=e7                                     # drive exactly one interaction
+./bin/fsa dusk:perf_end                                        # closes the session, reports insights
+./bin/fsa dusk:perf_insight --id=I1                             # drill into one insight's rows
+
+./bin/fsa dusk:perf_run --scenario=perf/login.yaml --label=baseline
+./bin/fsa dusk:perf_compare build/perf/login-baseline.json build/perf/login-candidate.json
+./bin/fsa dusk:perf_trace --out=build/perf/trace.json           # last closed session as Chrome Trace JSON
+```
+
+Check `refused` in `dusk:perf_end`'s output first: a session the engine did
+not render through (a backgrounded tab, usually) returns no metrics rather
+than a report reading all zeros as "fast". `dusk:perf_run` repeats a
+scenario from a clean start and writes medians to a file; `dusk:perf_compare`
+gates on counts per painted frame, never on raw counts, and exits 1 on an
+error-level regression. `dusk:perf_trace` writes to disk because a trace is
+too large for a terminal or an agent's context.
 
 ## Install + doctor (no app required)
 
@@ -244,7 +273,7 @@ dart run fluttersdk_dusk dusk:install                           # one-time setup
 ./bin/fsa dusk:doctor                                           # 7 preflight checks
 ```
 
-`dusk:install` patches `lib/main.dart` (adds `kDebugMode` guard +
+`dusk:install` patches `lib/main.dart` (adds `!kReleaseMode` guard +
 `DuskPlugin.install()`), scaffolds `./bin/fsa`, registers the provider in
 `lib/app/_plugins.g.dart`, and (when `magic_devtools` is in pubspec AND
 `lib/main.dart` contains an `await Magic.init(` anchor) injects

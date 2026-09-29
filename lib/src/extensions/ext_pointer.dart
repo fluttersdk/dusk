@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 
+import '../dusk_plugin.dart';
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
@@ -11,6 +12,7 @@ import '../utils/dusk_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
+import '../utils/perf_interaction.dart';
 import 'ext_find.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
 import 'ext_wait_find.dart' show findByTextWaitLoop;
@@ -179,6 +181,38 @@ const int _kSinglePointer = 1;
 int _viewId() =>
     WidgetsBinding.instance.platformDispatcher.implicitView!.viewId;
 
+/// The logical-pixel point named by [params]' [xKey] and [yKey], or null
+/// when either is absent or not a number.
+Offset? _pointParam(Map<String, String> params, String xKey, String yKey) {
+  final double? x = double.tryParse(params[xKey] ?? '');
+  final double? y = double.tryParse(params[yKey] ?? '');
+  return x == null || y == null ? null : Offset(x, y);
+}
+
+Map<String, dynamic> _pointJson(Offset point) => <String, dynamic>{
+      'x': point.dx,
+      'y': point.dy,
+    };
+
+/// The interaction target a coordinate dispatch records, in place of a ref.
+String _pointTarget(Offset point) => '@${point.dx},${point.dy}';
+
+/// The `checks` block of a dispatch at raw coordinates.
+///
+/// There is no element, so none of the gate's checks can run, and the enabled
+/// check reads the semantics tree `ext.dusk.semantics_hold` may have
+/// released: this is the dispatch `dusk:perf_run --semantics-pass` replays
+/// with points it recorded while the tree was on. Always present, because a
+/// coordinate dispatch proves nothing about what it landed on.
+Map<String, dynamic> _coordinateChecks() => <String, dynamic>{
+      'gate': 'skipped',
+      'semantics': DuskPlugin.semanticsReleased ? 'released' : 'held',
+      'why': 'Dispatched at raw coordinates: there is no element to gate, so '
+          'the enabled, zero-rect, off-viewport, stable and receives-events '
+          'checks did not run. Nothing here resolves through the semantics '
+          'tree, which is what makes it usable while the tree is released.',
+    };
+
 /// Walks the element subtree rooted at [element] and returns the first
 /// [EditableTextState] found, or `null` if none exists.
 ///
@@ -313,6 +347,8 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
 
   final ref = params['ref'];
   if (ref == null || ref.isEmpty) {
+    final Offset? point = _pointParam(params, 'x', 'y');
+    if (point != null) return _coordinateTap(point);
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
@@ -394,7 +430,11 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   final Offset dispatchCenter =
       dispatchRectOf(entry)?.center ?? entry.rect.center;
   try {
-    await _injectTap(dispatchCenter);
+    await runPerfInteraction<void>(
+      'tap',
+      ref,
+      () => _injectTap(dispatchCenter),
+    );
   } catch (e, st) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.tap: _injectTap failed for ref "$ref": '
@@ -445,6 +485,9 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   //    comparison. Failures here are post-dispatch noise: the field is simply
   //    omitted rather than converting a successful tap into an error.
   final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
+  if (_parseBoolFlag(params, 'reportPoint', defaultValue: false)) {
+    payload['point'] = _pointJson(dispatchCenter);
+  }
   // What the gate could NOT establish. Absent on the healthy path, so its
   // presence is the signal: a clean pass used to be indistinguishable from
   // a confirmed one.
@@ -500,6 +543,38 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   }
 
   return duskResult(payload);
+}
+
+/// `ext.dusk.tap` at [point], with no ref.
+///
+/// Nothing that reads the semantics tree runs: no gate, no effect signal, no
+/// snapshot. That is the whole point of the shape, which `dusk:perf_run
+/// --semantics-pass` uses while `ext.dusk.semantics_hold` has the tree
+/// released.
+Future<developer.ServiceExtensionResponse> _coordinateTap(Offset point) async {
+  try {
+    await runPerfInteraction<void>(
+      'tap',
+      _pointTarget(point),
+      () => _injectTap(point),
+    );
+  } catch (e, st) {
+    developer.log(
+      '[fluttersdk_dusk] ext.dusk.tap: _injectTap failed at $point: $e\n$st',
+      name: 'fluttersdk_dusk',
+    );
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(
+        'ext.dusk.tap: injectTap failed: $e',
+        DuskErrorEnvelope.unexpected(),
+      ),
+    );
+  }
+  return duskResult(<String, dynamic>{
+    'point': _pointJson(point),
+    'checks': _coordinateChecks(),
+  });
 }
 
 /// Handler for the `ext.dusk.hover` VM Service extension.
@@ -588,15 +663,17 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     //    detached / synthetic-test entry).
     final Offset hoverCenter =
         dispatchRectOf(entry)?.center ?? entry.rect.center;
-    WidgetsBinding.instance.handlePointerEvent(
-      PointerHoverEvent(
-        pointer: _kSinglePointer,
-        position: hoverCenter,
-        viewId: _viewId(),
-        timeStamp: Duration.zero,
-        kind: PointerDeviceKind.mouse,
-      ),
-    );
+    await runPerfInteraction<void>('hover', ref, () async {
+      WidgetsBinding.instance.handlePointerEvent(
+        PointerHoverEvent(
+          pointer: _kSinglePointer,
+          position: hoverCenter,
+          viewId: _viewId(),
+          timeStamp: Duration.zero,
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+    });
 
     // 2. Two frames to let MouseRegion and AnimatedContainer settle.
     await awaitFramesOrTimeout(2);
@@ -605,6 +682,9 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     //    Snapshot build failures are best-effort; never convert success
     //    into error.
     final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
+    if (_parseBoolFlag(params, 'reportPoint', defaultValue: false)) {
+      payload['point'] = _pointJson(hoverCenter);
+    }
     stampChecks(payload, gate);
     try {
       await _appendSnapshotIfRequested(payload, params);
@@ -634,24 +714,35 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
 
 /// Handler for the `ext.dusk.drag` VM Service extension.
 ///
-/// Injects a Down→N×Move→Up pointer sequence that carries the pointer from
-/// the center of `startRef` to the center of `endRef`. Five intermediate Move
-/// events are spaced 16ms apart so velocity recognizers can compute a valid
-/// drag velocity.
+/// Injects a Down→N×Move→Up pointer sequence. Five intermediate Move events
+/// are spaced 16ms apart so velocity recognizers can compute a valid drag
+/// velocity.
 ///
 /// **Pointer ID uniqueness**: the drag uses pointer ID 2 to avoid colliding
 /// with any concurrent single-touch event that uses ID 1. Sequential drags
 /// may reuse ID 2 because the Up event closes the hit-test cache entry before
 /// the next Down.
 ///
+/// Three shapes, tried in this order:
+/// - `startRef` + `endRef`: from one widget's center to another's. Both ends
+///   are gated.
+/// - `startRef` + `dx` / `dy`: from the widget's center by an offset in
+///   logical pixels, the scroll gesture on a touch device. Only the start is
+///   gated; the end is a point, not a widget.
+/// - `x`, `y`, `toX`, `toY` with no ref: between raw coordinates. Nothing is
+///   gated and nothing reads the semantics tree, so it works while
+///   `ext.dusk.semantics_hold` has it released; `checks` says so.
+///
 /// Parameters:
-/// - `startRef` (required): ref for the drag source widget.
-/// - `endRef` (required): ref for the drag destination widget.
 /// - `checkStable` / `checkReceivesEvents` (optional, default `'true'`):
-///   Playwright actionability opt-outs applied to BOTH endpoints. See
+///   Playwright actionability opt-outs applied to every gated end. See
 ///   [aiTestTapHandler].
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
-///   embedding the post-action snapshot in the response.
+///   embedding the post-action snapshot in the response. Ignored for the
+///   coordinate shape, which never builds one.
+/// - `reportPoint` (optional, default `'false'`): add `from` and `to`, the
+///   points the drag dispatched between, so a caller can replay it by
+///   coordinates later.
 ///
 /// Response JSON (default):
 /// ```json
@@ -666,6 +757,16 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     final endRef = params['endRef'];
 
     if (startRef == null || startRef.isEmpty) {
+      final Offset? from = _pointParam(params, 'x', 'y');
+      final Offset? to = _pointParam(params, 'toX', 'toY');
+      if (from != null && to != null) {
+        await _injectDrag(from, to, _pointTarget(from));
+        return duskResult(<String, dynamic>{
+          'from': _pointJson(from),
+          'to': _pointJson(to),
+          'checks': _coordinateChecks(),
+        });
+      }
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
@@ -674,7 +775,14 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
         ),
       );
     }
-    if (endRef == null || endRef.isEmpty) {
+
+    // An offset stands in for endRef only when endRef is absent.
+    final bool byOffset = endRef == null || endRef.isEmpty;
+    final Offset offset = Offset(
+      double.tryParse(params['dx'] ?? '') ?? 0,
+      double.tryParse(params['dy'] ?? '') ?? 0,
+    );
+    if (byOffset && offset == Offset.zero) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
@@ -706,29 +814,31 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       );
     }
 
-    final RefEntry? endEntry;
-    try {
-      endEntry = resolveRefForAction(endRef);
-    } on DuskStaleHandleException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(endRef)),
-      );
-    }
-    if (endEntry == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.dusk.drag: endRef "$endRef" not found in registry',
-          DuskErrorEnvelope.notFound(
-            ref: endRef,
-            candidates: collectSnapshotCandidates(),
+    RefEntry? endEntry;
+    if (!byOffset) {
+      try {
+        endEntry = resolveRefForAction(endRef);
+      } on DuskStaleHandleException catch (e) {
+        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          wrapErrorDetail(e.message, DuskErrorEnvelope.stale(endRef)),
+        );
+      }
+      if (endEntry == null) {
+        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          wrapErrorDetail(
+            'ext.dusk.drag: endRef "$endRef" not found in registry',
+            DuskErrorEnvelope.notFound(
+              ref: endRef,
+              candidates: collectSnapshotCandidates(),
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
 
-    // Actionability gate (Steps 15 + 3.1) — both endpoints must clear the
+    // Actionability gate (Steps 15 + 3.1): every widget end must clear the
     // gate before the pointer is committed. We gate startRef first so the
     // agent sees the upstream failure when both ends are bad, mirroring
     // the pre-existing "missing param" check ordering. Stable and
@@ -738,6 +848,7 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     final bool checkReceivesEvents =
         _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
     final ActionabilityReport startGate;
+    ActionabilityReport? endGate;
     try {
       startGate = await ensureActionable(
         startEntry,
@@ -745,6 +856,14 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
         checkStable: checkStable,
         checkReceivesEvents: checkReceivesEvents,
       );
+      if (endEntry != null) {
+        endGate = await ensureActionable(
+          endEntry,
+          ref: endRef!,
+          checkStable: checkStable,
+          checkReceivesEvents: checkReceivesEvents,
+        );
+      }
     } on DuskActionabilityException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
@@ -754,33 +873,68 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
         ),
       );
     }
-    final ActionabilityReport endGate;
+
+    // Every widget end dispatches at its LIVE center (D1): re-resolve each
+    // rect via `dispatchRectOf` after the gates passed, falling back to the
+    // cached center only when the live rect is null (sliver / detached /
+    // synthetic).
+    final Offset start =
+        dispatchRectOf(startEntry)?.center ?? startEntry.rect.center;
+    final Offset end = endEntry == null
+        ? start + offset
+        : dispatchRectOf(endEntry)?.center ?? endEntry.rect.center;
+    await _injectDrag(start, end, startRef);
+
+    // Embed post-action snapshot (opt-out via includeSnapshot:'false').
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'startRef': startRef,
+      if (!byOffset) 'endRef': endRef,
+      if (_parseBoolFlag(params, 'reportPoint', defaultValue: false)) ...{
+        'from': _pointJson(start),
+        'to': _pointJson(end),
+      },
+    };
+    // Report the first gate that could not confirm: either end being
+    // unproven makes the whole drag unproven.
+    stampChecks(payload, startGate);
+    if (!payload.containsKey('checks') && endGate != null) {
+      stampChecks(payload, endGate);
+    }
     try {
-      endGate = await ensureActionable(
-        endEntry,
-        ref: endRef,
-        checkStable: checkStable,
-        checkReceivesEvents: checkReceivesEvents,
-      );
-    } on DuskActionabilityException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          e.message,
-          DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
-        ),
+      await _appendSnapshotIfRequested(payload, params);
+    } catch (e) {
+      developer.log(
+        '[fluttersdk_dusk] ext.dusk.drag: post-dispatch snapshot build '
+        'swallowed: $e',
+        name: 'fluttersdk_dusk',
       );
     }
 
-    // Drag uses pointer ID 2 to stay separate from single-touch events (ID 1).
-    // Both endpoints dispatch at their LIVE center (D1): re-resolve each rect
-    // via `dispatchRectOf` after both gates passed, falling back to the cached
-    // center only when the live rect is null (sliver / detached / synthetic).
-    const int dragPointer = 2;
-    final viewId = _viewId();
-    final start = dispatchRectOf(startEntry)?.center ?? startEntry.rect.center;
-    final end = dispatchRectOf(endEntry)?.center ?? endEntry.rect.center;
+    return duskResult(payload);
+  } catch (e, st) {
+    developer.log(
+      '[fluttersdk_dusk] ext.dusk.drag: unexpected error: $e\n$st',
+      name: 'fluttersdk_dusk',
+    );
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(
+        'ext.dusk.drag: $e',
+        DuskErrorEnvelope.unexpected(),
+      ),
+    );
+  }
+}
 
+/// Carries pointer 2 from [start] to [end] in logical pixels as one
+/// interaction on [target], then waits two frames for drag-end callbacks and
+/// the rebuild.
+Future<void> _injectDrag(Offset start, Offset end, String target) async {
+  // Drag uses pointer ID 2 to stay separate from single-touch events (ID 1).
+  const int dragPointer = 2;
+  final viewId = _viewId();
+
+  await runPerfInteraction<void>('drag', target, () async {
     // 1. Pointer down at the drag source.
     WidgetsBinding.instance.handlePointerEvent(
       PointerDownEvent(
@@ -792,8 +946,8 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       ),
     );
 
-    // 2. Intermediate Move events so velocity recognizers see actual motion.
-    //    Five steps spaced 16ms apart (one frame per step).
+    // 2. Intermediate Move events so velocity recognizers see actual
+    //    motion. Five steps spaced 16ms apart (one frame per step).
     for (var step = 1; step <= _kDragSteps; step++) {
       final progress = step / _kDragSteps;
       final midpoint = Offset.lerp(start, end, progress)!;
@@ -821,43 +975,10 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
         timeStamp: Duration(milliseconds: _kDragSteps * 16 + 16),
       ),
     );
+  });
 
-    // 4. Two frames to settle drag-end callbacks and rebuild.
-    await awaitFramesOrTimeout(2);
-
-    // 5. Embed post-action snapshot (opt-out via includeSnapshot:'false').
-    final Map<String, dynamic> payload = <String, dynamic>{
-      'startRef': startRef,
-      'endRef': endRef,
-    };
-    // Two gates ran. Report the first that could not confirm: either end
-    // being unproven makes the whole drag unproven.
-    stampChecks(payload, startGate);
-    if (!payload.containsKey('checks')) stampChecks(payload, endGate);
-    try {
-      await _appendSnapshotIfRequested(payload, params);
-    } catch (e) {
-      developer.log(
-        '[fluttersdk_dusk] ext.dusk.drag: post-dispatch snapshot build '
-        'swallowed: $e',
-        name: 'fluttersdk_dusk',
-      );
-    }
-
-    return duskResult(payload);
-  } catch (e, st) {
-    developer.log(
-      '[fluttersdk_dusk] ext.dusk.drag: unexpected error: $e\n$st',
-      name: 'fluttersdk_dusk',
-    );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.dusk.drag: $e',
-        DuskErrorEnvelope.unexpected(),
-      ),
-    );
-  }
+  // 4. Two frames to settle drag-end callbacks and rebuild.
+  await awaitFramesOrTimeout(2);
 }
 
 /// Handler for the `ext.dusk.dblclick` VM Service extension.
@@ -942,48 +1063,56 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     );
   }
 
-  // 1. First tap at the LIVE center (D1): re-resolve via `dispatchRectOf`
-  //    after the gate passed, falling back to the cached center when null.
-  try {
-    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
-  } catch (e, st) {
-    developer.log(
-      '[fluttersdk_dusk] ext.dusk.dblclick: first _injectTap failed for ref '
-      '"$ref": $e\n$st',
-      name: 'fluttersdk_dusk',
-    );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.dusk.dblclick: first injectTap failed: $e',
-        DuskErrorEnvelope.unexpected(widgetPath: ref),
-      ),
-    );
-  }
+  // Both taps are one gesture, so one interaction spans them. The closure
+  // answers the error response a failed tap produces, or null.
+  final RefEntry target = entry;
+  final developer.ServiceExtensionResponse? failed =
+      await runPerfInteraction('dblclick', ref, () async {
+    // 1. First tap at the LIVE center (D1): re-resolve via `dispatchRectOf`
+    //    after the gate passed, falling back to the cached center when null.
+    try {
+      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+    } catch (e, st) {
+      developer.log(
+        '[fluttersdk_dusk] ext.dusk.dblclick: first _injectTap failed for ref '
+        '"$ref": $e\n$st',
+        name: 'fluttersdk_dusk',
+      );
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.dblclick: first injectTap failed: $e',
+          DuskErrorEnvelope.unexpected(widgetPath: ref),
+        ),
+      );
+    }
 
-  // 2. Inter-tap delay (~100ms) to match Playwright's double-click timing.
-  await Future<void>.delayed(const Duration(milliseconds: 100));
+    // 2. Inter-tap delay (~100ms) to match Playwright's double-click timing.
+    await Future<void>.delayed(const Duration(milliseconds: 100));
 
-  // 3. Second tap — pointer ID reused safely because the first Up event
-  //    closed the hit-test cache entry (sequential, non-concurrent). Re-resolve
-  //    the live center again (D1): the first tap may itself have rebuilt the
-  //    host into a shifted slot between the two clicks.
-  try {
-    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
-  } catch (e, st) {
-    developer.log(
-      '[fluttersdk_dusk] ext.dusk.dblclick: second _injectTap failed for ref '
-      '"$ref": $e\n$st',
-      name: 'fluttersdk_dusk',
-    );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.dusk.dblclick: second injectTap failed: $e',
-        DuskErrorEnvelope.unexpected(widgetPath: ref),
-      ),
-    );
-  }
+    // 3. Second tap: pointer ID reused safely because the first Up event
+    //    closed the hit-test cache entry (sequential, non-concurrent).
+    //    Re-resolve the live center again (D1): the first tap may itself have
+    //    rebuilt the host into a shifted slot between the two clicks.
+    try {
+      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+    } catch (e, st) {
+      developer.log(
+        '[fluttersdk_dusk] ext.dusk.dblclick: second _injectTap failed for ref '
+        '"$ref": $e\n$st',
+        name: 'fluttersdk_dusk',
+      );
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        wrapErrorDetail(
+          'ext.dusk.dblclick: second injectTap failed: $e',
+          DuskErrorEnvelope.unexpected(widgetPath: ref),
+        ),
+      );
+    }
+    return null;
+  });
+  if (failed != null) return failed;
 
   // POST-DISPATCH: best-effort enrichment — snapshot fires once, after both
   // taps, so the agent sees the final post-dblclick accessibility tree.
@@ -1091,26 +1220,28 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
     // once so the Down and the matching Up share the same point.
     final Offset rightClickCenter =
         dispatchRectOf(entry)?.center ?? entry.rect.center;
-    WidgetsBinding.instance.handlePointerEvent(
-      PointerDownEvent(
-        pointer: _kSinglePointer,
-        position: rightClickCenter,
-        viewId: viewId,
-        timeStamp: ts,
-        kind: PointerDeviceKind.mouse,
-        buttons: kSecondaryButton,
-      ),
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    WidgetsBinding.instance.handlePointerEvent(
-      PointerUpEvent(
-        pointer: _kSinglePointer,
-        position: rightClickCenter,
-        viewId: viewId,
-        timeStamp: const Duration(milliseconds: 50),
-        kind: PointerDeviceKind.mouse,
-      ),
-    );
+    await runPerfInteraction<void>('right_click', ref, () async {
+      WidgetsBinding.instance.handlePointerEvent(
+        PointerDownEvent(
+          pointer: _kSinglePointer,
+          position: rightClickCenter,
+          viewId: viewId,
+          timeStamp: ts,
+          kind: PointerDeviceKind.mouse,
+          buttons: kSecondaryButton,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      WidgetsBinding.instance.handlePointerEvent(
+        PointerUpEvent(
+          pointer: _kSinglePointer,
+          position: rightClickCenter,
+          viewId: viewId,
+          timeStamp: const Duration(milliseconds: 50),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+    });
     await awaitFramesOrTimeout(2);
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,
@@ -1194,11 +1325,14 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
     // Each tap dispatches at the LIVE center (D1): re-resolve via
     // `dispatchRectOf` before every click, falling back to the cached center
     // when null. A preceding tap may rebuild the host into a shifted slot.
-    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    await _injectTap(dispatchRectOf(entry)?.center ?? entry.rect.center);
+    final RefEntry target = entry;
+    await runPerfInteraction<void>('triple_click', ref, () async {
+      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+    });
     await awaitFrameOrTimeout();
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,

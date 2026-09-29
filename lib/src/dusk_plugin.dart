@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -15,16 +16,17 @@ import 'extensions/register_dusk_extensions.dart';
 /// ```dart
 /// void main() {
 ///   WidgetsFlutterBinding.ensureInitialized();
-///   if (kDebugMode) {
+///   if (!kReleaseMode) {
 ///     DuskPlugin.install();
 ///   }
-///   runApp(kDebugMode ? RepaintBoundary(child: app) : app);
+///   runApp(!kReleaseMode ? RepaintBoundary(child: app) : app);
 /// }
 /// ```
 ///
-/// V1 compile-time gate is just `kDebugMode` — release builds tree-shake
-/// the entire DuskPlugin branch on every platform (web dart2js, desktop +
-/// mobile dart2native AOT).
+/// The consumer gates with `!kReleaseMode`, so a debug AND a profile build
+/// both carry DuskPlugin (a profile build is what a real perf session runs
+/// against); release builds tree-shake the entire branch on every platform
+/// (web dart2js, desktop + mobile dart2native AOT).
 ///
 /// Extension points:
 /// - [enrichers]: live-read list of snapshot enrichers. Magic registers
@@ -78,6 +80,10 @@ class DuskPlugin {
     }
     _installCount++;
 
+    // A fresh id for this run of main(), minted before the extension that
+    // reports it registers: dusk:perf_run tells a restarted app by it.
+    _bootId = mintBootId();
+
     // Force Semantics tree on for snapshot extension.
     _semanticsHandle ??= RendererBinding.instance.ensureSemantics();
 
@@ -100,6 +106,23 @@ class DuskPlugin {
 
   static int _installCount = 0;
 
+  /// The id [install] minted for this run of `main()`, answered by
+  /// `ext.dusk.boot_id`; null before [install].
+  ///
+  /// A hot restart re-runs `main()` and so mints a new one, on the web too,
+  /// where the isolate id does not change.
+  static String? get bootId => _bootId;
+  static String? _bootId;
+
+  /// A boot id: the wall clock in microseconds and a random suffix, base 36,
+  /// so two boots in the same microsecond still differ.
+  @visibleForTesting
+  static String mintBootId() =>
+      '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-'
+      '${_random.nextInt(1 << 30).toRadixString(36)}';
+
+  static final Random _random = Random();
+
   /// Exposes [_installCount] for tests.
   @visibleForTesting
   static int get installCount => _installCount;
@@ -112,4 +135,52 @@ class DuskPlugin {
   );
 
   static SemanticsHandle? _semanticsHandle;
+  static bool _semanticsReleased = false;
+
+  /// Whether [releaseSemantics] dropped dusk's semantics handle and
+  /// [acquireSemantics] has not restored it yet.
+  ///
+  /// While true the semantics tree is gone unless something else holds a
+  /// handle, so nothing may resolve a target through it: `ext.dusk.tap` and
+  /// `ext.dusk.drag` dispatch by coordinates and report the gate's checks as
+  /// skipped.
+  static bool get semanticsReleased => _semanticsReleased;
+
+  /// Drops the handle [install] took, so the framework stops building the
+  /// semantics tree every frame. Returns whether one was held.
+  ///
+  /// Only `ext.dusk.semantics_hold` calls this, and only inside an open perf
+  /// session: dusk_perf_run's semantics pass measures what the app costs
+  /// without the tree, and a handle left released outside that window would
+  /// break every snapshot and ref-based action that follows.
+  static bool releaseSemantics() {
+    final SemanticsHandle? handle = _semanticsHandle;
+    if (handle == null) return false;
+    handle.dispose();
+    _semanticsHandle = null;
+    _semanticsReleased = true;
+    return true;
+  }
+
+  /// Takes dusk's semantics handle again. Returns whether it had to.
+  ///
+  /// The tree does not exist the moment this returns: the framework schedules
+  /// the initial semantics build for the next frame, so a caller that needs
+  /// the root node awaits one.
+  static bool acquireSemantics() {
+    _semanticsReleased = false;
+    if (_semanticsHandle != null) return false;
+    _semanticsHandle = RendererBinding.instance.ensureSemantics();
+    return true;
+  }
+
+  /// Disposes whatever handle this class holds and clears the released flag,
+  /// so a test leaves neither a live handle (the harness asserts every one is
+  /// disposed) nor a released state for the next test to read.
+  @visibleForTesting
+  static void resetSemanticsForTesting() {
+    _semanticsHandle?.dispose();
+    _semanticsHandle = null;
+    _semanticsReleased = false;
+  }
 }

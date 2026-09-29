@@ -511,12 +511,16 @@ List<String> findByLabelInSemantics({
     });
   }
 
-  // Use rootPipelineOwner.semanticsOwner — matches ext_snapshot.dart pattern.
-  final SemanticsNode? root = RendererBinding
-      .instance.rootPipelineOwner.semanticsOwner?.rootSemanticsNode;
-  if (root != null) {
-    visit(root);
+  // Every pipeline owner, not the root alone: a running app mounts its view
+  // under a child owner, so a root-only walk found nothing there. Same walk as
+  // ext_observe.dart and ext_snapshot.dart.
+  void visitOwner(PipelineOwner owner) {
+    final SemanticsNode? root = owner.semanticsOwner?.rootSemanticsNode;
+    if (root != null) visit(root);
+    owner.visitChildren(visitOwner);
   }
+
+  visitOwner(RendererBinding.instance.rootPipelineOwner);
 
   return refs;
 }

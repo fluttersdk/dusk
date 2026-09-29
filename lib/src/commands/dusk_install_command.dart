@@ -171,9 +171,9 @@ class DuskInstallCommand extends ArtisanCommand {
   /// Idempotent inject of dusk runtime wiring into `lib/main.dart`.
   /// Three sub-steps:
   ///
-  ///   1. Add the two required imports (kDebugMode + dusk barrel).
+  ///   1. Add the two required imports (kReleaseMode + dusk barrel).
   ///   2. Inject `WidgetsFlutterBinding.ensureInitialized()` (skip when
-  ///      already present) + the `kDebugMode`-gated dusk block before
+  ///      already present) + the `!kReleaseMode`-gated dusk block before
   ///      the canonical install anchor: `await Magic.init(` on
   ///      Magic-stack apps (so dusk is wired before Magic boot side
   ///      effects), otherwise `runApp(` for vanilla Flutter apps.
@@ -184,12 +184,28 @@ class DuskInstallCommand extends ArtisanCommand {
   static void _injectRuntimeWiring(ArtisanContext ctx, String mainDartPath) {
     ctx.output.info('Wiring DuskPlugin into $mainDartPath...');
 
+    // The guard is `!kReleaseMode`, not `kDebugMode`: `dusk:perf_run`
+    // relaunches the app as a profile build, and a debug-only guard
+    // registered no `ext.dusk.*` there. Release still tree-shakes the branch.
+    //
+    // An app wired before the guard moved keeps its `kDebugMode` block: the
+    // presence checks below look for the install call itself, not for the
+    // snippet, so a re-run neither adds a second block nor an import nothing
+    // uses.
+    final String original = FileHelper.readFile(mainDartPath);
+    final bool wiresDusk = !original.contains('DuskPlugin.install()');
+    final bool wiresMagic = original.contains('await Magic.init(') &&
+        _hasMagicDevtoolsDep() &&
+        !original.contains('MagicDuskIntegration.install()');
+
     // 1. Imports first. ConfigEditor.addImportToFile (delegated by
     //    MainDartEditor.addImport) is idempotent on duplicates.
-    MainDartEditor.addImport(
-      mainDartPath,
-      "import 'package:flutter/foundation.dart' show kDebugMode;",
-    );
+    if (wiresDusk || wiresMagic) {
+      MainDartEditor.addImport(
+        mainDartPath,
+        "import 'package:flutter/foundation.dart' show kReleaseMode;",
+      );
+    }
     MainDartEditor.addImport(
       mainDartPath,
       "import 'package:fluttersdk_dusk/dusk.dart';",
@@ -220,14 +236,15 @@ class DuskInstallCommand extends ArtisanCommand {
       );
     }
 
-    // Build the kDebugMode block.
-    source = MainDartEditor.injectBeforeAnchor(
-      source: source,
-      anchor: anchor,
-      snippet: '  if (kDebugMode) {\n'
-          '    DuskPlugin.install();\n'
-          '  }\n',
-    );
+    if (wiresDusk) {
+      source = MainDartEditor.injectBeforeAnchor(
+        source: source,
+        anchor: anchor,
+        snippet: '  if (!kReleaseMode) {\n'
+            '    DuskPlugin.install();\n'
+            '  }\n',
+      );
+    }
 
     if (source != before) {
       FileHelper.writeFile(mainDartPath, source);
@@ -236,7 +253,7 @@ class DuskInstallCommand extends ArtisanCommand {
     // 3. Magic-side coordinated wiring when the consumer pulls in magic_devtools.
     //    Detect via pubspec.yaml; skip silently when magic_devtools is not a dep
     //    or when main.dart has no Magic.init() anchor (vanilla app).
-    if (hasMagicInit && _hasMagicDevtoolsDep()) {
+    if (wiresMagic) {
       MainDartEditor.addImport(
         mainDartPath,
         "import 'package:magic_devtools/dusk.dart';",
@@ -244,7 +261,7 @@ class DuskInstallCommand extends ArtisanCommand {
       try {
         MainDartEditor.injectAfterMagicInit(
           mainDartPath,
-          '  if (kDebugMode) {\n'
+          '  if (!kReleaseMode) {\n'
           '    MagicDuskIntegration.install();\n'
           '  }\n',
         );

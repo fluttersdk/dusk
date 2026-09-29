@@ -94,7 +94,7 @@ The handler never resizes the screenshot; the captured image matches the running
 | No `cdpPort` in state (native target) | `ext.dusk.screenshot` (in-isolate) |
 | `cdpPort` set (web target) | CDP `Page.captureScreenshot` |
 
-The CDP path sends `Page.enable` first (required by Chrome before `Page.captureScreenshot`), then `Page.captureScreenshot` with `fromSurface: true`. The resulting dimensions reflect the active `Emulation.setDeviceMetricsOverride` set by `dusk:resize` or `dusk:device`.
+The CDP path sends `Page.enable` first (required by Chrome before `Page.captureScreenshot`), then `Page.captureScreenshot` with `fromSurface: true`. The resulting dimensions reflect the `Emulation.setDeviceMetricsOverride` still in force, which is only one whose DevTools session is still open (`dusk:resize --hold`); Chrome drops it when the session that sent it detaches.
 
 **`--ref` works on both paths, by different routes.** In-isolate, `ext.dusk.screenshot` rasterises the ref's own render-object region directly. Over CDP there is no notion of a Flutter ref, so the command first asks the extension for the region in geometry mode, which resolves `--ref` / `--rect` and returns the rect without rasterising (the rasterise is exactly what hangs on this target), then passes it to `Page.captureScreenshot` as a `clip`. Flutter logical pixels and CDP CSS pixels are the same unit, so the rect crosses over unscaled.
 
@@ -134,7 +134,8 @@ dart run fluttersdk_dusk dusk:screenshot --output=/tmp/hifi.jpeg --quality=92
 ### 4. Capture after a controlled resize
 
 ```bash
-dart run fluttersdk_dusk dusk:resize --width=1440 --height=900
+# The override lives only as long as the session that sent it: hold it.
+dart run fluttersdk_dusk dusk:resize --width=1440 --height=900 --hold &
 dart run fluttersdk_dusk dusk:screenshot --output=/tmp/desktop.jpeg
 ```
 

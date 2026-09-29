@@ -1,11 +1,11 @@
 ---
 name: fluttersdk-dusk
-description: "fluttersdk_dusk: E2E driver for Flutter apps that lets an LLM agent see (snap, observe, screenshot) and act (tap, type, drag, scroll, navigate) on a running Flutter app via 35 MCP tools (`dusk_*`) and 36 matching CLI commands (`./bin/fsa dusk:*`). Snapshots emit a YAML Semantics tree with stable `[ref=eN]` tokens; `dusk_find` and `dusk_observe` mint re-resolvable `q<N>` query handles. Every gesture passes a 6-step actionability gate with substring-parseable failure reasons (`not enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured by`, `defunct`). TRIGGER when: any `dusk_*` MCP tool call, any `dusk:*` CLI command, `./bin/fsa` invocation, the user asks the agent to drive / inspect / test / debug a running Flutter app, the user mentions snap / observe / actionability / ref / eN / qN, or the conversation touches end-to-end testing of a Flutter UI. DO NOT TRIGGER when: only authoring `flutter_test` widget tests, only reading telescope ring buffers without driving the UI (use fluttersdk-telescope), or only modifying Dart source without running it."
+description: "fluttersdk_dusk: E2E driver for Flutter apps that lets an LLM agent see (snap, observe, screenshot) and act (tap, type, drag, scroll, navigate) on a running Flutter app via 39 MCP tools (`dusk_*`) and 40 matching CLI commands (`./bin/fsa dusk:*`). Snapshots emit a YAML Semantics tree with stable `[ref=eN]` tokens; `dusk_find` and `dusk_observe` mint re-resolvable `q<N>` query handles. Every gesture passes a 6-step actionability gate with substring-parseable failure reasons (`not enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured by`, `defunct`). TRIGGER when: any `dusk_*` MCP tool call, any `dusk:*` CLI command, `./bin/fsa` invocation, the user asks the agent to drive / inspect / test / debug a running Flutter app, the user mentions snap / observe / actionability / ref / eN / qN, or the conversation touches end-to-end testing of a Flutter UI. DO NOT TRIGGER when: only authoring `flutter_test` widget tests, only reading telescope ring buffers without driving the UI (use fluttersdk-telescope), or only modifying Dart source without running it."
 version: 0.0.16
 when_to_use: "Any task where the agent drives or inspects a running Flutter app via dusk: calling `dusk_*` MCP tools in a loop (snap, tap, type, screenshot, hot_reload_and_snap), invoking `./bin/fsa dusk:<verb>` from a shell, recovering from an actionability failure, choosing between `e<N>` and `q<N>` ref tokens, waiting for text or network idle, navigating routes, or filling a form."
 ---
 
-<!-- fluttersdk_dusk v0.0.16 | Skill updated: 2026-09-23 -->
+<!-- fluttersdk_dusk v0.0.16 | Skill updated: 2026-09-28 -->
 
 # fluttersdk_dusk
 
@@ -15,7 +15,7 @@ exposes a `ext.dusk.*` VM Service surface plus an MCP server; the agent calls
 tree, mint ref tokens, gesture against them, wait for conditions, screenshot,
 and hot-reload, all without a test file or rebuild between actions.
 
-This skill assumes the app already has dusk installed (a `kDebugMode`-gated
+This skill assumes the app already has dusk installed (a `!kReleaseMode`-gated
 `DuskPlugin.install()` in `lib/main.dart`, the MCP server in `.mcp.json`).
 If not, run `dart run fluttersdk_dusk dusk:install` once from the app root
 and verify with `./bin/fsa dusk:doctor`.
@@ -168,7 +168,7 @@ and verify with `./bin/fsa dusk:doctor`.
    either: the threshold is wrong at every other width, and there is no
    sidebar at all on a phone. Scope by ref.
 
-## 2. Tool surface (35 MCP tools, 36 CLI commands)
+## 2. Tool surface (39 MCP tools, 40 CLI commands)
 
 | Family | Tools | Mental model |
 |---|---|---|
@@ -184,6 +184,8 @@ and verify with `./bin/fsa dusk:doctor`.
 | Evaluation | `dusk_evaluate` (MCP-only) | Evaluates a Dart expression in the running isolate via the VM Service. Single expression, no semicolons. |
 | App control | `dusk_close_app` | `SystemNavigator.pop()`. Graceful; web `window.close()` may no-op if the tab was not script-opened. |
 | Composite | `dusk_hot_reload_and_snap` | Hot reload, then snap, screenshot, and recent exceptions in one round-trip. Returns `{ reloaded, durationMs, snapshot, screenshot, recentExceptions }`, or `{ reloaded: false, error, recentExceptions }` on compile failure. |
+| Performance | `dusk_perf_begin`, `dusk_perf_end`, `dusk_perf_insight` | Begin (`mode: attribution` profiles builds, `mode: timing` touches no flag), drive one interaction, end. `perf_end` returns a bounded report: check `refused` first, then `coverage`, then `insights` (each `id`, `severity`, `title`, `evidence` with its threshold, `nextStep`). `perf_insight {id}` returns the rows behind one insight. Rank by attribution ms; compare only timing ms. |
+| Perf runs | `dusk_perf_run`, `dusk_perf_compare`, `dusk_perf_trace` | `perf_run {scenario, label}` repeats a scenario YAML from a clean start (targets are `{text}` / `{label}` / `{role, name}` / `{key}`, never a ref) and writes `<out>/<scenario>-<label>.json`; `timing: true` adds the ms worth comparing, `semantics-pass: true` a `semanticsOff` series. `perf_compare {a, b}` gates on counts per painted frame, ms only from timing medians. `perf_trace {out}` writes a Perfetto file and returns its path. |
 | CDP (web-only) | `dusk_resize_viewport`, `dusk_device_profile` | Drive Chrome via CDP. 8 device presets: `iphone-x`, `iphone-13`, `iphone-15-pro`, `pixel-5`, `pixel-8`, `ipad-pro-12.9`, `desktop-1440`, `desktop-1920`. |
 
 Full per-tool input schema, return shape, and example calls:

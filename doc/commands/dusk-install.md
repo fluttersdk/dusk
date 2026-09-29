@@ -2,7 +2,7 @@
 
 One-shot bootstrap for `fluttersdk_dusk`. Runs in two phases, both idempotent:
 
-1. **Patch `lib/main.dart`** — inject the imports (including `import 'package:magic_devtools/dusk.dart';` when applicable), `WidgetsFlutterBinding.ensureInitialized()`, and a `kDebugMode`-gated `DuskPlugin.install()` block before `runApp(`. Magic-stack apps additionally wire `MagicDuskIntegration.install()` after `Magic.init(` when `magic_devtools:` is present in `pubspec.yaml`.
+1. **Patch `lib/main.dart`**: inject the imports (including `import 'package:magic_devtools/dusk.dart';` when applicable), `WidgetsFlutterBinding.ensureInitialized()`, and a `!kReleaseMode`-gated `DuskPlugin.install()` block before `runApp(` (debug and profile builds carry dusk, so `dusk:perf_run` can measure a profile build; release tree-shakes it). Magic-stack apps additionally wire `MagicDuskIntegration.install()` after `Magic.init(` when `magic_devtools:` is present in `pubspec.yaml`.
 2. **Chain fastcli setup** — best-effort `dart run fluttersdk_dusk install` (scaffolds `bin/dispatcher.dart` + `./bin/fsa` AOT wrapper) + `dart run fluttersdk_dusk plugin:install fluttersdk_dusk` (registers `DuskArtisanProvider`). Both sub-process calls are skipped when their idempotency markers already exist (`bin/dispatcher.dart` for the scaffold, `.artisan/installed/fluttersdk_dusk.json` for the plugin record). Failures are swallowed with a warning; the Phase 1 patch always succeeds on its own, so the consumer can still drive dusk via `dart run fluttersdk_dusk <cmd>` even when the chain skipped.
 
 Together, the two phases mean a fresh consumer needs only:
@@ -74,13 +74,15 @@ The injector picks one of two anchor strings depending on what `lib/main.dart` a
 - **Magic-stack apps** (`lib/main.dart` contains `await Magic.init(`): `DuskPlugin.install()` is wired BEFORE `Magic.init(` so the driver is live during Magic boot. When `magic_devtools:` is also a pubspec dependency or dev_dependency, `import 'package:magic_devtools/dusk.dart';` is added and `MagicDuskIntegration.install()` is injected AFTER `Magic.init()` (the integration queries `Magic.find<X>()` for the form and nav enrichers, which only resolves once the container is ready).
 - **Vanilla apps** (no `Magic.init` anchor): `DuskPlugin.install()` is wired immediately before `runApp(`.
 
-When the consumer's pubspec lists `fluttersdk_wind:` as a top-level dependency, `Wind.installDebugResolver()` lands inside the same `kDebugMode` block as `DuskPlugin.install()`. Wind alpha-10 no longer ships a dusk-specific integration class; dusk reads wind state through the neutral `WindDebugRegistry` bridge at snap time. The Wind enricher wiring is independent of the Magic detection: a magic-free app with `fluttersdk_wind` still gets the wind metadata block.
+The installer does not wire Wind. When the consumer uses `fluttersdk_wind`, add `Wind.installDebugResolver()` by hand inside the same `!kReleaseMode` block as `DuskPlugin.install()`. Wind alpha-10 no longer ships a dusk-specific integration class; dusk reads wind state through the neutral `WindDebugRegistry` bridge at snap time, independent of the Magic detection, so a magic-free app with that call still gets the wind metadata block.
+
+An app wired before the guard moved keeps its `if (kDebugMode)` block: the installer checks for the `DuskPlugin.install()` and `MagicDuskIntegration.install()` calls themselves, not for the snippet, so a re-run adds neither a second block nor an unused `kReleaseMode` import. That app works in debug but registers no `ext.dusk.*` in a profile build; change the guard to `!kReleaseMode` by hand to measure one.
 
 The full sub-step list (from the source docblock):
 
-1. Add the two required imports (`kDebugMode` from `package:flutter/foundation.dart`; the `package:fluttersdk_dusk/dusk.dart` barrel).
-2. Inject `WidgetsFlutterBinding.ensureInitialized()` (skip when already present) plus the `kDebugMode`-gated dusk block before the canonical install anchor.
-3. When pubspec has `magic_devtools:` (dependency or dev_dependency) AND main.dart has `await Magic.init(`, inject `import 'package:magic_devtools/dusk.dart';` and `MagicDuskIntegration.install()` AFTER that call.
+1. Add the two required imports (`kReleaseMode` from `package:flutter/foundation.dart`, only when a block is about to be injected; the `package:fluttersdk_dusk/dusk.dart` barrel).
+2. Inject `WidgetsFlutterBinding.ensureInitialized()` (skip when already present) plus the `!kReleaseMode`-gated dusk block before the canonical install anchor, unless `DuskPlugin.install()` is already called.
+3. When pubspec has `magic_devtools:` (dependency or dev_dependency) AND main.dart has `await Magic.init(`, inject `import 'package:magic_devtools/dusk.dart';` and `MagicDuskIntegration.install()` AFTER that call, unless it is already called.
 
 ---
 
@@ -105,12 +107,12 @@ Expected output (illustrative):
 Diff against `lib/main.dart`:
 
 ```dart
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:fluttersdk_dusk/dusk.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  if (kDebugMode) {
+  if (!kReleaseMode) {
     DuskPlugin.install();
   }
   runApp(const MyApp());
@@ -127,7 +129,7 @@ The injector early-returns on every duplicate snippet. The output still prints `
 
 ### 3. Magic-stack app with wind enricher
 
-When pubspec lists both `magic_devtools:` and `fluttersdk_wind:`, the post-install `lib/main.dart` looks like:
+When pubspec lists `magic_devtools:`, the post-install `lib/main.dart` looks like this, with the `Wind.installDebugResolver()` line added by hand:
 
 ```dart
 import 'package:fluttersdk_dusk/dusk.dart';
@@ -135,12 +137,12 @@ import 'package:magic_devtools/dusk.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (kDebugMode) {
+  if (!kReleaseMode) {
     DuskPlugin.install();
-    Wind.installDebugResolver();
+    Wind.installDebugResolver(); // added by hand
   }
   await Magic.init(MyApp.new);
-  if (kDebugMode) {
+  if (!kReleaseMode) {
     MagicDuskIntegration.install(); // magic_devtools wiring
   }
 }

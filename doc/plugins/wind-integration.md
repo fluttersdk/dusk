@@ -9,14 +9,14 @@ The 6 core fields still appear under the `wind:` block of every W-prefixed widge
 
 ## Host integration
 
-Call `Wind.installDebugResolver()` inside the host's `kDebugMode` branch, after `DuskPlugin.install()`.
+Call `Wind.installDebugResolver()` inside the host's `!kReleaseMode` branch, after `DuskPlugin.install()`.
 No additional dusk-side registration is required; dusk reads the resolver through the neutral contracts bridge
 at snap time.
 
 ```dart
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  if (kDebugMode) {
+  if (!kReleaseMode) {
     DuskPlugin.install();
     Wind.installDebugResolver();
   }
@@ -24,7 +24,7 @@ void main() {
 }
 ```
 
-Both calls are idempotent. Release builds tree-shake the entire `kDebugMode` branch on dart2js (web) and
+Both calls are idempotent. Release builds tree-shake the entire `!kReleaseMode` branch on dart2js (web) and
 dart2native (mobile and desktop AOT).
 
 ## The six core fields

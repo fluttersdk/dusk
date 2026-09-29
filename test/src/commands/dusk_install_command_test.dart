@@ -92,7 +92,7 @@ void main() {
     // ------------------------------------------------------------------
 
     test(
-      'vanilla app: injects kDebugMode + DuskPlugin.install() block before '
+      'vanilla app: injects a !kReleaseMode DuskPlugin.install() block before '
       'runApp(',
       () async {
         final mainDartPath = _seedProject(
@@ -121,7 +121,7 @@ class MyApp extends StatelessWidget {
         final result = File(mainDartPath).readAsStringSync();
         expect(
           result.contains(
-            "import 'package:flutter/foundation.dart' show kDebugMode;",
+            "import 'package:flutter/foundation.dart' show kReleaseMode;",
           ),
           isTrue,
         );
@@ -134,9 +134,12 @@ class MyApp extends StatelessWidget {
           isTrue,
         );
         expect(
-          result.contains('if (kDebugMode) {'),
+          result.contains('if (!kReleaseMode) {'),
           isTrue,
+          reason: 'profile builds must carry dusk so perf_run can measure '
+              'one; release still tree-shakes the branch',
         );
+        expect(result.contains('kDebugMode'), isFalse);
         expect(
           result.contains('DuskPlugin.install();'),
           isTrue,
@@ -285,6 +288,83 @@ class MyApp extends StatelessWidget {
             .allMatches(afterSecond)
             .length,
         equals(1),
+      );
+    });
+
+    // ------------------------------------------------------------------
+    // Apps installed before the guard moved to !kReleaseMode
+    // ------------------------------------------------------------------
+
+    test(
+        'an app already wired under kDebugMode is left alone '
+        '(no second block, no unused kReleaseMode import)', () async {
+      const legacy = '''
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/material.dart';
+import 'package:fluttersdk_dusk/dusk.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (kDebugMode) {
+    DuskPlugin.install();
+  }
+  runApp(const MyApp());
+}
+''';
+      final mainDartPath = _seedProject(tempDir, mainDartContents: legacy);
+      DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+      DuskInstallCommand.pubspecPathResolver =
+          () => '${tempDir.path}/pubspec.yaml';
+
+      final exit = await DuskInstallCommand().handle(_ctx());
+
+      expect(exit, equals(0));
+      expect(File(mainDartPath).readAsStringSync(), equals(legacy));
+    });
+
+    test(
+        'a kDebugMode magic app gaining magic_devtools gets only the '
+        'integration block, under !kReleaseMode', () async {
+      final mainDartPath = _seedProject(
+        tempDir,
+        pubspecDeps: const {'magic': 'any', 'magic_devtools': 'any'},
+        mainDartContents: '''
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/material.dart';
+import 'package:fluttersdk_dusk/dusk.dart';
+import 'package:magic/magic.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (kDebugMode) {
+    DuskPlugin.install();
+  }
+  await Magic.init(configFactories: [() => {}]);
+  runApp(const MagicApplication());
+}
+''',
+      );
+      DuskInstallCommand.mainDartPathResolver = () => mainDartPath;
+      DuskInstallCommand.pubspecPathResolver =
+          () => '${tempDir.path}/pubspec.yaml';
+
+      await DuskInstallCommand().handle(_ctx());
+      final result = File(mainDartPath).readAsStringSync();
+
+      expect('DuskPlugin.install();'.allMatches(result).length, equals(1));
+      expect(
+        'MagicDuskIntegration.install();'.allMatches(result).length,
+        equals(1),
+      );
+      expect(
+        result.contains(
+          "import 'package:flutter/foundation.dart' show kReleaseMode;",
+        ),
+        isTrue,
+      );
+      expect(
+        result.indexOf('if (!kReleaseMode) {'),
+        greaterThan(result.indexOf('await Magic.init(')),
       );
     });
 

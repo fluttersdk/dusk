@@ -12,6 +12,7 @@ import '../utils/dusk_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
+import '../utils/perf_interaction.dart';
 import 'ext_pointer.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
 import 'package:fluttersdk_artisan/artisan.dart';
@@ -394,10 +395,14 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       );
     }
 
-    final String? written = await typeIntoElement(
-      element: element,
-      text: text,
-      targetRect: _localToGlobalRectForNode(entry?.node) ?? entry?.rect,
+    final String? written = await runPerfInteraction(
+      'type',
+      ref,
+      () => typeIntoElement(
+        element: element,
+        text: text,
+        targetRect: _localToGlobalRectForNode(entry?.node) ?? entry?.rect,
+      ),
     );
 
     // Wait two frames so ValueListenableBuilder listeners rebuild and paint
@@ -478,7 +483,11 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
             .toList() ??
         <String>[];
 
-    await pressKey(key: key, modifiers: modifiers);
+    await runPerfInteraction<void>(
+      'press_key',
+      key,
+      () => pressKey(key: key, modifiers: modifiers),
+    );
 
     // Wait two frames before snapshotting so any rebuild triggered by the
     // key (e.g. Tab moving focus, Enter submitting a form) lands in the
@@ -611,7 +620,9 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
         ),
       );
     }
-    controller.clear();
+    await runPerfInteraction<void>('clear', ref, () async {
+      controller.clear();
+    });
     await awaitFrameOrTimeout();
     // Read the controller back rather than asserting the clear worked. A
     // field whose parent rewrites the value on change lands back where it

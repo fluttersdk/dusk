@@ -87,10 +87,14 @@ void main() {
       expect(decoded['navigatedBack'], isTrue);
     });
 
-    test('returns exactly one key', () {
+    test('returns exactly navigatedBack and popped', () {
       final Map<String, dynamic> result = buildNavigateBackResponse();
 
-      expect(result, hasLength(1));
+      expect(result.keys, unorderedEquals(<String>['navigatedBack', 'popped']));
+    });
+
+    test('carries popped=false for a no-op', () {
+      expect(buildNavigateBackResponse(popped: false)['popped'], isFalse);
     });
 
     test('navigatedBack value is a bool (not a string)', () {
@@ -129,10 +133,32 @@ void main() {
       expect(decoded, containsPair('title', anything));
     });
 
-    test('returns exactly two keys', () {
+    test('returns location, title and uri, and nothing else', () {
       final Map<String, dynamic> result = buildGetRoutesResponse();
 
-      expect(result, hasLength(2));
+      expect(
+        result.keys,
+        unorderedEquals(<String>['location', 'title', 'uri']),
+      );
+    });
+
+    test('uri is null while no Router is mounted', () {
+      expect(buildGetRoutesResponse()['uri'], isNull);
+    });
+
+    testWidgets('uri is the mounted Router\'s location, not the page name',
+        (WidgetTester tester) async {
+      // A Router-based app names no page, so `location` reads '' while the
+      // router is on /monitors: the diagnosis measured exactly that in
+      // uptizm, where a post-idle route re-check compared '' with ''.
+      await tester.pumpWidget(
+        MaterialApp.router(routerConfig: _routerConfig('/monitors?page=2')),
+      );
+
+      final Map<String, dynamic> result = buildGetRoutesResponse();
+
+      expect(result['uri'], '/monitors?page=2');
+      expect(result['location'], '');
     });
   });
 
@@ -359,6 +385,7 @@ void main() {
       final Map<String, dynamic> body =
           jsonDecode(response.result!) as Map<String, dynamic>;
       expect(body['navigatedBack'], isTrue);
+      expect(body['popped'], isTrue);
     });
 
     testWidgets('does not require any params (handles empty map)',
@@ -376,6 +403,26 @@ void main() {
       expect(response, isNotNull);
     });
 
+    testWidgets('answers popped=false when no Navigator can pop',
+        (WidgetTester tester) async {
+      // An agent reading only `navigatedBack` could not tell a pop from a
+      // no-op at the bottom of the stack; `popped` says which happened.
+      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateBackHandler(
+        'ext.dusk.navigate_back',
+        <String, String>{'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body['navigatedBack'], isTrue);
+      expect(body['popped'], isFalse);
+    });
+
     testWidgets('result encodes to valid JSON', (WidgetTester tester) async {
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
       final Future<developer.ServiceExtensionResponse> future =
@@ -390,6 +437,167 @@ void main() {
       // result is non-null; the payload must be valid JSON.
       expect(response.result, isNotNull);
       expect(() => jsonDecode(response.result!), returnsNormally);
+    });
+  });
+
+  group('extDuskNavigateBackHandler nested Navigators', () {
+    testWidgets(
+        'pops a page stacked inside a nested Navigator and get_routes follows',
+        (WidgetTester tester) async {
+      // The shape a go_router ShellRoute builds: the root Navigator holds ONE
+      // page (the shell) and can never pop, the pages stacked inside the shell
+      // can. Before the fix the handler popped the root only, did nothing, and
+      // still answered navigatedBack: true, so `uri` kept naming the detail
+      // page because that page was still mounted.
+      final _ShellStackDelegate delegate = _ShellStackDelegate();
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: _shellStackConfig('/monitors', delegate),
+        ),
+      );
+      delegate.push(Uri.parse('/monitors/7'));
+      await tester.pumpAndSettle();
+      expect(find.text('page /monitors/7'), findsOneWidget);
+      expect(buildGetRoutesResponse()['uri'], '/monitors/7');
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateBackHandler(
+        'ext.dusk.navigate_back',
+        <String, String>{'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      await future;
+
+      // The Router reports the new location in a post-frame callback, so it
+      // lands within the frames the handler already awaited on a live engine.
+      await tester.pump();
+      expect(find.text('page /monitors/7'), findsNothing);
+      expect(buildGetRoutesResponse()['uri'], '/monitors');
+    });
+
+    testWidgets('pops the root Navigator before a nested one',
+        (WidgetTester tester) async {
+      // A page pushed on the root covers whatever a nested Navigator shows, so
+      // it is the top of the visible stack and is the one back leaves.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Navigator(
+            onGenerateInitialRoutes: (NavigatorState navigator, String name) =>
+                <Route<void>>[
+              MaterialPageRoute<void>(
+                builder: (BuildContext context) => const Text('nested-a'),
+              ),
+              MaterialPageRoute<void>(
+                builder: (BuildContext context) => Builder(
+                  builder: (BuildContext context) => TextButton(
+                    onPressed: () =>
+                        Navigator.of(context, rootNavigator: true).push(
+                      MaterialPageRoute<void>(
+                        builder: (BuildContext context) =>
+                            const Text('root-cover'),
+                      ),
+                    ),
+                    child: const Text('nested-b'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.tap(find.text('nested-b'));
+      await tester.pumpAndSettle();
+      expect(find.text('root-cover'), findsOneWidget);
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateBackHandler(
+        'ext.dusk.navigate_back',
+        <String, String>{'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      await future;
+      await tester.pumpAndSettle();
+
+      expect(find.text('root-cover'), findsNothing);
+      expect(find.text('nested-b'), findsOneWidget);
+    });
+
+    testWidgets('leaves a hidden branch alone when the visible one is bare',
+        (WidgetTester tester) async {
+      // A go_router StatefulShellRoute keeps every branch alive offstage. A
+      // page stacked on the hidden branch is not what the user sees, so back
+      // must not pop it and must not answer popped: true for it.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: _TwoBranchShell(
+            activeIndex: 1,
+            branches: <List<String>>[
+              <String>['hidden-list', 'hidden-detail'],
+              <String>['visible-list'],
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateBackHandler(
+        'ext.dusk.navigate_back',
+        <String, String>{'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+      await tester.pumpAndSettle();
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body['popped'], isFalse);
+      expect(
+        find.text('hidden-detail', skipOffstage: false),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('pops the visible branch, not a hidden one before it',
+        (WidgetTester tester) async {
+      // The hidden branch comes first in tree order, so a plain pre-order walk
+      // reaches it before the visible branch.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: _TwoBranchShell(
+            activeIndex: 1,
+            branches: <List<String>>[
+              <String>['hidden-list', 'hidden-detail'],
+              <String>['visible-list', 'visible-detail'],
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('visible-detail'), findsOneWidget);
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateBackHandler(
+        'ext.dusk.navigate_back',
+        <String, String>{'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+      await tester.pumpAndSettle();
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body['popped'], isTrue);
+      expect(find.text('visible-detail'), findsNothing);
+      expect(find.text('visible-list'), findsOneWidget);
+      expect(
+        find.text('hidden-detail', skipOffstage: false),
+        findsOneWidget,
+      );
     });
   });
 
@@ -692,4 +900,193 @@ void main() {
       registerNavigationExtensions();
     });
   });
+}
+
+/// A one-screen Router whose provider starts on [location], with no page
+/// names: what a go_router app looks like to dusk.
+RouterConfig<Uri> _routerConfig(String location) => RouterConfig<Uri>(
+      routeInformationProvider: PlatformRouteInformationProvider(
+        initialRouteInformation: RouteInformation(uri: Uri.parse(location)),
+      ),
+      routeInformationParser: const _UriParser(),
+      routerDelegate: _UriDelegate(),
+    );
+
+/// A Router hosting a nested Navigator inside a single root page: what a
+/// go_router `ShellRoute` looks like to dusk. [delegate] owns the stack.
+RouterConfig<Uri> _shellStackConfig(
+  String location,
+  _ShellStackDelegate delegate,
+) =>
+    RouterConfig<Uri>(
+      routeInformationProvider: PlatformRouteInformationProvider(
+        initialRouteInformation: RouteInformation(uri: Uri.parse(location)),
+      ),
+      routeInformationParser: const _UriParser(),
+      routerDelegate: delegate,
+    );
+
+final class _UriParser extends RouteInformationParser<Uri> {
+  const _UriParser();
+
+  @override
+  Future<Uri> parseRouteInformation(RouteInformation routeInformation) async =>
+      routeInformation.uri;
+
+  @override
+  RouteInformation restoreRouteInformation(Uri configuration) =>
+      RouteInformation(uri: configuration);
+}
+
+final class _UriDelegate extends RouterDelegate<Uri> with ChangeNotifier {
+  Uri? _current;
+
+  @override
+  Uri? get currentConfiguration => _current;
+
+  @override
+  Future<void> setNewRoutePath(Uri configuration) async {
+    _current = configuration;
+    notifyListeners();
+  }
+
+  @override
+  Future<bool> popRoute() async => false;
+
+  @override
+  Widget build(BuildContext context) => Navigator(
+        pages: <Page<void>>[
+          MaterialPage<void>(child: Text('${_current ?? ''}')),
+        ],
+        onDidRemovePage: (Page<Object?> page) {},
+      );
+}
+
+/// A page with no transition, so a pop finishes inside the frame that starts it.
+final class _InstantPage extends Page<void> {
+  const _InstantPage({required LocalKey super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Route<void> createRoute(BuildContext context) => PageRouteBuilder<void>(
+        settings: this,
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (
+          BuildContext context,
+          Animation<double> animation,
+          Animation<double> secondaryAnimation,
+        ) =>
+            child,
+      );
+}
+
+/// One Navigator per branch, each seeded with its own page names, stacked the
+/// way go_router's default `StatefulShellRoute` container keeps them: an
+/// [IndexedStack] whose inactive children sit under `Offstage` and a disabled
+/// `TickerMode`.
+final class _TwoBranchShell extends StatelessWidget {
+  const _TwoBranchShell({
+    required this.activeIndex,
+    required this.branches,
+  });
+
+  final int activeIndex;
+
+  final List<List<String>> branches;
+
+  @override
+  Widget build(BuildContext context) => IndexedStack(
+        index: activeIndex,
+        children: <Widget>[
+          for (int index = 0; index < branches.length; index++)
+            Offstage(
+              offstage: index != activeIndex,
+              child: TickerMode(
+                enabled: index == activeIndex,
+                child: Navigator(
+                  onGenerateInitialRoutes: (
+                    NavigatorState navigator,
+                    String name,
+                  ) =>
+                      <Route<void>>[
+                    for (final String page in branches[index])
+                      PageRouteBuilder<void>(
+                        transitionDuration: Duration.zero,
+                        reverseTransitionDuration: Duration.zero,
+                        pageBuilder: (
+                          BuildContext context,
+                          Animation<double> animation,
+                          Animation<double> secondaryAnimation,
+                        ) =>
+                            Text(page),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      );
+}
+
+/// Root Navigator with ONE page hosting a nested Navigator whose pages follow
+/// [_stack]; the router configuration is always the top of that stack.
+final class _ShellStackDelegate extends RouterDelegate<Uri>
+    with ChangeNotifier {
+  final List<Uri> _stack = <Uri>[];
+
+  void push(Uri uri) {
+    _stack.add(uri);
+    notifyListeners();
+  }
+
+  @override
+  Uri? get currentConfiguration => _stack.isEmpty ? null : _stack.last;
+
+  @override
+  Future<void> setNewRoutePath(Uri configuration) async {
+    if (_stack.isNotEmpty && _stack.last == configuration) return;
+    _stack
+      ..clear()
+      ..add(configuration);
+    notifyListeners();
+  }
+
+  @override
+  Future<bool> popRoute() async => false;
+
+  @override
+  Widget build(BuildContext context) => Navigator(
+        pages: <Page<void>>[
+          _InstantPage(
+            key: const ValueKey<String>('shell'),
+            child: ListenableBuilder(
+              listenable: this,
+              builder: (BuildContext context, Widget? child) {
+                // A Navigator refuses an empty page list, and the first build
+                // lands before the initial location is parsed.
+                if (_stack.isEmpty) return const SizedBox.shrink();
+
+                return Navigator(
+                  pages: <Page<void>>[
+                    for (final Uri uri in _stack)
+                      _InstantPage(
+                        key: ValueKey<String>('$uri'),
+                        child: Text('page $uri'),
+                      ),
+                  ],
+                  onDidRemovePage: (Page<Object?> page) {
+                    _stack.removeWhere(
+                      (Uri uri) => ValueKey<String>('$uri') == page.key,
+                    );
+                    notifyListeners();
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+        onDidRemovePage: (Page<Object?> page) {},
+      );
 }

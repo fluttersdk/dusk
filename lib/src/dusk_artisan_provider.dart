@@ -23,7 +23,11 @@ import 'commands/dusk_navigate_back_command.dart';
 import 'commands/dusk_navigate_command.dart';
 import 'commands/dusk_observe_command.dart';
 import 'commands/dusk_perf_begin_command.dart';
+import 'commands/dusk_perf_compare_command.dart';
 import 'commands/dusk_perf_end_command.dart';
+import 'commands/dusk_perf_insight_command.dart';
+import 'commands/dusk_perf_run_command.dart';
+import 'commands/dusk_perf_trace_command.dart';
 import 'commands/dusk_press_key_command.dart';
 import 'commands/dusk_reset_overlays_command.dart';
 import 'commands/dusk_resize_command.dart';
@@ -130,6 +134,12 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         // driven interaction.
         DuskPerfBeginCommand(),
         DuskPerfEndCommand(),
+        DuskPerfInsightCommand(),
+        // Host-side perf: the scenario runner, the run-file compare and the
+        // Chrome Trace export.
+        DuskPerfRunCommand(),
+        DuskPerfCompareCommand(),
+        DuskPerfTraceCommand(),
       ];
 
   @override
@@ -612,11 +622,12 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           name: 'dusk_navigate_back',
           description: 'Pop the top route off the active navigator stack.\n'
               '\n'
-              'Equivalent to pressing the system Back button: calls '
-              '`MagicRoute.back()` when Magic is installed, falling back '
-              'to `Navigator.of(root).pop()` otherwise. Useful for '
-              'returning from a detail screen to its list without '
-              'snapshotting and tapping a Back AppBar button.\n'
+              'Equivalent to pressing the system Back button: pops the '
+              'outermost Navigator that has a page to leave, so a page '
+              'stacked inside a shell (a go_router ShellRoute) is popped '
+              'as well as one pushed on the root. Useful for returning '
+              'from a detail screen to its list without snapshotting and '
+              'tapping a Back AppBar button.\n'
               '\n'
               'Usage:\n'
               '- No parameters.\n'
@@ -631,26 +642,25 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           extensionMethod: 'ext.dusk.navigate_back',
         ),
         // ---------------------------------------------------------------------
-        // 12. Get routes: enumerates the declared routes in the active
-        // router.
+        // 12. Get routes: where the app is right now.
         // ---------------------------------------------------------------------
         McpToolDescriptor(
           name: 'dusk_get_routes',
-          description: 'List the route paths declared by the running app\'s '
-              'router.\n'
+          description: 'Report where the running app is: the mounted '
+              'Router\'s location, the top page\'s name and a title hint.\n'
               '\n'
-              'Walks the active `MagicRouter` (when Magic is installed) '
-              'and emits every registered route path with its name and '
-              'any path parameters. Useful before a dusk_navigate call '
-              'when the available routes are not known upfront, or when '
-              'auditing the surface area of the app.\n'
+              'Read it to confirm a dusk_navigate landed, or to see where a '
+              'redirect took the app. It does not list the declared routes.\n'
               '\n'
               'Usage:\n'
               '- No parameters.\n'
-              '- Returns a list of `{ path, name }` records; static and '
-              'parameterised paths are both included (parameters render '
-              'as `:id`-style placeholders).\n'
-              '- Returns an empty list when no Magic router is installed.',
+              '- Returns `{ location, title, uri }`. `uri` is the first '
+              'mounted Router\'s location (`/monitors?page=2`), the value '
+              'dusk_navigate verifies against; null while no Router is '
+              'mounted, as on a loading screen right after a restart.\n'
+              '- `location` is the root Navigator\'s top page name, which a '
+              'Router-based app (go_router, MagicRouter) leaves empty on '
+              'every screen; read `uri` there.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{},
@@ -1443,6 +1453,14 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'been started with --cdp-port (which pre-launches Chrome with a '
               'debug port); fail-loudly if cdpPort is not set.\n'
               '\n'
+              'The override lasts only as long as the CDP session this call '
+              'opens, and the call closes that session when it returns: '
+              'Chrome then drops the override, so a later snapshot or '
+              'screenshot sees the page at its own size. This tool cannot '
+              'keep it; the CLI `dusk:resize --hold`, run in the background, '
+              'holds the session and so the override while you drive the '
+              'app.\n'
+              '\n'
               'Usage:\n'
               '- Requires `width` (integer, CSS pixels; e.g. 375 for iPhone) '
               'and `height` (integer, CSS pixels; e.g. 812).\n'
@@ -1520,6 +1538,12 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'would on that actual device. Requires artisan to have been '
               'started with --cdp-port (which pre-launches Chrome with a debug '
               'port).\n'
+              '\n'
+              'The emulated viewport, DPR, touch and user agent last only as '
+              'long as the CDP session this call opens, which closes when it '
+              'returns; only the Chrome window size it sets stays. For a '
+              'viewport that lasts, run the CLI `dusk:resize --hold` in the '
+              'background.\n'
               '\n'
               'Usage:\n'
               '- Call with `list: true` (no `preset` required) to enumerate '
@@ -1659,29 +1683,38 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           description: 'Open a performance measurement session around an '
               'interaction you are about to drive.\n'
               '\n'
-              'Switches Flutter\'s build profiling on, zeroes the frame '
-              'buffer and the wind counters, and records the liveness '
-              'baseline the report is judged against. Nothing is measured '
-              'until you call this, and the instrumentation costs real time, '
-              'so keep the session tight: begin, drive one interaction, end. '
-              'Pair every call with dusk_perf_end, which is what turns the '
-              'profiling back off.\n'
+              'Zeroes the frame buffer and the wind and magic counters and '
+              'records the liveness baseline the report is judged against. '
+              'In attribution mode it also switches Flutter\'s build '
+              'profiling on, which costs real time, so keep the session '
+              'tight: begin, drive one interaction, end. Pair every call with '
+              'dusk_perf_end, which puts every flag back.\n'
               '\n'
               'Usage:\n'
-              '- Call with no params for build attribution.\n'
-              '- Set phases=true to also profile layout and paint; the span '
-              'volume multiplies, so reach for it when builds alone did not '
-              'explain the cost.\n'
-              '- Returns `{sessionToken, phases, livenessBaseline, '
+              '- Call with no params for attribution: blocks by self time, '
+              'counts per painted frame, wind and magic counters, insights.\n'
+              '- Set mode="timing" for a pass whose milliseconds are worth '
+              'comparing: no profiling flag is touched and the report carries '
+              'frame timings only.\n'
+              '- Set phases=true (attribution only) to also profile layout '
+              'and paint when builds alone did not explain the cost.\n'
+              '- Returns `{sessionToken, mode, phases, livenessBaseline, '
               'restartedPreviousSession}`. A begin on an already-open session '
               'restarts it rather than failing.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{
+              'mode': <String, dynamic>{
+                'type': 'string',
+                'enum': <String>['attribution', 'timing'],
+                'description': 'attribution (default) profiles builds; '
+                    'timing touches no profiling flag and reports frame '
+                    'timings only.',
+              },
               'phases': <String, dynamic>{
                 'type': 'boolean',
                 'description': 'Also profile layout and paint, not just '
-                    'builds (optional; default false).',
+                    'builds (optional; default false; attribution only).',
               },
             },
           },
@@ -1692,30 +1725,241 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         // -------------------------------------------------------------------
         McpToolDescriptor(
           name: 'dusk_perf_end',
-          description: 'Close the performance session and read the '
-              'attribution: which widget types ran, how often, and for how '
-              'long.\n'
+          description: 'Close the performance session and read a bounded '
+              'report with ranked insights.\n'
               '\n'
-              'Returns the frame summary under Flutter\'s own metric names '
-              '(average / 90th / 99th / worst build and rasterizer millis, '
-              'missed-budget counts, dropped frames), the session-wide block '
-              'ranking, wind\'s cache hit/miss/bypass counters and the magic '
-              'controller-notify counts. Restores every profiling flag to the '
-              'value it had before the session.\n'
+              'Returns `{sessionToken, refused, mode, env, coverage, summary, '
+              'counters, insights, omitted}`, about 6 KB at most. Every '
+              'duration is in ms and every count is given raw and per '
+              'painted frame. `summary` carries frame percentiles against a '
+              'stated budgetMs of 16.7, dropped frames, and blocks ranked by '
+              'SELF time and by count per painted frame. `insights` are '
+              'sorted by severity then estimatedSavingsMs; each has an id, '
+              'severity, title, evidence {metric, value, perFrame, threshold} '
+              'and nextStep. Restores every profiling flag.\n'
               '\n'
               'Usage:\n'
               '- No parameters. Requires a prior dusk_perf_begin.\n'
-              '- Check `refused` FIRST. When the liveness counter did not '
-              'advance, the engine rendered nothing, the response carries no '
-              'metrics at all, and a zero report would have read as "fast". A '
+              '- Check `refused` FIRST. When the liveness counter advanced by '
+              '1 or less the engine rendered nothing, the response carries no '
+              'metrics, and a zero report would have read as "fast". A '
               'backgrounded browser tab is the usual cause.\n'
-              '- Treat per-type millisecond values as indicative, not as '
-              'facts about production; the payload\'s own `note` says why.',
+              '- Read `coverage.complete` and `coverage.missing` before the '
+              'numbers: a subset or a missing source is not "nothing slow".\n'
+              '- Call dusk_perf_insight with an insight id for the rows '
+              'behind it; `omitted` counts what the report cut.\n'
+              '- Attribution milliseconds are inflated by the profiling; '
+              'compare milliseconds only across mode="timing" sessions.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{},
           },
           extensionMethod: 'ext.dusk.perf_end',
+        ),
+        // -------------------------------------------------------------------
+        // 31. Perf insight: drill into one insight of the last report.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_perf_insight',
+          description: 'Drill into one insight of the report dusk_perf_end '
+              'last returned.\n'
+              '\n'
+              'Returns `{sessionToken, id, severity, title, summary, detail, '
+              'estimatedSavingsMs, nextStep}`. `detail` holds the raw rows '
+              'behind the insight: the worst frames with their self-time '
+              'blocks, the frame-number gaps, the frames where a block '
+              'weighed most, or what a coverage gap left out. Only the most '
+              'recent closed session is kept.\n'
+              '\n'
+              'Usage:\n'
+              '- Pass id="I2" from the insights[] list of dusk_perf_end. Ids '
+              'are assigned before the list is cut, so one counted in '
+              'omitted.insights is drillable too.\n'
+              '- Pass token (the report\'s sessionToken) to guard against '
+              'reading a newer session than the report you hold.\n'
+              '- An unknown id, a stale token or a refused session returns an '
+              'error naming what to read instead.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'id': <String, dynamic>{
+                'type': 'string',
+                'description': 'Insight id (I<n>) from dusk_perf_end.',
+              },
+              'token': <String, dynamic>{
+                'type': 'string',
+                'description': 'sessionToken of that report (optional).',
+              },
+            },
+            'required': <String>['id'],
+          },
+          extensionMethod: 'ext.dusk.perf_insight',
+        ),
+        // -------------------------------------------------------------------
+        // 32. Perf run: a scenario, repeated from a clean start, to a file.
+        //
+        // Routes through the `artisan:` substrate: the run restarts the app,
+        // drives Chrome DevTools and writes files, none of which an in-isolate
+        // extension can do.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_perf_run',
+          description: 'Run a perf scenario YAML several times from a clean '
+              'start and write medians, spread and insights to a file.\n'
+              '\n'
+              'Each repeat runs the scenario setup (its hot_restart, or a '
+              'relaunch on a profile build), then perf_begin, the steps with '
+              'targets resolved on the live screen, and perf_end. Writes '
+              '<out>/<scenario>-<label>.json with env (host, renderer, '
+              'restartMode), summary (medians of counts per painted frame and '
+              'ms, plus a spread block), the median repeat\'s insights and '
+              'every repeat. A refused repeat is recorded and left out of the '
+              'medians; the call fails only when every repeat refused.\n'
+              '\n'
+              'Usage:\n'
+              '- Pass scenario (a path) and a label ([a-z0-9_-]).\n'
+              '- Pass json=true for the summary as JSON (repeats stay in the '
+              'file).\n'
+              '- Set timing=true for interleaved timing-mode repeats, the only '
+              'ms dusk_perf_compare gates on.\n'
+              '- Set against to a baseline scenario path to run both in the '
+              'same rounds, order alternating, one file each.\n'
+              '- Set semantics-pass=true to also replay the steps by '
+              'coordinates with the semantics tree released for the timed '
+              'window (the semanticsOff series; unsupported for fill, type, '
+              'scroll, and wherever a release leaves semantics on, which on '
+              'chrome is every app dusk has snapshotted).\n'
+              '- Chrome needs the app started with a CDP port.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'scenario': <String, dynamic>{
+                'type': 'string',
+                'description': 'Path to the scenario YAML.',
+              },
+              'label': <String, dynamic>{
+                'type': 'string',
+                'description': 'Run label in the file name, [a-z0-9_-] '
+                    '(default run).',
+              },
+              'out': <String, dynamic>{
+                'type': 'string',
+                'description': 'Output directory (default build/perf).',
+              },
+              'repeat': <String, dynamic>{
+                'type': 'integer',
+                'description': 'Repeats per series; overrides the '
+                    'scenario\'s repeat.',
+              },
+              'platform': <String, dynamic>{
+                'type': 'string',
+                'enum': <String>['chrome', 'android', 'ios'],
+                'description': 'Target platform; read from the session when '
+                    'omitted.',
+              },
+              'timing': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Also run interleaved timing-mode repeats.',
+              },
+              'against': <String, dynamic>{
+                'type': 'string',
+                'description': 'Baseline scenario YAML run in the same '
+                    'rounds.',
+              },
+              'semantics-pass': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Also measure with the semantics tree '
+                    'released.',
+              },
+              'json': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Print the summary as JSON.',
+              },
+            },
+            'required': <String>['scenario'],
+          },
+          extensionMethod: 'artisan:dusk:perf_run',
+        ),
+        // -------------------------------------------------------------------
+        // 33. Perf compare: judge run B against run A. Reads two files.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_perf_compare',
+          description: 'Compare two dusk_perf_run files and return a verdict '
+              'per metric.\n'
+              '\n'
+              'Gates on counts per painted frame, never on raw counts: a run '
+              'that drew 10% fewer frames reports 10% fewer of everything '
+              'and is not faster. Milliseconds are gated only from '
+              'timing-mode medians; emulator raster ms are info only. A '
+              'change inside the repeats\' own spread is unchanged. Default '
+              'thresholds are warn +10% and error +25%, overridden by the '
+              'scenario\'s thresholds. Returns {verdict, thresholds, frames, '
+              'rows, unchanged, timing}; rows list only what changed.\n'
+              '\n'
+              'Usage:\n'
+              '- Pass a (the baseline file) and b (the candidate file).\n'
+              '- Pass json=true for the JSON; the default is a compact '
+              'table.\n'
+              '- The call fails on an error-level regression, or when either '
+              'run has no measured repeat.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'a': <String, dynamic>{
+                'type': 'string',
+                'description': 'Baseline dusk_perf_run file.',
+              },
+              'b': <String, dynamic>{
+                'type': 'string',
+                'description': 'Candidate dusk_perf_run file.',
+              },
+              'json': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Return the result as JSON.',
+              },
+            },
+            'required': <String>['a', 'b'],
+          },
+          extensionMethod: 'artisan:dusk:perf_compare',
+        ),
+        // -------------------------------------------------------------------
+        // 34. Perf trace: the last closed session as a Chrome Trace file.
+        //
+        // Through the substrate so the trace, often thousands of events,
+        // goes to a file and only its path comes back.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_perf_trace',
+          description: 'Write the last closed perf session as a Chrome Trace '
+              'JSON file and return only its path.\n'
+              '\n'
+              'Exports ext.dusk.perf_trace: interactions, frames and host rows '
+              '(HTTP, events) of the session window, which ui.perfetto.dev '
+              'and chrome://tracing open as is. The trace is too large for a '
+              'context window, so it is written to out.\n'
+              '\n'
+              'Usage:\n'
+              '- Pass out, the file to write.\n'
+              '- Pass token (the report\'s sessionToken) to guard against a '
+              'newer session.\n'
+              '- Export before the next dusk_perf_begin, which clears the '
+              'frames the trace reads.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'out': <String, dynamic>{
+                'type': 'string',
+                'description': 'File to write.',
+              },
+              'token': <String, dynamic>{
+                'type': 'string',
+                'description': 'sessionToken of the session (optional).',
+              },
+            },
+            'required': <String>['out'],
+          },
+          extensionMethod: 'artisan:dusk:perf_trace',
         ),
       ];
 }

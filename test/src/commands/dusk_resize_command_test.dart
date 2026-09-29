@@ -201,6 +201,11 @@ void main() {
         expect(capturedMetricsParams!['height'], equals(720));
         expect(capturedMetricsParams!['deviceScaleFactor'], equals(2.0));
         expect(capturedMetricsParams!['mobile'], equals(false));
+        // The override dies with this command's CDP session: the output must
+        // not read as a lasting resize.
+        expect(output.content, isNot(contains('Viewport set to')));
+        expect(output.content, contains('only as long as'));
+        expect(output.content, contains('--hold'));
       },
     );
 
@@ -363,6 +368,89 @@ void main() {
       // below implicitly proves close() ran by verifying exit code.
       final exit = await DuskResizeCommand().handle(ctx);
       expect(exit, equals(1));
+    });
+    // -----------------------------------------------------------------------
+    // (g) The override belongs to the CDP session that sent it.
+    // -----------------------------------------------------------------------
+    test('sends the exact metrics override, and says it ends with the command',
+        () async {
+      // Measured against Chrome: Emulation.setDeviceMetricsOverride is dropped
+      // when the DevTools session that sent it detaches, whatever its
+      // parameters (dsf 0 or 1, mobile true or false). So a command that sets
+      // it and exits changed nothing anyone can observe afterwards, while its
+      // success line said the viewport was set.
+      Map<String, dynamic>? sent;
+      final server = await FakeCdpServer.start(
+        handlers: {
+          'Emulation.setDeviceMetricsOverride':
+              (Map<String, dynamic> params) async {
+            sent = params;
+            return <String, dynamic>{};
+          },
+        },
+      );
+      addTearDown(server.stop);
+      await _writeState(tempDir, {'cdpPort': server.port});
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput({'width': '390', 'height': '844'}),
+        output: output,
+      );
+
+      final exit = await DuskResizeCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(sent, <String, dynamic>{
+        'width': 390,
+        'height': 844,
+        'deviceScaleFactor': 1.0,
+        'mobile': false,
+      });
+      expect(output.content, contains('--hold'));
+    });
+
+    test(
+        '--hold keeps the session, and so the override, until Chrome goes away',
+        () async {
+      Map<String, dynamic>? sent;
+      final server = await FakeCdpServer.start(
+        handlers: {
+          'Emulation.setDeviceMetricsOverride':
+              (Map<String, dynamic> params) async {
+            sent = params;
+            return <String, dynamic>{};
+          },
+        },
+      );
+      addTearDown(server.stop);
+      await _writeState(tempDir, {'cdpPort': server.port});
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput({'width': '390', 'height': '844', 'hold': true}),
+        output: output,
+      );
+
+      bool finished = false;
+      final Future<int> run = DuskResizeCommand().handle(ctx).whenComplete(
+            () => finished = true,
+          );
+
+      for (int i = 0; i < 50 && sent == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(sent, isNotNull, reason: 'the override must have been sent');
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      expect(finished, isFalse,
+          reason: 'closing the session drops the override');
+
+      await server.stop();
+
+      expect(await run.timeout(const Duration(seconds: 5)), equals(0));
+      expect(output.content, contains('Holding'));
     });
   });
 }

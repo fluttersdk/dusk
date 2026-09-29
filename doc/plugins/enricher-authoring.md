@@ -60,7 +60,7 @@ import 'package:fluttersdk_dusk/dusk.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  if (kDebugMode) {
+  if (!kReleaseMode) {
     DuskPlugin.install();
     DuskPlugin.enrichers.add(myCustomEnricher);
   }
