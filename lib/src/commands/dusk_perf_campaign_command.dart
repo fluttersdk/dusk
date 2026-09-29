@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -26,6 +27,9 @@ const Duration _kBootPollInterval = Duration(milliseconds: 500);
 /// `adb wait-for-device` returns long before the system can install.
 const Duration _kBootCompletedBudget = Duration(seconds: 180);
 const Duration _kBootCompletedPollInterval = Duration(seconds: 2);
+
+/// How long a process's output may keep arriving after it exited.
+const Duration _kPipeGrace = Duration(seconds: 5);
 
 /// Where `flutter build apk --profile` writes the APK, from the project root.
 const String _kProfileApk = 'build/app/outputs/flutter-apk/app-profile.apk';
@@ -917,19 +921,43 @@ bool _readBool(Object? raw) => switch (raw) {
 /// Runs artisan's stop and start in-process, as `RestartCommand` chains
 /// them, and connects to the started app over its VM Service.
 final class _ArtisanPerfCampaignHost implements PerfCampaignHost {
+  /// Waits for the process to exit, not for its pipes to close: a hook that
+  /// backgrounds a server without redirecting it (`cmd &`) leaves that
+  /// server holding stdout, and `Process.run` would wait on it for as long
+  /// as the server lives. Output still arriving [_kPipeGrace] after the exit
+  /// is cut, and the cut is said in the output.
   @override
   Future<ProcessResult> run(
     String executable,
     List<String> arguments, {
     required String workingDirectory,
     Map<String, String>? environment,
-  }) =>
-      Process.run(
-        executable,
-        arguments,
-        workingDirectory: workingDirectory,
-        environment: environment,
+  }) async {
+    final Process process = await Process.start(
+      executable,
+      arguments,
+      workingDirectory: workingDirectory,
+      environment: environment,
+    );
+    final StringBuffer stdout = StringBuffer();
+    final StringBuffer stderr = StringBuffer();
+    final Future<void> out =
+        process.stdout.transform(systemEncoding.decoder).forEach(stdout.write);
+    final Future<void> err =
+        process.stderr.transform(systemEncoding.decoder).forEach(stderr.write);
+    final int exitCode = await process.exitCode;
+    try {
+      await Future.wait(<Future<void>>[out, err]).timeout(_kPipeGrace);
+    } on TimeoutException {
+      stderr.writeln(
+        '\n[dusk:perf_campaign] $executable exited $exitCode, but a process '
+        'it left running still holds its stdout or stderr; output after the '
+        'exit is not shown. Redirect a background server\'s output '
+        '(`cmd >log 2>&1 </dev/null &`).',
       );
+    }
+    return ProcessResult(process.pid, exitCode, '$stdout', '$stderr');
+  }
 
   @override
   Future<Map<String, dynamic>?> readSession() => StateFile.read();
