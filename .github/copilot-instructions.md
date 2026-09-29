@@ -6,7 +6,7 @@ Guidance for Claude Code working inside the `fluttersdk_dusk` repo. Path-scoped 
 
 ## Stack
 
-Flutter SDK package (Dart 3.4+, Flutter 3.22+). Plugin of `fluttersdk_artisan ^0.0.17`: contributes `DuskArtisanProvider` with 40 CLI commands and 39 MCP tool descriptors over 38 `ext.dusk.*` VM Service extensions: 33 MCP tools call an extension directly and 6 route through the `artisan:dusk:*` substrate. The other five extensions have no MCP tool of their own: `perf_trace` and `semantics_hold` are driven by the substrate tools, and `find_by_text`, `find_by_label` and `boot_id` are internal helpers.
+Flutter SDK package (Dart 3.4+, Flutter 3.22+). Plugin of `fluttersdk_artisan ^0.0.17`: contributes `DuskArtisanProvider` with 41 CLI commands and 39 MCP tool descriptors over 38 `ext.dusk.*` VM Service extensions: 33 MCP tools call an extension directly and 6 route through the `artisan:dusk:*` substrate. The other five extensions have no MCP tool of their own: `perf_trace` and `semantics_hold` are driven by the substrate tools, and `find_by_text`, `find_by_label` and `boot_id` are internal helpers.
 
 Production deps (hosted only): `fluttersdk_artisan ^0.0.17`, `image ^4.0.0`, `meta ^1.16.0`, `fluttersdk_wind_diagnostics_contracts ^1.2.0`, `yaml ^3.1.0`. Dev deps: `flutter_test`, `flutter_lints >=5.0.0 <7.0.0`. Kept out of release at the consumer call site: the consumer wraps `DuskPlugin.install()` in `if (!kReleaseMode)`, so debug and profile builds carry it (a profile build is what `dusk:perf_run` measures) and release builds tree-shake the subsystem on dart2js (web) and dart2native (mobile/desktop AOT).
 
