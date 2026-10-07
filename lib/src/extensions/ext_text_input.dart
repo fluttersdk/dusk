@@ -1,5 +1,4 @@
 import 'dart:developer' as developer;
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
@@ -13,6 +12,7 @@ import '../utils/dusk_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
+import '../utils/key_press.dart';
 import '../utils/perf_interaction.dart';
 import 'ext_pointer.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
@@ -50,7 +50,7 @@ Future<void> _appendSnapshotIfRequested(
 // ---------------------------------------------------------------------------
 
 /// A key as a real press carries it: both halves of its identity, and the
-/// text it types, if it types any.
+/// character it carries, if it carries one.
 typedef _Key = ({
   LogicalKeyboardKey logical,
   PhysicalKeyboardKey physical,
@@ -62,9 +62,9 @@ typedef _Key = ({
 ///
 /// A name in [_kKeyMap] matches case-insensitively, since agents call
 /// `dusk:press_key --key=TAB` or `--key=enter` and the canonical names are
-/// PascalCase. A single letter or digit is the key that types it: `G` and `g`
-/// both press the G key and type `g`, so a shortcut bound to a letter can be
-/// driven. Anything else is refused rather than guessed at.
+/// PascalCase. A single letter or digit is the key that carries it: `G` and
+/// `g` both press the G key with the character `g`, so a shortcut bound to a
+/// letter can be driven. Anything else is refused rather than guessed at.
 _Key? _lookupKey(String input) {
   final _Key? direct = _kKeyMap[input];
   if (direct != null) return direct;
@@ -402,15 +402,8 @@ Future<String?> typeIntoElement({
   return state.textEditingValue.text;
 }
 
-/// Presses [key] down and lets it up again, the way a keyboard does.
-///
-/// Both events enter through the binding's `onKeyData`, the handler the
-/// platform delivers real key data to, so they reach [HardwareKeyboard] AND
-/// the focus tree, where `Focus.onKeyEvent` and `Shortcuts` listen. Handing
-/// them to [HardwareKeyboard.handleKeyEvent] directly reaches only the
-/// keyboard's global handlers and no focused widget ever hears the key. They
-/// are marked synthesized, which is what makes the binding dispatch each at
-/// once rather than hold it for a raw event that never follows.
+/// Presses [key] down and lets it up again through [deliverKeyPress], so the
+/// focused widget hears it as it would a real press.
 ///
 /// [key] is a name from the supported table (Enter, Tab, Escape, ArrowDown,
 /// ...) or a single letter or digit. Throws [ArgumentError] for anything else,
@@ -433,39 +426,10 @@ Future<void> pressKey({
     );
   }
 
-  final ui.KeyDataCallback? deliver =
-      ServicesBinding.instance.platformDispatcher.onKeyData;
-  if (deliver == null) {
-    throw StateError(
-      '[fluttersdk_dusk] ext.dusk.press_key: the binding has no key data '
-      'handler to deliver "$key" to',
-    );
-  }
-
-  final Duration now = Duration(
-    microseconds: DateTime.now().microsecondsSinceEpoch,
-  );
-
-  deliver(_keyData(resolved, ui.KeyEventType.down, now));
-  deliver(
-    _keyData(
-      resolved,
-      ui.KeyEventType.up,
-      now + const Duration(milliseconds: 16),
-    ),
-  );
-}
-
-/// [key] as the platform reports one half of a press; only the down half
-/// types its character.
-ui.KeyData _keyData(_Key key, ui.KeyEventType type, Duration timeStamp) {
-  return ui.KeyData(
-    timeStamp: timeStamp,
-    type: type,
-    physical: key.physical.usbHidUsage,
-    logical: key.logical.keyId,
-    character: type == ui.KeyEventType.down ? key.character : null,
-    synthesized: true,
+  deliverKeyPress(
+    logical: resolved.logical,
+    physical: resolved.physical,
+    character: resolved.character,
   );
 }
 

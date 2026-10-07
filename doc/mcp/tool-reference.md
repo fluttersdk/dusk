@@ -964,7 +964,8 @@ Dispatch: `ext.dusk.press_key`
 Press a hardware key (optionally with modifiers). Delivers `KeyDownEvent` +
 `KeyUpEvent` through the binding's `onKeyData`, the path real key data takes, so
 `Focus.onKeyEvent`, `Shortcuts` and `CallbackShortcuts` hear the key as they
-would a real press. A single letter or digit presses the key that types it.
+would a real press. A single letter or digit presses the key that carries
+that character; text entry still goes through `dusk_type`.
 
 ### Input schema
 

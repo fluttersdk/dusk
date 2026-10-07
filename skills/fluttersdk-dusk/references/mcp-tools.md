@@ -294,11 +294,14 @@ TextEditingController and calls `.clear()`. No gate. Returns
 ### dusk_press_key
 
 `key` (required), `modifiers` (optional array of `control`, `shift`,
-`alt`, `meta`). Synthesizes a `HardwareKeyboard` Down+Up. Targets the
-currently focused widget, not a ref. Supported keys: `Enter`, `Tab`,
-`Escape`, `Backspace`, `Delete`, `Space`, `ArrowUp`, `ArrowDown`,
-`ArrowLeft`, `ArrowRight`, `Home`, `End`, `PageUp`, `PageDown`,
-`F1`-`F12` (case-insensitive). Returns `{ ok: true, key, snapshot? }`.
+`alt`, `meta`). Delivers a Down+Up through the binding's `onKeyData`, the
+path real key data takes, so `Focus.onKeyEvent` and `Shortcuts` on the
+currently focused widget hear it; it targets that widget, not a ref.
+Supported keys: `Enter`, `Tab`, `Escape`, `Backspace`, `Delete`, `Space`,
+`ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `Home`, `End`, `PageUp`,
+`PageDown`, `F1`-`F12` (case-insensitive), and one ASCII letter or digit,
+which presses the key carrying that character (text still goes through
+`dusk_type`). Returns `{ ok: true, key, snapshot? }`.
 
 **Pitfall.** Modifiers are reserved for future use; only the key
 itself fires for now.

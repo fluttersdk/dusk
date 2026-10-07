@@ -31,7 +31,7 @@ dart run fluttersdk_dusk dusk:reset_overlays
 Three escalating layers run in order, each a no-op when the prior already cleared the overlays:
 
 1. **Dismiss modals** ; pops every `PopupRoute` (dialogs, bottom sheets, popups) across every `NavigatorState`, reusing the same `dismissAllModals` path as `dusk:modal`. The page navigation stack is never touched.
-2. **Escape key** ; dispatches an `Escape` key down + up through `HardwareKeyboard`, dismissing overlays driven by the dismiss shortcut that are NOT `PopupRoute`s (custom `OverlayEntry` panels, dropdown menus closed via `Shortcuts`).
+2. **Escape key** ; delivers an `Escape` key down + up through the binding's `onKeyData` (the path real key data takes, so the focus tree hears it), dismissing overlays driven by the dismiss shortcut that are NOT `PopupRoute`s (custom `OverlayEntry` panels, dropdown menus closed via `Shortcuts`).
 3. **Cancel/Dismiss tap** ; only attempted when an overlay still appears present. Finds the first tappable Semantics node whose label matches `Cancel`, `Dismiss`, `Close`, `OK`, or `Done` (case-insensitive) and synthesizes a tap at its center, for modal barriers that require an explicit affordance to close.
 
 ---

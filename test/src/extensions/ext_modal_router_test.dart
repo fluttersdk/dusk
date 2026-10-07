@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_modal_router.dart';
@@ -154,6 +155,33 @@ void main() {
   });
 
   group('aiTestResetOverlaysHandler', () {
+    testWidgets('its Escape reaches the focused widget, as a real press does',
+        (tester) async {
+      final List<LogicalKeyboardKey> heard = <LogicalKeyboardKey>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Focus(
+            autofocus: true,
+            onKeyEvent: (FocusNode node, KeyEvent event) {
+              if (event is KeyDownEvent) heard.add(event.logicalKey);
+
+              return KeyEventResult.handled;
+            },
+            child: const Text('idle'),
+          ),
+        ),
+      );
+
+      await tester.runAsync(
+        () => aiTestResetOverlaysHandler(
+          'ext.dusk.reset_overlays',
+          const <String, String>{},
+        ),
+      );
+
+      expect(heard, <LogicalKeyboardKey>[LogicalKeyboardKey.escape]);
+    });
+
     testWidgets('idempotent: returns popped=0 when no overlays are open',
         (tester) async {
       await tester.pumpWidget(
