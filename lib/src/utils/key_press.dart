@@ -13,9 +13,14 @@ import 'package:flutter/services.dart';
 /// once rather than hold it for a raw event that never follows.
 ///
 /// Two limits come with the route. A real key whose raw message has not
-/// arrived yet holds both halves back until the next real key, and an
+/// arrived yet holds both halves back until the next real key. And on an
 /// embedder that sends only raw key messages (none of Flutter's own; a third
-/// party such as flutter-tizen may) cannot take key data at all.
+/// party such as flutter-tizen may), a press made before the first real key
+/// fixes the binding's transit mode to key data, so `handleRawKeyMessage`
+/// never attaches its converter and the app's real keys stop reaching
+/// [HardwareKeyboard] and the focus tree until it restarts; made after the
+/// first real key, the press asserts in a debug build and is dropped in a
+/// release one. Do not drive such an embedder with this helper.
 ///
 /// [character] rides on the down half only, as a real press carries it; a
 /// text field takes its text from the text input channel, not from here.

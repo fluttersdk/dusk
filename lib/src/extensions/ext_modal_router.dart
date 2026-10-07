@@ -279,12 +279,21 @@ bool _pressEscape() {
     );
     return true;
   } on StateError catch (e) {
-    developer.log(
-      '[fluttersdk_dusk] reset_overlays: Escape press not delivered: $e',
-      name: 'fluttersdk_dusk',
-    );
-    return false;
+    return _escapeNotDelivered(e);
+  } on AssertionError catch (e) {
+    // An embedder that sends only raw key messages: a debug build asserts in
+    // `KeyEventManager.handleKeyData`, and this layer stays best-effort.
+    return _escapeNotDelivered(e);
   }
+}
+
+/// Logs why [_pressEscape] could not press, and reports it as not pressed.
+bool _escapeNotDelivered(Object reason) {
+  developer.log(
+    '[fluttersdk_dusk] reset_overlays: Escape press not delivered: $reason',
+    name: 'fluttersdk_dusk',
+  );
+  return false;
 }
 
 /// Returns `true` when any [PopupRoute] is still present in any navigator
