@@ -9,6 +9,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
+import '../utils/key_press.dart';
 import '../utils/perf_interaction.dart';
 
 // ---------------------------------------------------------------------------
@@ -265,33 +266,34 @@ Future<void> _settleFrame() {
   );
 }
 
-/// Dispatches an `Escape` key down + up through [HardwareKeyboard]. Returns
-/// `true` when the events were dispatched (the press itself never throws);
-/// `false` only when the binding rejects the synthetic event.
+/// Presses `Escape` through [deliverKeyPress], so a focused `Shortcuts` or
+/// `Focus.onKeyEvent` hears it as it would a real press. Returns `true` when
+/// the press was delivered; `false` only when the binding has no key data
+/// handler, which is logged rather than raised because this layer is
+/// best-effort.
 bool _pressEscape() {
   try {
-    HardwareKeyboard.instance.handleKeyEvent(
-      const KeyDownEvent(
-        physicalKey: PhysicalKeyboardKey.escape,
-        logicalKey: LogicalKeyboardKey.escape,
-        timeStamp: Duration.zero,
-      ),
-    );
-    HardwareKeyboard.instance.handleKeyEvent(
-      const KeyUpEvent(
-        physicalKey: PhysicalKeyboardKey.escape,
-        logicalKey: LogicalKeyboardKey.escape,
-        timeStamp: Duration(milliseconds: 16),
-      ),
+    deliverKeyPress(
+      logical: LogicalKeyboardKey.escape,
+      physical: PhysicalKeyboardKey.escape,
     );
     return true;
-  } catch (e) {
-    developer.log(
-      '[fluttersdk_dusk] reset_overlays: Escape press swallowed: $e',
-      name: 'fluttersdk_dusk',
-    );
-    return false;
+  } on StateError catch (e) {
+    return _escapeNotDelivered(e);
+  } on AssertionError catch (e) {
+    // An embedder that sends only raw key messages: a debug build asserts in
+    // `KeyEventManager.handleKeyData`, and this layer stays best-effort.
+    return _escapeNotDelivered(e);
   }
+}
+
+/// Logs why [_pressEscape] could not press, and reports it as not pressed.
+bool _escapeNotDelivered(Object reason) {
+  developer.log(
+    '[fluttersdk_dusk] reset_overlays: Escape press not delivered: $reason',
+    name: 'fluttersdk_dusk',
+  );
+  return false;
 }
 
 /// Returns `true` when any [PopupRoute] is still present in any navigator

@@ -961,15 +961,18 @@ The absolute path of the written file.
 
 Dispatch: `ext.dusk.press_key`
 
-Press a hardware key (optionally with modifiers). Synthesizes `KeyDownEvent` +
-`KeyUpEvent` through `ServicesBinding.instance.keyboard.handleKeyEvent`.
+Press a hardware key (optionally with modifiers). Delivers `KeyDownEvent` +
+`KeyUpEvent` through the binding's `onKeyData`, the path real key data takes, so
+`Focus.onKeyEvent`, `Shortcuts` and `CallbackShortcuts` hear the key as they
+would a real press. A single letter or digit presses the key that carries
+that character; text entry still goes through `dusk_type`.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `key` | string | yes | Logical key label (e.g. `Enter`, `Escape`, `Tab`, `ArrowDown`, `S`). |
-| `modifiers` | array<string> | no | Subset of `control`, `shift`, `alt`, `meta` held during the press. |
+| `key` | string | yes | Logical key label (e.g. `Enter`, `Escape`, `Tab`, `ArrowDown`), or one letter or digit (`S`, `7`). |
+| `modifiers` | array<string> | no | Subset of `control`, `shift`, `alt`, `meta`; accepted, not yet applied to the press. |
 
 ### Returns
 

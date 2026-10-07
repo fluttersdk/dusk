@@ -5,8 +5,8 @@ import 'package:fluttersdk_artisan/artisan.dart';
 import 'frame_warning_output.dart';
 import 'json_output.dart';
 
-/// `artisan dusk:press_key --key=<name> [--modifiers=<csv>]` — synthesise
-/// a hardware-key event on the focused widget. Mirrors the
+/// `artisan dusk:press_key --key=<name|letter|digit> [--modifiers=<csv>]`:
+/// press a key on the focused widget. Mirrors the
 /// `dusk_press_key` MCP tool surface.
 class DuskPressKeyCommand extends ArtisanCommand {
   @override
@@ -24,7 +24,8 @@ class DuskPressKeyCommand extends ArtisanCommand {
     addJsonFlag(parser);
     parser.addOption(
       'key',
-      help: 'Logical key name, e.g. Enter / Escape / ArrowDown / Tab.',
+      help: 'Logical key name, e.g. Enter / Escape / ArrowDown / Tab, '
+          'or one letter or digit, e.g. G / 7.',
       mandatory: true,
     );
     parser.addOption(

@@ -12,6 +12,7 @@ import '../utils/dusk_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
+import '../utils/key_press.dart';
 import '../utils/perf_interaction.dart';
 import 'ext_pointer.dart';
 import 'ext_snapshot.dart' show duskSnapBuild;
@@ -48,53 +49,198 @@ Future<void> _appendSnapshotIfRequested(
 // Logical key lookup table
 // ---------------------------------------------------------------------------
 
-/// Case-insensitive lookup over [_kKeyMap]. Agents may call
-/// `dusk:press_key --key=TAB` or `--key=enter`; the canonical map keys use
-/// PascalCase, so fall back to a lowercase comparison when the direct hit
-/// misses. Returns null when no entry matches under either case.
-LogicalKeyboardKey? _lookupKey(String input) {
-  final direct = _kKeyMap[input];
+/// A key as a real press carries it: both halves of its identity, and the
+/// character it carries, if it carries one.
+typedef _Key = ({
+  LogicalKeyboardKey logical,
+  PhysicalKeyboardKey physical,
+  String? character,
+});
+
+/// Resolves an agent-facing key name to the key a real press would carry, or
+/// null when it names nothing.
+///
+/// A name in [_kKeyMap] matches case-insensitively, since agents call
+/// `dusk:press_key --key=TAB` or `--key=enter` and the canonical names are
+/// PascalCase. A single letter or digit is the key that carries it: `G` and
+/// `g` both press the G key with the character `g`, so a shortcut bound to a
+/// letter can be driven. Anything else is refused rather than guessed at.
+_Key? _lookupKey(String input) {
+  final _Key? direct = _kKeyMap[input];
   if (direct != null) return direct;
-  final lowered = input.toLowerCase();
-  for (final entry in _kKeyMap.entries) {
+
+  final String lowered = input.toLowerCase();
+  for (final MapEntry<String, _Key> entry in _kKeyMap.entries) {
     if (entry.key.toLowerCase() == lowered) return entry.value;
   }
-  return null;
+
+  return _characterKey(lowered);
 }
 
-/// Maps agent-facing key name strings to Flutter [LogicalKeyboardKey] values.
+/// The key that types [character], for one lowercase ASCII letter or digit;
+/// null for anything else.
 ///
-/// The lookup table covers the subset of keys that LLM agents commonly target
-/// during form navigation (Tab, Enter, Escape) and list navigation (arrows).
-/// Unknown keys cause [pressKey] to throw [ArgumentError] rather than silently
-/// emitting a no-op, which surfaces misconfigured agent payloads immediately.
-const Map<String, LogicalKeyboardKey> _kKeyMap = <String, LogicalKeyboardKey>{
-  'Enter': LogicalKeyboardKey.enter,
-  'Tab': LogicalKeyboardKey.tab,
-  'Escape': LogicalKeyboardKey.escape,
-  'Backspace': LogicalKeyboardKey.backspace,
-  'Delete': LogicalKeyboardKey.delete,
-  'Space': LogicalKeyboardKey.space,
-  'ArrowUp': LogicalKeyboardKey.arrowUp,
-  'ArrowDown': LogicalKeyboardKey.arrowDown,
-  'ArrowLeft': LogicalKeyboardKey.arrowLeft,
-  'ArrowRight': LogicalKeyboardKey.arrowRight,
-  'Home': LogicalKeyboardKey.home,
-  'End': LogicalKeyboardKey.end,
-  'PageUp': LogicalKeyboardKey.pageUp,
-  'PageDown': LogicalKeyboardKey.pageDown,
-  'F1': LogicalKeyboardKey.f1,
-  'F2': LogicalKeyboardKey.f2,
-  'F3': LogicalKeyboardKey.f3,
-  'F4': LogicalKeyboardKey.f4,
-  'F5': LogicalKeyboardKey.f5,
-  'F6': LogicalKeyboardKey.f6,
-  'F7': LogicalKeyboardKey.f7,
-  'F8': LogicalKeyboardKey.f8,
-  'F9': LogicalKeyboardKey.f9,
-  'F10': LogicalKeyboardKey.f10,
-  'F11': LogicalKeyboardKey.f11,
-  'F12': LogicalKeyboardKey.f12,
+/// The physical side is the USB HID usage the platform would report: letters
+/// run from `0x00070004` (A), digits from `0x0007001e` (1) to `0x00070027`
+/// (0). The logical side of a printable key is its own code point.
+_Key? _characterKey(String character) {
+  if (character.length != 1) return null;
+
+  final int unit = character.codeUnitAt(0);
+  final int? usage = switch (unit) {
+    >= 0x61 && <= 0x7a => 0x00070004 + unit - 0x61,
+    0x30 => 0x00070027,
+    >= 0x31 && <= 0x39 => 0x0007001e + unit - 0x31,
+    _ => null,
+  };
+
+  if (usage == null) return null;
+
+  return (
+    logical: LogicalKeyboardKey(unit),
+    physical: PhysicalKeyboardKey(usage),
+    character: character,
+  );
+}
+
+/// Maps agent-facing key name strings to the keys a real press carries.
+///
+/// The table covers the named keys LLM agents commonly target during form
+/// navigation (Tab, Enter, Escape) and list navigation (arrows); a single
+/// letter or digit is resolved by [_characterKey] instead. Unknown names
+/// cause [pressKey] to throw [ArgumentError] rather than silently emitting a
+/// no-op, which surfaces misconfigured agent payloads immediately.
+const Map<String, _Key> _kKeyMap = <String, _Key>{
+  'Enter': (
+    logical: LogicalKeyboardKey.enter,
+    physical: PhysicalKeyboardKey.enter,
+    character: null,
+  ),
+  'Tab': (
+    logical: LogicalKeyboardKey.tab,
+    physical: PhysicalKeyboardKey.tab,
+    character: null,
+  ),
+  'Escape': (
+    logical: LogicalKeyboardKey.escape,
+    physical: PhysicalKeyboardKey.escape,
+    character: null,
+  ),
+  'Backspace': (
+    logical: LogicalKeyboardKey.backspace,
+    physical: PhysicalKeyboardKey.backspace,
+    character: null,
+  ),
+  'Delete': (
+    logical: LogicalKeyboardKey.delete,
+    physical: PhysicalKeyboardKey.delete,
+    character: null,
+  ),
+  'Space': (
+    logical: LogicalKeyboardKey.space,
+    physical: PhysicalKeyboardKey.space,
+    character: ' ',
+  ),
+  'ArrowUp': (
+    logical: LogicalKeyboardKey.arrowUp,
+    physical: PhysicalKeyboardKey.arrowUp,
+    character: null,
+  ),
+  'ArrowDown': (
+    logical: LogicalKeyboardKey.arrowDown,
+    physical: PhysicalKeyboardKey.arrowDown,
+    character: null,
+  ),
+  'ArrowLeft': (
+    logical: LogicalKeyboardKey.arrowLeft,
+    physical: PhysicalKeyboardKey.arrowLeft,
+    character: null,
+  ),
+  'ArrowRight': (
+    logical: LogicalKeyboardKey.arrowRight,
+    physical: PhysicalKeyboardKey.arrowRight,
+    character: null,
+  ),
+  'Home': (
+    logical: LogicalKeyboardKey.home,
+    physical: PhysicalKeyboardKey.home,
+    character: null,
+  ),
+  'End': (
+    logical: LogicalKeyboardKey.end,
+    physical: PhysicalKeyboardKey.end,
+    character: null,
+  ),
+  'PageUp': (
+    logical: LogicalKeyboardKey.pageUp,
+    physical: PhysicalKeyboardKey.pageUp,
+    character: null,
+  ),
+  'PageDown': (
+    logical: LogicalKeyboardKey.pageDown,
+    physical: PhysicalKeyboardKey.pageDown,
+    character: null,
+  ),
+  'F1': (
+    logical: LogicalKeyboardKey.f1,
+    physical: PhysicalKeyboardKey.f1,
+    character: null,
+  ),
+  'F2': (
+    logical: LogicalKeyboardKey.f2,
+    physical: PhysicalKeyboardKey.f2,
+    character: null,
+  ),
+  'F3': (
+    logical: LogicalKeyboardKey.f3,
+    physical: PhysicalKeyboardKey.f3,
+    character: null,
+  ),
+  'F4': (
+    logical: LogicalKeyboardKey.f4,
+    physical: PhysicalKeyboardKey.f4,
+    character: null,
+  ),
+  'F5': (
+    logical: LogicalKeyboardKey.f5,
+    physical: PhysicalKeyboardKey.f5,
+    character: null,
+  ),
+  'F6': (
+    logical: LogicalKeyboardKey.f6,
+    physical: PhysicalKeyboardKey.f6,
+    character: null,
+  ),
+  'F7': (
+    logical: LogicalKeyboardKey.f7,
+    physical: PhysicalKeyboardKey.f7,
+    character: null,
+  ),
+  'F8': (
+    logical: LogicalKeyboardKey.f8,
+    physical: PhysicalKeyboardKey.f8,
+    character: null,
+  ),
+  'F9': (
+    logical: LogicalKeyboardKey.f9,
+    physical: PhysicalKeyboardKey.f9,
+    character: null,
+  ),
+  'F10': (
+    logical: LogicalKeyboardKey.f10,
+    physical: PhysicalKeyboardKey.f10,
+    character: null,
+  ),
+  'F11': (
+    logical: LogicalKeyboardKey.f11,
+    physical: PhysicalKeyboardKey.f11,
+    character: null,
+  ),
+  'F12': (
+    logical: LogicalKeyboardKey.f12,
+    physical: PhysicalKeyboardKey.f12,
+    character: null,
+  ),
 };
 
 // ---------------------------------------------------------------------------
@@ -256,13 +402,14 @@ Future<String?> typeIntoElement({
   return state.textEditingValue.text;
 }
 
-/// Resolves a [LogicalKeyboardKey] from an agent-facing [key] name string
-/// and dispatches a [KeyDownEvent] followed by a [KeyUpEvent] via
-/// [HardwareKeyboard.instance.handleKeyEvent].
+/// Presses [key] down and lets it up again through [deliverKeyPress], so the
+/// focused widget hears it as it would a real press.
 ///
-/// Throws [ArgumentError] when [key] is not in the supported lookup table.
-/// This surfaces misconfigured agent payloads immediately rather than silently
-/// emitting a no-op.
+/// [key] is a name from the supported table (Enter, Tab, Escape, ArrowDown,
+/// ...) or a single letter or digit. Throws [ArgumentError] for anything else,
+/// which surfaces misconfigured agent payloads immediately rather than
+/// silently emitting a no-op, and [StateError] when the binding has no key
+/// data handler to deliver to.
 ///
 /// The [modifiers] parameter is accepted by the public handler but not yet
 /// wired to synthesized modifier keys; it is reserved for future use.
@@ -271,28 +418,18 @@ Future<void> pressKey({
   required String key,
   List<String> modifiers = const <String>[],
 }) async {
-  final LogicalKeyboardKey? logicalKey = _lookupKey(key);
-  if (logicalKey == null) {
+  final _Key? resolved = _lookupKey(key);
+  if (resolved == null) {
     throw ArgumentError(
       '[fluttersdk_dusk] ext.dusk.press_key: unknown key "$key". '
-      'Supported keys: ${_kKeyMap.keys.join(', ')}',
+      'Supported keys: ${_kKeyMap.keys.join(', ')}, or one letter or digit',
     );
   }
 
-  HardwareKeyboard.instance.handleKeyEvent(
-    KeyDownEvent(
-      physicalKey: PhysicalKeyboardKey.enter,
-      logicalKey: logicalKey,
-      timeStamp: Duration.zero,
-    ),
-  );
-
-  HardwareKeyboard.instance.handleKeyEvent(
-    KeyUpEvent(
-      physicalKey: PhysicalKeyboardKey.enter,
-      logicalKey: logicalKey,
-      timeStamp: const Duration(milliseconds: 16),
-    ),
+  deliverKeyPress(
+    logical: resolved.logical,
+    physical: resolved.physical,
+    character: resolved.character,
   );
 }
 

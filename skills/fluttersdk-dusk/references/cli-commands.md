@@ -135,7 +135,7 @@ Returns `{ "ref": "q3", "matched": true }` or `{ "ref": null, "matched": false }
 ./bin/fsa dusk:type --ref=e4 --text="user@example.com"
 ./bin/fsa dusk:clear --ref=e4
 ./bin/fsa dusk:press_key --key=Enter
-./bin/fsa dusk:press_key --key=Tab --modifiers=shift
+./bin/fsa dusk:press_key --key=G                     # one letter or digit: a shortcut key
 ./bin/fsa dusk:focus --ref=e4
 ./bin/fsa dusk:blur
 

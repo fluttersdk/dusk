@@ -8,6 +8,14 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`dusk:press_key` / `dusk_press_key` reaches the focused widget.** The key was handed to `HardwareKeyboard.instance.handleKeyEvent`, which updates the pressed-key state and calls the keyboard's global handlers and nothing else, so `Focus.onKeyEvent`, `Shortcuts` and `CallbackShortcuts` never heard it, whatever the tool description promised: three `ArrowDown` presses on an app whose focused `FocusScope` zaps channels on the arrows changed nothing. Both halves of the press now enter through the binding's `onKeyData`, the handler real key data reaches, marked synthesized so each is dispatched at once, which delivers to `HardwareKeyboard` and to the focus tree alike. Every key also carries its own physical key now, where every press used to report the Enter key's. `dusk:reset_overlays` pressed its Escape the same broken way and now goes through the same helper, so a `Shortcuts`-bound dismiss hears it. Two limits are documented on the helper: a real key whose raw message is still pending holds the press back until the next real key, and on an embedder that sends only raw key messages (none of Flutter's own) a press before the first real key fixes the transit mode to key data and real keys stop reaching the focus tree until a restart, so such an embedder must not be driven with it; `reset_overlays` stays best-effort there, catching the debug assert as well as a missing handler. (`lib/src/utils/key_press.dart`, `lib/src/extensions/ext_text_input.dart`, `lib/src/extensions/ext_modal_router.dart`)
+
+### Added
+
+- **`dusk:press_key --key=<letter or digit>`.** A single ASCII letter or digit presses the key that carries it (`G` and `g` both press the G key with the character `g`), so a shortcut bound to a letter can be driven; text still goes through `dusk:type`, since a text field takes its text from the text input channel. Anything else outside the named keys is still refused. (`lib/src/extensions/ext_text_input.dart`, `lib/src/commands/dusk_press_key_command.dart`, `lib/src/dusk_artisan_provider.dart`, `doc/mcp/tool-reference.md`)
+
 ---
 
 ## [0.0.17] - 2026-09-29
