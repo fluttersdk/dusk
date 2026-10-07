@@ -182,6 +182,30 @@ void main() {
       expect(heard, <LogicalKeyboardKey>[LogicalKeyboardKey.escape]);
     });
 
+    testWidgets(
+        'with no key data handler the Escape layer reports escaped=false '
+        'and the reset still succeeds', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: Text('idle'))),
+      );
+      final dispatcher = tester.binding.platformDispatcher;
+      final saved = dispatcher.onKeyData;
+      dispatcher.onKeyData = null;
+      addTearDown(() => dispatcher.onKeyData = saved);
+
+      final response = await tester.runAsync(
+        () => aiTestResetOverlaysHandler(
+          'ext.dusk.reset_overlays',
+          const <String, String>{},
+        ),
+      );
+
+      expect(response!.errorCode, isNull);
+      final Map<String, dynamic> json =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(json['escaped'], isFalse);
+    });
+
     testWidgets('idempotent: returns popped=0 when no overlays are open',
         (tester) async {
       await tester.pumpWidget(
