@@ -24,7 +24,8 @@ class DuskPressKeyCommand extends ArtisanCommand {
     addJsonFlag(parser);
     parser.addOption(
       'key',
-      help: 'Logical key name, e.g. Enter / Escape / ArrowDown / Tab.',
+      help: 'Logical key name, e.g. Enter / Escape / ArrowDown / Tab, '
+          'or one letter or digit, e.g. G / 7.',
       mandatory: true,
     );
     parser.addOption(

@@ -8,6 +8,14 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`dusk:press_key` / `dusk_press_key` reaches the focused widget.** The key was handed to `HardwareKeyboard.instance.handleKeyEvent`, which updates the pressed-key state and calls the keyboard's global handlers and nothing else, so `Focus.onKeyEvent`, `Shortcuts` and `CallbackShortcuts` never heard it, whatever the tool description promised: three `ArrowDown` presses on an app whose focused `FocusScope` zaps channels on the arrows changed nothing. Both halves of the press now enter through the binding's `onKeyData`, the handler real key data reaches, marked synthesized so each is dispatched at once, which delivers to `HardwareKeyboard` and to the focus tree alike. Every key also carries its own physical key now, where every press used to report the Enter key's. (`lib/src/extensions/ext_text_input.dart`)
+
+### Added
+
+- **`dusk:press_key --key=<letter or digit>`.** A single ASCII letter or digit presses the key that types it (`G` and `g` both press the G key and type `g`), so a shortcut bound to a letter can be driven; anything else outside the named keys is still refused. (`lib/src/extensions/ext_text_input.dart`, `lib/src/commands/dusk_press_key_command.dart`, `lib/src/dusk_artisan_provider.dart`, `doc/mcp/tool-reference.md`)
+
 ---
 
 ## [0.0.17] - 2026-09-29

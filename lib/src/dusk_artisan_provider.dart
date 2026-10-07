@@ -681,8 +681,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           name: 'dusk_press_key',
           description: 'Press a hardware key (optionally with modifiers).\n'
               '\n'
-              'Synthesises a `KeyDownEvent` + `KeyUpEvent` through '
-              '`ServicesBinding.instance.keyboard.handleKeyEvent` so '
+              'Delivers a `KeyDownEvent` + `KeyUpEvent` through the '
+              "binding's `onKeyData`, the path real key data takes, so "
               'shortcut intents, `Focus.onKeyEvent` handlers, and '
               '`CallbackShortcuts` widgets fire. Use for keyboard-driven '
               'flows that have no equivalent tap target: Escape to close, '
@@ -692,9 +692,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'Usage:\n'
               '- Pass `key: "Enter"` (key name from '
               '`LogicalKeyboardKey.keyLabel`). Common values: `Enter`, '
-              '`Escape`, `Tab`, `ArrowDown`, `Backspace`.\n'
-              '- Optional `modifiers: ["control", "shift"]` chord the '
-              'key with modifier keys held during the press.\n'
+              '`Escape`, `Tab`, `ArrowDown`, `Backspace`. A single '
+              'letter or digit (`G`, `m`, `7`) presses the key that '
+              'types it, for shortcuts bound to a letter.\n'
+              '- Optional `modifiers: ["control", "shift"]` is accepted '
+              'and not yet applied to the press.\n'
               '- For text input prefer dusk_type; this tool is for '
               'shortcut keys only.\n'
               '\n'
@@ -704,8 +706,9 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             'properties': <String, dynamic>{
               'key': <String, dynamic>{
                 'type': 'string',
-                'description': 'Logical key label. Examples: `Enter`, '
-                    '`Escape`, `Tab`, `ArrowDown`, `S`, `Backspace`.',
+                'description': 'Logical key label, or one letter or '
+                    'digit. Examples: `Enter`, `Escape`, `Tab`, '
+                    '`ArrowDown`, `S`, `7`, `Backspace`.',
               },
               'modifiers': <String, dynamic>{
                 'type': 'array',

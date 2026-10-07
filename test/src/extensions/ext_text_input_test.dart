@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
@@ -102,8 +103,93 @@ void main() {
       );
 
       // -----------------------------------------------------------------------
+      // Test (d): The key reaches the focus tree, as a real press does
+      // -----------------------------------------------------------------------
+
+      testWidgets(
+        '(d) a focused widget hears an arrow key through Focus.onKeyEvent',
+        (WidgetTester tester) async {
+          final List<KeyEvent> heard = <KeyEvent>[];
+          await tester.pumpWidget(_KeyListener(heard: heard));
+
+          await pressKey(key: 'ArrowDown');
+
+          expect(
+            heard.map((KeyEvent e) => (e.runtimeType, e.logicalKey)),
+            <(Type, LogicalKeyboardKey)>[
+              (KeyDownEvent, LogicalKeyboardKey.arrowDown),
+              (KeyUpEvent, LogicalKeyboardKey.arrowDown),
+            ],
+          );
+          expect(heard.first.physicalKey, PhysicalKeyboardKey.arrowDown);
+        },
+      );
+
+      testWidgets(
+        '(d) a single letter is pressed with its own keys and character',
+        (WidgetTester tester) async {
+          final List<KeyEvent> heard = <KeyEvent>[];
+          await tester.pumpWidget(_KeyListener(heard: heard));
+
+          await pressKey(key: 'G');
+
+          expect(heard.first.logicalKey, LogicalKeyboardKey.keyG);
+          expect(heard.first.physicalKey, PhysicalKeyboardKey.keyG);
+          expect(heard.first.character, 'g');
+          expect(heard.last, isA<KeyUpEvent>());
+        },
+      );
+
+      testWidgets(
+        '(d) a digit is pressed with its own keys',
+        (WidgetTester tester) async {
+          final List<KeyEvent> heard = <KeyEvent>[];
+          await tester.pumpWidget(_KeyListener(heard: heard));
+
+          await pressKey(key: '0');
+          await pressKey(key: '7');
+
+          expect(
+            heard.whereType<KeyDownEvent>().map((KeyEvent e) => e.physicalKey),
+            <PhysicalKeyboardKey>[
+              PhysicalKeyboardKey.digit0,
+              PhysicalKeyboardKey.digit7,
+            ],
+          );
+          expect(
+            heard.whereType<KeyDownEvent>().map((KeyEvent e) => e.logicalKey),
+            <LogicalKeyboardKey>[
+              LogicalKeyboardKey.digit0,
+              LogicalKeyboardKey.digit7,
+            ],
+          );
+        },
+      );
+
+      testWidgets(
+        '(d) a press leaves no key held',
+        (WidgetTester tester) async {
+          await tester.pumpWidget(_KeyListener(heard: <KeyEvent>[]));
+
+          await pressKey(key: 'm');
+
+          expect(HardwareKeyboard.instance.physicalKeysPressed, isEmpty);
+        },
+      );
+
+      // -----------------------------------------------------------------------
       // Test (c): Bad-input rejection
       // -----------------------------------------------------------------------
+
+      test(
+        '(c) throws ArgumentError for a character outside letters and digits',
+        () async {
+          expect(
+            () => pressKey(key: '%'),
+            throwsA(isA<ArgumentError>()),
+          );
+        },
+      );
 
       test(
         '(c) throws ArgumentError when key is unknown',
@@ -1332,4 +1418,28 @@ void main() {
       );
     });
   });
+}
+
+/// A focused [Focus] that records every key event it hears, which is what a
+/// real keyboard press reaches and a [HardwareKeyboard]-only dispatch does not.
+class _KeyListener extends StatelessWidget {
+  const _KeyListener({required this.heard});
+
+  final List<KeyEvent> heard;
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: (FocusNode node, KeyEvent event) {
+          heard.add(event);
+
+          return KeyEventResult.handled;
+        },
+        child: const SizedBox.expand(),
+      ),
+    );
+  }
 }

@@ -52,7 +52,7 @@
 - `dusk_perf_trace` (`artisan:dusk:perf_trace`, substrate-routed): Write the last closed perf session's interactions, frames and host rows as Chrome Trace Event JSON (opens in ui.perfetto.dev or chrome://tracing) and return only its path.
 
 *Keyboard / Input*
-- `dusk_press_key` (`ext.dusk.press_key`): Press hardware key with optional modifiers (control, shift, alt, meta).
+- `dusk_press_key` (`ext.dusk.press_key`): Press a hardware key (a named key, or one letter or digit) so the focused widget hears it; modifiers (control, shift, alt, meta) are accepted, not yet applied.
 - `dusk_focus` (`ext.dusk.focus`): Request keyboard focus on widget identified by ref.
 - `dusk_blur` (`ext.dusk.blur`): Clear keyboard focus from current focus holder.
 
