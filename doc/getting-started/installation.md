@@ -21,7 +21,7 @@ VM Service extensions to register against. Pure-Dart environments are not suppor
 |:-----------|:--------|:------------|
 | Dart       | `>= 3.4.0` | `3.6.0+` |
 | Flutter    | `>= 3.22.0` | `3.27.0+` |
-| fluttersdk_artisan | `^0.0.17` | latest |
+| fluttersdk_artisan | `^0.0.19` | latest |
 
 Install `fluttersdk_artisan` first if it is not already in your project. It provides
 the MCP server, the CLI framework, and the `registerExtensionIdempotent` helper that
@@ -44,7 +44,7 @@ Alternatively, add it manually to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  fluttersdk_dusk: ^0.0.18
+  fluttersdk_dusk: ^0.0.19
 ```
 
 Then fetch dependencies:
