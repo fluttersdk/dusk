@@ -10,6 +10,13 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ---
 
+## [0.0.19] - 2026-10-09
+
+### Changed
+
+- **The artisan floor names this batch's release.** `fluttersdk_artisan` moves `^0.0.17` to `^0.0.19`. The old range already admitted 0.0.19, so a fresh `pub get` resolves nothing differently; what changes is that the floor names the release this package is verified against. Neither artisan 0.0.18 nor 0.0.19 is breaking: 0.0.18 adds installer operations dusk does not use, and 0.0.19 widens artisan's `xml` constraint to admit 7.x, which a consumer now inherits. The requirements tables in `doc/getting-started/installation.md` and `doc/getting-started/index.md` and the stack lines in `CLAUDE.md` and `.github/copilot-instructions.md` quote the new floor. (`pubspec.yaml`, `doc/getting-started/`, `CLAUDE.md`, `.github/copilot-instructions.md`)
+- **The example app moves `cupertino_icons` to `^2.0.0`.** It touches only the unpublished `example/` app, not the package. (#53, `example/pubspec.yaml`, `example/pubspec.lock`)
+
 ## [0.0.18] - 2026-10-07
 
 ### Fixed
@@ -451,7 +458,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.18...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.19...HEAD
+[0.0.19]: https://github.com/fluttersdk/dusk/compare/0.0.18...0.0.19
 [0.0.18]: https://github.com/fluttersdk/dusk/compare/0.0.17...0.0.18
 [0.0.17]: https://github.com/fluttersdk/dusk/compare/0.0.16...0.0.17
 [0.0.16]: https://github.com/fluttersdk/dusk/compare/0.0.15...0.0.16
