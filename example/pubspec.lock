@@ -119,17 +119,17 @@ packages:
     dependency: transitive
     description:
       name: fluttersdk_artisan
-      sha256: "3aca597182613b2cb4e2cd1d0ed63af6b09003b821c2d739d7af179325738b35"
+      sha256: "9ef7b5c50a10441727516b45b04d74a86e524ad4e12d228a496713fc484f3300"
       url: "https://pub.dev"
     source: hosted
-    version: "0.0.19"
+    version: "0.0.20"
   fluttersdk_dusk:
     dependency: "direct main"
     description:
       path: ".."
       relative: true
     source: path
-    version: "0.0.19"
+    version: "0.0.20"
   fluttersdk_wind_diagnostics_contracts:
     dependency: transitive
     description:
