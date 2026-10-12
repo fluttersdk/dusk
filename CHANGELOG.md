@@ -10,6 +10,12 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ---
 
+## [0.0.20] - 2026-10-13
+
+### Changed
+
+- **The artisan floor names this batch's release.** `fluttersdk_artisan` moves `^0.0.19` to `^0.0.20`. The old range already admitted 0.0.20, so a fresh `pub get` resolves nothing differently; what changes is that the floor names the release this package is verified against. artisan 0.0.20 is not breaking, and a consumer inherits one behaviour from it: a `dusk:*` command run while the app is still booting, before `ext.dusk.*` is registered, now prints one retry line and exits 75 instead of an RPC stack and exit 3. The requirements tables in `doc/getting-started/installation.md` and `doc/getting-started/index.md` and the stack lines in `CLAUDE.md` and `.github/copilot-instructions.md` quote the new floor. (`pubspec.yaml`, `doc/getting-started/`, `CLAUDE.md`, `.github/copilot-instructions.md`)
+
 ## [0.0.19] - 2026-10-09
 
 ### Changed
@@ -458,7 +464,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.19...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.20...HEAD
+[0.0.20]: https://github.com/fluttersdk/dusk/compare/0.0.19...0.0.20
 [0.0.19]: https://github.com/fluttersdk/dusk/compare/0.0.18...0.0.19
 [0.0.18]: https://github.com/fluttersdk/dusk/compare/0.0.17...0.0.18
 [0.0.17]: https://github.com/fluttersdk/dusk/compare/0.0.16...0.0.17
