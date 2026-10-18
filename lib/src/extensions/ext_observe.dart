@@ -197,7 +197,12 @@ Future<developer.ServiceExtensionResponse> extDuskObserveHandler(
         // searched key are the same string.
         final int? matchIndex = data.label == ownLabel ? ownIndex : null;
         final String? role = _roleFor(data);
-        if (role != null && _isInteractive(data)) {
+        // A node absorbed by a `MergeSemantics` boundary is never sent to the
+        // platform: the boundary already carries its label, flags and actions,
+        // so emitting it too lists one control twice. It is gated here, AFTER
+        // the counter above, because the resolver still counts it and the
+        // walk still descends through it.
+        if (!node.isMergedIntoParent && role != null && _isInteractive(data)) {
           if (roleFilter == null || roleFilter.contains(role)) {
             final Map<String, dynamic>? entry = _buildCandidate(
               node: node,
