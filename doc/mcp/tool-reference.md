@@ -668,7 +668,8 @@ Return a structured candidate list of every interactive widget on screen. Implem
 Stagehand's observe-once-act-many pattern (no server-side LLM). Each candidate carries a
 re-resolvable `q<N>` ref, and candidates sharing one label stay distinct: the handle carries
 its position among the nodes that label matched, so a list of rows offering the same action
-is safe to work row by row.
+is safe to work row by row. A control wrapped in `MergeSemantics` is listed once, as its
+boundary node; the descendants it absorbs get no candidate.
 
 ### Input schema
 

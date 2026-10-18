@@ -8,6 +8,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`dusk:observe` lists a merged control once.** The walk emitted every node that carries an action, and `MergeSemantics` keeps each absorbed descendant in the tree as its own node flagged `isMergedIntoParent`, so an `MSSwitch` row came back as a 324x44 boundary plus a 44x24 duplicate and an `MSButton` "Kaydet" as 79x44 plus 79x36, while the platform sees one node. A merged node now yields no candidate and no `qN` handle; the walk still descends through it, the candidate shape is unchanged, and the boundary is still listed. The candidate count can drop for a screen with merged controls, and a script that held a candidate by position has to re-observe; a `dusk:perf_run` `{role, name, index}` target with an index above 0 now counts the same nodes `dusk:snap` lists. The per-label counter still counts merged nodes, because the find resolver does, so the `matchIndex` of every surviving handle is unchanged. (`lib/src/extensions/ext_observe.dart`)
+
 ---
 
 ## [0.0.21] - 2026-10-18

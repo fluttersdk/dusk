@@ -73,7 +73,8 @@ void registerObserveExtensions() {
 /// Handler for the `ext.dusk.observe` VM Service extension.
 ///
 /// Walks the live Semantics + Element tree once, finds every interactive node
-/// (same role detection as `ext.dusk.snap` + `ext.dusk.find`), mints a `q<N>`
+/// (same role detection as `ext.dusk.snap` + `ext.dusk.find`; a node merged
+/// into a `MergeSemantics` boundary is listed once, as the boundary), mints a `q<N>`
 /// query handle for each via [RefRegistry.registerQuery], and returns a
 /// structured JSON list. Stagehand's "observe-once-act-many" pattern WITHOUT
 /// any server-side LLM call — the caller agent decides which refs to act on.
@@ -197,7 +198,12 @@ Future<developer.ServiceExtensionResponse> extDuskObserveHandler(
         // searched key are the same string.
         final int? matchIndex = data.label == ownLabel ? ownIndex : null;
         final String? role = _roleFor(data);
-        if (role != null && _isInteractive(data)) {
+        // A node absorbed by a `MergeSemantics` boundary is never sent to the
+        // platform: the boundary already carries its label, flags and actions,
+        // so emitting it too lists one control twice. It is gated here, AFTER
+        // the counter above, because the resolver still counts it and the
+        // walk still descends through it.
+        if (!node.isMergedIntoParent && role != null && _isInteractive(data)) {
           if (roleFilter == null || roleFilter.contains(role)) {
             final Map<String, dynamic>? entry = _buildCandidate(
               node: node,

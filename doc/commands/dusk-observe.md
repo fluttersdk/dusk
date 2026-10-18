@@ -4,6 +4,8 @@ Return a structured candidate list of every interactive widget on screen. Mirror
 
 No LLM is invoked server-side. The handler walks the live Semantics tree, mints a re-resolvable `qN` handle for each interactive widget, and returns the candidate list as JSON. The agent reads the list and decides which refs to act on. This is what differentiates `dusk:observe` from a model-side `dusk:snap`: it returns a flat, role-filterable list optimised for LLM consumption rather than the full tree.
 
+A control wrapped in `MergeSemantics` is listed once, as its boundary node: the descendants it absorbs are never sent to the platform and get no candidate and no `qN` handle.
+
 The CLI surface is mostly for debugging; the MCP descriptor is the primary surface for agent integrations.
 
 ---

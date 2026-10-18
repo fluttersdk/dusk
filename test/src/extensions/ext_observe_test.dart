@@ -665,13 +665,18 @@ void main() {
               RefRegistry.lookupQuery(candidate['ref'] as String)!,
             );
 
-        expect(candidates.map(topOf), <double>[0, 8, 56]);
+        // The inner button is merged into the boundary, so it is no candidate
+        // of its own; the platform never sees it either.
+        expect(candidates.map(topOf), <double>[0, 56]);
 
-        // The two nodes that own their label resolve to themselves. These are
-        // the assertions the Major broke: counted on the merged label the
-        // middle one landed on the last and the last resolved to nothing.
-        expect(resolve(candidates[1])!.rect.top, 8);
-        expect(resolve(candidates[2])!.rect.top, 56);
+        // The plain button still resolves to itself. This is the assertion
+        // the Major broke: counted on the merged label it resolved to nothing.
+        // The counter still counts the merged inner node, as the resolver
+        // does, so the plain button keeps index 1.
+        expect(
+            RefRegistry.lookupQuery(candidates[1]['ref'] as String)!.matchIndex,
+            1);
+        expect(resolve(candidates[1])!.rect.top, 56);
 
         // And the boundary, which is the case this fix deliberately does not
         // cover, written down rather than left to pass quietly. Its own label
