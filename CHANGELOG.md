@@ -8,6 +8,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`dusk:snap` lists a merged control once.** The walk printed every semantics node that carries an action, and `MergeSemantics` keeps each absorbed descendant in the tree as its own node flagged `isMergedIntoParent`, so a wind `WSelect` or a magic_starter `MSSwitch` showed up as a `button "X" [ref=e1]` followed by a second `button "X" [ref=e2]` while the platform sees one node. A merged node is no longer printed and gets no ref; the walk still descends through it, and the line shape, the ref syntax and the textbox collapse are unchanged. Refs after a removed duplicate shift down by one each, so a script that hard-coded ref numbers has to re-snap. (`lib/src/extensions/ext_snapshot.dart`)
+
 ---
 
 ## [0.0.20] - 2026-10-13
