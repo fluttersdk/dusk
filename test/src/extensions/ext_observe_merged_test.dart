@@ -47,8 +47,11 @@ Widget _deeplyMergedButton() {
             container: true,
             button: true,
             label: 'X',
+            // A button of its own, so it would have been a candidate before the
+            // merged-node gate.
             child: Semantics(
               container: true,
+              button: true,
               label: 'Y',
               child: const SizedBox(width: 100, height: 40),
             ),

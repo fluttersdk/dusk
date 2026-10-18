@@ -73,7 +73,8 @@ void registerObserveExtensions() {
 /// Handler for the `ext.dusk.observe` VM Service extension.
 ///
 /// Walks the live Semantics + Element tree once, finds every interactive node
-/// (same role detection as `ext.dusk.snap` + `ext.dusk.find`), mints a `q<N>`
+/// (same role detection as `ext.dusk.snap` + `ext.dusk.find`; a node merged
+/// into a `MergeSemantics` boundary is listed once, as the boundary), mints a `q<N>`
 /// query handle for each via [RefRegistry.registerQuery], and returns a
 /// structured JSON list. Stagehand's "observe-once-act-many" pattern WITHOUT
 /// any server-side LLM call — the caller agent decides which refs to act on.
