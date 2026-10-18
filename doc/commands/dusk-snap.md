@@ -182,7 +182,7 @@ The collapse is by render-object containment only, never label/value equality, s
 
 ### Merged controls
 
-A control wrapped in `MergeSemantics` (a wind `WSelect`, a magic_starter `MSSwitch`) is listed once. Flutter keeps each absorbed descendant in the tree as its own node flagged `isMergedIntoParent`, so the walk used to print a `button "X"` line followed by a nested duplicate. A merged node now prints no line and mints no ref; the walk still descends through it, and the boundary line already carries the merged label, flags and actions, which is what the platform exposes. Refs after a removed duplicate shift down by one each, so a script that hard-coded ref numbers re-snaps.
+A control wrapped in `MergeSemantics` (a magic_starter `MSSwitch` row, a wind `WAnchor` around a hover `WDiv`) is listed once. Flutter keeps each absorbed descendant in the tree as its own node flagged `isMergedIntoParent`, so the walk used to print a `button "X"` line followed by a nested duplicate. A merged node now prints no line and mints no ref; the walk still descends through it, and the boundary line already carries the merged label, flags and actions, which is what the platform exposes. Refs after a removed duplicate shift down by one each, so a script that hard-coded ref numbers re-snaps.
 
 ---
 
