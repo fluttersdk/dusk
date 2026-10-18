@@ -8,11 +8,13 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+---
+
+## [0.0.21] - 2026-10-18
+
 ### Fixed
 
-- **`dusk:snap` lists a merged control once.** The walk printed every semantics node that carries an action, and `MergeSemantics` keeps each absorbed descendant in the tree as its own node flagged `isMergedIntoParent`, so a wind `WSelect` or a magic_starter `MSSwitch` showed up as a `button "X" [ref=e1]` followed by a second `button "X" [ref=e2]` while the platform sees one node. A merged node is no longer printed and gets no ref; the walk still descends through it, and the line shape, the ref syntax and the textbox collapse are unchanged. Refs after a removed duplicate shift down by one each, so a script that hard-coded ref numbers has to re-snap. (`lib/src/extensions/ext_snapshot.dart`)
-
----
+- **`dusk:snap` lists a merged control once.** The walk printed every semantics node that carries an action, and `MergeSemantics` keeps each absorbed descendant in the tree as its own node flagged `isMergedIntoParent`, so a magic_starter `MSSwitch` row showed up as a `button "X" [ref=e1]` followed by a second `button "X" [ref=e2]` while the platform sees one node. A merged node is no longer printed and gets no ref; the walk still descends through it, and the line shape, the ref syntax and the textbox collapse are unchanged. Refs after a removed duplicate shift down by one each, so a script that hard-coded ref numbers has to re-snap. A `WSelect` that still prints twice is the wind side (two real platform nodes), fixed in `fluttersdk_wind` 1.9.3. (`lib/src/extensions/ext_snapshot.dart`)
 
 ## [0.0.20] - 2026-10-13
 
@@ -468,7 +470,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.20...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.21...HEAD
+[0.0.21]: https://github.com/fluttersdk/dusk/compare/0.0.20...0.0.21
 [0.0.20]: https://github.com/fluttersdk/dusk/compare/0.0.19...0.0.20
 [0.0.19]: https://github.com/fluttersdk/dusk/compare/0.0.18...0.0.19
 [0.0.18]: https://github.com/fluttersdk/dusk/compare/0.0.17...0.0.18

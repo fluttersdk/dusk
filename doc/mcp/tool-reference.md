@@ -1235,7 +1235,7 @@ descendant of the outer node's render object. Collapse is by render-object conta
 only, so two sibling fields sharing a label stay two distinct refs. Target the node
 carrying `typeable: true` when calling `dusk_type`.
 
-A control wrapped in `MergeSemantics` (a wind `WSelect`, a magic_starter `MSSwitch`)
+A control wrapped in `MergeSemantics` (a magic_starter `MSSwitch` row, a wind `WAnchor`)
 is listed once. Flutter keeps each absorbed descendant in the tree as its own node
 flagged `isMergedIntoParent`; the walk prints no line and mints no ref for it, and
 still descends through it. The boundary line already carries the merged label, flags
