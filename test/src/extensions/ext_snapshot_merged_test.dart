@@ -31,6 +31,30 @@ Widget _mergedButton({required VoidCallback onTap}) {
   );
 }
 
+/// A merged control whose absorbed node has an absorbed child of its own, so
+/// the walk has to descend through one merged node into another.
+Widget _deeplyMergedButton() {
+  return MaterialApp(
+    home: Scaffold(
+      body: MergeSemantics(
+        child: GestureDetector(
+          onTap: () {},
+          child: Semantics(
+            container: true,
+            button: true,
+            label: 'X',
+            child: Semantics(
+              container: true,
+              label: 'Y',
+              child: const SizedBox(width: 100, height: 40),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 /// Two real controls, one nested in the other, neither merged into a parent.
 Widget _nestedButtons() {
   return MaterialApp(
@@ -109,6 +133,50 @@ void main() {
         // matched by prefix rather than whole.
         expect(_linesWith(snapshot, '- button "X'), hasLength(1));
         expect(_linesWith(snapshot, '[ref='), hasLength(1));
+      } finally {
+        handle.dispose();
+      }
+    });
+
+    testWidgets('a merged node inside a merged node prints nothing', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(_deeplyMergedButton());
+
+        // Both `X` and `Y` are absorbed, so the walk descends through `X`
+        // into `Y` before either is skipped.
+        expect(
+          _rawNodes().where((SemanticsNode node) => node.isMergedIntoParent),
+          hasLength(greaterThanOrEqualTo(2)),
+        );
+
+        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+
+        expect(_linesWith(snapshot, '[ref='), hasLength(1));
+        expect(_linesWith(snapshot, '"Y"'), isEmpty);
+      } finally {
+        handle.dispose();
+      }
+    });
+
+    testWidgets('a grep and a depth limit still see the boundary line', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(_deeplyMergedButton());
+
+        final String grepped =
+            (await duskSnapBuild(grep: 'X', interactiveOnly: true))['snapshot']
+                as String;
+        expect(_linesWith(grepped, '[ref='), hasLength(1));
+
+        RefRegistry.resetForTesting();
+        final String shallow =
+            (await duskSnapBuild(maxDepth: 1))['snapshot'] as String;
+        expect(_linesWith(shallow, '"Y"'), isEmpty);
       } finally {
         handle.dispose();
       }
