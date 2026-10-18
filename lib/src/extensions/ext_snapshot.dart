@@ -309,6 +309,29 @@ void _emitNode({
 }) {
   if (maxDepth != null && depth > maxDepth) return;
 
+  // MergeSemantics keeps each absorbed descendant in the tree as its own node,
+  // flagged here, while the platform sees only the boundary that already
+  // carries its label, flags and actions. Printing it too lists one control
+  // twice. It is skipped without taking a depth step, so anything beneath it
+  // that is not itself merged still lines up under the boundary's line.
+  if (node.isMergedIntoParent) {
+    node.visitChildren((SemanticsNode child) {
+      _emitNode(
+        node: child,
+        depth: depth,
+        maxDepth: maxDepth,
+        buffer: buffer,
+        groupId: groupId,
+        elementByRenderObject: elementByRenderObject,
+        includeEnrichers: includeEnrichers,
+        filter: filter,
+        enclosingTextboxRenderObject: enclosingTextboxRenderObject,
+      );
+      return true;
+    });
+    return;
+  }
+
   final SemanticsData data = node.getSemanticsData();
   final String label = data.label;
   final String value = data.value;
