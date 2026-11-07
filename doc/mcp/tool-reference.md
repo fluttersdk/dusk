@@ -251,6 +251,10 @@ widget's center with ~100ms between them (Playwright double-click model). Trigge
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `ref` | string | yes | Widget ref from a prior `dusk_snap`. Shape `e<N>` or `q<N>`. |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
+| `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
+| `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
+| `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
 
 ### Returns
 
@@ -342,6 +346,10 @@ Move events + Up sequence from `startRef`'s center to `endRef`'s center.
 |---|---|---|---|
 | `startRef` | string | yes | Source widget ref (`e<N>`). |
 | `endRef` | string | yes | Target widget ref (`e<N>`). |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
+| `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
+| `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
+| `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
 
 ### Returns
 
@@ -440,6 +448,8 @@ once when the ref goes stale mid-fill. Replaces the manual focus + clear + type 
 | `ref` | string | yes | Text-field ref token (`e<N>` or `q<N>`) from a prior `dusk_snap` / `dusk_find`. |
 | `text` | string | yes | Value to set. Replaces existing content. Pass `""` to clear. |
 | `includeSnapshot` | boolean | no | Embed the post-fill snapshot (default `true`). |
+| `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
+| `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
 | `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. `diff` returns only the snapshot lines the fill changed since your last unfiltered snapshot (see [`dusk_tap`](#dusk_tap)). |
 
 ### Returns
@@ -605,6 +615,10 @@ Hover a mouse cursor over a widget by ref. Mouse-only (no touch equivalent). Syn
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
+| `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
+| `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
+| `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
 
 ### Returns
 
@@ -632,6 +646,7 @@ when Magic is installed, falling back to `Navigator.of(root).pushNamed(...)`.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `route` | string | yes | Route path. Must start with `/`. Example: `/monitors/123`. |
+| `includeSnapshot` | boolean | no | Embed the post-navigation snapshot. Default `true`. |
 | `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. After a navigation `diff` mostly shows a whole new screen; it pays off when the route only changes a part of it. |
 
 ### Returns
@@ -674,6 +689,7 @@ left (a subtree under `Offstage(offstage: true)`, `TickerMode(enabled: false)` o
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
 | `includeSnapshot` | boolean | `true` | Embed the post-pop snapshot in the response. |
+| `snapshot` | string | (none) | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
 
 ### Returns
 
@@ -1009,6 +1025,8 @@ that character; text entry still goes through `dusk_type`.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `key` | string | yes | Logical key label (e.g. `Enter`, `Escape`, `Tab`, `ArrowDown`), or one letter or digit (`S`, `7`). |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
+| `includeSnapshot` | boolean | no | Embed the post-key snapshot. Default `true`. |
 | `modifiers` | array<string> | no | Subset of `control` (or `ctrl`), `shift`, `alt`, `meta`, in any case. Each is held down before the key and released after it, even when delivery throws, so exact-match shortcuts such as Shift+Tab or Ctrl+S fire. An unknown name is an error before anything is pressed. On the CLI this is a comma list (`--modifiers=control,shift`). |
 
 ### Returns
@@ -1065,24 +1083,28 @@ the session open and is the way to drive the app at the new size.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `width` | integer | yes | Viewport width in CSS pixels (e.g. `375` for mobile, `1440` for desktop). |
-| `height` | integer | yes | Viewport height in CSS pixels. |
-| `deviceScaleFactor` | number | no | Device pixel ratio (default `1.0`). Use `2.0` for Retina, `3.0` for iPhone Pro. Must be > 0. |
+| `width` | integer | no | Viewport width in CSS pixels (e.g. `375` for mobile, `1440` for desktop). Required unless `reset`: the command refuses a resize without it. |
+| `height` | integer | no | Viewport height in CSS pixels. Required unless `reset`. |
+| `dpr` | number | no | Device pixel ratio (default `1.0`). Use `2.0` for Retina, `3.0` for iPhone Pro. Must be > 0. |
 | `mobile` | boolean | no | Enable mobile device profile. Default `false`. |
 | `touch` | boolean | no | Enable touch event synthesis (browser fires touch events instead of mouse). Default `false`. |
 | `reset` | boolean | no | Clear all viewport overrides (metrics + touch + user agent). When `true`, all other params are ignored. Default `false`. |
 
 ### Returns
 
-Success: `{ viewport: { width, height, deviceScaleFactor, mobile, touch } }`. With `reset:
-true`: `{ reset: true }`.
+Success: the command's text output, `Viewport override sent: 375x812 @ 3.0x (mobile=true
+touch=true).` followed by a note that the override ends with the call. With `reset: true`:
+`Viewport reset to defaults.`
 
-Error: `cdpPort` not configured.
+Errors (the call is reported with `isError`): `CDP not enabled` when the session has no
+`cdpPort`; `A resize needs a positive --width and --height ... or --reset` when neither a size
+nor `reset` is given. An argument the schema does not list, such as the old
+`deviceScaleFactor`, is refused before the command runs.
 
 ### Example call
 
 ```json
-{ "name": "dusk_resize_viewport", "arguments": { "width": 375, "height": 812, "deviceScaleFactor": 3.0, "mobile": true, "touch": true } }
+{ "name": "dusk_resize_viewport", "arguments": { "width": 375, "height": 812, "dpr": 3.0, "mobile": true, "touch": true } }
 ```
 
 ---
@@ -1103,6 +1125,7 @@ parity). Injects `PointerDownEvent` + 50ms hold + `PointerUpEvent` (mouse kind,
 | `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
 | `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
 | `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
 
 ### Returns
 
@@ -1217,12 +1240,14 @@ ancestor of the widget identified by `ref`.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `ref` | string | yes | Widget ref (`e<N>`) inside the target Scrollable. |
+| `ref` | string | no | Widget ref (`e<N>`) inside the target Scrollable. Without it the first Scrollable found is scrolled. |
 | `direction` | string | no | `up`, `down`, `left`, `right`. Default `down`. |
 | `pixels` | number | no | Logical pixels to scroll. Default `300`. |
 | `dx` | number | no | Horizontal delta in logical pixels (positive = right). Overrides `direction` / `pixels`. |
 | `dy` | number | no | Vertical delta in logical pixels (positive = down). Overrides `direction` / `pixels`. |
 | `intoView` | boolean | no | Bring `ref` itself into view (`Scrollable.ensureVisible`) instead of scrolling by a delta. |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
+| `includeSnapshot` | boolean | no | Embed the post-scroll snapshot. Default `true`. |
 
 ### Returns
 
@@ -1329,6 +1354,7 @@ and actions, which is what the platform exposes.
 | `depth` | integer | no | Max tree-traversal depth from the root. Omit for full tree. |
 | `within` | string | no | Scope the walk to one subtree: the `e<N>` ref of the region to read. `q<N>` handles are not addressable here. An unknown ref is an error, not a silent widening. |
 | `interactiveOnly` | boolean | no | Emit only nodes carrying a ref; drop the plain `- text` lines. Default `false`. |
+| `includeEnrichers` | boolean | no | Add the Magic and Wind enricher lines under each ref. Default `false`. |
 | `grep` | string | no | Emit only nodes whose label or value matches this regular expression, plus the ancestors leading to them. A pattern that is not a valid regex (an unbalanced `(` in a label, say) is matched as a literal substring and the response carries `grepLiteral: true`. |
 
 A full tree is the wrong default answer to most questions. It costs context on any real
@@ -1400,6 +1426,9 @@ detached render objects). A button whose host rebuilt it into a shifted slot bet
 |---|---|---|---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
 | `snapshot` | string | no | Post-tap snapshot: `full` (the default), `diff` or `none`. `diff` returns only the lines the tap changed since your last unfiltered snapshot (a `dusk_snap` or an earlier action): a changed row is `- <old line>` then `+ <new line>`, an added row `+ `, a removed row `- `, then a `(K of N lines changed)` footer, and the payload adds `snapshotMode: "diff"`. With no baseline yet the full text comes back. A filtered `dusk_snap` (`grep`, `within`, `depth`, `interactiveOnly`) never records the baseline, and a hot restart clears it. |
+| `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
+| `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
+| `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
 | `retarget` | boolean | no | Default `true`: a tap on a merged boundary goes to its one labelled control. `false` taps the boundary centre. |
 | `until` | string | no | After the tap settles, poll the live element tree for a `Text` equal to this value (up to `untilTimeoutMs`) and add an `untilMatched` boolean. Confirms a navigation / state change in one call. Default off, which keeps the response shape unchanged. |
 | `untilTimeoutMs` | integer | no | Poll ceiling for `until`, in milliseconds. Default `3000`. |
@@ -1460,6 +1489,7 @@ paragraph.
 | `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
 | `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
 | `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
 
 ### Returns
 
@@ -1487,6 +1517,10 @@ append).
 |---|---|---|---|
 | `ref` | string | yes | TextField widget ref (`e<N>`). |
 | `text` | string | yes | Text to enter. Pass empty string to clear. |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
+| `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
+| `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
+| `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
 
 ### Returns
 

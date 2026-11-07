@@ -267,7 +267,8 @@ scope with `contains` plus another predicate, or use
 
 All gate-checked. All accept `ref` (required, `e<N>` or `q<N>`),
 `checkStable` (default true), `checkReceivesEvents` (default true),
-`includeSnapshot` (default true on click variants).
+`includeSnapshot` (default true) and `snapshot` (`full` | `diff` | `none`,
+which overrides `includeSnapshot`).
 
 ### dusk_tap
 
@@ -436,6 +437,7 @@ the popup walk. Returns `{ selected: true, value }`.
 | `direction` | string | no | `down` | `up`, `down`, `left` or `right`; used only when `dx` and `dy` are absent |
 | `pixels` | number | no | 300 | Distance for `direction` |
 | `intoView` | boolean | no | false | When true with `ref`, calls `Scrollable.ensureVisible` instead of scrolling by delta |
+| `snapshot` | string | no | -- | `full`, `diff` or `none`; overrides `includeSnapshot` |
 | `includeSnapshot` | boolean | no | true | Append a post-scroll snapshot |
 
 `direction` (`up`, `down`, `left`, `right`; default `down`) and `pixels`
@@ -790,12 +792,16 @@ On mobile, desktop, or web without the flag, returns
 
 | Param | Type | Required | Default | Note |
 |---|---|---|---|---|
-| `width` | integer | yes | -- | CSS pixels |
-| `height` | integer | yes | -- | CSS pixels |
-| `deviceScaleFactor` | number | no | 1.0 | Retina simulation |
+| `width` | integer | unless `reset` | -- | CSS pixels; a resize without it is refused |
+| `height` | integer | unless `reset` | -- | CSS pixels |
+| `dpr` | number | no | 1.0 | Device pixel ratio (Retina simulation) |
 | `mobile` | boolean | no | false | Mobile UA hints |
 | `touch` | boolean | no | false | Touch emulation |
-| `reset` | boolean | no | false | Clear all overrides |
+| `reset` | boolean | no | false | Clear all overrides; `{ "reset": true }` alone is enough |
+
+The override ends when the call returns (the CLI's `--hold` keeps it). Every
+tool schema is closed: an argument it does not list, such as the old
+`deviceScaleFactor`, is refused with `Additional property "..." is not allowed`.
 
 ### dusk_device_profile
 

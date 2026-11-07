@@ -43,6 +43,42 @@ import 'commands/dusk_type_command.dart';
 import 'commands/dusk_wait_command.dart';
 import 'commands/dusk_wait_for_network_idle_command.dart';
 
+// Schema properties shared by the verbs that embed a post-action snapshot or
+// run the actionability gate. artisan validates every call against the schema
+// and each schema is closed (`additionalProperties: false`), so a knob a handler
+// reads has to be listed here to be passable over MCP. The perf runner and the
+// CLI call the extensions directly: coordinate dispatch (x, y, toX, toY, drag
+// dx/dy), `reportPoint`, perf_end's `full` and screenshot's `geometry` are theirs
+// and deliberately not part of the MCP surface.
+
+/// `snapshot`: the post-action snapshot mode, overriding `includeSnapshot`.
+const Map<String, dynamic> _kSnapshotProperty = <String, dynamic>{
+  'type': 'string',
+  'enum': <String>['full', 'diff', 'none'],
+  'description': 'Post-action snapshot: the whole tree (`full`, the default), '
+      'only the lines the action changed since your last snapshot (`diff`), '
+      'or none. Overrides `includeSnapshot`.',
+};
+
+/// `includeSnapshot` for a verb that embeds the snapshot unless told not to.
+const Map<String, dynamic> _kIncludeSnapshotProperty = <String, dynamic>{
+  'type': 'boolean',
+  'description': 'Embed the post-action snapshot (default true). `snapshot` '
+      'overrides it.',
+};
+
+/// `checkStable`: the gate's stability precondition.
+const Map<String, dynamic> _kCheckStableProperty = <String, dynamic>{
+  'type': 'boolean',
+  'description': 'Run the Stable actionability gate (default true).',
+};
+
+/// `checkReceivesEvents`: the gate's hit-test precondition.
+const Map<String, dynamic> _kCheckReceivesEventsProperty = <String, dynamic>{
+  'type': 'boolean',
+  'description': 'Run the Receives-Events actionability gate (default true).',
+};
+
 /// Contributes dusk:* commands and MCP tool descriptors to the artisan
 /// dispatcher.
 ///
@@ -229,7 +265,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'them. Ancestors are kept because they carry the refs '
                     'you act on: a matching text line has none of its own.',
               },
+              'includeEnrichers': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Add the Magic and Wind enricher lines under '
+                    'each ref (default false).',
+              },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.snap',
         ),
@@ -300,8 +342,12 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Timeout in milliseconds for the `until` poll '
                     '(default 3000). Ignored when `until` is omitted.',
               },
+              'includeSnapshot': _kIncludeSnapshotProperty,
+              'checkStable': _kCheckStableProperty,
+              'checkReceivesEvents': _kCheckReceivesEventsProperty,
             },
             'required': <String>['ref'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.tap',
         ),
@@ -371,6 +417,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'full-frame capture.',
               },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.screenshot',
         ),
@@ -401,8 +448,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Widget ref token from a prior dusk_snap '
                     'call. Shape: `e<N>`.',
               },
+              'snapshot': _kSnapshotProperty,
+              'includeSnapshot': _kIncludeSnapshotProperty,
+              'checkStable': _kCheckStableProperty,
+              'checkReceivesEvents': _kCheckReceivesEventsProperty,
             },
             'required': <String>['ref'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.hover',
         ),
@@ -437,8 +489,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Target widget ref token (`e<N>`). The '
                     'drag ends at this widget\'s center.',
               },
+              'snapshot': _kSnapshotProperty,
+              'includeSnapshot': _kIncludeSnapshotProperty,
+              'checkStable': _kCheckStableProperty,
+              'checkReceivesEvents': _kCheckReceivesEventsProperty,
             },
             'required': <String>['startRef', 'endRef'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.drag',
         ),
@@ -474,8 +531,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Text to enter. Replaces existing field '
                     'content. Pass empty string to clear.',
               },
+              'snapshot': _kSnapshotProperty,
+              'includeSnapshot': _kIncludeSnapshotProperty,
+              'checkStable': _kCheckStableProperty,
+              'checkReceivesEvents': _kCheckReceivesEventsProperty,
             },
             'required': <String>['ref', 'text'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.type',
         ),
@@ -496,7 +558,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'Usage:\n'
               '- Pass `ref` of any widget inside (or below) the target '
               'Scrollable; the extension walks up to the nearest '
-              '`Scrollable` ancestor.\n'
+              '`Scrollable` ancestor. Without a `ref` it scrolls the first '
+              'Scrollable it finds.\n'
               '- Optional `direction` (default `down`) accepts `up`, '
               '`down`, `left`, `right`.\n'
               '- Optional `pixels` (default 300) tunes the scroll '
@@ -547,8 +610,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     '(`Scrollable.ensureVisible`) instead of scrolling by a '
                     'delta.',
               },
+              'snapshot': _kSnapshotProperty,
+              'includeSnapshot': _kIncludeSnapshotProperty,
             },
-            'required': <String>['ref'],
+            // No `required`: with no ref the handler scrolls the first
+            // Scrollable it finds. dusk:scroll, the CLI, is the one that
+            // insists on --ref.
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.scroll',
         ),
@@ -610,6 +678,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'continues silently.',
               },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.wait_for',
         ),
@@ -639,6 +708,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{},
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.dismiss_modals',
         ),
@@ -684,8 +754,10 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     '(`full`, the default), only the changed lines (`diff`), '
                     'or none.',
               },
+              'includeSnapshot': _kIncludeSnapshotProperty,
             },
             'required': <String>['route'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.navigate',
         ),
@@ -711,7 +783,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'are stale.',
           inputSchema: <String, dynamic>{
             'type': 'object',
-            'properties': <String, dynamic>{},
+            'properties': <String, dynamic>{
+              'snapshot': _kSnapshotProperty,
+              'includeSnapshot': _kIncludeSnapshotProperty,
+            },
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.navigate_back',
         ),
@@ -738,6 +814,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{},
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.get_routes',
         ),
@@ -789,8 +866,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'Accepts any subset of `control`, `shift`, `alt`, '
                     '`meta`.',
               },
+              'snapshot': _kSnapshotProperty,
+              'includeSnapshot': _kIncludeSnapshotProperty,
             },
             'required': <String>['key'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.press_key',
         ),
@@ -834,6 +914,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
             },
             'required': <String>['ref', 'value'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.select_option',
         ),
@@ -872,6 +953,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
             },
             'required': <String>['expression'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.evaluate',
         ),
@@ -900,6 +982,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{},
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.close_app',
         ),
@@ -969,7 +1052,15 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     're-resolve; once the scope stops resolving the handle '
                     'reports no match with a diagnostic naming it.',
               },
+              'contains': <String, dynamic>{
+                'type': 'string',
+                'description': 'Substring of a semantics label or `Text` '
+                    'data, for labels that carry dynamic parts. It is the '
+                    'last predicate tried: a `key`, `semanticsLabel` or '
+                    '`text` given with it decides the match.',
+              },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.find',
         ),
@@ -1030,6 +1121,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'default 200.',
               },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.wait_for_network_idle',
         ),
@@ -1073,6 +1165,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     '`INFO`, `WARNING`, `ERROR`. Omit to include all levels.',
               },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.console',
         ),
@@ -1133,6 +1226,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'owns its own store.',
               },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.exceptions',
         ),
@@ -1171,8 +1265,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Widget ref token from a prior dusk_snap '
                     'call. Shape: `e<N>` (e.g. `e5`, `e23`).',
               },
+              'snapshot': _kSnapshotProperty,
+              'includeSnapshot': _kIncludeSnapshotProperty,
+              'checkStable': _kCheckStableProperty,
+              'checkReceivesEvents': _kCheckReceivesEventsProperty,
             },
             'required': <String>['ref'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.dblclick',
         ),
@@ -1215,6 +1314,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
             },
             'required': <String>['ref', 'value'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.set_checkbox',
         ),
@@ -1303,6 +1403,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'including all wind sub-fields.',
               },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.observe',
         ),
@@ -1358,6 +1459,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'step.',
               },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'artisan:dusk:hot_reload_and_snap',
         ),
@@ -1390,6 +1492,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
             },
             'required': <String>['ref'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.focus',
         ),
@@ -1410,6 +1513,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Embed the post-blur snapshot (default false).',
               },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.blur',
         ),
@@ -1437,6 +1541,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
             },
             'required': <String>['ref'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.clear',
         ),
@@ -1474,8 +1579,10 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Run the Receives-Events actionability gate '
                     '(default true).',
               },
+              'snapshot': _kSnapshotProperty,
             },
             'required': <String>['ref'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.right_click',
         ),
@@ -1513,8 +1620,10 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Run the Receives-Events actionability gate '
                     '(default true).',
               },
+              'snapshot': _kSnapshotProperty,
             },
             'required': <String>['ref'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.triple_click',
         ),
@@ -1542,10 +1651,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'app.\n'
               '\n'
               'Usage:\n'
-              '- Requires `width` (integer, CSS pixels; e.g. 375 for iPhone) '
-              'and `height` (integer, CSS pixels; e.g. 812).\n'
-              '- Optional `deviceScaleFactor` (number; default 1.0) simulates '
-              'device DPR. Use 2.0 for Retina, 3.0 for iPhone Pro.\n'
+              '- A resize needs `width` (integer, CSS pixels; e.g. 375 for '
+              'iPhone) and `height` (integer, CSS pixels; e.g. 812); only '
+              '`reset` goes without them.\n'
+              '- Optional `dpr` (number; default 1.0) simulates device pixel '
+              'ratio. Use 2.0 for Retina, 3.0 for iPhone Pro.\n'
               '- Optional `mobile` (boolean; default false) enables mobile '
               'device profile (affects text sizing, viewport meta, scrolling '
               'UX).\n'
@@ -1556,7 +1666,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'all other params are ignored.\n'
               '\n'
               'Examples:\n'
-              '- `{"width": 375, "height": 812, "deviceScaleFactor": 3.0, '
+              '- `{"width": 375, "height": 812, "dpr": 3.0, '
               '"mobile": true, "touch": true}` (iPhone-X emulation).\n'
               '- `{"width": 1440, "height": 900, "reset": false}` (desktop '
               'viewport).\n'
@@ -1566,15 +1676,17 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             'properties': <String, dynamic>{
               'width': <String, dynamic>{
                 'type': 'integer',
-                'description': 'Viewport width in CSS pixels (required). '
-                    'Example: 375 for mobile, 1440 for desktop.',
+                'description': 'Viewport width in CSS pixels (required '
+                    'unless `reset`). Example: 375 for mobile, 1440 for '
+                    'desktop.',
               },
               'height': <String, dynamic>{
                 'type': 'integer',
-                'description': 'Viewport height in CSS pixels (required). '
-                    'Example: 812 for mobile, 900 for desktop.',
+                'description': 'Viewport height in CSS pixels (required '
+                    'unless `reset`). Example: 812 for mobile, 900 for '
+                    'desktop.',
               },
-              'deviceScaleFactor': <String, dynamic>{
+              'dpr': <String, dynamic>{
                 'type': 'number',
                 'description': 'Device pixel ratio (optional; default 1.0). '
                     'Use 2.0 for Retina, 3.0 for iPhone Pro DPR. Must be '
@@ -1599,7 +1711,10 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'All other params ignored when reset is true.',
               },
             },
-            'required': <String>['width', 'height'],
+            // No `required`: `{"reset": true}` names no size, and artisan
+            // refuses a call that lacks a required key before the command
+            // runs. DuskResizeCommand refuses a resize without a size.
+            'additionalProperties': false,
           },
           extensionMethod: 'artisan:dusk:resize',
         ),
@@ -1673,6 +1788,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'Preset is ignored when reset is true.',
               },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'artisan:dusk:device',
         ),
@@ -1730,8 +1846,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'only the changed lines (`diff`), or none. Overrides '
                     '`includeSnapshot`.',
               },
+              'checkStable': _kCheckStableProperty,
+              'checkReceivesEvents': _kCheckReceivesEventsProperty,
             },
             'required': <String>['ref', 'text'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.fill',
         ),
@@ -1762,6 +1881,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{},
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.reset_overlays',
         ),
@@ -1807,6 +1927,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                     'builds (optional; default false; attribution only).',
               },
             },
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.perf_begin',
         ),
@@ -1845,6 +1966,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{},
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.perf_end',
         ),
@@ -1884,6 +2006,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
             },
             'required': <String>['id'],
+            'additionalProperties': false,
           },
           extensionMethod: 'ext.dusk.perf_insight',
         ),
@@ -1976,6 +2099,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
             },
             'required': <String>['scenario'],
+            'additionalProperties': false,
           },
           extensionMethod: 'artisan:dusk:perf_run',
         ),
@@ -2019,6 +2143,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
             },
             'required': <String>['a', 'b'],
+            'additionalProperties': false,
           },
           extensionMethod: 'artisan:dusk:perf_compare',
         ),
@@ -2057,6 +2182,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
             },
             'required': <String>['out'],
+            'additionalProperties': false,
           },
           extensionMethod: 'artisan:dusk:perf_trace',
         ),
@@ -2111,6 +2237,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
             },
             'required': <String>['steps'],
+            'additionalProperties': false,
           },
           extensionMethod: 'artisan:dusk:run',
         ),

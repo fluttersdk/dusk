@@ -454,12 +454,6 @@ void main() {
       expect(required, containsAll(<String>['ref', 'text']));
     });
 
-    test('dusk_scroll declares ref as required', () {
-      final scroll = tools.firstWhere((t) => t.name == 'dusk_scroll');
-      final required = scroll.inputSchema['required'] as List<dynamic>;
-      expect(required, contains('ref'));
-    });
-
     test('dusk_navigate declares route as required', () {
       final nav = tools.firstWhere((t) => t.name == 'dusk_navigate');
       final required = nav.inputSchema['required'] as List<dynamic>;
@@ -521,10 +515,29 @@ void main() {
       expect(wait.inputSchema.containsKey('required'), isFalse);
     });
 
-    test('dusk_resize_viewport declares width and height as required', () {
+    test('dusk_resize_viewport can be called with only reset', () {
       final resize = tools.firstWhere((t) => t.name == 'dusk_resize_viewport');
-      final required = resize.inputSchema['required'] as List<dynamic>;
-      expect(required, containsAll(<String>['width', 'height']));
+      final properties =
+          resize.inputSchema['properties'] as Map<String, dynamic>;
+
+      // The description's own example is `{"reset": true}`; a `required`
+      // width and height made artisan's validator refuse it. The command
+      // refuses a resize that names no size instead.
+      expect(resize.inputSchema['required'], isNull);
+      expect(properties.keys, contains('reset'));
+    });
+
+    test('dusk_resize_viewport names the pixel ratio the command reads', () {
+      final resize = tools.firstWhere((t) => t.name == 'dusk_resize_viewport');
+      final properties =
+          resize.inputSchema['properties'] as Map<String, dynamic>;
+
+      // MCP arguments reach DuskResizeCommand under their own names, and it
+      // reads `dpr`. The schema used to say `deviceScaleFactor`, which was
+      // accepted and then ignored.
+      expect(properties.keys, contains('dpr'));
+      expect(properties.keys, isNot(contains('deviceScaleFactor')));
+      expect(resize.description, isNot(contains('deviceScaleFactor')));
     });
 
     test('dusk_device_profile does not declare required params', () {
@@ -532,18 +545,91 @@ void main() {
       expect(device.inputSchema.containsKey('required'), isFalse);
     });
 
+    test('every schema is closed: a key it does not list is refused', () {
+      // artisan wraps each schema in a dart_mcp ObjectSchema that validates
+      // call arguments, so an open schema lets a typo through to a handler
+      // that ignores it and answers with a clean response.
+      for (final tool in tools) {
+        expect(
+          tool.inputSchema['additionalProperties'],
+          isFalse,
+          reason: '${tool.name} must declare additionalProperties: false',
+        );
+      }
+    });
+
+    test('a closed schema still lists the knobs its handler reads', () {
+      // Closing a schema refuses every key it does not list, so each knob an
+      // agent is meant to pass has to be listed. The coordinate keys (x, y,
+      // toX, toY, drag dx/dy), reportPoint, perf_end's full and screenshot's
+      // geometry stay out on purpose: the perf runner and the CLI call the
+      // extensions directly, and they are not MCP surface.
+      const snapshot = ['snapshot', 'includeSnapshot'];
+      const gate = ['checkStable', 'checkReceivesEvents'];
+      final expected = <String, List<String>>{
+        'dusk_snap': ['includeEnrichers'],
+        'dusk_tap': ['includeSnapshot', ...gate],
+        'dusk_hover': [...snapshot, ...gate],
+        'dusk_drag': [...snapshot, ...gate],
+        'dusk_type': [...snapshot, ...gate],
+        'dusk_dblclick': [...snapshot, ...gate],
+        'dusk_right_click': ['snapshot'],
+        'dusk_triple_click': ['snapshot'],
+        'dusk_fill': gate,
+        'dusk_navigate': ['includeSnapshot'],
+        'dusk_navigate_back': snapshot,
+        'dusk_press_key': snapshot,
+        'dusk_find': ['contains'],
+      };
+
+      expected.forEach((name, keys) {
+        final tool = tools.firstWhere((t) => t.name == name);
+        final properties =
+            tool.inputSchema['properties'] as Map<String, dynamic>;
+
+        expect(properties.keys, containsAll(keys), reason: name);
+      });
+    });
+
+    test('the snapshot knob is the same enum on every verb that has it', () {
+      for (final tool in tools) {
+        final properties =
+            tool.inputSchema['properties'] as Map<String, dynamic>;
+        final snapshot = properties['snapshot'] as Map<String, dynamic>?;
+        if (snapshot == null) continue;
+
+        expect(snapshot['enum'], ['full', 'diff', 'none'], reason: tool.name);
+      }
+    });
+
     test('dusk_scroll lists every key the extension reads', () {
       final scroll = tools.firstWhere((t) => t.name == 'dusk_scroll');
       final properties =
           scroll.inputSchema['properties'] as Map<String, dynamic>;
 
-      // ext_scroll.dart reads these six; the schema used to list only the
+      // ext_scroll.dart reads these eight; the schema used to list only the
       // direction and pixels pair, which the extension then ignored.
       expect(
         properties.keys,
-        containsAll(
-            <String>['ref', 'direction', 'pixels', 'dx', 'dy', 'intoView']),
+        containsAll(<String>[
+          'ref',
+          'direction',
+          'pixels',
+          'dx',
+          'dy',
+          'intoView',
+          'includeSnapshot',
+          'snapshot',
+        ]),
       );
+    });
+
+    test('dusk_scroll does not require a ref: the handler walks the root', () {
+      final scroll = tools.firstWhere((t) => t.name == 'dusk_scroll');
+
+      // ext_scroll.dart falls back to the first Scrollable when no ref is
+      // given; dusk:scroll (the CLI) is the one that insists on --ref.
+      expect(scroll.inputSchema['required'], isNull);
     });
 
     test('dusk_wait_for describes a timeout as a result, not an error', () {
