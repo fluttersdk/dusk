@@ -8,6 +8,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+---
+
+## [0.0.23] - 2026-11-07
+
 ### Added
 
 - **Dusk wakes a hidden or minimised app instead of driving a frozen one.** A hidden, minimised or occluded desktop window moves the lifecycle to `hidden` and turns frame production off, so a tap reported "no observable change", a snapshot went stale and a screenshot returned the last cached frame. Every `ext.dusk.*` verb now delivers `AppLifecycleState.inactive` and then, once a frame has run, `resumed` through the `flutter/lifecycle` channel, and schedules a forced frame when frames are off and the lifecycle is `hidden` or `paused` (never `detached`); a response that forced carries `framesForced: true`. It is re-applied on every call because the OS flips the lifecycle back to `hidden` on its next occlusion event. The wake counts only when a frame actually runs after it (otherwise the previous lifecycle is delivered again, unless the engine sent one of its own meanwhile), and it is never attempted in the app on web, where Chrome withholds animation frames from a hidden tab; the CLI sends `Page.bringToFront` there instead (see the web recovery entry below). Verified on macOS with the window hidden through `osascript` (`dusk:tap`, `dusk:snap`, `dusk:screenshot` and `dusk:navigate` all work) and on web with a second tab in front (warnings returned, nothing claimed as forced). The perf verbs, `boot_id`, `close_app`, `console`, `exceptions`, `semantics_hold` and `evaluate` observe the engine as it is and do not force. The app's lifecycle observers see `resumed` while this happens; `--dart-define=DUSK_FORCE_FRAMES=false` (`kDuskForceFrames`) turns it off. (`lib/src/utils/frame_sync.dart`, `lib/src/utils/dusk_register.dart`, `lib/src/utils/dusk_response.dart`, `lib/src/extensions/`, `doc/reference/frame-production.md`)
@@ -522,7 +526,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.22...HEAD
+[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.23...HEAD
+[0.0.23]: https://github.com/fluttersdk/dusk/compare/0.0.22...0.0.23
 [0.0.22]: https://github.com/fluttersdk/dusk/compare/0.0.21...0.0.22
 [0.0.21]: https://github.com/fluttersdk/dusk/compare/0.0.20...0.0.21
 [0.0.20]: https://github.com/fluttersdk/dusk/compare/0.0.19...0.0.20
