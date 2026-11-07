@@ -717,7 +717,9 @@ inViewport, occluded, enrichers: { ... } }, ... ] }`. `inViewport` is `false` wh
 bounds lie outside the view; `occluded` is `true` when a hit test at the bounds' centre
 reaches a widget painted above the candidate instead of the candidate itself (`false` for
 a candidate that is not visible, since it has no centre worth probing). `isVisible` keeps
-its meaning: non-empty bounds that overlap the viewport. The enricher subset projects
+its meaning: non-empty bounds that overlap the viewport. A merged candidate whose bounds'
+centre is not on its own control also carries `tapOwner: {x, y, w, h}` (the control's rect,
+which a `dusk_tap` goes to); every other candidate omits it. The enricher subset projects
 `magicFormField`, `magicRoute`, `magicGateResult`, `wind.breakpoint`, `wind.states` by
 default.
 
@@ -1343,6 +1345,10 @@ A ref line may end with ` [offscreen]` (the widget lies outside the viewport) an
 `[ref=e<N>]`. Both are absent on a healthy screen. An offscreen node is never probed for
 occlusion, and a node with no area carries neither marker.
 
+A merged node whose centre is not on its own control also gets an indented
+`tapOwner: {"x":..,"y":..,"w":..,"h":..}` sub-line (the control's rect); a `dusk_tap` on that
+ref goes to the control.
+
 When non-fatal render or build `FlutterError`s are in the capture buffer (for example a
 `ParentDataWidget` misuse or a layout overflow), a `renderErrors` block is added to the
 response:
@@ -1391,6 +1397,7 @@ detached render objects). A button whose host rebuilt it into a shifted slot bet
 |---|---|---|---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
 | `snapshot` | string | no | Post-tap snapshot: `full` (the default), `diff` or `none`. `diff` returns only the lines the tap changed since your last unfiltered snapshot (a `dusk_snap` or an earlier action): a changed row is `- <old line>` then `+ <new line>`, an added row `+ `, a removed row `- `, then a `(K of N lines changed)` footer, and the payload adds `snapshotMode: "diff"`. With no baseline yet the full text comes back. A filtered `dusk_snap` (`grep`, `within`, `depth`, `interactiveOnly`) never records the baseline, and a hot restart clears it. |
+| `retarget` | boolean | no | Default `true`: a tap on a merged boundary goes to its one labelled control. `false` taps the boundary centre. |
 | `until` | string | no | After the tap settles, poll the live element tree for a `Text` equal to this value (up to `untilTimeoutMs`) and add an `untilMatched` boolean. Confirms a navigation / state change in one call. Default off, which keeps the response shape unchanged. |
 | `untilTimeoutMs` | integer | no | Poll ceiling for `until`, in milliseconds. Default `3000`. |
 
@@ -1402,12 +1409,17 @@ subtree differed after the tap, false when nothing observable happened. With `un
 the response also carries `untilMatched: true|false` (true when the expected text appeared
 within the window).
 
-**Tap point outside the control.** A tap at the centre of a `MergeSemantics` boundary can
-land in empty space beside the control that carries the handler while the gate still says
-confirmed (issue #60). When the point lies outside every tap carrier inside the boundary
-(found through the element tree; `Semantics(onTap)` and `GestureDetector` carriers only) the
-response adds `tapPointOutsideOwner: {ownerRect: {left, top, width, height}, point: {x, y}}`.
-The gate is unchanged.
+**A merge boundary taps its own control.** A tap at the centre of a `MergeSemantics`
+boundary can land on another handler (a full-frame stage) while the gate still says
+confirmed (issue #60). When exactly one labelled control owns the merged label and a hit test
+at its centre reaches it inside the viewport, the pointer goes there and the response adds
+`retargeted: {from: {x, y}, to: {x, y}, ownerRect: {left, top, width, height}, centreHandled?}`
+(`centreHandled: true` when the centre has a tap handler of its own). Pass `retarget: false` to
+tap the centre instead. When retargeting is not safe (several candidates, or the control is
+covered or off screen) the tap stays at the centre and the response adds
+`tapPointOutsideOwner: {ownerRect, point}`. The gate is unchanged. `dusk_snap` and
+`dusk_observe` show the control's rect ahead of time as `tapOwner` (with `retargets: false`
+when a tap cannot go there). Only `dusk_tap` retargets.
 
 Error: actionability gate failure (`"not enabled"` / `"zero rect"` / `"off-viewport"`) or
 stale-handle.

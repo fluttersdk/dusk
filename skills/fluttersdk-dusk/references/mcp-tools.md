@@ -1,9 +1,9 @@
 # MCP tools reference
 
-The 40 `dusk_*` MCP tools an LLM agent calls to drive a running Flutter app.
+The `dusk_*` MCP tools an LLM agent calls to drive a running Flutter app.
 Each entry: one-line purpose, input schema, return shape, when to use it,
-common errors. Use this file as a lookup; the agent rarely needs all 40 in
-the same session.
+common errors. Use this file as a lookup; the agent rarely needs every tool
+in the same session.
 
 ## Contents
 
@@ -29,25 +29,24 @@ The MCP client forwards `tools/call` to the artisan server
 (`dart run fluttersdk_dusk mcp:serve`). The server dispatches to one of:
 
 - An `ext.dusk.*` VM Service extension running inside the Flutter isolate
-  (33 tools).
-- An `artisan:dusk:*` substrate command running outside the isolate
-  (6 tools: `dusk_hot_reload_and_snap`, `dusk_resize_viewport`,
-  `dusk_device_profile`, `dusk_perf_run`, `dusk_perf_compare`,
-  `dusk_perf_trace`).
+  (most tools).
+- An `artisan:dusk:*` substrate command running outside the isolate:
+  `dusk_hot_reload_and_snap`, `dusk_resize_viewport`, `dusk_device_profile`,
+  `dusk_run`, `dusk_perf_run`, `dusk_perf_compare` and `dusk_perf_trace`.
 
 Every tool returns a JSON object via `ServiceExtensionResponse.result` on
 success. Failures return a `DuskErrorEnvelope`: at minimum `{ message }`,
 often with `{ reason, ref, method }` for agent branching.
 
-Three fields can appear on any `ext.dusk.*`-backed success payload (33
-tools).
+These fields can appear on any `ext.dusk.*`-backed success payload.
 
 `framesForced: true` means the desktop window was hidden and dusk woke it
-for this call (a hidden browser tab cannot be woken) (it delivers `AppLifecycleState.resumed` and forces a frame
-at the start of every verb except the perf verbs, `boot_id`, `close_app`,
-`console`, `exceptions`, `semantics_hold` and `evaluate`). The result is
-fresh. The app's lifecycle observers see `resumed`;
-`--dart-define=DUSK_FORCE_FRAMES=false` turns the forcing off.
+for this call: it delivers `AppLifecycleState.inactive`, waits for a frame,
+then `resumed`, at the start of every verb except the perf verbs, `boot_id`,
+`close_app`, `console`, `exceptions`, `semantics_hold` and `evaluate`. The
+result is fresh. A hidden browser tab cannot be woken. The app's lifecycle
+observers see `resumed`; `--dart-define=DUSK_FORCE_FRAMES=false` turns the
+forcing off.
 
 `warnings` is present only while the app is not producing frames and dusk
 could not force them (that opt-out, or a `detached` app). It means the
@@ -101,6 +100,7 @@ with stable `[ref=eN]` tokens.
 | `within` | string | no | whole tree | `e<N>` ref of the subtree to walk. `q<N>` handles are not addressable here |
 | `interactiveOnly` | boolean | no | false | Emit only ref-bearing nodes; drop the plain `- text` lines |
 | `grep` | string | no | none | Emit only nodes whose label or value matches this regex, plus the ancestors leading to them. An invalid regex is matched as a literal substring and the response carries `grepLiteral: true` |
+| `includeEnrichers` | boolean | no | false | Add the Magic and Wind enricher lines under each ref |
 
 **Returns.** `{ snapshot: "<yaml>", groupId: "snapshot-<timestamp>" }`.
 
@@ -108,7 +108,9 @@ YAML format per interactive node: `- <role> "<label>": "<value>" [ref=eN]`
 followed by indented enricher lines (`magicFormField: email`, `magicRoute:
 /login`, `wind: { breakpoint: lg, states: [hover] }`, etc.). The line may
 end with ` [offscreen]` (outside the viewport) and/or ` [occluded]` (another
-widget covers its centre); a healthy screen has neither.
+widget covers its centre); a healthy screen has neither. A node can also carry
+`overflow: true` (an overflowing ancestor), and the response a `renderErrors`
+block when non-fatal render errors were captured.
 
 **Use it.** As the first call of any new agent session, or whenever the
 UI mutates (navigation, modal open, hot-reload). Re-snap after each act
@@ -171,7 +173,9 @@ observe once, then act many times without re-observing.
 
 `inViewport` is false when the bounds lie outside the view; `occluded` is
 true when a hit test at the bounds' centre reaches a widget painted above the
-candidate. Check both before tapping a candidate on a busy screen.
+candidate. Check both before tapping a candidate on a busy screen. A merged candidate
+whose centre is not on its own control also carries `tapOwner: {x, y, w, h}`, the control's
+rect; `dusk_tap` goes there.
 
 **Use it.** When the agent needs to enumerate candidates (form fill,
 "find every submit button on the page", "list every link in the
@@ -267,8 +271,11 @@ All gate-checked. All accept `ref` (required, `e<N>` or `q<N>`),
 
 ### dusk_tap
 
-`ref` (required), `snapshot` (`full` | `diff` | `none`, optional). Down +
-50ms hold + Up at the widget's center. Returns `{ ref, effect, snapshot? }`.
+`ref` (required), `snapshot` (`full` | `diff` | `none`, optional), `retarget`
+(default true, see below), `until` and `untilTimeoutMs` (optional). Down + 50ms
+hold + Up at the widget's center. Returns `{ ref, effect, snapshot? }`. With
+`until: "<text>"` the call also polls the live tree (up to `untilTimeoutMs`,
+default 3000) for a `Text` equal to it and adds an `untilMatched` boolean.
 
 `snapshot: "diff"` returns only the snapshot lines the tap changed since your
 last unfiltered snapshot (a `dusk_snap` or an earlier action): a changed row is
@@ -277,9 +284,17 @@ last unfiltered snapshot (a `dusk_snap` or an earlier action): a changed row is
 baseline yet the full text comes back; a filtered `dusk_snap` never records
 one, and a hot restart clears it. `"none"` drops the snapshot.
 
-When the tap point lies outside the control inside a merged boundary the
-response adds `tapPointOutsideOwner: { ownerRect, point }` (the gate still says
-confirmed): the tap may have hit something else, so check the result.
+A tap on a merged (`MergeSemantics`) boundary goes to the one labelled control
+that owns the merged label and the response adds `retargeted: { from, to,
+ownerRect, centreHandled? }` (the gate still judges the boundary's centre).
+`centreHandled: true` means the centre has a tap handler of its own (a stage
+that pauses, a row that opens): pass `retarget: false` to tap that instead.
+When retargeting is not safe (several candidates, or the control is covered or
+off screen) the tap stays at the centre and the response adds
+`tapPointOutsideOwner: { ownerRect, point }`: it may have hit something else,
+so check the result. Snapshot and observe show the control ahead of time as
+`tapOwner` (with `retargets: false` when a tap cannot go there). Only `dusk_tap`
+retargets; the other pointer verbs use the centre.
 
 ### dusk_dblclick
 
@@ -421,6 +436,10 @@ the popup walk. Returns `{ selected: true, value }`.
 | `intoView` | boolean | no | false | When true with `ref`, calls `Scrollable.ensureVisible` instead of scrolling by delta |
 | `includeSnapshot` | boolean | no | true | Append a post-scroll snapshot |
 
+The extension reads only `dx`, `dy` and `intoView`. The tool schema also lists
+`direction` and `pixels`; the extension ignores them (the CLI translates them
+into `dx` / `dy`), so pass `dx` / `dy` from MCP.
+
 **Returns.** `{ scrolled, finalOffset, effect, snapshot? }`. `scrolled` is
 true only when the offset moved; with no scrollable around the ref, or one
 already at its edge, it is false and `effect.changed` is false.
@@ -546,15 +565,18 @@ Idempotent, so it is safe to call speculatively between flows. Prefer it over
 | `limit` | integer | no | 50 | Newest-first cap |
 | `minLevel` | string | no | (all) | `INFO`, `WARNING`, `ERROR`, etc. |
 
-Returns `{ logs: [{ level, loggerName, message, time, error?, stackTrace? }], count }`.
-Empty when telescope is not set up.
+Returns `{ logs: [{ level, logger, message, time, error?, stackTrace? }], count }`.
+It also lists the app's own `debugPrint` output (logger `debugPrint`), so it is
+not empty without telescope; the telescope entries are the part that needs the
+adapter.
 
 ### dusk_exceptions
 
 `limit` (default 20), `since` (ISO8601, entries strictly after it),
 `clear` (empty the in-package buffer AFTER the read). Returns
-`{ exceptions: [{ exceptionType, message, time, stackTrace? }], count }`.
-Works without telescope: dusk keeps its own non-fatal FlutterError buffer.
+`{ exceptions: [{ type, message, time, stackHead? }], count }`, where `type` is
+`overflow` for a layout overflow. Works without telescope: dusk keeps its own
+non-fatal FlutterError buffer.
 
 **The buffer is cumulative, so read it as a delta.** One real fault at boot
 rides along on every later read, and a per-route sweep then reports it
@@ -655,7 +677,7 @@ instead.
 | `platform` | string | no | from session | `chrome`, `android`, or `ios` |
 | `timing` | boolean | no | false | Also run interleaved timing-mode repeats |
 | `against` | string | no | -- | Baseline scenario YAML run in the same rounds |
-| `semantics-pass` | boolean | no | false | Also measure with the semantics tree released (unsupported for fill/type/scroll) |
+| `semantics-pass` | boolean | no | false | CLI flag (`dusk:perf_run --semantics-pass`); not in the MCP schema. Also measures with the semantics tree released (unsupported for fill/type/scroll) |
 | `json` | boolean | no | false | Print the summary as JSON |
 
 Repeats the scenario from a clean start (hot restart, or a relaunch on a

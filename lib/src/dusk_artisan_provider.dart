@@ -282,6 +282,12 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Post-tap snapshot: the whole tree (`full`, '
                     'the default), only the changed lines (`diff`), or none.',
               },
+              'retarget': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Default true: a tap on a merged boundary goes '
+                    'to its one labelled control. Pass false to tap the '
+                    "boundary's centre instead.",
+              },
               'until': <String, dynamic>{
                 'type': 'string',
                 'description': 'After the tap settles, poll the live element '

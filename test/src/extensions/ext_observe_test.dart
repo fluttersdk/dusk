@@ -9,6 +9,8 @@ import 'package:fluttersdk_dusk/src/extensions/ext_observe.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
 import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
 
+import '../../_support/merged_stage.dart';
+
 /// Fake resolver that emits the 6 core wind fields for any Element.
 /// Used to assert the new `WindDebugRegistry` walk in `_mergeEnricherFields`
 /// (wind alpha-10 replaces the enricher-list contribution).
@@ -1171,6 +1173,72 @@ void main() {
         expect(inside['occluded'], isFalse);
       },
     );
+  });
+
+  group('extDuskObserveHandler — merged boundary tapOwner (#60)', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'the issue tree lists the Skip intro candidate with its owner rect',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          mergedStageApp(onStageTap: () {}, onSkip: () {}),
+        );
+
+        final response = await extDuskObserveHandler(
+          'ext.dusk.observe',
+          <String, String>{},
+        );
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final Map<String, dynamic> skip =
+            (decoded['candidates'] as List<dynamic>)
+                .cast<Map<String, dynamic>>()
+                .singleWhere(
+                  (Map<String, dynamic> c) => c['label'] == 'Skip intro',
+                );
+        expect(
+          skip['tapOwner'],
+          equals(<String, dynamic>{
+            'x': 656.0,
+            'y': 536.0,
+            'w': 120.0,
+            'h': 40.0,
+            'centreHandled': true,
+          }),
+        );
+      },
+    );
+
+    testWidgets('a plain button has no tapOwner key', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ElevatedButton(onPressed: () {}, child: const Text('Save')),
+          ),
+        ),
+      );
+
+      final response = await extDuskObserveHandler(
+        'ext.dusk.observe',
+        <String, String>{},
+      );
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final List<Map<String, dynamic>> candidates =
+          (decoded['candidates'] as List<dynamic>).cast<Map<String, dynamic>>();
+      expect(candidates, isNotEmpty);
+      expect(candidates.any((c) => c.containsKey('tapOwner')), isFalse);
+    });
   });
 
   group('extDuskObserveHandler — MCP descriptor constants', () {

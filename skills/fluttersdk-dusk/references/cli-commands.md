@@ -40,14 +40,14 @@ rebuild: `rm -rf .artisan/cli-bundle .artisan/build.stamp && ./bin/fsa list`.
 | `--ref=<eN\|qN>` | (required) | Target widget for click / text / focus / checkbox |
 | `--checkStable` / `--no-checkStable` | true | Skip the 2-frame stability check |
 | `--checkReceivesEvents` / `--no-checkReceivesEvents` | true | Skip the hit-test check |
-| `--includeSnapshot` / `--no-includeSnapshot` | true (actions), false (reads) | Append post-action snapshot |
+| `--includeSnapshot` / `--no-includeSnapshot` | false on the CLI (the MCP tools default to true) | Append the post-action snapshot; `--snapshot=full\|diff\|none` overrides it |
 | `--timeoutMs=<ms>` | 5000 | Hard timeout for waits |
-| `--format=<jpeg\|png>` | jpeg | Screenshot encoding |
+| `--format=<jpeg\|png>` | inferred from `--output`, else jpeg | Screenshot encoding |
 
-CLI option names match MCP `inputSchema` property names verbatim
-(camelCase: `--checkStable`, `--includeSnapshot`, `--timeoutMs`,
-`--startRef`, etc.). The CLI does no key translation between the two
-surfaces.
+CLI option names match MCP `inputSchema` property names (camelCase:
+`--checkStable`, `--includeSnapshot`, `--timeoutMs`, etc.) except where a verb
+documents an alias (`dusk:drag` takes `--fromRef` / `--toRef`; `--startRef` /
+`--endRef` are legacy aliases, and the MCP tool uses `startRef` / `endRef`).
 
 ## Output
 
@@ -81,7 +81,7 @@ The one-line summaries name a no-op instead of ticking it (`--json` and
 | `dusk:navigate` | `navigated == false` prints `No navigation: ...` |
 | `dusk:navigate_back` | `popped == false` prints `Nothing to pop` |
 | `dusk:scroll` | `effect.changed == false` prints `nothing moved` |
-| `dusk:tap` | a tap point outside the control's own area prints one stderr warning (`tapPointOutsideOwner`) |
+| `dusk:tap` | a tap on a merged boundary goes to its labelled control and the summary says so (`retargeted`); when it cannot, one stderr warning (`tapPointOutsideOwner`) |
 | `dusk:fill`, `dusk:type` | when the field written was the `nearest` one (the ref overlapped no field) a warning names it |
 | `dusk:hot_reload_and_snap` | exits `1` when `reloaded` is false (the JSON is still on stdout) |
 
@@ -124,6 +124,7 @@ workaround.
 ./bin/fsa dusk:snap --within=e12              # one region only
 ./bin/fsa dusk:snap --interactiveOnly         # refs only, no prose
 ./bin/fsa dusk:snap --grep="Sign ?in"         # matches + the path to them
+./bin/fsa dusk:snap --includeEnrichers        # add the Magic / Wind lines under each ref
 ./bin/fsa dusk:observe --roles=textbox,button --limit=20
 ./bin/fsa dusk:observe --intent="login fields" --includeEnrichers=full
 ./bin/fsa dusk:screenshot -o page.jpg
@@ -157,7 +158,9 @@ Returns `{ "ref": "q3", "matched": true }` or `{ "ref": null, "matched": false }
 ./bin/fsa dusk:right_click --ref=e8
 ./bin/fsa dusk:triple_click --ref=e15
 ./bin/fsa dusk:hover --ref=e9                                 # mouse-only
-./bin/fsa dusk:drag --startRef=e5 --endRef=e6
+./bin/fsa dusk:drag --fromRef=e5 --toRef=e6
+./bin/fsa dusk:tap --ref=e7 --no-retarget                     # tap a merged boundary's centre, not its labelled control
+./bin/fsa dusk:tap --ref=e7 --until="Saved"                   # then poll for that text (--untilTimeoutMs, default 3000)
 ```
 
 ### Text input
@@ -207,6 +210,7 @@ written; label and static-text refs still use the nearest one, with a warning.
 ./bin/fsa dusk:scroll --dy=600                                  # scroll root down 600px
 ./bin/fsa dusk:scroll --ref=e3 --dy=-400                        # scroll a specific scrollable up
 ./bin/fsa dusk:scroll --ref=q5 --intoView                       # bring q5 into view
+./bin/fsa dusk:scroll --dx=300                                  # horizontal; --direction=up|down|left|right with --pixels also works
 ```
 
 ### Wait
@@ -214,6 +218,7 @@ written; label and static-text refs still use the nearest one, with a warning.
 ```bash
 ./bin/fsa dusk:wait --text="Saved"
 ./bin/fsa dusk:wait --textGone="Loading" --timeoutMs=10000
+./bin/fsa dusk:wait --expression="Order placed"                 # text presence, not a Dart expression
 ./bin/fsa dusk:wait_for_network_idle
 ./bin/fsa dusk:wait_for_network_idle --idleMs=800 --timeoutMs=8000
 ```
@@ -249,9 +254,12 @@ speculatively between flows; reach for it when the overlay is not a
 ./bin/fsa dusk:console --minLevel=WARNING --limit=20
 ./bin/fsa dusk:exceptions
 ./bin/fsa dusk:exceptions --limit=5
+./bin/fsa dusk:exceptions --since=2026-11-07T10:00:00Z --clear   # a delta; --clear empties the buffer after the read
 ```
 
-Empty arrays when telescope is not set up.
+`dusk:exceptions` works without telescope (dusk keeps its own buffer);
+`dusk:console` lists the app's `debugPrint` output and adds telescope entries
+when the adapter is wired.
 
 ### App control
 
@@ -292,6 +300,7 @@ between steps, because `e<N>` refs belong to one snapshot.
 ./bin/fsa dusk:device --reset                                   # clear overrides
 
 ./bin/fsa dusk:resize --width=1280 --height=800 --dpr=2.0 --hold &   # keep it while you drive
+./bin/fsa dusk:resize --width=390 --height=844 --mobile --touch  # emulate a phone (mobile flag, touch events)
 ./bin/fsa dusk:resize --reset
 ```
 
@@ -308,17 +317,23 @@ Launch Chrome with the debug port first: `./bin/fsa start --device=chrome --cdp-
 ```bash
 ./bin/fsa dusk:perf_begin                                      # attribution mode (default)
 ./bin/fsa dusk:perf_begin --mode=timing                        # frame timings only, no profiling flag
+./bin/fsa dusk:perf_begin --phases                              # also profile layout and paint (attribution mode)
 ./bin/fsa dusk:tap --ref=e7                                     # drive exactly one interaction
 ./bin/fsa dusk:perf_end                                        # closes the session, reports insights
 ./bin/fsa dusk:perf_insight --id=I1                             # drill into one insight's rows
 
 ./bin/fsa dusk:perf_run --scenario=perf/login.yaml --label=baseline
+#   more: --variant --out --repeat --platform --timing --against --semantics-pass
 ./bin/fsa dusk:perf_compare build/perf/login-baseline.json build/perf/login-candidate.json
 ./bin/fsa dusk:perf_trace --out=build/perf/trace.json           # last closed session as Chrome Trace JSON
 
 rm -f .artisan/build.stamp                                      # rebuild a dispatcher a dusk change missed
 ./bin/fsa dusk:perf_campaign tool/perf/campaign.yaml --platform=chrome --label=base
+#   more: --out --only --device --cdp-port --timing --semantics-pass
 ```
+
+`dusk:perf_insight` and `dusk:perf_trace` take `--token` to name the closed
+session they read.
 
 Check `refused` in `dusk:perf_end`'s output first: a session the engine did
 not render through (a backgrounded browser tab on web, a hidden window on

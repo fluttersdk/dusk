@@ -104,6 +104,8 @@ A ref line may end with ` [offscreen]` and/or ` [occluded]` after `[ref=eN]`:
 
 `[offscreen]` means the widget lies outside the viewport (scroll it into view with `dusk:scroll --intoView`). `[occluded]` means a hit test at its centre reaches a widget painted above it, such as a dialog or an overlay (dismiss that first). A healthy screen prints neither, so the output is unchanged. An offscreen node is never probed for occlusion, and a node with no area carries neither marker.
 
+A merged node (a `MergeSemantics` boundary) whose centre is not on its own control gets one more indented sub-line, `tapOwner: {"x":656.0,"y":536.0,"w":120.0,"h":40.0}`: the control's rect in logical pixels. A tap on that ref goes to that control (see [`dusk:tap`](dusk-tap.md)) unless the object says `"retargets":false` (several candidates, or the control is covered or off screen), and `"centreHandled":true` means the centre has a tap handler of its own that `--no-retarget` would tap. The line is absent on every other node (#60).
+
 When `--includeEnrichers` is set, each entry gains indented lines contributed by the registered enrichers (see [Enricher fragments](#enricher-fragments)).
 
 ### The diff baseline

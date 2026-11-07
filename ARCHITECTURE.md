@@ -13,7 +13,7 @@ lib/
 └── src/
     ├── extensions/              # in-isolate: one ext_<verb>.dart per ext.dusk.* group + register_dusk_extensions.dart aggregator
     ├── commands/                # host-side: one ArtisanCommand per file + shared helpers (json_output, frame_warning_output, web_visibility)
-    ├── utils/                   # mostly in-isolate helpers (actionability_gate, dusk_register, dusk_response, effect_report, frame_sync, viewport_visibility, snapshot_diff, key_press, error_envelope, perf_readers, perf_interaction); dusk_exceptions and chrome_reaper are plain Dart
+    ├── utils/                   # mostly in-isolate helpers (actionability_gate, dusk_register, dusk_response, effect_report, frame_sync, viewport_visibility, snapshot_diff, tap_owner, key_press, error_envelope, perf_readers, perf_interaction); dusk_exceptions and chrome_reaper are plain Dart
     ├── perf/                    # host-side only (never imports Flutter): scenario/campaign loading and the perf_run driver
     ├── cdp/                     # cdp_client, chrome_finder, page_visibility, device_presets
     ├── dusk_plugin.dart         # DuskPlugin.install() entry, enricher list, navigate adapter
@@ -149,7 +149,7 @@ A `dusk:observe` handle carries one extra field, `DuskQuery.matchIndex`, and the
 
 `resolveRefForAction(ref)` in `lib/src/extensions/ext_pointer.dart` dispatches by prefix.
 
-A tap on a ref inside a `MergeSemantics` boundary lands on the boundary's centre, because the absorbed descendants have no `SemanticsNode` of their own (issue #60). The tap is still dispatched at that centre (it is not retargeted); `_tapPointOutsideOwner` in the same file finds the real carriers (`Semantics(onTap)` or a gesture detector) through the element tree and, when the point is inside none of them, adds a `tapPointOutsideOwner` block (`ownerRect`, `point`) that `dusk:tap` prints as a warning. A carrier the element tree does not expose is not detected, and the block is then absent.
+A tap on a ref inside a `MergeSemantics` boundary lands on the boundary's centre, because the merged node reports the boundary's own rect and the absorbed controls (flagged `isMergedIntoParent`) get no ref (issue #60). `judgeTapPoint` in `lib/src/utils/tap_owner.dart` finds the tap carriers beneath the boundary through the element tree. The owner is the labelled one: a `Semantics` whose label is part of the node's merged label, so a full-frame handler with no label can never hide the miss. With exactly one owner whose centre lies inside the viewport and a hit probe reaches (a root-only probe counts only on web), `aiTestTapHandler` sends the pointer there (`retargeted`, with `centreHandled` when the centre had a handler of its own, and `retarget: false` opts out); otherwise it taps the centre and reports `tapPointOutsideOwner`, a warning `dusk:tap` prints. With no labelled carrier it compares against every carrier. Snapshot and observe call the same function (`tapOwnerBounds`) to print a `tapOwner` sub-line and field. The gate still judges the boundary's centre, and a carrier the element tree does not expose is not detected.
 
 ## CDP layer
 
@@ -175,7 +175,7 @@ The steps for adding a verb are in `.claude/rules/extensions.md` and `commands.m
 
 | Change | Touch | Also check |
 |---|---|---|
-| Snapshot line format or a merged-node rule | `ext_snapshot.dart` and `ext_observe.dart` | They list nodes separately: #56 fixed snapshot and #58 had to fix observe again. `snapshot_diff.dart` parses the snapshot's `[ref=eN]` lines. |
+| Snapshot line format or a merged-node rule | `ext_snapshot.dart` and `ext_observe.dart` | They list nodes separately: #56 fixed snapshot and #58 had to fix observe again. `snapshot_diff.dart` parses the snapshot's `[ref=eN]` lines. Both print the merged node's `tapOwner` through `tapOwnerBounds` in `utils/tap_owner.dart`. |
 | Text-input resolution (which field a ref writes) | `ext_text_input.dart` | `ext_fill.dart` shares `resolveTextFieldTarget` and `refuseNonTextRef`; four consecutive `text-input` fixes touched only `ext_text_input.dart`, so check that `fill` still agrees. |
 | Gate precondition or hit probe | `utils/actionability_gate.dart`, `utils/viewport_visibility.dart` | `probeHitAt` also feeds the snapshot `[occluded]` marker and observe `occluded`; the gate's reason substrings are frozen. |
 | A key every success response should carry | `utils/dusk_response.dart` (`duskResult`) | Per-call state travels in a zone value set by `dusk_register.dart`, not a parameter. |

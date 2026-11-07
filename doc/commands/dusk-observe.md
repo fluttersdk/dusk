@@ -83,6 +83,7 @@ Every candidate ships with:
 - The Semantics `label` (visible text or explicit a11y label).
 - The widget `rect` as `[left, top, width, height]`.
 - `inViewport`, `false` when the bounds lie outside the view, and `occluded`, `true` when a hit test at the bounds' centre reaches a widget painted above the candidate instead of the candidate itself. `isVisible` is unchanged (non-empty bounds that overlap the viewport); `occluded` is only probed for a visible candidate, so it is `false` for one that is not.
+- `tapOwner`, `{x, y, w, h}`, only on a merged candidate (a `MergeSemantics` boundary) whose bounds' centre is not on its own control: the control's rect, which a `dusk:tap` on the candidate goes to unless `retargets` is `false` (#60); `centreHandled: true` means the centre has a tap handler of its own. Absent on every other candidate.
 - The available `actions` list (typically a subset of `tap`, `focus`, `type`, `scroll`).
 - The `enrichers` map when `includeEnrichers` is `true` or `full`.
 

@@ -13,6 +13,7 @@ import '../ref_registry.dart';
 import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
+import '../utils/tap_owner.dart';
 import '../utils/viewport_visibility.dart';
 
 // ---------------------------------------------------------------------------
@@ -342,6 +343,12 @@ Map<String, dynamic>? _buildCandidate({
     'inViewport': inViewport,
     'occluded': occluded,
   };
+
+  // #60: present only on a merge boundary whose centre is not on its control,
+  // so a healthy candidate keeps the shape it had.
+  final Map<String, Object>? tapOwner =
+      tapOwnerBounds(node: node, element: element, rect: rect);
+  if (tapOwner != null) candidate['tapOwner'] = tapOwner;
 
   // Merge enricher-projected fields per mode. Off => emit nothing extra.
   if (mode != _EnricherMode.off) {
