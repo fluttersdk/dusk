@@ -32,7 +32,7 @@ launched for dusk; one MCP endpoint, one server, plugin-extensible.
 This means every `.mcp.json` snippet that wires the substrate MCP server already gives the
 AI client access to the dusk tools. There is no separate `fluttersdk_dusk:mcp` binary to
 add, no second `cwd` to configure. See [setup.md](setup.md) for the per-client install
-matrix. Running `dart run fluttersdk_dusk mcp:serve` directly (without scaffolded fastcli) now surfaces the same 33 tools via the wrapper's automatic `collectMcpTools: true` flag.
+matrix. Running `dart run fluttersdk_dusk mcp:serve` directly (without scaffolded fastcli) now surfaces the same 40 tools via the wrapper's automatic `collectMcpTools: true` flag.
 
 ---
 
@@ -91,13 +91,14 @@ Renames break agent prompts and pinned consumer scripts.
 The substrate MCP server inspects each descriptor's `extensionMethod` field to choose a
 dispatch path. Dusk uses two:
 
-- **`ext.dusk.*` (30 tools).** The default path. The MCP server calls
+- **`ext.dusk.*` (33 tools).** The default path. The MCP server calls
   `VmServiceClient.callServiceExtension(method, args)` against the running Flutter app's VM
   Service. The handler runs inside the app isolate and returns a `ServiceExtensionResponse`.
   This is the standard pattern; every action / inspection tool uses it.
 - **`artisan:dusk:*` (7 tools).** Dispatched in-process by the MCP server via the artisan
   registry, executing the matching CLI command (`dusk:hot_reload_and_snap`,
-  `dusk:resize`, `dusk:device`). These three tools cannot run inside the app isolate:
+  `dusk:resize`, `dusk:device`, `dusk:perf_run`, `dusk:perf_compare`, `dusk:perf_trace`,
+  `dusk:run`). The first three cannot run inside the app isolate:
   `dusk_hot_reload_and_snap` triggers `vm.reloadSources` against the very isolate that would
   be servicing the call (deadlock), and `dusk_resize_viewport` /
   `dusk_device_profile` drive Chrome DevTools Protocol on the host's Chromium subprocess.
