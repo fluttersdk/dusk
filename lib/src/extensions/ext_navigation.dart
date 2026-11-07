@@ -7,38 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../dusk_plugin.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import '../utils/perf_interaction.dart';
 import 'ext_modal_router.dart';
-import 'ext_snapshot.dart' show duskSnapBuild;
-
-/// Parses the optional `'true' | 'false'` flag [params] field [name],
-/// returning [defaultValue] when missing or empty.
-bool _parseBoolFlag(
-  Map<String, String> params,
-  String name, {
-  required bool defaultValue,
-}) {
-  final String? raw = params[name];
-  if (raw == null || raw.isEmpty) return defaultValue;
-  return raw != 'false' && raw != '0';
-}
-
-/// Builds the post-action snapshot YAML and appends it under the
-/// `snapshot` key of [payload], unless [params] sets
-/// `includeSnapshot: 'false'`.
-Future<void> _appendSnapshotIfRequested(
-  Map<String, dynamic> payload,
-  Map<String, String> params,
-) async {
-  if (!_parseBoolFlag(params, 'includeSnapshot', defaultValue: true)) {
-    return;
-  }
-  final Map<String, dynamic> snap = await duskSnapBuild();
-  payload['snapshot'] = snap['snapshot'];
-}
+import 'ext_snapshot.dart' show snapshotForAction;
 
 /// Registers the navigation VM Service extensions for fluttersdk_dusk.
 ///
@@ -61,12 +36,12 @@ Future<void> _appendSnapshotIfRequested(
 /// back to the [NavigatorState] found via a depth-first walk of the element
 /// tree using [WidgetsBinding.instance.rootElement].
 void registerNavigationExtensions() {
-  registerExtensionIdempotent('ext.dusk.navigate', extDuskNavigateHandler);
-  registerExtensionIdempotent(
+  registerDuskExtension('ext.dusk.navigate', extDuskNavigateHandler);
+  registerDuskExtension(
     'ext.dusk.navigate_back',
     extDuskNavigateBackHandler,
   );
-  registerExtensionIdempotent(
+  registerDuskExtension(
     'ext.dusk.get_routes',
     extDuskGetRoutesHandler,
   );
@@ -157,12 +132,13 @@ Map<String, dynamic> buildNavigateResponse(
 /// Builds the success payload for `ext.dusk.navigate_back`.
 ///
 /// Returns a map with:
-/// - `navigatedBack`: always `true` (the call completed)
+/// - `navigatedBack`: equals `popped`, so a no-op at the root route never reads
+///   as a successful back
 /// - `popped`: whether a Navigator had a page to leave; `false` is a no-op at
 ///   the bottom of every stack
 @visibleForTesting
 Map<String, dynamic> buildNavigateBackResponse({bool popped = true}) =>
-    <String, dynamic>{'navigatedBack': true, 'popped': popped};
+    <String, dynamic>{'navigatedBack': popped, 'popped': popped};
 
 /// Builds the success payload for `ext.dusk.get_routes`.
 ///
@@ -193,6 +169,8 @@ Map<String, dynamic> buildGetRoutesResponse() => <String, dynamic>{
 /// - `route` (required): path to navigate to (e.g. `/dashboard`).
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
 ///   embedding the post-navigation accessibility snapshot in the response.
+/// - `snapshot` (optional, `full` | `diff` | `none`): overrides
+///   `includeSnapshot`; see [snapshotForAction].
 ///
 /// On success (default), with the snapshot under `snapshot`:
 /// `{ "navigated": true, "route": "/dashboard", "exactPath": true }`.
@@ -324,7 +302,7 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
                 'change. Route may be unregistered or guarded by a redirect.',
           };
     try {
-      await _appendSnapshotIfRequested(payload, params);
+      payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
         '[fluttersdk_dusk] extDuskNavigateHandler: post-dispatch snapshot '
@@ -350,10 +328,13 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
 /// Params:
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
 ///   embedding the post-pop accessibility snapshot in the response.
+/// - `snapshot` (optional, `full` | `diff` | `none`): overrides
+///   `includeSnapshot`; see [snapshotForAction].
 ///
 /// On success (default):
 /// `{ "navigatedBack": true, "popped": true, "snapshot": "<yaml>" }`;
-/// `popped` is `false` when no Navigator could pop.
+/// `navigatedBack` equals `popped`, which is `false` (beside
+/// `navigatedBack: false`) when no Navigator could pop.
 ///
 /// Steps:
 /// 1. Find the outermost [NavigatorState] that can pop, by a depth-first tree
@@ -396,7 +377,7 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
     final Map<String, dynamic> payload =
         buildNavigateBackResponse(popped: popped);
     try {
-      await _appendSnapshotIfRequested(payload, params);
+      payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
         '[fluttersdk_dusk] extDuskNavigateBackHandler: post-dispatch '

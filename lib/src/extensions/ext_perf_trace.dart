@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/perf_interaction.dart';
@@ -12,7 +13,11 @@ import 'ext_perf.dart';
 /// Registers `ext.dusk.perf_trace`. Idempotent via
 /// [registerExtensionIdempotent]; call once from `registerAllDuskExtensions()`.
 void registerPerfTraceExtension() {
-  registerExtensionIdempotent('ext.dusk.perf_trace', duskPerfTraceHandler);
+  registerDuskExtension(
+    'ext.dusk.perf_trace',
+    duskPerfTraceHandler,
+    ensureFrames: false,
+  );
 }
 
 /// The one process every event is filed under.

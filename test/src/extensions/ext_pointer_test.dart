@@ -7,9 +7,140 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
+import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
 import 'package:fluttersdk_dusk/src/utils/actionability_gate.dart';
+import 'package:fluttersdk_dusk/src/utils/dusk_register.dart';
 import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
+
+void _useSmallView(WidgetTester tester) {
+  tester.view.physicalSize = const Size(800, 600);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+/// A column of `Save` buttons, one per key. Swapping a key replaces the
+/// button's whole element subtree, which is what a rebuild that recreates a
+/// control looks like to a snapshot ref.
+Widget _saveScreen(Map<Key, VoidCallback> buttons) {
+  return MaterialApp(
+    home: Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          for (final MapEntry<Key, VoidCallback> button in buttons.entries)
+            KeyedSubtree(
+              key: button.key,
+              child: Semantics(
+                container: true,
+                button: true,
+                label: 'Save',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: button.value,
+                  child: const SizedBox(width: 160, height: 40),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// A single `Save` button under [key], so swapping the key replaces its
+/// element subtree.
+Widget _saveButton(Key key, VoidCallback onTap) {
+  return KeyedSubtree(
+    key: key,
+    child: Semantics(
+      container: true,
+      button: true,
+      label: 'Save',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: const SizedBox(width: 160, height: 40),
+      ),
+    ),
+  );
+}
+
+/// A `Save` button with no [Navigator] above it, so it lives on no route.
+Widget _routelessSaveScreen(Key key, VoidCallback onTap) {
+  return Directionality(
+    textDirection: TextDirection.ltr,
+    child: Align(
+      alignment: Alignment.topLeft,
+      child: _saveButton(key, onTap),
+    ),
+  );
+}
+
+/// The example app's merged-boundary fixture: a 300x120 `MergeSemantics` whose
+/// only control, a 72x28 `Skip intro` button, sits bottom-right. The merged
+/// node's centre is empty space beside it, yet hit-testable because the
+/// boundary paints a background, as the example app's does.
+Widget _mergedBoundaryScreen() {
+  return MaterialApp(
+    home: Scaffold(
+      body: Align(
+        alignment: Alignment.topLeft,
+        child: MergeSemantics(
+          key: const Key('merged-boundary'),
+          child: Container(
+            width: 300,
+            height: 120,
+            color: const Color(0xFFE0F2F1),
+            child: Stack(
+              children: <Widget>[
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: Semantics(
+                    button: true,
+                    label: 'Skip intro',
+                    onTap: () {},
+                    excludeSemantics: true,
+                    child: const SizedBox(width: 72, height: 28),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+List<String> _refsFor(String snapshot, String label) {
+  return RegExp('"$label" \\[ref=(e\\d+)\\]')
+      .allMatches(snapshot)
+      .map((RegExpMatch m) => m.group(1)!)
+      .toList();
+}
+
+/// Taps [ref] through the registration wrapper, so the call runs in the zone
+/// that collects re-resolved refs, pumping frames while the handler awaits.
+Future<ServiceExtensionResponse> _pumpTap(
+  WidgetTester tester,
+  String ref,
+) async {
+  final Future<ServiceExtensionResponse> future =
+      wrapDuskHandler(aiTestTapHandler)(
+    'ext.dusk.tap',
+    <String, String>{
+      'ref': ref,
+      'includeSnapshot': 'false',
+    },
+  );
+  for (int i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+  return future;
+}
 
 /// Tests for the actionability gate wired into [aiTestTapHandler],
 /// [aiTestHoverHandler], and [aiTestDragHandler] (Step 15).
@@ -559,6 +690,193 @@ void main() {
     test('returns null for unknown e-ref (no entry stored)', () {
       expect(resolveRefForAction('e9999'), isNull);
     });
+  });
+
+  group('resolveRefForAction re-resolution', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'a replaced e-ref taps the equal-label widget that took its place',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        int oldTaps = 0;
+        int newTaps = 0;
+        await tester.pumpWidget(
+          _saveScreen(<Key, VoidCallback>{
+            const ValueKey<String>('old'): () => oldTaps++,
+          }),
+        );
+        final String ref = _refsFor(
+          (await duskSnapBuild())['snapshot'] as String,
+          'Save',
+        ).single;
+
+        await tester.pumpWidget(
+          _saveScreen(<Key, VoidCallback>{
+            const ValueKey<String>('new'): () => newTaps++,
+          }),
+        );
+        expect(RefRegistry.lookup(ref)!.element.mounted, isFalse);
+
+        final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+
+        expect(response.errorDetail, isNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['ref'], equals(ref));
+        expect(decoded['reresolved'], equals(<String>[ref]));
+        expect(newTaps, equals(1));
+        expect(oldTaps, equals(0));
+        expect(RefRegistry.lookup(ref)!.element.mounted, isTrue);
+      },
+    );
+
+    testWidgets(
+      'an e-ref whose label lost a namesake stays defunct',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        int taps = 0;
+        await tester.pumpWidget(
+          _saveScreen(<Key, VoidCallback>{
+            const ValueKey<String>('a'): () => taps++,
+            const ValueKey<String>('b'): () => taps++,
+          }),
+        );
+        final String ref = _refsFor(
+          (await duskSnapBuild())['snapshot'] as String,
+          'Save',
+        ).first;
+
+        await tester.pumpWidget(
+          _saveScreen(<Key, VoidCallback>{
+            const ValueKey<String>('c'): () => taps++,
+          }),
+        );
+
+        final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+
+        expect(response.result, isNull);
+        expect(
+          response.errorDetail,
+          contains('defunct (element no longer mounted)'),
+        );
+        expect(taps, equals(0));
+      },
+    );
+
+    testWidgets(
+      'an e-ref is not relocated onto an equal-label widget on another route',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        final GlobalKey<NavigatorState> navigator = GlobalKey<NavigatorState>();
+        int firstTaps = 0;
+        int secondTaps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: navigator,
+            home: Scaffold(
+              body: _saveButton(
+                const ValueKey<String>('first'),
+                () => firstTaps++,
+              ),
+            ),
+          ),
+        );
+        final String ref = _refsFor(
+          (await duskSnapBuild())['snapshot'] as String,
+          'Save',
+        ).single;
+
+        navigator.currentState!.pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (BuildContext context) => Scaffold(
+              body: _saveButton(
+                const ValueKey<String>('second'),
+                () => secondTaps++,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(RefRegistry.lookup(ref)!.element.mounted, isFalse);
+
+        final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+
+        expect(response.result, isNull);
+        expect(
+          response.errorDetail,
+          contains('defunct (element no longer mounted)'),
+        );
+        expect(response.errorDetail, isNot(contains('reresolved')));
+        expect(secondTaps, equals(0));
+        expect(firstTaps, equals(0));
+      },
+    );
+
+    testWidgets(
+      'an e-ref minted outside any route still relocates',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        int oldTaps = 0;
+        int newTaps = 0;
+        await tester.pumpWidget(
+          _routelessSaveScreen(
+            const ValueKey<String>('old'),
+            () => oldTaps++,
+          ),
+        );
+        final String ref = _refsFor(
+          (await duskSnapBuild())['snapshot'] as String,
+          'Save',
+        ).single;
+        expect(RefRegistry.lookupBinding(ref)!.route, isNull);
+
+        await tester.pumpWidget(
+          _routelessSaveScreen(
+            const ValueKey<String>('new'),
+            () => newTaps++,
+          ),
+        );
+        expect(RefRegistry.lookup(ref)!.element.mounted, isFalse);
+
+        final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+
+        expect(response.errorDetail, isNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['reresolved'], equals(<String>[ref]));
+        expect(newTaps, equals(1));
+        expect(oldTaps, equals(0));
+      },
+    );
+
+    testWidgets(
+      'a still-mounted e-ref taps as before and reports no re-resolution',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        int taps = 0;
+        await tester.pumpWidget(
+          _saveScreen(<Key, VoidCallback>{
+            const ValueKey<String>('only'): () => taps++,
+          }),
+        );
+        final String ref = _refsFor(
+          (await duskSnapBuild())['snapshot'] as String,
+          'Save',
+        ).single;
+        final RefEntry before = RefRegistry.lookup(ref)!;
+
+        final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['ref'], equals(ref));
+        expect(decoded.containsKey('reresolved'), isFalse);
+        expect(taps, equals(1));
+        expect(RefRegistry.lookup(ref), same(before));
+      },
+    );
   });
 
   group('registerPointerExtensions', () {
@@ -1780,6 +2098,83 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Tap point versus the control's own area (#60)
+  // ---------------------------------------------------------------------------
+
+  group('aiTestTapHandler tapPointOutsideOwner', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'a merged boundary whose tap carrier sits off-centre reports the point',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        final SemanticsHandle handle = tester.ensureSemantics();
+        try {
+          await tester.pumpWidget(_mergedBoundaryScreen());
+          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+          final String ref = _refsFor(snapshot, 'Skip intro').single;
+
+          final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+
+          expect(response.result, isNotNull, reason: response.errorDetail);
+          final Map<String, dynamic> decoded =
+              jsonDecode(response.result!) as Map<String, dynamic>;
+          expect(decoded, contains('tapPointOutsideOwner'));
+          final Map<String, dynamic> outside =
+              decoded['tapPointOutsideOwner'] as Map<String, dynamic>;
+
+          // The tap lands on the boundary's centre, which is the very gap the
+          // gate confirms and the control's own area does not cover.
+          final Finder boundary = find.byKey(const Key('merged-boundary'));
+          final Offset centre = tester.getCenter(boundary);
+          final Map<String, dynamic> point =
+              outside['point'] as Map<String, dynamic>;
+          expect(point['x'], closeTo(centre.dx, 0.01));
+          expect(point['y'], closeTo(centre.dy, 0.01));
+
+          // The control is the 72x28 button inset 12px from the bottom-right.
+          final Offset origin = tester.getTopLeft(boundary);
+          final Map<String, dynamic> owner =
+              outside['ownerRect'] as Map<String, dynamic>;
+          expect(owner['left'], closeTo(origin.dx + 216, 0.01));
+          expect(owner['top'], closeTo(origin.dy + 80, 0.01));
+          expect(owner['width'], closeTo(72, 0.01));
+          expect(owner['height'], closeTo(28, 0.01));
+        } finally {
+          handle.dispose();
+        }
+      },
+    );
+
+    testWidgets(
+      'a plain button tapped at its own centre carries no tapPointOutsideOwner',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        final SemanticsHandle handle = tester.ensureSemantics();
+        try {
+          await tester.pumpWidget(
+            _saveScreen(
+              <Key, VoidCallback>{const ValueKey<String>('a'): () {}},
+            ),
+          );
+          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+          final String ref = _refsFor(snapshot, 'Save').single;
+
+          final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+
+          final Map<String, dynamic> decoded =
+              jsonDecode(response.result!) as Map<String, dynamic>;
+          expect(decoded, contains('ref'));
+          expect(decoded, isNot(contains('tapPointOutsideOwner')));
+        } finally {
+          handle.dispose();
+        }
+      },
+    );
+  });
+
+  // ---------------------------------------------------------------------------
   // Frame starvation — the hidden-page path
   // ---------------------------------------------------------------------------
 
@@ -2364,6 +2759,151 @@ void main() {
       expect(response.errorDetail, contains('missing_param'));
     });
   });
+
+  group('aiTestTapHandler snapshot mode', () {
+    setUp(() {
+      RefRegistry.resetForTesting();
+      resetSnapshotBaselineForTesting();
+    });
+    tearDown(() {
+      RefRegistry.resetForTesting();
+      resetSnapshotBaselineForTesting();
+    });
+
+    Future<Map<String, dynamic>> tapCounter(
+      WidgetTester tester,
+      String ref,
+      Map<String, String> extra,
+    ) async {
+      final Future<ServiceExtensionResponse> future = aiTestTapHandler(
+        'ext.dusk.tap',
+        <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+          ...extra,
+        },
+      );
+      for (int i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      final ServiceExtensionResponse response = await future;
+      return jsonDecode(response.result!) as Map<String, dynamic>;
+    }
+
+    Future<String> counterRef(WidgetTester tester) async {
+      _useSmallView(tester);
+      await tester.pumpWidget(MaterialApp(home: _Counter()));
+      final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+      return _refsFor(snapshot, 'Counter: 0').single;
+    }
+
+    testWidgets('diff returns only the lines the tap changed',
+        (WidgetTester tester) async {
+      final String ref = await counterRef(tester);
+
+      final Map<String, dynamic> decoded =
+          await tapCounter(tester, ref, <String, String>{'snapshot': 'diff'});
+
+      expect(decoded['snapshotMode'], 'diff');
+      final List<String> lines = (decoded['snapshot'] as String).split('\n');
+      expect(
+        lines.take(2).toList(),
+        <String>[
+          '- - button "Counter: 0" [ref=$ref]',
+          '+ - button "Counter: 1" [ref=$ref]',
+        ],
+      );
+      expect(lines.length, 3);
+      expect(lines.last, startsWith('(2 of '));
+    });
+
+    testWidgets('diff with no baseline yet returns the full snapshot',
+        (WidgetTester tester) async {
+      final String ref = await counterRef(tester);
+      resetSnapshotBaselineForTesting();
+
+      final Map<String, dynamic> decoded =
+          await tapCounter(tester, ref, <String, String>{'snapshot': 'diff'});
+
+      expect(decoded['snapshotMode'], 'diff');
+      expect(decoded['snapshot'], contains('- button "Counter: 1" [ref=$ref]'));
+      expect(decoded['snapshot'], isNot(contains('lines changed')));
+    });
+
+    testWidgets('none omits the snapshot key and overrides includeSnapshot',
+        (WidgetTester tester) async {
+      final String ref = await counterRef(tester);
+
+      final Map<String, dynamic> decoded = await tapCounter(
+        tester,
+        ref,
+        <String, String>{
+          'snapshot': 'none',
+          'includeSnapshot': 'true',
+        },
+      );
+
+      expect(decoded.containsKey('snapshot'), isFalse);
+      expect(decoded.containsKey('snapshotMode'), isFalse);
+    });
+
+    testWidgets('full overrides includeSnapshot false',
+        (WidgetTester tester) async {
+      final String ref = await counterRef(tester);
+
+      final Map<String, dynamic> decoded = await tapCounter(
+        tester,
+        ref,
+        <String, String>{
+          'snapshot': 'full',
+          'includeSnapshot': 'false',
+        },
+      );
+
+      expect(decoded['snapshot'], contains('"Counter: 1" [ref=$ref]'));
+      expect(decoded.containsKey('snapshotMode'), isFalse);
+    });
+
+    testWidgets('no snapshot param keeps the full text and adds no key',
+        (WidgetTester tester) async {
+      final String ref = await counterRef(tester);
+
+      final Map<String, dynamic> decoded =
+          await tapCounter(tester, ref, const <String, String>{});
+      final String fresh = (await duskSnapBuild())['snapshot'] as String;
+
+      expect(decoded['snapshot'], fresh);
+      expect(decoded.containsKey('snapshotMode'), isFalse);
+      expect(
+        decoded.keys.toSet(),
+        <String>{'ref', 'checks', 'effect', 'snapshot'}
+            .intersection(decoded.keys.toSet()),
+      );
+    });
+  });
+}
+
+/// A button whose label counts its own taps, the example app's Counter.
+class _Counter extends StatefulWidget {
+  @override
+  State<_Counter> createState() => _CounterState();
+}
+
+class _CounterState extends State<_Counter> {
+  int _count = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () => setState(() => _count++),
+          child: Text('Counter: $_count'),
+        ),
+      ),
+    );
+  }
 }
 
 /// Minimal widget whose button reveals a "Revealed!" Text on tap. Used by the

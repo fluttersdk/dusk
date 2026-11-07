@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../dusk_log_capture.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
@@ -51,7 +52,11 @@ List<Map<String, dynamic>> Function({int limit, String? minLevel})
 /// Idempotent via [registerExtensionIdempotent]. Call from
 /// [registerAllDuskExtensions] once during [DuskPlugin.install].
 void registerConsoleExtensions() {
-  registerExtensionIdempotent(kDuskConsoleMcpExtension, aiTestConsoleHandler);
+  registerDuskExtension(
+    kDuskConsoleMcpExtension,
+    aiTestConsoleHandler,
+    ensureFrames: false,
+  );
 }
 
 // ---------------------------------------------------------------------------

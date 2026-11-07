@@ -3,13 +3,18 @@ import 'dart:developer' as developer;
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../dusk_plugin.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 
 /// Registers `ext.dusk.boot_id`. Idempotent via
 /// [registerExtensionIdempotent]; `registerAllDuskExtensions()` calls it LAST,
 /// so an answer proves every other `ext.dusk.*` is registered too.
 void registerBootExtension() {
-  registerExtensionIdempotent('ext.dusk.boot_id', duskBootIdHandler);
+  registerDuskExtension(
+    'ext.dusk.boot_id',
+    duskBootIdHandler,
+    ensureFrames: false,
+  );
 }
 
 /// Handler for `ext.dusk.boot_id`: the id [DuskPlugin.install] minted for

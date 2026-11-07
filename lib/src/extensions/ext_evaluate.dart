@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
@@ -106,9 +107,10 @@ Future<String> _sentinelEvaluator(String expression) async {
 /// registration.
 void registerEvaluateExtension() {
   if (!kDebugMode) return;
-  registerExtensionIdempotent(
+  registerDuskExtension(
     'ext.dusk.evaluate',
     (String method, Map<String, String> params) =>
         extDuskEvaluateHandler(method, params),
+    ensureFrames: false,
   );
 }

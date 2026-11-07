@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:ui' show CheckedState, Tristate;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
@@ -8,6 +10,7 @@ import 'package:flutter/widgets.dart';
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
@@ -15,7 +18,7 @@ import '../utils/frame_sync.dart';
 import '../utils/key_press.dart';
 import '../utils/perf_interaction.dart';
 import 'ext_pointer.dart';
-import 'ext_snapshot.dart' show duskSnapBuild;
+import 'ext_snapshot.dart' show duskSnapBuild, snapshotForAction;
 import 'package:fluttersdk_artisan/artisan.dart';
 
 /// Parses the optional `'true' | 'false'` flag [params] field [name],
@@ -29,20 +32,6 @@ bool _parseBoolFlag(
   final String? raw = params[name];
   if (raw == null || raw.isEmpty) return defaultValue;
   return raw != 'false' && raw != '0';
-}
-
-/// Builds the post-action snapshot YAML and appends it under the
-/// `snapshot` key of [payload], unless [params] sets
-/// `includeSnapshot: 'false'`. See `ext_pointer.dart` for the rationale.
-Future<void> _appendSnapshotIfRequested(
-  Map<String, dynamic> payload,
-  Map<String, String> params,
-) async {
-  if (!_parseBoolFlag(params, 'includeSnapshot', defaultValue: true)) {
-    return;
-  }
-  final Map<String, dynamic> snap = await duskSnapBuild();
-  payload['snapshot'] = snap['snapshot'];
 }
 
 // ---------------------------------------------------------------------------
@@ -273,52 +262,191 @@ class TestRefRegistry {
 }
 
 // ---------------------------------------------------------------------------
+// Text-field target resolution
+// ---------------------------------------------------------------------------
+
+/// The editable a text verb writes for one ref, and how it was picked.
+///
+/// Resolved once per verb, so `fill`'s clear and type land on the same field
+/// rather than each re-ranking the tree on its own.
+@immutable
+final class TextFieldTarget {
+  /// Creates a target for [state], picked by [match].
+  const TextFieldTarget({
+    required this.state,
+    required this.match,
+  });
+
+  /// The editable that is written.
+  final EditableTextState state;
+
+  /// How [state] was picked for the ref.
+  final TextTargetMatch match;
+
+  /// The `effect.target` block, read off the live field: its global rect and
+  /// its semantics label. Null when the field is no longer laid out.
+  Map<String, dynamic>? describe() {
+    if (!state.mounted) return null;
+    final RenderObject? renderObject = state.context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return null;
+
+    return textTarget(
+      match: match,
+      label: _semanticsLabelFor(renderObject),
+      rect: renderObject.localToGlobal(Offset.zero) & renderObject.size,
+    );
+  }
+}
+
+/// Resolves the editable a text verb on a ref writes, or null when there is
+/// no editable at all.
+///
+/// A ref minted from a SemanticsNode carries the app-root element (see
+/// ext_find `_entryFromSemanticsNode`), so a plain descendant-first walk from
+/// it returns the FIRST EditableText in the tree, sending every write on a
+/// multi-field form to field #1. When the ref's on-screen rect is known the
+/// editable matching it is selected instead; the element walk is the fallback
+/// for a ref with no rect. Run [refuseNonTextRef] first: the rect ranking
+/// always finds SOME editable, which for a dropdown is the wrong one.
+TextFieldTarget? resolveTextFieldTarget({
+  required RefEntry? entry,
+  required Element element,
+}) =>
+    _resolveTarget(
+      element: element,
+      targetRect: _localToGlobalRectForNode(entry?.node) ?? entry?.rect,
+    );
+
+/// The error a text verb answers for a ref whose node is an interactive
+/// control that is not a text field, or null when the ref may be written.
+///
+/// Before this refusal a dropdown, checkbox or button ref overlapped no
+/// editable, so the nearest field on screen was cleared and written and the
+/// read-back of THAT field verified the write. Only an interactive control is
+/// refused: a static-text handle (a label above its field) keeps the nearest
+/// fallback, which is exactly what it is for. [verb] names the extension in
+/// the message (`type`, `clear`, `fill`).
+developer.ServiceExtensionResponse? refuseNonTextRef({
+  required String verb,
+  required String ref,
+  required RefEntry? entry,
+}) {
+  final SemanticsNode? node = entry?.node;
+  if (node == null) return null;
+  final String? role = _nonTextControlRole(node);
+  if (role == null) return null;
+
+  return developer.ServiceExtensionResponse.error(
+    developer.ServiceExtensionResponse.extensionError,
+    wrapErrorDetail(
+      '[fluttersdk_dusk] ext.dusk.$verb: ref $ref is a $role, not a text '
+      'field. Target the field itself, or use the verb for a $role '
+      '(tap, select_option, set_checkbox).',
+      DuskErrorEnvelope.unexpected(widgetPath: ref),
+    ),
+  );
+}
+
+/// The role of [node] when it is an interactive control other than a text
+/// field, read off its (merged) semantics flags; null otherwise.
+///
+/// Flags only, no tap action: a tappable label is still a label, and the
+/// nearest fallback is what a label handle needs.
+String? _nonTextControlRole(SemanticsNode node) {
+  final SemanticsFlags flags = node.getSemanticsData().flagsCollection;
+  if (flags.isTextField) return null;
+  if (flags.isChecked != CheckedState.none) {
+    return flags.isInMutuallyExclusiveGroup ? 'radio' : 'checkbox';
+  }
+  if (flags.isToggled != Tristate.none) return 'switch';
+  if (flags.isSlider) return 'slider';
+  if (flags.isLink) return 'link';
+  if (flags.isButton || flags.isExpanded != Tristate.none) return 'button';
+
+  return null;
+}
+
+/// The label of the semantics node [renderObject] contributes to, climbing
+/// to the node a merge folds it into; null when it has none.
+String? _semanticsLabelFor(RenderObject renderObject) {
+  RenderObject? current = renderObject;
+  while (current != null) {
+    SemanticsNode? node = current.debugSemantics;
+    if (node != null) {
+      while (node!.isMergedIntoParent && node.parent != null) {
+        node = node.parent;
+      }
+      final String label = node.getSemanticsData().label;
+
+      return label.isEmpty ? null : label;
+    }
+    current = current.parent;
+  }
+
+  return null;
+}
+
+/// [resolveTextFieldTarget] for an already-derived [targetRect].
+TextFieldTarget? _resolveTarget({
+  required Element element,
+  required Rect? targetRect,
+}) {
+  final TextFieldTarget? byRect =
+      targetRect != null ? _findEditableTextStateByRect(targetRect) : null;
+  if (byRect != null) return byRect;
+
+  final EditableTextState? walked = _resolveEditableTextState(element);
+  if (walked == null) return null;
+
+  return TextFieldTarget(state: walked, match: TextTargetMatch.element);
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers — @visibleForTesting so tests drive them directly
 // ---------------------------------------------------------------------------
 
-/// Sets [text] into the [EditableText] backed by [element].
+/// Sets [text] into the [EditableText] backed by [element], selected by
+/// [targetRect] when given (see [resolveTextFieldTarget]).
 ///
-/// Steps:
-/// 1. Locate the [EditableTextState] from [element] via descendant walk when
-///    [element] is a parent widget (e.g. TextField) that hosts an EditableText.
-/// 2. Call [EditableTextState.requestKeyboard] to focus the field so that the
-///    engine's IME state stays coherent after the mutation.
-/// 3. Primary path: read [EditableText.controller] from the state's widget and
-///    set [TextEditingController.value] directly (confirmed by spike: PASS).
-/// 4. Fallback path: if the controller is inaccessible (e.g. custom subclass
-///    with a private controller), send a platform message on the
-///    `flutter/textinput` channel using [TextInputClient.updateEditingState].
-///
-/// Frame awaiting is the caller's responsibility. In widget tests, call
-/// `tester.pump()` after this function returns. In the production VM Service
-/// handler ([aiTestTypeHandler]), two [WidgetsBinding.instance.endOfFrame]
-/// awaits are performed before returning the response.
+/// Returns the value the field holds straight after the write. Frame awaiting
+/// is the caller's responsibility: in widget tests call `tester.pump()` after
+/// this returns. Throws [ArgumentError] when there is no editable to write.
 @visibleForTesting
 Future<String?> typeIntoElement({
   required Element element,
   required String text,
   Rect? targetRect,
 }) async {
-  // 1. Resolve the EditableTextState. A ref minted from a SemanticsNode carries
-  //    the app-root element (see ext_find `_entryFromSemanticsNode`), so a plain
-  //    descendant-first walk from it returns the FIRST EditableText in the tree,
-  //    sending every type/fill on a multi-field form to field #1. When the ref's
-  //    on-screen rect is known, select the editable whose global rect matches it
-  //    so the correct, visible field is written; fall back to the element walk.
-  final EditableTextState? state =
-      (targetRect != null ? _findEditableTextStateByRect(targetRect) : null) ??
-          _resolveEditableTextState(element);
-  if (state == null) {
+  final TextFieldTarget? target = _resolveTarget(
+    element: element,
+    targetRect: targetRect,
+  );
+
+  return _writeText(_requireTarget(target, element).state, text);
+}
+
+/// [target], or the [ArgumentError] a text verb raises when none resolved.
+TextFieldTarget _requireTarget(TextFieldTarget? target, Element element) {
+  if (target == null) {
     throw ArgumentError(
       '[fluttersdk_dusk] typeIntoElement: no EditableText found in or under '
       'element $element',
     );
   }
 
-  // 2. Focus the field so the engine IME state is coherent after mutation.
+  return target;
+}
+
+/// Writes [text] into [state] the way a user edit would: focus, then
+/// [EditableTextState.userUpdateTextEditingValue] (which fires `onChanged`
+/// and runs the input formatters), then the controller setter and a
+/// `flutter/textinput` platform message as fallbacks. Returns the value the
+/// field holds straight after the write.
+Future<String?> _writeText(EditableTextState state, String text) async {
+  // 1. Focus the field so the engine IME state is coherent after mutation.
   state.requestKeyboard();
 
-  // 3. Primary path — emulate user input via Flutter's official user-input
+  // 2. Primary path — emulate user input via Flutter's official user-input
   //    API. `userUpdateTextEditingValue` updates the controller AND fires the
   //    EditableText.onChanged / TextField.onChanged listeners, which is the
   //    path Wind WFormInput (and any parent in controlled-via-onChanged
@@ -347,9 +475,9 @@ Future<String?> typeIntoElement({
   }
 
   if (!injected) {
-    // 3b. Fallback when userUpdateTextEditingValue is unavailable (older
-    //     Flutter) — set the controller directly. May leave parent listeners
-    //     unfired; only used as a defensive last resort.
+    // 3. Fallback when userUpdateTextEditingValue is unavailable (older
+    //    Flutter) — set the controller directly. May leave parent listeners
+    //    unfired; only used as a defensive last resort.
     final TextEditingController? controller = _extractController(state);
     if (controller != null) {
       controller.value = newValue;
@@ -398,7 +526,8 @@ Future<String?> typeIntoElement({
 
   // 5. Read the value back off the live state rather than echoing [text].
   //    An input formatter or a keyboard type can filter the write, and the
-  //    caller has no way to tell that from a clean success otherwise.
+  //    caller has no way to tell that from a clean success otherwise. The
+  //    handler reads again once frames have run, for a field that reverts.
   return state.textEditingValue.text;
 }
 
@@ -406,13 +535,12 @@ Future<String?> typeIntoElement({
 /// focused widget hears it as it would a real press.
 ///
 /// [key] is a name from the supported table (Enter, Tab, Escape, ArrowDown,
-/// ...) or a single letter or digit. Throws [ArgumentError] for anything else,
-/// which surfaces misconfigured agent payloads immediately rather than
-/// silently emitting a no-op, and [StateError] when the binding has no key
-/// data handler to deliver to.
-///
-/// The [modifiers] parameter is accepted by the public handler but not yet
-/// wired to synthesized modifier keys; it is reserved for future use.
+/// ...) or a single letter or digit. [modifiers] are held across the press,
+/// each one of `control` (or `ctrl`), `shift`, `alt`, `meta`, in any case.
+/// Throws [ArgumentError] for an unknown key or modifier before anything is
+/// pressed, which surfaces misconfigured agent payloads immediately rather
+/// than silently emitting a no-op, and [StateError] when the binding has no
+/// key data handler to deliver to.
 @visibleForTesting
 Future<void> pressKey({
   required String key,
@@ -430,7 +558,51 @@ Future<void> pressKey({
     logical: resolved.logical,
     physical: resolved.physical,
     character: resolved.character,
+    // A set: naming a modifier twice (`ctrl,control`) must not press it twice.
+    modifiers: modifiers.map(_lookupModifier).toSet().toList(),
   );
+}
+
+/// Resolves an agent-facing modifier name, case-insensitively.
+///
+/// Throws [ArgumentError] naming [input] and the accepted names otherwise.
+KeyModifier _lookupModifier(String input) {
+  final KeyModifier? modifier = switch (input.toLowerCase()) {
+    'control' || 'ctrl' => KeyModifier.control,
+    'shift' => KeyModifier.shift,
+    'alt' => KeyModifier.alt,
+    'meta' => KeyModifier.meta,
+    _ => null,
+  };
+
+  if (modifier == null) {
+    throw ArgumentError(
+      '[fluttersdk_dusk] ext.dusk.press_key: unknown modifier "$input". '
+      'Supported modifiers: control (or ctrl), shift, alt, meta',
+    );
+  }
+
+  return modifier;
+}
+
+/// Splits the `modifiers` param of `ext.dusk.press_key` into names.
+///
+/// The CLI sends a comma-separated string (`control,shift`); the MCP schema
+/// declares an array, which reaches the extension as its JSON text
+/// (`["control","shift"]`), since every VM Service param is a string. A
+/// malformed array throws [FormatException].
+List<String> _parseModifiers(String? raw) {
+  if (raw == null) return <String>[];
+
+  final String trimmed = raw.trim();
+  final Iterable<String> names = trimmed.startsWith('[')
+      ? (jsonDecode(trimmed) as List<dynamic>).map((dynamic e) => '$e')
+      : trimmed.split(',');
+
+  return names
+      .map((String s) => s.trim())
+      .where((String s) => s.isNotEmpty)
+      .toList();
 }
 
 // ---------------------------------------------------------------------------
@@ -450,15 +622,27 @@ Future<void> pressKey({
 ///   mismatch.
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
 ///   embedding the post-action accessibility snapshot in the response.
+/// - `snapshot` (optional, `full` | `diff` | `none`): overrides
+///   `includeSnapshot`; see [snapshotForAction].
+///
+/// [target] is the field `fill` already resolved for the ref, so its clear
+/// and its type write the same editable; a direct call resolves its own. A
+/// ref whose node is a non-text control is refused (see [refuseNonTextRef]).
 ///
 /// Response (success, default):
 /// ```json
-/// { "text": "typed value", "snapshot": "<yaml>" }
+/// {
+///   "text": "typed value",
+///   "effect": {"kind": "text", "verified": true, "value": "typed value",
+///              "target": {"matchKind": "overlap", "label": "Name", "rect": {}}},
+///   "snapshot": "<yaml>"
+/// }
 /// ```
 Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
   String method,
-  Map<String, String> params,
-) async {
+  Map<String, String> params, {
+  TextFieldTarget? target,
+}) async {
   try {
     final String? ref = params['ref'];
     final String text = params['text'] ?? '';
@@ -488,6 +672,14 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
       );
+    }
+    if (target == null) {
+      final developer.ServiceExtensionResponse? refusal = refuseNonTextRef(
+        verb: 'type',
+        ref: ref,
+        entry: entry,
+      );
+      if (refusal != null) return refusal;
     }
     // Null when no entry resolved, so no gate ran and there is nothing to
     // report. `fill` delegates here, which is the verb whose silent clean
@@ -532,14 +724,14 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       );
     }
 
-    final String? written = await runPerfInteraction(
+    final TextFieldTarget field = _requireTarget(
+      target ?? resolveTextFieldTarget(entry: entry, element: element),
+      element,
+    );
+    await runPerfInteraction<String?>(
       'type',
       ref,
-      () => typeIntoElement(
-        element: element,
-        text: text,
-        targetRect: _localToGlobalRectForNode(entry?.node) ?? entry?.rect,
-      ),
+      () => _writeText(field.state, text),
     );
 
     // Wait two frames so ValueListenableBuilder listeners rebuild and paint
@@ -547,13 +739,20 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     // extension awaits endOfFrame before returning).
     await awaitFramesOrTimeout(2);
 
-    // 2. Report what the field HOLDS, not what it was handed. `text` stays
-    //    for callers that read it, but `effect.value` is the one read back
-    //    off the live controller, and `effect.verified` is false when a
-    //    formatter or keyboard type filtered the write.
+    // 2. Report what the field HOLDS once those frames ran, not what it was
+    //    handed nor what it held straight after the write: a formatter or an
+    //    echo that reverts the value a frame later would otherwise verify.
+    //    `text` stays for callers that read it. A field gone by then cannot
+    //    be read back, so it reports null rather than the earlier read.
+    final String? settled =
+        field.state.mounted ? field.state.textEditingValue.text : null;
     final Map<String, dynamic> payload = <String, dynamic>{
       'text': text,
-      'effect': textEffect(expected: text, actual: written),
+      'effect': textEffect(
+        expected: text,
+        actual: settled,
+        target: field.describe(),
+      ),
     };
     if (gate != null) stampChecks(payload, gate);
 
@@ -561,7 +760,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     //    Snapshot-build noise must NOT convert a successful type into an
     //    error envelope: the text has already landed in the controller.
     try {
-      await _appendSnapshotIfRequested(payload, params);
+      payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
         '[fluttersdk_dusk] ext.dusk.type: post-dispatch snapshot build swallowed '
@@ -588,10 +787,12 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
 /// Params:
 /// - `key` (required): key name string from the supported lookup table
 ///   (Enter, Tab, Escape, ArrowUp, ArrowDown, etc.).
-/// - `modifiers` (optional): comma-separated modifier names; accepted but
-///   not yet applied to the dispatched event (reserved for future use).
+/// - `modifiers` (optional): modifier names held across the press, as a
+///   comma-separated list (CLI) or a JSON array (MCP); see [pressKey].
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
 ///   embedding the post-action accessibility snapshot in the response.
+/// - `snapshot` (optional, `full` | `diff` | `none`): overrides
+///   `includeSnapshot`; see [snapshotForAction].
 ///
 /// Response (success, default):
 /// ```json
@@ -613,12 +814,7 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
       );
     }
 
-    final List<String> modifiers = params['modifiers']
-            ?.split(',')
-            .map((String s) => s.trim())
-            .where((String s) => s.isNotEmpty)
-            .toList() ??
-        <String>[];
+    final List<String> modifiers = _parseModifiers(params['modifiers']);
 
     await runPerfInteraction<void>(
       'press_key',
@@ -648,7 +844,7 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
     // `{ok, key}` survives verbatim.
     if (WidgetsBinding.instance.rootElement != null) {
       try {
-        await _appendSnapshotIfRequested(payload, params);
+        payload.addAll(await snapshotForAction(params));
       } catch (e) {
         developer.log(
           '[fluttersdk_dusk] ext.dusk.press_key: post-dispatch snapshot build '
@@ -685,21 +881,23 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
 /// Called from `extensions.dart#registerAllAiTestExtensions()` once the Step
 /// 14b aggregator lands. May also be called standalone in tests.
 void registerTextInputExtensions() {
-  registerExtensionIdempotent('ext.dusk.type', aiTestTypeHandler);
-  registerExtensionIdempotent('ext.dusk.press_key', aiTestPressKeyHandler);
-  registerExtensionIdempotent('ext.dusk.clear', aiTestClearHandler);
+  registerDuskExtension('ext.dusk.type', aiTestTypeHandler);
+  registerDuskExtension('ext.dusk.press_key', aiTestPressKeyHandler);
+  registerDuskExtension('ext.dusk.clear', aiTestClearHandler);
 }
 
 /// Handler for `ext.dusk.clear` — empties the [TextEditingController] backing
 /// the resolved text field. Playwright parity: `locator.clear()`.
 ///
-/// Reuses [_resolveEditableTextState] + [_extractController] helpers so the
-/// behavior matches [aiTestTypeHandler]'s text-write path. Returns the
-/// post-clear value (empty string) plus an optional snapshot.
+/// Resolves the field through [resolveTextFieldTarget], as
+/// [aiTestTypeHandler] does, unless `fill` hands its resolved [target] in,
+/// and refuses a non-text control ref the same way. Returns the post-clear
+/// value read back off the controller plus an optional snapshot.
 Future<developer.ServiceExtensionResponse> aiTestClearHandler(
   String method,
-  Map<String, String> params,
-) async {
+  Map<String, String> params, {
+  TextFieldTarget? target,
+}) async {
   try {
     final String? ref = params['ref'];
     if (ref == null || ref.isEmpty) {
@@ -720,6 +918,14 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
         wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
       );
     }
+    if (target == null) {
+      final developer.ServiceExtensionResponse? refusal = refuseNonTextRef(
+        verb: 'clear',
+        ref: ref,
+        entry: entry,
+      );
+      if (refusal != null) return refusal;
+    }
     final Element? element = entry?.element ?? TestRefRegistry.lookup(ref);
     if (element == null) {
       return developer.ServiceExtensionResponse.error(
@@ -733,12 +939,9 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
         ),
       );
     }
-    final Rect? clearRect =
-        _localToGlobalRectForNode(entry?.node) ?? entry?.rect;
-    final EditableTextState? state =
-        (clearRect != null ? _findEditableTextStateByRect(clearRect) : null) ??
-            _resolveEditableTextState(element);
-    if (state == null) {
+    final TextFieldTarget? field =
+        target ?? resolveTextFieldTarget(entry: entry, element: element);
+    if (field == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
@@ -747,7 +950,7 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
         ),
       );
     }
-    final TextEditingController? controller = _extractController(state);
+    final TextEditingController? controller = _extractController(field.state);
     if (controller == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
@@ -767,7 +970,11 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
     final Map<String, dynamic> payload = <String, dynamic>{
       'ref': ref,
       'text': '',
-      'effect': textEffect(expected: '', actual: controller.text),
+      'effect': textEffect(
+        expected: '',
+        actual: controller.text,
+        target: field.describe(),
+      ),
     };
     if (_parseBoolFlag(params, 'includeSnapshot', defaultValue: false)) {
       final snap = await duskSnapBuild();
@@ -834,7 +1041,7 @@ EditableTextState? _firstEditableTextState(
 /// the field the agent actually targeted rather than the first editable in the
 /// tree, and prefers the visible on-screen editable over any zero-sized
 /// off-stage accessibility proxy (whose empty rect is skipped).
-EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
+TextFieldTarget? _findEditableTextStateByRect(Rect targetRect) {
   // Any unmuted field beats every muted one, overlap or not. A covered route's
   // field overlapping a target that no visible field overlaps (a label handle
   // on a screen pushed over a lookalike) must still lose to the visible field,
@@ -846,11 +1053,24 @@ EditableTextState? _findEditableTextStateByRect(Rect targetRect) {
   // this package already documents as unreliable on web debug builds.
   final live = _rankEditableTextStates(targetRect, skipMuted: true);
   if (live.overlap != null || live.nearest != null) {
-    return live.overlap ?? live.nearest;
+    return _rankedTarget(live);
   }
 
-  final all = _rankEditableTextStates(targetRect, skipMuted: false);
-  return all.overlap ?? all.nearest;
+  return _rankedTarget(_rankEditableTextStates(targetRect, skipMuted: false));
+}
+
+/// The winner of one ranking pass, tagged with how it won.
+TextFieldTarget? _rankedTarget(
+  ({EditableTextState? overlap, EditableTextState? nearest}) ranked,
+) {
+  final EditableTextState? overlap = ranked.overlap;
+  if (overlap != null) {
+    return TextFieldTarget(state: overlap, match: TextTargetMatch.overlap);
+  }
+  final EditableTextState? nearest = ranked.nearest;
+  if (nearest == null) return null;
+
+  return TextFieldTarget(state: nearest, match: TextTargetMatch.nearest);
 }
 
 /// One ranking pass for [_findEditableTextStateByRect], skipping fields under

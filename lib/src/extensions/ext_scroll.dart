@@ -5,39 +5,14 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import '../utils/perf_interaction.dart';
 import 'ext_find.dart' show resolveQuery;
-import 'ext_snapshot.dart' show duskSnapBuild;
-
-/// Parses the optional `'true' | 'false'` flag [params] field [name],
-/// returning [defaultValue] when missing or empty.
-bool _parseBoolFlag(
-  Map<String, String> params,
-  String name, {
-  required bool defaultValue,
-}) {
-  final String? raw = params[name];
-  if (raw == null || raw.isEmpty) return defaultValue;
-  return raw != 'false' && raw != '0';
-}
-
-/// Builds the post-action snapshot YAML and appends it under the
-/// `snapshot` key of [payload], unless [params] sets
-/// `includeSnapshot: 'false'`.
-Future<void> _appendSnapshotIfRequested(
-  Map<String, dynamic> payload,
-  Map<String, String> params,
-) async {
-  if (!_parseBoolFlag(params, 'includeSnapshot', defaultValue: true)) {
-    return;
-  }
-  final Map<String, dynamic> snap = await duskSnapBuild();
-  payload['snapshot'] = snap['snapshot'];
-}
+import 'ext_snapshot.dart' show snapshotForAction;
 
 /// Registers the `ext.dusk.scroll` and `ext.dusk.select_option` VM Service
 /// extensions.
@@ -46,8 +21,8 @@ Future<void> _appendSnapshotIfRequested(
 /// in `extensions.dart`). Each call is idempotent via
 /// [registerExtensionIdempotent], so hot-restart is safe.
 void registerScrollExtensions() {
-  registerExtensionIdempotent('ext.dusk.scroll', aiTestScrollHandler);
-  registerExtensionIdempotent(
+  registerDuskExtension('ext.dusk.scroll', aiTestScrollHandler);
+  registerDuskExtension(
     'ext.dusk.select_option',
     aiTestSelectOptionHandler,
   );
@@ -71,10 +46,12 @@ void registerScrollExtensions() {
 ///   and a 300 ms duration. Requires `ref` to identify the target element.
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
 ///   embedding the post-scroll accessibility snapshot in the response.
+/// - `snapshot` (optional, `full` | `diff` | `none`): overrides
+///   `includeSnapshot`; see [snapshotForAction].
 ///
-/// Returns `{ scrolled: true, finalOffset: <pixels>, snapshot: '<yaml>' }`
-/// on success (snapshot key absent when `includeSnapshot: 'false'`), or an
-/// extension error response on failure.
+/// Returns `{ scrolled, finalOffset, effect, snapshot }` on success (snapshot
+/// key absent when `includeSnapshot: 'false'`), or an extension error response
+/// on failure. `scrolled` is true only when the scroll position changed.
 ///
 /// Must NOT use [PointerScrollEvent] (mouse-only; would not work on touch or
 /// programmatic scroll).
@@ -110,6 +87,9 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
     // for exactly the "ref is not a scrollable" case this block exists to
     // catch.
     double? startOffset;
+    // Null when no scrollable was found, so the effect compares nothing
+    // instead of a missing offset against a made-up 0.0.
+    double? endOffset;
 
     if (intoView && targetContext != null) {
       startOffset = Scrollable.maybeOf(targetContext)?.position.pixels;
@@ -129,8 +109,8 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       // ensureVisible's await — the registered element is not unmounted
       // mid-scroll in any production path.
       if (targetContext.mounted) {
-        final ScrollableState? scrollable = Scrollable.maybeOf(targetContext);
-        finalOffset = scrollable?.position.pixels ?? 0.0;
+        endOffset = Scrollable.maybeOf(targetContext)?.position.pixels;
+        finalOffset = endOffset ?? 0.0;
       }
     } else {
       // Scroll by delta — resolve the Scrollable in 3 stages so passing the
@@ -145,12 +125,13 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
         final Element targetElement = targetContext as Element;
         if (targetElement.widget is Scrollable) {
           final State state = (targetElement as StatefulElement).state;
-          if (state is ScrollableState && state.position.hasPixels) {
+          if (state is ScrollableState && _isLaidOut(state)) {
             scrollable = state;
           }
         }
         scrollable ??= Scrollable.maybeOf(targetContext);
         scrollable ??= _findScrollableDescendant(targetElement);
+        if (scrollable != null && !_isLaidOut(scrollable)) scrollable = null;
       } else {
         scrollable = _findRootScrollable();
       }
@@ -169,7 +150,12 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       }
 
       startOffset = scrollable.position.pixels;
-      final double target = startOffset + dy + dx;
+      // `jumpTo` does not clamp: a delta past the end would report an offset
+      // beyond the extent (and a "scrolled" that then springs back).
+      final ScrollPosition position = scrollable.position;
+      final double target = (startOffset + dy + dx)
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
       final ScrollableState driven = scrollable;
       await runPerfInteraction<void>(
         'scroll',
@@ -177,19 +163,24 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
         () => aiTestScrollByDelta(driven, target),
       );
       finalOffset = scrollable.position.pixels;
+      endOffset = finalOffset;
     }
 
     // 4. Wait for the UI to settle before returning.
     await awaitFrameOrTimeout();
 
     // 5. Embed post-action snapshot (opt-out via includeSnapshot:'false').
+    //    `scrolled` follows the same before/after pair the effect block
+    //    reports. No starting offset means no scrollable was found to measure
+    //    (an intoView ref with none around it), which is not a scroll either.
     final Map<String, dynamic> payload = <String, dynamic>{
-      'scrolled': true,
+      'scrolled':
+          startOffset != null && endOffset != null && startOffset != endOffset,
       'finalOffset': finalOffset,
-      'effect': scrollOffsetEffect(before: startOffset, after: finalOffset),
+      'effect': scrollOffsetEffect(before: startOffset, after: endOffset),
     };
     try {
-      await _appendSnapshotIfRequested(payload, params);
+      payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
         '[fluttersdk_dusk] ext.dusk.scroll: post-dispatch snapshot build '
@@ -284,7 +275,7 @@ ScrollableState? _findScrollableDescendant(Element element) {
     if (found != null) return;
     if (child.widget is Scrollable) {
       final State state = (child as StatefulElement).state;
-      if (state is ScrollableState && state.position.hasPixels) {
+      if (state is ScrollableState && _isLaidOut(state)) {
         found = state;
         return;
       }
@@ -295,6 +286,14 @@ ScrollableState? _findScrollableDescendant(Element element) {
   element.visitChildElements(visitor);
   return found;
 }
+
+/// Whether [state] has pixels AND scroll extents.
+///
+/// A list kept alive offstage (a covered overlay entry, a route under a deep
+/// link) has pixels from its constructor but no extents until it is laid out,
+/// so reading `minScrollExtent` on it throws.
+bool _isLaidOut(ScrollableState state) =>
+    state.position.hasPixels && state.position.hasContentDimensions;
 
 /// Finds the first [ScrollableState] reachable from the widget tree root.
 ///
@@ -308,7 +307,7 @@ ScrollableState? _findRootScrollable() {
     if (found != null) return;
     if (element.widget is Scrollable) {
       final state = (element as StatefulElement).state;
-      if (state is ScrollableState && state.position.hasPixels) {
+      if (state is ScrollableState && _isLaidOut(state)) {
         found = state;
         return;
       }

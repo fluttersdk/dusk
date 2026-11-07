@@ -1,8 +1,8 @@
 import 'dart:developer' as developer;
 
 import 'package:flutter/widgets.dart';
-import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
@@ -172,6 +172,6 @@ FocusNode? _findDescendantFocusNode(Element element) {
 }
 
 void registerFocusExtensions() {
-  registerExtensionIdempotent(kDuskFocusMcpExtension, aiTestFocusHandler);
-  registerExtensionIdempotent(kDuskBlurMcpExtension, aiTestBlurHandler);
+  registerDuskExtension(kDuskFocusMcpExtension, aiTestFocusHandler);
+  registerDuskExtension(kDuskBlurMcpExtension, aiTestBlurHandler);
 }

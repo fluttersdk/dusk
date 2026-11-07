@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
@@ -21,7 +22,7 @@ import '../utils/error_envelope.dart';
 ///
 /// Idempotent via [registerExtensionIdempotent] — hot-restart safe.
 void registerFindExtension() {
-  registerExtensionIdempotent('ext.dusk.find', extDuskFindHandler);
+  registerDuskExtension('ext.dusk.find', extDuskFindHandler);
 }
 
 // ---------------------------------------------------------------------------

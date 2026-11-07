@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
@@ -30,16 +31,16 @@ import 'package:fluttersdk_artisan/artisan.dart';
 /// Call this once from the Wave 3 aggregator
 /// (`extensions.dart#registerAllAiTestExtensions`).
 void registerWaitFindExtensions() {
-  registerExtensionIdempotent('ext.dusk.wait_for', aiTestWaitForHandler);
-  registerExtensionIdempotent(
+  registerDuskExtension('ext.dusk.wait_for', aiTestWaitForHandler);
+  registerDuskExtension(
     'ext.dusk.find_by_text',
     aiTestFindByTextHandler,
   );
-  registerExtensionIdempotent(
+  registerDuskExtension(
     'ext.dusk.find_by_label',
     aiTestFindByLabelHandler,
   );
-  registerExtensionIdempotent(
+  registerDuskExtension(
     'ext.dusk.wait_for_network_idle',
     aiTestWaitForNetworkIdleHandler,
   );

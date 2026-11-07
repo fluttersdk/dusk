@@ -8,6 +8,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
 
 import '../dusk_plugin.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
@@ -27,9 +28,21 @@ import '../utils/perf_readers.dart';
 /// the report `perf_end` last produced. Idempotent via
 /// [registerExtensionIdempotent]; call once from `registerAllDuskExtensions()`.
 void registerPerfExtensions() {
-  registerExtensionIdempotent('ext.dusk.perf_begin', duskPerfBeginHandler);
-  registerExtensionIdempotent('ext.dusk.perf_end', duskPerfEndHandler);
-  registerExtensionIdempotent('ext.dusk.perf_insight', duskPerfInsightHandler);
+  registerDuskExtension(
+    'ext.dusk.perf_begin',
+    duskPerfBeginHandler,
+    ensureFrames: false,
+  );
+  registerDuskExtension(
+    'ext.dusk.perf_end',
+    duskPerfEndHandler,
+    ensureFrames: false,
+  );
+  registerDuskExtension(
+    'ext.dusk.perf_insight',
+    duskPerfInsightHandler,
+    ensureFrames: false,
+  );
 }
 
 // ---------------------------------------------------------------------------

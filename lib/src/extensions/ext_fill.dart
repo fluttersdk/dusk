@@ -6,14 +6,20 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import '../utils/perf_interaction.dart';
-import 'ext_focus.dart' show aiTestFocusHandler;
 import 'ext_pointer.dart' show resolveRefForAction;
-import 'ext_snapshot.dart' show duskSnapBuild;
-import 'ext_text_input.dart' show aiTestClearHandler, aiTestTypeHandler;
+import 'ext_snapshot.dart' show snapshotForAction;
+import 'ext_text_input.dart'
+    show
+        TextFieldTarget,
+        aiTestClearHandler,
+        aiTestTypeHandler,
+        refuseNonTextRef,
+        resolveTextFieldTarget;
 
 const String kDuskFillMcpName = 'dusk_fill';
 const String kDuskFillMcpExtension = 'ext.dusk.fill';
@@ -24,34 +30,23 @@ const String kDuskFillMcpExtension = 'ext.dusk.fill';
 /// thrown on hot-restart duplicate registration. Call once from
 /// [registerAllDuskExtensions].
 void registerFillExtension() {
-  registerExtensionIdempotent(kDuskFillMcpExtension, aiTestFillHandler);
-}
-
-/// Parses the optional `'true' | 'false'` flag [params] field [name],
-/// returning [defaultValue] when missing or empty. Mirrors the helper in
-/// `ext_pointer.dart`; kept local so the file is self-contained.
-bool _parseBoolFlag(
-  Map<String, String> params,
-  String name, {
-  required bool defaultValue,
-}) {
-  final String? raw = params[name];
-  if (raw == null || raw.isEmpty) return defaultValue;
-  return raw != 'false' && raw != '0';
+  registerDuskExtension(kDuskFillMcpExtension, aiTestFillHandler);
 }
 
 /// Handler for `ext.dusk.fill`: the one-call "focus + clear + type + settle"
 /// composition that replaces the manual dance agents otherwise re-discover.
 ///
-/// Composes the three existing handlers verbatim so IME-focus, controller-write,
-/// and snapshot semantics are never re-implemented. The actionability gate is
-/// carried by the `type` step (the actual mutation); `focus`/`clear` do not run
-/// `ensureActionable`, so the gate gates the write, not the focus/clear:
-/// 1. [aiTestFocusHandler] grants keyboard focus on the resolved field.
+/// Resolves the field once ([resolveTextFieldTarget]) and hands it to the
+/// clear and type handlers, so both write the same editable and the
+/// controller-write and snapshot semantics are never re-implemented. A ref
+/// whose node is a non-text control is refused before anything is touched
+/// ([refuseNonTextRef]). The actionability gate is carried by the `type` step
+/// (the actual mutation), so the gate gates the write, not the focus/clear:
+/// 1. The resolved field's focus node takes keyboard focus.
 /// 2. [aiTestClearHandler] empties the backing [TextEditingController].
 /// 3. [aiTestTypeHandler] runs the actionability gate, then sets [params]['text']
 ///    via `userUpdateTextEditingValue` (so `onChanged` fires and form validators
-///    run) and awaits two frames.
+///    run), awaits two frames and reads the settled value back.
 ///
 /// Stale-retry: the ref is re-resolved up front via [resolveRefForAction]
 /// before each attempt. A `q<N>` handle whose stored predicates transiently
@@ -67,6 +62,10 @@ bool _parseBoolFlag(
 ///   actionability-gate opt-outs threaded into the type step.
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip the
 ///   post-fill accessibility snapshot.
+/// - `snapshot` (optional, `full` | `diff` | `none`): overrides
+///   `includeSnapshot`; see [snapshotForAction]. The clear and type steps run
+///   with no snapshot of their own, so a `diff` is against the snapshot taken
+///   before the fill.
 ///
 /// Response (success, default):
 /// ```json
@@ -140,17 +139,14 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
       // says the sequence ran.
       if (typed['effect'] != null) 'effect': typed['effect'],
     };
-    if (_parseBoolFlag(params, 'includeSnapshot', defaultValue: true)) {
-      try {
-        final Map<String, dynamic> snap = await duskSnapBuild();
-        payload['snapshot'] = snap['snapshot'];
-      } catch (e) {
-        developer.log(
-          '[fluttersdk_dusk] ext.dusk.fill: post-fill snapshot build swallowed '
-          'for ref "$ref": $e',
-          name: 'fluttersdk_dusk',
-        );
-      }
+    try {
+      payload.addAll(await snapshotForAction(params));
+    } catch (e) {
+      developer.log(
+        '[fluttersdk_dusk] ext.dusk.fill: post-fill snapshot build swallowed '
+        'for ref "$ref": $e',
+        name: 'fluttersdk_dusk',
+      );
     }
     return duskResult(payload);
   } catch (e, stackTrace) {
@@ -181,22 +177,46 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
 
   // Re-resolve up front so a transiently-missing q-handle surfaces as a
   // retriable stale (null) rather than an opaque sub-handler failure.
+  final RefEntry? entry;
   try {
-    final RefEntry? entry = resolveRefForAction(ref);
-    if (entry == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.dusk.fill: ref "$ref" not found in registry',
-          DuskErrorEnvelope.notFound(
-            ref: ref,
-            candidates: collectSnapshotCandidates(),
-          ),
-        ),
-      );
-    }
+    entry = resolveRefForAction(ref);
   } on DuskStaleHandleException {
     return null;
+  }
+  if (entry == null) {
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(
+        'ext.dusk.fill: ref "$ref" not found in registry',
+        DuskErrorEnvelope.notFound(
+          ref: ref,
+          candidates: collectSnapshotCandidates(),
+        ),
+      ),
+    );
+  }
+
+  // 1. Refuse a non-text control before anything is touched, then resolve
+  //    the field ONCE. Clear and type each ranking the tree on their own
+  //    is how a dropdown ref came to wipe and rewrite the nearest field.
+  final developer.ServiceExtensionResponse? refusal = refuseNonTextRef(
+    verb: 'fill',
+    ref: ref,
+    entry: entry,
+  );
+  if (refusal != null) return refusal;
+  final TextFieldTarget? target = resolveTextFieldTarget(
+    entry: entry,
+    element: entry.element,
+  );
+  if (target == null) {
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(
+        'ext.dusk.fill: no EditableText under ref "$ref"',
+        DuskErrorEnvelope.unexpected(widgetPath: ref),
+      ),
+    );
   }
 
   final Map<String, String> stepParams = <String, String>{
@@ -208,21 +228,28 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
       'checkReceivesEvents': params['checkReceivesEvents']!,
   };
 
-  // 1. Focus the field. A not-found / gate failure short-circuits here.
-  final developer.ServiceExtensionResponse focus =
-      await aiTestFocusHandler('ext.dusk.focus', stepParams);
-  if (focus.errorCode != null) return focus;
+  // 2. Focus the resolved field itself. The focus verb walks the ref's
+  //    element, which for a snapshot-minted ref is the app root, so it would
+  //    focus the first field on the form.
+  target.state.widget.focusNode.requestFocus();
   await awaitFrameOrTimeout();
 
-  // 2. Clear the existing value so the type below is a replace, not an append.
-  final developer.ServiceExtensionResponse clear =
-      await aiTestClearHandler('ext.dusk.clear', stepParams);
+  // 3. Clear the existing value so the type below is a replace, not an append.
+  final developer.ServiceExtensionResponse clear = await aiTestClearHandler(
+    'ext.dusk.clear',
+    stepParams,
+    target: target,
+  );
   if (clear.errorCode != null) return clear;
   await awaitFrameOrTimeout();
 
-  // 3. Type the new value. The gated type handler awaits two frames itself.
-  return aiTestTypeHandler('ext.dusk.type', <String, String>{
-    ...stepParams,
-    'text': params['text']!,
-  });
+  // 4. Type the new value. The gated type handler awaits two frames itself.
+  return aiTestTypeHandler(
+    'ext.dusk.type',
+    <String, String>{
+      ...stepParams,
+      'text': params['text']!,
+    },
+    target: target,
+  );
 }
