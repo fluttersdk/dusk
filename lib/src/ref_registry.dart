@@ -149,6 +149,40 @@ class DuskQuery {
   final int? matchIndex;
 }
 
+/// How an `eN` ref finds its control again once the element it was minted
+/// from has left the tree.
+///
+/// [query] carries the node's own label and its [DuskQuery.matchIndex] among
+/// every node sharing that label; [matchCount] is how many such nodes the
+/// minting snapshot saw. The pair is only trusted while the live tree still
+/// has exactly [matchCount] namesakes: a different count means the index may
+/// now name a different control, and a ref that would land on the wrong
+/// control is worse than one that reports itself defunct.
+///
+/// [route] pins the pair to the screen the node lived on: a label count taken
+/// over the whole tree cannot tell the login page's only "Email" from the next
+/// page's only "Email" once navigation swapped one for the other.
+@immutable
+final class RefBinding {
+  const RefBinding({
+    required this.query,
+    required this.matchCount,
+    this.route,
+  });
+
+  /// The label predicate plus index that re-finds the node.
+  final DuskQuery query;
+
+  /// Nodes carrying the bound label when the ref was minted.
+  final int matchCount;
+
+  /// The [ModalRoute] the node lived on when the ref was minted, or `null`
+  /// when it had none. Held weakly so a ref outliving its screen never keeps
+  /// a popped route alive; a collected target means the screen is gone, and
+  /// relocation treats that as a different route.
+  final WeakReference<Route<dynamic>>? route;
+}
+
 /// Static registry mapping `[ref=eN]` tokens to [RefEntry] records.
 ///
 /// V3 mints a fresh `e<N>` token every time [register] is called UNLESS a
@@ -215,6 +249,10 @@ class RefRegistry {
   /// Token → query predicates. Lookup table for action tools that detect
   /// the `q` prefix and re-execute the Semantics tree walk on every call.
   static final Map<String, DuskQuery> _queries = <String, DuskQuery>{};
+
+  /// `e<N>` token → how it re-finds its control. Lives and dies with the
+  /// token's entry.
+  static final Map<String, RefBinding> _bindings = <String, RefBinding>{};
 
   // ---------------------------------------------------------------------------
   // Public API
@@ -320,6 +358,47 @@ class RefRegistry {
   /// tokens which live in the [_entries] map instead).
   static DuskQuery? lookupQuery(String ref) => _queries[ref];
 
+  /// Stores how [ref] re-finds its control after a rebuild, replacing any
+  /// earlier binding. A null [binding] clears it: a node that lost its label
+  /// keeps its token but must not keep relocating by the label it used to
+  /// carry.
+  static void bind(String ref, RefBinding? binding) {
+    if (binding == null) {
+      _bindings.remove(ref);
+      return;
+    }
+    _bindings[ref] = binding;
+  }
+
+  /// The binding stored for [ref], or `null` when it has none (an unlabelled
+  /// node, a synthetic entry, or a token whose group was disposed).
+  static RefBinding? lookupBinding(String ref) => _bindings[ref];
+
+  /// Replaces the entry behind an existing [ref] with [entry], keeping the
+  /// token and the group that owns it, so a relocated ref is disposed with
+  /// the snapshot that minted it. The relocated node's id is mapped to [ref]
+  /// when no token claims it yet, so the next snapshot reprints the same
+  /// token for the same control.
+  ///
+  /// No-op for an unknown [ref]: relocation never mints a token.
+  static void rebind(String ref, RefEntry entry) {
+    final RefEntry? current = _entries[ref];
+    if (current == null) return;
+
+    _entries[ref] = RefEntry(
+      rect: entry.rect,
+      element: entry.element,
+      groupId: current.groupId,
+      isTextField: entry.isTextField,
+      node: entry.node,
+      renderObject: entry.renderObject,
+    );
+
+    final SemanticsNode? node = entry.node;
+    if (node == null) return;
+    _byNodeId.putIfAbsent(node.id, () => ref);
+  }
+
   /// Removes every entry whose current `groupId` equals [groupId].
   /// Subsequent [lookup] calls for those tokens return `null`.
   ///
@@ -340,9 +419,10 @@ class RefRegistry {
         toRemove.add(entry.key);
       }
     }
-    // 2. Drop entries.
+    // 2. Drop entries and the bindings that relocate them.
     for (final String token in toRemove) {
       _entries.remove(token);
+      _bindings.remove(token);
     }
     // 3. Drop dedupe-cache mappings whose token is gone. Iterate the
     //    node-id map separately because entries[X] just disappeared.
@@ -364,6 +444,7 @@ class RefRegistry {
     _entries.clear();
     _byNodeId.clear();
     _queries.clear();
+    _bindings.clear();
     _counter = 0;
     _queryCounter = 0;
   }

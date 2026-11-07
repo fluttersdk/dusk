@@ -1,7 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/utils/frame_sync.dart';
+
+/// Drives the app lifecycle through the platform channel, the path the
+/// engine itself uses, so `framesEnabled` flips for real.
+Future<void> _setLifecycle(WidgetTester tester, AppLifecycleState state) {
+  return tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+    'flutter/lifecycle',
+    const StringCodec().encodeMessage(state.toString()),
+    (_) {},
+  );
+}
+
+void _restoreFrames(WidgetTester tester) {
+  addTearDown(() => _setLifecycle(tester, AppLifecycleState.resumed));
+}
 
 /// Tests for the bounded frame awaits every action handler settles on.
 ///
@@ -70,6 +86,143 @@ void main() {
         await expectLater(awaitFramesOrTimeout(0), completes);
       });
     });
+  });
+
+  group('ensureFramesProduced', () {
+    testWidgets('leaves a healthy engine alone', (WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _setLifecycle(tester, AppLifecycleState.resumed);
+
+      expect(await ensureFramesProduced(), isFalse);
+      expect(
+        SchedulerBinding.instance.lifecycleState,
+        equals(AppLifecycleState.resumed),
+      );
+    });
+
+    testWidgets('wakes a hidden engine', (WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      _restoreFrames(tester);
+      await _setLifecycle(tester, AppLifecycleState.hidden);
+
+      final Future<bool> forcing = ensureFramesProduced();
+      await tester.pump();
+      final bool forced = await forcing;
+
+      expect(forced, isTrue);
+      expect(SchedulerBinding.instance.framesEnabled, isTrue);
+      expect(
+        SchedulerBinding.instance.lifecycleState,
+        equals(AppLifecycleState.resumed),
+      );
+    });
+
+    testWidgets('wakes a paused engine', (WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      _restoreFrames(tester);
+      await _setLifecycle(tester, AppLifecycleState.paused);
+
+      final Future<bool> forcing = ensureFramesProduced();
+      await tester.pump();
+      final bool forced = await forcing;
+
+      expect(forced, isTrue);
+      expect(SchedulerBinding.instance.framesEnabled, isTrue);
+      expect(
+        SchedulerBinding.instance.lifecycleState,
+        equals(AppLifecycleState.resumed),
+      );
+    });
+
+    testWidgets(
+      'puts the lifecycle back when the wake produces no frame',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        _restoreFrames(tester);
+        await _setLifecycle(tester, AppLifecycleState.hidden);
+
+        // Real time and no pump: the frame never runs, the way a hidden
+        // browser tab withholds requestAnimationFrame.
+        final bool? forced = await tester.runAsync(ensureFramesProduced);
+
+        expect(forced, isFalse);
+        expect(
+          SchedulerBinding.instance.lifecycleState,
+          equals(AppLifecycleState.hidden),
+        );
+        expect(SchedulerBinding.instance.framesEnabled, isFalse);
+      },
+    );
+
+    testWidgets(
+      'keeps a resumed the engine sends while the wake waits for a frame',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        _restoreFrames(tester);
+        await _setLifecycle(tester, AppLifecycleState.hidden);
+
+        // Real time and no pump: the forced frame never runs, so the wake
+        // takes the revert path, with the engine's own resumed in between.
+        final bool? forced = await tester.runAsync(() async {
+          final Future<bool> forcing = ensureFramesProduced();
+          await _setLifecycle(tester, AppLifecycleState.resumed);
+
+          return forcing;
+        });
+
+        expect(forced, isFalse);
+        expect(
+          SchedulerBinding.instance.lifecycleState,
+          equals(AppLifecycleState.resumed),
+        );
+        expect(SchedulerBinding.instance.framesEnabled, isTrue);
+      },
+    );
+
+    testWidgets('never wakes a detached engine', (WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      _restoreFrames(tester);
+      await _setLifecycle(tester, AppLifecycleState.detached);
+
+      final bool? forced = await tester.runAsync(ensureFramesProduced);
+
+      expect(forced, isFalse);
+      expect(SchedulerBinding.instance.framesEnabled, isFalse);
+      expect(
+        SchedulerBinding.instance.lifecycleState,
+        equals(AppLifecycleState.detached),
+      );
+    });
+
+    testWidgets('leaves an unknown lifecycle alone', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      tester.binding.resetInternalState();
+
+      final bool? forced = await tester.runAsync(ensureFramesProduced);
+
+      expect(forced, isFalse);
+      expect(SchedulerBinding.instance.lifecycleState, isNull);
+    });
+  });
+
+  group('frameProductionWarning', () {
+    testWidgets('names the platform and points at the window on desktop', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      _restoreFrames(tester);
+      await _setLifecycle(tester, AppLifecycleState.hidden);
+
+      final Map<String, dynamic>? warning = frameProductionWarning();
+
+      expect(warning, isNotNull);
+      expect(warning!['platform'], equals('macOS'));
+      expect(warning['hint'], contains('not producing frames'));
+      expect(warning['hint'], contains('window'));
+      expect(warning['hint'], isNot(contains('Page.bringToFront')));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 
   test('kFrameSyncTimeout leaves room for a real reflow', () {

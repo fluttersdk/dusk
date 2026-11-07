@@ -2,6 +2,22 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 
+/// A modifier key [deliverKeyPress] can hold across a press, as its left-hand
+/// key: the logical and physical halves pair, because the keyboard state
+/// releases a key by its physical half.
+enum KeyModifier {
+  control(LogicalKeyboardKey.controlLeft, PhysicalKeyboardKey.controlLeft),
+  shift(LogicalKeyboardKey.shiftLeft, PhysicalKeyboardKey.shiftLeft),
+  alt(LogicalKeyboardKey.altLeft, PhysicalKeyboardKey.altLeft),
+  meta(LogicalKeyboardKey.metaLeft, PhysicalKeyboardKey.metaLeft);
+
+  const KeyModifier(this.logical, this.physical);
+
+  final LogicalKeyboardKey logical;
+
+  final PhysicalKeyboardKey physical;
+}
+
 /// Presses a key down and lets it up again, the way a keyboard does.
 ///
 /// Both halves enter through the binding's `onKeyData`, the handler the
@@ -25,11 +41,17 @@ import 'package:flutter/services.dart';
 /// [character] rides on the down half only, as a real press carries it; a
 /// text field takes its text from the text input channel, not from here.
 ///
-/// Throws [StateError] when the binding has no key data handler.
+/// [modifiers] go down in order before the key and come up in reverse after
+/// it, so a `Shortcuts` binding that matches modifiers exactly sees them held
+/// when the key goes down. They come up even when delivering the key throws.
+///
+/// Throws [StateError] when the binding has no key data handler; nothing is
+/// pressed then.
 void deliverKeyPress({
   required LogicalKeyboardKey logical,
   required PhysicalKeyboardKey physical,
   String? character,
+  List<KeyModifier> modifiers = const <KeyModifier>[],
 }) {
   final ui.KeyDataCallback? deliver =
       ServicesBinding.instance.platformDispatcher.onKeyData;
@@ -44,8 +66,16 @@ void deliverKeyPress({
   final Duration now = Duration(
     microseconds: DateTime.now().microsecondsSinceEpoch,
   );
+  final Duration later = now + const Duration(milliseconds: 16);
 
-  ui.KeyData half(ui.KeyEventType type, Duration timeStamp) => ui.KeyData(
+  ui.KeyData half(
+    ui.KeyEventType type,
+    Duration timeStamp, {
+    required LogicalKeyboardKey logical,
+    required PhysicalKeyboardKey physical,
+    String? character,
+  }) =>
+      ui.KeyData(
         timeStamp: timeStamp,
         type: type,
         physical: physical.usbHidUsage,
@@ -54,6 +84,44 @@ void deliverKeyPress({
         synthesized: true,
       );
 
-  deliver(half(ui.KeyEventType.down, now));
-  deliver(half(ui.KeyEventType.up, now + const Duration(milliseconds: 16)));
+  // A modifier counts as held only once its down half went through, so the
+  // release below never lets up a key the keyboard state never saw go down.
+  final List<KeyModifier> held = <KeyModifier>[];
+
+  try {
+    for (final KeyModifier modifier in modifiers) {
+      deliver(half(
+        ui.KeyEventType.down,
+        now,
+        logical: modifier.logical,
+        physical: modifier.physical,
+      ));
+      held.add(modifier);
+    }
+
+    deliver(half(
+      ui.KeyEventType.down,
+      now,
+      logical: logical,
+      physical: physical,
+      character: character,
+    ));
+    deliver(half(
+      ui.KeyEventType.up,
+      later,
+      logical: logical,
+      physical: physical,
+    ));
+  } finally {
+    // A modifier left down would ride on every later key the app hears, real
+    // or synthesized, until a real press of it comes along.
+    for (final KeyModifier modifier in held.reversed) {
+      deliver(half(
+        ui.KeyEventType.up,
+        later,
+        logical: modifier.logical,
+        physical: modifier.physical,
+      ));
+    }
+  }
 }

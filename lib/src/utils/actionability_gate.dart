@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import '../ref_registry.dart';
 import 'dusk_exceptions.dart';
 import 'frame_sync.dart';
+import 'viewport_visibility.dart';
 
 /// What the receives-events check could establish.
 enum ReceivesEvents {
@@ -126,9 +127,9 @@ void stampChecks(Map<String, dynamic> payload, ActionabilityReport report) {
 ///    fail this gate. The reason carries the obscurer's `runtimeType`.
 ///    Skipped when [checkReceivesEvents] is `false`.
 ///
-/// The viewport is recomputed from
-/// `WidgetsBinding.instance.platformDispatcher.views.firstOrNull` on every
-/// call so window resizes between actions are honored.
+/// The viewport is recomputed on every call, from the view [resolveViewFor]
+/// picks for the entry's element (the one pointer events are dispatched
+/// into), so window resizes between actions are honored.
 ///
 /// When `platformDispatcher.views` is empty (test harnesses without a real
 /// view, headless contexts), the off-viewport / stable / receives-events
@@ -226,7 +227,13 @@ Future<ActionabilityReport> ensureActionableForViews(
   //    re-check. The gate only fails when scroll-into-view cannot place the
   //    target inside the viewport (no scrollable ancestor, or the page
   //    layout cannot accommodate the element).
-  final FlutterView? view = views.isEmpty ? null : views.first;
+  final FlutterView? view = views.isEmpty
+      ? null
+      : selectView(
+          owned: View.maybeOf(entry.element),
+          implicit: WidgetsBinding.instance.platformDispatcher.implicitView,
+          views: views,
+        );
   if (view == null) {
     // No view, so no viewport and no hit-test surface. The remaining checks
     // have nothing to measure against; say so rather than reporting a pass.
@@ -311,69 +318,85 @@ Future<ActionabilityReport> ensureActionableForViews(
     );
   }
 
-  final BoxHitTestResult result = BoxHitTestResult();
-  RendererBinding.instance
-      .hitTestInView(result, currentRect.center, view.viewId);
-  final List<HitTestEntry<HitTestTarget>> path =
-      result.path.toList(growable: false);
-  final bool targetInPath = path.any(
-    (HitTestEntry<HitTestTarget> e) =>
-        identical(e.target, target) || _isDescendantOf(e.target, target),
+  final HitProbe probe = probeHitAt(
+    target: target,
+    point: currentRect.center,
+    viewId: view.viewId,
   );
-  if (targetInPath) {
-    return const ActionabilityReport(
-      receivesEvents: ReceivesEvents.confirmed,
-    );
-  }
+  switch (probe.verdict) {
+    case HitVerdict.reached:
+      return const ActionabilityReport(
+        receivesEvents: ReceivesEvents.confirmed,
+      );
 
-  // Graceful degradation: when the hit-test path contains ONLY the root
-  // render view (Flutter Web's `_ReusableRenderView` or the generic
-  // `RenderView`), the platform compositor swallowed the synthetic
-  // hit-test before it reached the widget layer. The behaviour happens
-  // routinely in Flutter Web's debug build because DWDS pipes hit-tests
-  // through a snapshot view that does not always mirror the live element
-  // subtree, and breaking valid taps on that artifact is a worse failure
-  // mode than letting pointer dispatch decide.
-  //
-  // So the action proceeds, but it no longer proceeds SILENTLY. A clean
-  // pass here used to be indistinguishable from a confirmed one, which is
-  // how a fill printed a green tick four times onto a row covered by a
-  // pinned footer. The report says what the gate could not establish, and
-  // a rect scan offers the layers that could plausibly be on top.
-  // The test is "the ROOT VIEW is topmost", not "the path has one entry".
-  // `path` runs deepest-first, so a root view in front means nothing in the
-  // widget layer claimed the point. The old length check was a proxy for
-  // that and it was too narrow: a path of view + gesture-handler tripped
-  // the throw instead, and the gate then reported
-  // `obscured by other widget (top=_ReusableRenderView)`, naming the render
-  // view as the thing covering the widget it hosts.
-  final bool platformOnly =
-      path.isNotEmpty && _isRootRenderView(path.first.target);
-  if (platformOnly || path.isEmpty) {
-    return ActionabilityReport(
-      receivesEvents: ReceivesEvents.indeterminate,
-      why: path.isEmpty
-          ? 'hit-test returned an empty path'
-          : 'hit-test returned only the root render view',
-      overlapCandidates: occlusionCandidatesFor(target, currentRect),
-    );
-  }
+    // Graceful degradation: when nothing in the widget layer claimed the
+    // point (an empty path, or the root render view on top), the platform
+    // compositor swallowed the synthetic hit-test before it reached the
+    // widget layer. That happens routinely in Flutter Web's debug build
+    // because DWDS pipes hit-tests through a snapshot view that does not
+    // always mirror the live element subtree, and breaking valid taps on
+    // that artifact is a worse failure mode than letting pointer dispatch
+    // decide.
+    //
+    // So the action proceeds, but it no longer proceeds SILENTLY. A clean
+    // pass here used to be indistinguishable from a confirmed one, which is
+    // how a fill printed a green tick four times onto a row covered by a
+    // pinned footer. The report says what the gate could not establish, and
+    // a rect scan offers the layers that could plausibly be on top.
+    case HitVerdict.platformOnly:
+      return ActionabilityReport(
+        receivesEvents: ReceivesEvents.indeterminate,
+        why: probe.top == null
+            ? 'hit-test returned an empty path'
+            : 'hit-test returned only the root render view',
+        overlapCandidates: occlusionCandidatesFor(target, currentRect),
+      );
 
-  final HitTestTarget top = path.first.target;
-  final String topName = top.runtimeType.toString();
-  throw DuskActionabilityException(
-    ref: ref,
-    reason: 'obscured by other widget (top=$topName)',
+    // An ancestor on top paints nothing over the target (the snapshot does
+    // not mark it occluded), but the pointer still lands on the ancestor
+    // rather than the target, so the action would miss it.
+    case HitVerdict.ancestorOnly:
+    case HitVerdict.covered:
+      throw DuskActionabilityException(
+        ref: ref,
+        reason: 'obscured by other widget (top=${probe.top.runtimeType})',
+      );
+  }
+}
+
+/// The [FlutterView] pointer events for [element] must be dispatched into.
+///
+/// The gate's viewport and hit-test read the same view, so a verb never gates
+/// against one view and fires into another. A null [element] (a dispatch at
+/// raw coordinates) has no view of its own and takes the implicit view.
+///
+/// Throws [StateError] when no Flutter view is attached at all, so a handler
+/// reports that instead of a null-check error from `implicitView!`.
+FlutterView resolveViewFor(Element? element) {
+  final PlatformDispatcher dispatcher =
+      WidgetsBinding.instance.platformDispatcher;
+  return selectView(
+    owned: element == null ? null : View.maybeOf(element),
+    implicit: dispatcher.implicitView,
+    views: dispatcher.views,
   );
 }
 
-/// Recognises the framework-level RenderView wrappers that legitimately
-/// sit at the top of every Flutter hit-test path: `RenderView` on mobile and
-/// desktop, `_ReusableRenderView` in the web debug build. The suffix is
-/// matched on `runtimeType` rather than importing the private symbol, so the
-/// gate stays portable across both.
-bool _isRootRenderView(HitTestTarget target) {
-  return target.runtimeType.toString().endsWith('RenderView');
+/// The fallback order behind [resolveViewFor], separate so the cases a single
+/// test binding cannot produce (a null implicit view, no view at all) stay
+/// testable: the element's own view, else the implicit view, else the first
+/// attached view.
+@visibleForTesting
+FlutterView selectView({
+  required FlutterView? owned,
+  required FlutterView? implicit,
+  required Iterable<FlutterView> views,
+}) {
+  final FlutterView? view = owned ?? implicit ?? views.firstOrNull;
+  if (view == null) {
+    throw StateError('no Flutter view is attached');
+  }
+  return view;
 }
 
 /// The part of [view] a pointer can reach, in logical pixels.
