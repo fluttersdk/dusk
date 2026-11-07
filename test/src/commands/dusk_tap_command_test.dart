@@ -263,6 +263,36 @@ void main() {
       expect(output.content, contains('216.0, 80.0, 72.0x28.0'));
     });
 
+    test('a retargeted tap says it went to the control, not the centre',
+        () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7'}),
+        output: output,
+        response: const {
+          'ref': 'e7',
+          'retargeted': {
+            'from': {'x': 400.0, 'y': 300.0},
+            'to': {'x': 716.0, 'y': 556.0},
+            'ownerRect': {
+              'left': 656.0,
+              'top': 536.0,
+              'width': 120.0,
+              'height': 40.0
+            },
+          },
+        },
+      );
+
+      final exit = await DuskTapCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(output.content, contains('Tapped e7 on its control'));
+      expect(output.content, contains('(716.0, 556.0)'));
+      expect(output.content, contains('(400.0, 300.0)'));
+      expect(output.content, isNot(contains('outside the control')));
+    });
+
     test('a tap inside the control prints no warning', () async {
       final output = BufferedOutput();
       final ctx = _StubContext(

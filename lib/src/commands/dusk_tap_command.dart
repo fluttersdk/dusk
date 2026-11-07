@@ -102,14 +102,26 @@ class DuskTapCommand extends ArtisanCommand {
     // false for a tap the gate accepted that moved nothing, and a bare
     // `✓ Tapped e7` would hide exactly that case.
     final effect = response['effect'] as Map<String, dynamic>?;
+    final where = _retargetedNote(response['retargeted']);
     ctx.output.success(
       effect?['changed'] == false
-          ? 'Tapped $ref (no observable change)'
-          : 'Tapped $ref',
+          ? 'Tapped $ref$where (no observable change)'
+          : 'Tapped $ref$where',
     );
     final snapshot = response['snapshot'] as String?;
     if (snapshot != null) ctx.output.writeln(snapshot);
     return 0;
+  }
+
+  /// The summary suffix for a tap that was sent to the labelled control
+  /// instead of the merge boundary's centre (#60); empty for an ordinary tap.
+  String _retargetedNote(Object? retargeted) {
+    if (retargeted is! Map<String, dynamic>) return '';
+
+    final from = retargeted['from'] as Map<String, dynamic>;
+    final to = retargeted['to'] as Map<String, dynamic>;
+    return ' on its control at (${to['x']}, ${to['y']}), '
+        'not the merged centre (${from['x']}, ${from['y']})';
   }
 
   /// Prints one stderr line when the tap landed outside the control's own area.

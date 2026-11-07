@@ -14,6 +14,7 @@ import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import '../utils/perf_interaction.dart';
+import '../utils/tap_owner.dart';
 import 'ext_find.dart';
 import 'ext_snapshot.dart' show snapshotForAction;
 import 'ext_wait_find.dart' show findByTextWaitLoop;
@@ -213,73 +214,29 @@ Map<String, dynamic> _pointJson(Offset point) => <String, dynamic>{
       'y': point.dy,
     };
 
-/// The global rects of the controls inside the merge boundary at [element], in
-/// logical pixels; empty when no descendant render object visibly carries a
-/// tap handler.
+Map<String, dynamic> _rectJson(Rect rect) => <String, dynamic>{
+      'left': rect.left,
+      'top': rect.top,
+      'width': rect.width,
+      'height': rect.height,
+    };
+
+/// Judges a tap at [point] on [entry] against the control that owns the
+/// merged label, or null when the point is fine (#60).
 ///
-/// A `MergeSemantics` boundary folds everything beneath it into one node, and
-/// the framework keeps no [SemanticsNode] for the absorbed controls, so the
-/// semantics tree cannot say where they are. Their render objects can: a
-/// `Semantics(onTap:)` is a [RenderSemanticsAnnotations] and a
-/// `GestureDetector` is a [RenderSemanticsGestureHandler].
-List<Rect> _tapCarrierRects(Element element) {
-  final List<Rect> carriers = <Rect>[];
-
-  void visit(Element child) {
-    final RenderObject? render = child.renderObject;
-    final bool carriesTap = (render is RenderSemanticsAnnotations &&
-            render.properties.onTap != null) ||
-        (render is RenderSemanticsGestureHandler && render.onTap != null);
-    if (carriesTap &&
-        render is RenderBox &&
-        render.attached &&
-        render.hasSize) {
-      carriers.add(
-        MatrixUtils.transformRect(
-          render.getTransformTo(null),
-          Offset.zero & render.size,
-        ),
-      );
-    }
-    child.visitChildren(visit);
-  }
-
-  element.visitChildren(visit);
-  return carriers;
-}
-
-/// The `tapPointOutsideOwner` payload block for a tap dispatched at [point],
-/// or null when the point is inside the control's own area.
-///
-/// The tap lands at the live centre of the ref's element, and for a merged
-/// boundary that is the boundary's centre, which can be empty space beside the
-/// real control while the actionability gate still confirms it (#60). Null as
-/// well when [entry] is not a merge boundary (the node is the control and the
-/// point is its own centre) or when no tap-carrying descendant can be found
-/// (there is nothing to compare against). With several carriers the point is
-/// outside only when it is inside none of them, and `ownerRect` names the
-/// first.
-Map<String, dynamic>? _tapPointOutsideOwner(RefEntry entry, Offset point) {
+/// A tap lands at the live centre of the ref's element, and for a merge
+/// boundary that is the boundary's centre, which can belong to a handler the
+/// agent never named while the actionability gate still confirms it. Synthetic
+/// entries carry no semantics node and cannot be judged.
+TapOwnerReport? _judgeTapPoint(RefEntry entry, Offset point) {
   final SemanticsNode? node = entry.node;
-  if (node == null || !node.attached || !node.mergeAllDescendantsIntoThisNode) {
-    return null;
-  }
-
-  final List<Rect> owners = _tapCarrierRects(entry.element);
-  if (owners.isEmpty || owners.any((Rect owner) => owner.contains(point))) {
-    return null;
-  }
-
-  final Rect owner = owners.first;
-  return <String, dynamic>{
-    'ownerRect': <String, dynamic>{
-      'left': owner.left,
-      'top': owner.top,
-      'width': owner.width,
-      'height': owner.height,
-    },
-    'point': _pointJson(point),
-  };
+  if (node == null) return null;
+  return judgeTapPoint(
+    node: node,
+    element: entry.element,
+    point: point,
+    viewId: resolveViewFor(entry.element).viewId,
+  );
 }
 
 /// The interaction target a coordinate dispatch records, in place of a ref.
@@ -526,11 +483,14 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   //    the live rect is valid; falling back to the cached center only when
   //    the live rect is null (sliver / detached / synthetic-test entry).
   final String preSignal = _captureEffectSignal(entry);
-  final Offset dispatchCenter =
-      dispatchRectOf(entry)?.center ?? entry.rect.center;
+  final Offset liveCenter = dispatchRectOf(entry)?.center ?? entry.rect.center;
   // Read before the pointer goes in: a tap that navigates detaches the node.
-  final Map<String, dynamic>? outsideOwner =
-      _tapPointOutsideOwner(entry, dispatchCenter);
+  // A merge boundary's centre can belong to another handler (#60): when one
+  // labelled control owns the merged label, the pointer goes to it instead.
+  final TapOwnerReport? ownerReport = _judgeTapPoint(entry, liveCenter);
+  final Offset dispatchCenter = ownerReport != null && ownerReport.canRetarget
+      ? ownerReport.target
+      : liveCenter;
   final Element element = entry.element;
   try {
     await runPerfInteraction<void>(
@@ -595,7 +555,18 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   // presence is the signal: a clean pass used to be indistinguishable from
   // a confirmed one.
   stampChecks(payload, gate);
-  if (outsideOwner != null) payload['tapPointOutsideOwner'] = outsideOwner;
+  if (ownerReport != null && ownerReport.canRetarget) {
+    payload['retargeted'] = <String, dynamic>{
+      'from': _pointJson(ownerReport.point),
+      'to': _pointJson(ownerReport.target),
+      'ownerRect': _rectJson(ownerReport.ownerRect),
+    };
+  } else if (ownerReport != null) {
+    payload['tapPointOutsideOwner'] = <String, dynamic>{
+      'ownerRect': _rectJson(ownerReport.ownerRect),
+      'point': _pointJson(ownerReport.point),
+    };
+  }
   try {
     final String postSignal = _captureEffectSignal(entry);
     payload['effect'] = treeChangedEffect(before: preSignal, after: postSignal);

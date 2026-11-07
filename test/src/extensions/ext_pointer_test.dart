@@ -6,12 +6,15 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
+import 'package:fluttersdk_dusk/src/extensions/ext_observe.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
 import 'package:fluttersdk_dusk/src/utils/actionability_gate.dart';
 import 'package:fluttersdk_dusk/src/utils/dusk_register.dart';
 import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
+
+import '../../_support/merged_stage.dart';
 
 void _useSmallView(WidgetTester tester) {
   tester.view.physicalSize = const Size(800, 600);
@@ -103,7 +106,11 @@ Widget _mergedBoundaryScreen() {
                     label: 'Skip intro',
                     onTap: () {},
                     excludeSemantics: true,
-                    child: const SizedBox(width: 72, height: 28),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {},
+                      child: const SizedBox(width: 72, height: 28),
+                    ),
                   ),
                 ),
               ],
@@ -2106,7 +2113,7 @@ void main() {
     tearDown(RefRegistry.resetForTesting);
 
     testWidgets(
-      'a merged boundary whose tap carrier sits off-centre reports the point',
+      'a merged boundary whose only control sits off-centre is tapped there',
       (WidgetTester tester) async {
         _useSmallView(tester);
         final SemanticsHandle handle = tester.ensureSemantics();
@@ -2120,27 +2127,30 @@ void main() {
           expect(response.result, isNotNull, reason: response.errorDetail);
           final Map<String, dynamic> decoded =
               jsonDecode(response.result!) as Map<String, dynamic>;
-          expect(decoded, contains('tapPointOutsideOwner'));
-          final Map<String, dynamic> outside =
-              decoded['tapPointOutsideOwner'] as Map<String, dynamic>;
+          expect(decoded, isNot(contains('tapPointOutsideOwner')));
+          final Map<String, dynamic> moved =
+              decoded['retargeted'] as Map<String, dynamic>;
 
-          // The tap lands on the boundary's centre, which is the very gap the
-          // gate confirms and the control's own area does not cover.
+          // The gate confirmed the boundary's centre, which the control's own
+          // area does not cover; the tap went to the control instead.
           final Finder boundary = find.byKey(const Key('merged-boundary'));
           final Offset centre = tester.getCenter(boundary);
-          final Map<String, dynamic> point =
-              outside['point'] as Map<String, dynamic>;
-          expect(point['x'], closeTo(centre.dx, 0.01));
-          expect(point['y'], closeTo(centre.dy, 0.01));
+          final Map<String, dynamic> from =
+              moved['from'] as Map<String, dynamic>;
+          expect(from['x'], closeTo(centre.dx, 0.01));
+          expect(from['y'], closeTo(centre.dy, 0.01));
 
           // The control is the 72x28 button inset 12px from the bottom-right.
           final Offset origin = tester.getTopLeft(boundary);
           final Map<String, dynamic> owner =
-              outside['ownerRect'] as Map<String, dynamic>;
+              moved['ownerRect'] as Map<String, dynamic>;
           expect(owner['left'], closeTo(origin.dx + 216, 0.01));
           expect(owner['top'], closeTo(origin.dy + 80, 0.01));
           expect(owner['width'], closeTo(72, 0.01));
           expect(owner['height'], closeTo(28, 0.01));
+          final Map<String, dynamic> to = moved['to'] as Map<String, dynamic>;
+          expect(to['x'], closeTo(origin.dx + 216 + 36, 0.01));
+          expect(to['y'], closeTo(origin.dy + 80 + 14, 0.01));
         } finally {
           handle.dispose();
         }
@@ -2167,6 +2177,129 @@ void main() {
               jsonDecode(response.result!) as Map<String, dynamic>;
           expect(decoded, contains('ref'));
           expect(decoded, isNot(contains('tapPointOutsideOwner')));
+        } finally {
+          handle.dispose();
+        }
+      },
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // The labelled control wins over a full-frame handler (#60)
+  // ---------------------------------------------------------------------------
+
+  group('aiTestTapHandler merged stage with its own tap handler', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'the issue tree: a tap on Skip intro skips, it does not pause the stage',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        final SemanticsHandle handle = tester.ensureSemantics();
+        int stageTaps = 0;
+        int skips = 0;
+        try {
+          await tester.pumpWidget(
+            mergedStageApp(
+              onStageTap: () => stageTaps++,
+              onSkip: () => skips++,
+            ),
+          );
+          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+          final String ref = _refsFor(snapshot, 'Skip intro').single;
+
+          final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+
+          expect(response.result, isNotNull, reason: response.errorDetail);
+          expect(skips, 1);
+          expect(stageTaps, 0);
+          final Map<String, dynamic> decoded =
+              jsonDecode(response.result!) as Map<String, dynamic>;
+          expect(decoded, isNot(contains('tapPointOutsideOwner')));
+          final Map<String, dynamic> moved =
+              decoded['retargeted'] as Map<String, dynamic>;
+          final Map<String, dynamic> owner =
+              moved['ownerRect'] as Map<String, dynamic>;
+          expect(owner['width'], closeTo(120, 0.01));
+          expect(owner['height'], closeTo(40, 0.01));
+        } finally {
+          handle.dispose();
+        }
+      },
+    );
+
+    testWidgets(
+      'a q handle from observe lands on the control, not the stage',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        final SemanticsHandle handle = tester.ensureSemantics();
+        int stageTaps = 0;
+        int skips = 0;
+        try {
+          await tester.pumpWidget(
+            mergedStageApp(
+              onStageTap: () => stageTaps++,
+              onSkip: () => skips++,
+            ),
+          );
+          final ServiceExtensionResponse observed = await extDuskObserveHandler(
+            'ext.dusk.observe',
+            <String, String>{},
+          );
+          final Map<String, dynamic> candidate = (jsonDecode(observed.result!)
+                  as Map<String, dynamic>)['candidates']
+              .cast<Map<String, dynamic>>()
+              .singleWhere(
+                (Map<String, dynamic> c) => c['label'] == 'Skip intro',
+              ) as Map<String, dynamic>;
+          final String ref = candidate['ref'] as String;
+          expect(ref, startsWith('q'));
+
+          final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+
+          expect(response.result, isNotNull, reason: response.errorDetail);
+          expect(skips, 1);
+          expect(stageTaps, 0);
+          expect(
+            jsonDecode(response.result!) as Map<String, dynamic>,
+            isNot(contains('tapPointOutsideOwner')),
+          );
+        } finally {
+          handle.dispose();
+        }
+      },
+    );
+
+    testWidgets(
+      'two labelled controls and neither at the centre: warn, do not guess',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        final SemanticsHandle handle = tester.ensureSemantics();
+        int stageTaps = 0;
+        int yes = 0;
+        int no = 0;
+        try {
+          await tester.pumpWidget(
+            mergedChoiceApp(
+              onStageTap: () => stageTaps++,
+              onYes: () => yes++,
+              onNo: () => no++,
+            ),
+          );
+          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+          final String ref =
+              RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
+
+          final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+
+          expect(response.result, isNotNull, reason: response.errorDetail);
+          expect(stageTaps, 1);
+          expect(yes + no, 0);
+          final Map<String, dynamic> decoded =
+              jsonDecode(response.result!) as Map<String, dynamic>;
+          expect(decoded, isNot(contains('retargeted')));
+          expect(decoded, contains('tapPointOutsideOwner'));
         } finally {
           handle.dispose();
         }
