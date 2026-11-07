@@ -32,6 +32,34 @@ void registerScrollExtensions() {
 // ext.dusk.scroll
 // -----------------------------------------------------------------------------
 
+/// Pixels a `direction` alone scrolls, the default the MCP schema documents.
+const double _kDefaultScrollPixels = 300.0;
+
+/// The delta the call asks for, as `(dx, dy)` in logical pixels.
+///
+/// Explicit `dx` / `dy` win. Otherwise `direction` (default `down`) and
+/// `pixels` (default 300), the pair the MCP schema and the CLI advertise, name
+/// a signed delta; an unknown direction scrolls nothing. With none of the four
+/// there is no delta, so a call that only names a `ref` moves nothing.
+(double, double) _scrollDelta(Map<String, String> params) {
+  final double? dx = double.tryParse(params['dx'] ?? '');
+  final double? dy = double.tryParse(params['dy'] ?? '');
+  if (dx != null || dy != null) return (dx ?? 0.0, dy ?? 0.0);
+
+  final String? direction = params['direction'];
+  final double? pixels = double.tryParse(params['pixels'] ?? '');
+  if (direction == null && pixels == null) return (0.0, 0.0);
+
+  final double magnitude = pixels ?? _kDefaultScrollPixels;
+  return switch (direction ?? 'down') {
+    'down' => (0.0, magnitude),
+    'up' => (0.0, -magnitude),
+    'right' => (magnitude, 0.0),
+    'left' => (-magnitude, 0.0),
+    _ => (0.0, 0.0),
+  };
+}
+
 /// Handler for the `ext.dusk.scroll` VM Service extension.
 ///
 /// Params:
@@ -41,6 +69,9 @@ void registerScrollExtensions() {
 ///   parent scrollable of that element is scrolled by `dy`/`dx`.
 /// - `dy` (optional): vertical delta in logical pixels (positive = down).
 /// - `dx` (optional): horizontal delta in logical pixels (positive = right).
+/// - `direction` (optional, `up` | `down` | `left` | `right`, default `down`)
+///   and `pixels` (optional, default 300): the same delta as a signed pair,
+///   used only when neither `dx` nor `dy` is given.
 /// - `intoView` (optional, default `false`): when `true`, calls
 ///   [Scrollable.ensureVisible] on the resolved element with `alignment: 0.5`
 ///   and a 300 ms duration. Requires `ref` to identify the target element.
@@ -62,8 +93,7 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
   try {
     // 1. Parse parameters.
     final String? ref = params['ref'];
-    final double dy = double.tryParse(params['dy'] ?? '') ?? 0.0;
-    final double dx = double.tryParse(params['dx'] ?? '') ?? 0.0;
+    final (double dx, double dy) = _scrollDelta(params);
     final bool intoView =
         params['intoView'] == 'true' || params['intoView'] == '1';
 

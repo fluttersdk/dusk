@@ -215,6 +215,106 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // The MCP schema advertises direction + pixels, so the extension reads them.
+  // ---------------------------------------------------------------------------
+
+  group('aiTestScrollHandler direction and pixels', () {
+    Future<Map<String, dynamic>> scrollBy(
+      WidgetTester tester,
+      Map<String, String> params,
+    ) async {
+      final ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(0, 0, 100, 60),
+        // Whichever row is still built after an earlier scroll.
+        element: tester.element(find.textContaining('row ').first),
+        groupId: 'g-scroll-direction',
+        isTextField: false,
+      );
+      final future = aiTestScrollHandler(
+        'ext.dusk.scroll',
+        {'ref': ref, 'includeSnapshot': 'false', ...params},
+      );
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
+      expect(response.errorCode, isNull, reason: response.errorDetail);
+      return jsonDecode(response.result!) as Map<String, dynamic>;
+    }
+
+    Future<void> pumpList(WidgetTester tester) => tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ListView(
+                children: List<Widget>.generate(
+                  40,
+                  (i) => SizedBox(height: 60, child: Text('row $i')),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('the schema example scrolls down by the given pixels',
+        (tester) async {
+      await pumpList(tester);
+
+      final decoded = await scrollBy(
+        tester,
+        {'direction': 'down', 'pixels': '200'},
+      );
+
+      final effect = decoded['effect'] as Map<String, dynamic>;
+      expect(effect['after'], equals(200.0));
+      expect(effect['changed'], isTrue);
+    });
+
+    testWidgets('up scrolls back by the given pixels', (tester) async {
+      await pumpList(tester);
+      await scrollBy(tester, {'dy': '300'});
+
+      final decoded = await scrollBy(
+        tester,
+        {'direction': 'up', 'pixels': '100'},
+      );
+
+      final effect = decoded['effect'] as Map<String, dynamic>;
+      expect(effect['before'], equals(300.0));
+      expect(effect['after'], equals(200.0));
+    });
+
+    testWidgets('a lone direction scrolls the documented 300 pixels',
+        (tester) async {
+      await pumpList(tester);
+
+      final decoded = await scrollBy(tester, {'direction': 'down'});
+
+      final effect = decoded['effect'] as Map<String, dynamic>;
+      expect(effect['after'], equals(300.0));
+    });
+
+    testWidgets('explicit dy wins over direction and pixels', (tester) async {
+      await pumpList(tester);
+
+      final decoded = await scrollBy(
+        tester,
+        {'dy': '120', 'direction': 'down', 'pixels': '500'},
+      );
+
+      final effect = decoded['effect'] as Map<String, dynamic>;
+      expect(effect['after'], equals(120.0));
+    });
+
+    testWidgets('no delta at all still moves nothing', (tester) async {
+      await pumpList(tester);
+
+      final decoded = await scrollBy(tester, {});
+
+      final effect = decoded['effect'] as Map<String, dynamic>;
+      expect(effect['changed'], isFalse);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Step 3.2 — snapshot-in-action-response for ext.dusk.scroll.
   // ---------------------------------------------------------------------------
 
