@@ -1,7 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/commands/dusk_tap_command.dart';
+
+import '../cdp/fake_cdp_server.dart';
 
 class _StubContext extends ArtisanContext {
   _StubContext({
@@ -14,17 +19,74 @@ class _StubContext extends ArtisanContext {
   final Map<String, dynamic> _response;
   String? lastMethod;
   Map<String, dynamic>? lastParams;
+  int calls = 0;
 
   @override
   Future<T> callExtension<T>(String method,
       [Map<String, dynamic>? params]) async {
     lastMethod = method;
     lastParams = params;
+    calls++;
     return _response as T;
   }
 }
 
 void main() {
+  group('DuskTapCommand on a hidden web tab', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('dusk_tap_web_');
+    });
+
+    tearDown(() async {
+      StateFile.debugHomeOverride = null;
+      await tempDir.delete(recursive: true);
+    });
+
+    test('brings the page to front once and never repeats the tap', () async {
+      final List<String> frames = <String>[];
+      final FakeCdpServer server = await FakeCdpServer.start(
+        pageUrl: 'http://localhost:5123/',
+        handlers: {
+          'Page.bringToFront': (Map<String, dynamic> _) async {
+            frames.add('Page.bringToFront');
+            return <String, dynamic>{};
+          },
+        },
+      );
+      addTearDown(server.stop);
+      final Directory stateDir = Directory('${tempDir.path}/.artisan');
+      await stateDir.create(recursive: true);
+      await File('${stateDir.path}/state.json').writeAsString(
+        jsonEncode({'cdpPort': server.port, 'webPort': 5123}),
+      );
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7'}),
+        output: output,
+        response: const {
+          'ref': 'e7',
+          'warnings': {
+            'framesEnabled': false,
+            'lifecycleState': 'hidden',
+            'platform': 'web',
+          },
+        },
+      );
+
+      final exit = await DuskTapCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(frames, equals(<String>['Page.bringToFront']));
+      expect(ctx.calls, equals(1));
+      expect(output.content, contains('Tapped e7'));
+      expect(output.content, contains('not repeated'));
+    });
+  });
+
   group('DuskTapCommand', () {
     test('name is dusk:tap', () {
       expect(DuskTapCommand().name, equals('dusk:tap'));
@@ -171,6 +233,111 @@ void main() {
       // a tap that could not possibly land would otherwise read as a success.
       expect(output.content, contains('Tapped e7'));
       expect(output.content, contains('not producing frames'));
+    });
+
+    test('a tap point outside the control prints one warning line', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7'}),
+        output: output,
+        response: const {
+          'ref': 'e7',
+          'tapPointOutsideOwner': {
+            'ownerRect': {
+              'left': 216.0,
+              'top': 80.0,
+              'width': 72.0,
+              'height': 28.0
+            },
+            'point': {'x': 150.0, 'y': 60.0},
+          },
+        },
+      );
+
+      final exit = await DuskTapCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(output.content, contains('Tapped e7'));
+      expect(output.content, contains('(150.0, 60.0)'));
+      expect(output.content, contains('outside the control'));
+      expect(output.content, contains('216.0, 80.0, 72.0x28.0'));
+    });
+
+    test('a tap inside the control prints no warning', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7'}),
+        output: output,
+        response: const {'ref': 'e7'},
+      );
+
+      await DuskTapCommand().handle(ctx);
+
+      expect(output.content, isNot(contains('outside the control')));
+    });
+
+    group('--snapshot', () {
+      test('configure offers full, diff and none', () {
+        final parser = ArgParser();
+        DuskTapCommand().configure(parser);
+        expect(
+          parser.options['snapshot']!.allowed,
+          <String>['full', 'diff', 'none'],
+        );
+      });
+
+      test('passes the mode through and drops includeSnapshot', () async {
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e5', 'snapshot': 'diff'}),
+          output: BufferedOutput(),
+        );
+
+        await DuskTapCommand().handle(ctx);
+
+        expect(ctx.lastParams, containsPair('snapshot', 'diff'));
+        expect(ctx.lastParams!.containsKey('includeSnapshot'), isFalse);
+      });
+
+      test('prints the summary, then the snapshot text', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e5', 'snapshot': 'diff'}),
+          output: output,
+          response: const {
+            'ref': 'e5',
+            'snapshot': '- - button "Counter: 0" [ref=e5]\n'
+                '+ - button "Counter: 1" [ref=e5]\n'
+                '(2 of 9 lines changed)',
+            'snapshotMode': 'diff',
+          },
+        );
+
+        final exit = await DuskTapCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        final String content = output.content;
+        expect(content, isNot(contains('"snapshotMode"')));
+        expect(content.indexOf('Tapped e5'), greaterThanOrEqualTo(0));
+        expect(
+          content.indexOf('Tapped e5'),
+          lessThan(content.indexOf('- - button "Counter: 0" [ref=e5]')),
+        );
+        expect(content, contains('(2 of 9 lines changed)'));
+      });
+
+      test('--snapshot=none prints the summary alone', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e5', 'snapshot': 'none'}),
+          output: output,
+          response: const {'ref': 'e5'},
+        );
+
+        await DuskTapCommand().handle(ctx);
+
+        expect(ctx.lastParams, containsPair('snapshot', 'none'));
+        expect(output.content.trim().split('\n'), hasLength(1));
+      });
     });
   });
 }

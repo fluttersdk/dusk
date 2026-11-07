@@ -86,5 +86,139 @@ void main() {
 
       expect(await DuskTypeCommand().handle(ctx), equals(0));
     });
+
+    group('.handle() outcome summary', () {
+      test('unverified effect prints what the field holds and exits 1',
+          () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e3', 'text': '12ab'}),
+          output: output,
+          response: const {
+            'effect': {'kind': 'text', 'verified': false, 'value': '12'},
+          },
+        );
+
+        final code = await DuskTypeCommand().handle(ctx);
+
+        expect(code, equals(1));
+        expect(output.content, contains('[ERROR]'));
+        expect(output.content, contains('e3'));
+        expect(output.content, contains('"12"'));
+        expect(output.content, contains('"12ab"'));
+        expect(output.content, isNot(contains('Typed into')));
+      });
+
+      test('verified effect keeps the plain summary and exits 0', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e3', 'text': 'hello'}),
+          output: output,
+          response: const {
+            'effect': {'kind': 'text', 'verified': true, 'value': 'hello'},
+          },
+        );
+
+        final code = await DuskTypeCommand().handle(ctx);
+
+        expect(code, equals(0));
+        expect(output.content, contains('Typed into e3'));
+      });
+
+      test('a nearest-match target names the field that was written', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e3', 'text': 'hello'}),
+          output: output,
+          response: const {
+            'effect': {
+              'kind': 'text',
+              'verified': true,
+              'value': 'hello',
+              'target': {
+                'matchKind': 'nearest',
+                'label': 'Name',
+                'rect': {'x': 0.0, 'y': 48.0, 'width': 800.0, 'height': 24.0},
+              },
+            },
+          },
+        );
+
+        final code = await DuskTypeCommand().handle(ctx);
+
+        expect(code, equals(0));
+        expect(output.content, contains('nearest'));
+        expect(output.content, contains('"Name"'));
+        expect(output.content, contains('(0, 48, 800x24)'));
+        expect(output.content, contains('Typed into e3'));
+      });
+
+      test('an overlapping target keeps the plain summary', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e3', 'text': 'hello'}),
+          output: output,
+          response: const {
+            'effect': {
+              'kind': 'text',
+              'verified': true,
+              'value': 'hello',
+              'target': {
+                'matchKind': 'overlap',
+                'label': 'Name',
+                'rect': {'x': 0.0, 'y': 48.0, 'width': 800.0, 'height': 24.0},
+              },
+            },
+          },
+        );
+
+        await DuskTypeCommand().handle(ctx);
+
+        expect(output.content, isNot(contains('nearest')));
+      });
+
+      test('--json prints the envelope untouched for an unverified effect',
+          () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e3', 'text': '12ab', 'json': true}),
+          output: output,
+          response: const {
+            'effect': {'kind': 'text', 'verified': false, 'value': '12'},
+          },
+        );
+
+        final code = await DuskTypeCommand().handle(ctx);
+
+        expect(code, equals(0));
+        expect(output.content, contains('"verified":false'));
+        expect(output.content, isNot(contains('[ERROR]')));
+      });
+    });
+
+    test('--snapshot passes the mode through and prints the text after',
+        () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e3', 'text': 'hi', 'snapshot': 'full'}),
+        output: output,
+        response: const {
+          'text': 'hi',
+          'snapshot': '- textbox "Name": "hi" [ref=e3]\n',
+        },
+      );
+
+      final code = await DuskTypeCommand().handle(ctx);
+
+      expect(code, equals(0));
+      expect(ctx.lastParams, containsPair('snapshot', 'full'));
+      expect(ctx.lastParams!.containsKey('includeSnapshot'), isFalse);
+      final String content = output.content;
+      expect(content.indexOf('Typed into e3'), greaterThanOrEqualTo(0));
+      expect(
+        content.indexOf('Typed into e3'),
+        lessThan(content.indexOf('- textbox "Name": "hi" [ref=e3]')),
+      );
+    });
   });
 }

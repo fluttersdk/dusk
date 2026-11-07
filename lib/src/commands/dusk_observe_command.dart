@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'web_visibility.dart';
 
 /// `artisan dusk:observe [--intent=<hint>] [--roles=<csv>] [--limit=<n>]
 /// [--includeEnrichers=<true|false|full>]` — return a structured candidate
@@ -76,8 +77,12 @@ class DuskObserveCommand extends ArtisanCommand {
       params['includeEnrichers'] = includeEnrichers;
     }
 
-    final response = await ctx.callExtension<Map<String, dynamic>>(
-        'ext.dusk.observe', params);
+    final response = await callExtensionVisible(
+      ctx,
+      'ext.dusk.observe',
+      params,
+      retry: true,
+    );
     reportFrameWarning(ctx, response);
     ctx.output.writeln(jsonEncode(response));
     return 0;

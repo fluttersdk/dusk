@@ -77,5 +77,88 @@ void main() {
       expect(exit, equals(1));
       expect(ctx.lastMethod, isNull);
     });
+
+    group('.handle() outcome summary', () {
+      test(
+          'navigated:false says it is unconfirmed, with the reason, and exits 0',
+          () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'route': '/forms'}),
+          output: output,
+          response: const {
+            'navigated': false,
+            'route': '/forms',
+            'reason': 'router did not honor the new route',
+          },
+        );
+
+        final exit = await DuskNavigateCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        expect(
+          output.content,
+          contains(
+            'Navigation to /forms not confirmed: '
+            'router did not honor the new route',
+          ),
+        );
+        expect(output.content, contains('dusk:snap'));
+        expect(output.content, isNot(contains('Navigated to')));
+      });
+
+      test('navigated:false without a reason still names the unconfirmed route',
+          () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'route': '/forms'}),
+          output: output,
+          response: const {'navigated': false, 'route': '/forms'},
+        );
+
+        await DuskNavigateCommand().handle(ctx);
+
+        expect(output.content, contains('Navigation to /forms not confirmed'));
+      });
+
+      test('navigated:true keeps the plain summary', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'route': '/forms'}),
+          output: output,
+          response: const {'navigated': true, 'route': '/forms'},
+        );
+
+        await DuskNavigateCommand().handle(ctx);
+
+        expect(output.content, contains('Navigated to /forms'));
+      });
+    });
+
+    test('--snapshot passes the mode through and prints the text after',
+        () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'route': '/forms', 'snapshot': 'diff'}),
+        output: output,
+        response: const {
+          'navigated': true,
+          'route': '/forms',
+          'snapshot': '+ - text "Forms"\n(1 of 3 lines changed)',
+          'snapshotMode': 'diff',
+        },
+      );
+
+      await DuskNavigateCommand().handle(ctx);
+
+      expect(ctx.lastParams, containsPair('snapshot', 'diff'));
+      expect(ctx.lastParams!.containsKey('includeSnapshot'), isFalse);
+      final String content = output.content;
+      expect(content.indexOf('Navigated to /forms'), greaterThanOrEqualTo(0));
+      expect(
+        content.indexOf('Navigated to /forms'),
+        lessThan(content.indexOf('+ - text "Forms"')),
+      );
+    });
   });
 }

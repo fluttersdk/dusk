@@ -177,5 +177,76 @@ void main() {
       expect(ctx.lastParams, containsPair('dy', '500'));
       expect(ctx.lastParams, isNot(containsPair('dy', '-50.0')));
     });
+
+    group('.handle() outcome summary', () {
+      test('effect.changed:false says nothing moved and exits 0', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e5', 'dy': '300'}),
+          output: output,
+          response: const {
+            'effect': {
+              'kind': 'scrollOffset',
+              'changed': false,
+              'before': 0.0,
+              'after': 0.0,
+            },
+          },
+        );
+
+        final code = await DuskScrollCommand().handle(ctx);
+
+        expect(code, equals(0));
+        expect(
+          output.content,
+          contains(
+            'Scrolled e5 (nothing moved: not scrollable, or already at the '
+            'edge)',
+          ),
+        );
+      });
+
+      test('effect.changed:true keeps the plain summary', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e5', 'dy': '300'}),
+          output: output,
+          response: const {
+            'effect': {'kind': 'scrollOffset', 'changed': true},
+          },
+        );
+
+        await DuskScrollCommand().handle(ctx);
+
+        expect(output.content, contains('Scrolled e5'));
+        expect(output.content, isNot(contains('nothing moved')));
+      });
+    });
+
+    test('--snapshot passes the mode through and prints the text after',
+        () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e5', 'dy': '100', 'snapshot': 'diff'}),
+        output: output,
+        response: const {
+          'scrolled': true,
+          'effect': {'kind': 'scrollOffset', 'changed': true},
+          'snapshot': '- - text "row 0"\n(1 of 12 lines changed)',
+          'snapshotMode': 'diff',
+        },
+      );
+
+      await DuskScrollCommand().handle(ctx);
+
+      expect(ctx.lastParams, containsPair('snapshot', 'diff'));
+      expect(ctx.lastParams!.containsKey('includeSnapshot'), isFalse);
+      final String content = output.content;
+      expect(content.indexOf('Scrolled e5'), greaterThanOrEqualTo(0));
+      expect(
+        content.indexOf('Scrolled e5'),
+        lessThan(content.indexOf('(1 of 12 lines changed)')),
+      );
+    });
   });
 }

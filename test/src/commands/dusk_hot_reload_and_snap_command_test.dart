@@ -150,7 +150,7 @@ void main() {
       );
 
       final code = await cmd.handle(ctx);
-      expect(code, equals(0));
+      expect(code, equals(1));
 
       final result = cmd.lastResult!;
       expect(result['reloaded'], isFalse);
@@ -453,6 +453,47 @@ void main() {
       expect(cmd.lastResult!['reloaded'], isTrue);
       expect(cmd.lastResult!['snapshot'], equals('- root'));
       expect(pipeFile.readAsStringSync(), equals('r\n'));
+    });
+
+    test(
+        'reads the per-session log next to the state file when state.json has '
+        'no logPath', () async {
+      final sessionDir = Directory('${tempHome.path}/.artisan/sessions/abc123')
+        ..createSync(recursive: true);
+      final pipeFile = File('${sessionDir.path}/flutter-dev.fifo')
+        ..createSync();
+      final logFile = File('${sessionDir.path}/flutter-dev.log')
+        ..writeAsStringSync('Launching app...\n');
+      File('${sessionDir.path}/state.json').writeAsStringSync(
+        jsonEncode({'pid': 1, 'stdinPipe': pipeFile.path}),
+      );
+      StateFile.pathOverride = '${sessionDir.path}/state.json';
+      addTearDown(() => StateFile.pathOverride = null);
+
+      // ignore: unawaited_futures
+      Future<void>.delayed(const Duration(milliseconds: 120), () {
+        logFile.writeAsStringSync(
+          'Reloaded 0 of 1 libraries in 50ms (compile: 5 ms, reload: 0 ms).\n',
+          mode: FileMode.append,
+        );
+      });
+
+      final cmd = DuskHotReloadAndSnapCommand();
+      final ctx = _StubContext(
+        input: MapInput(const {'screenshot': false}),
+        output: BufferedOutput(),
+        responses: <String, Map<String, dynamic>>{
+          'ext.dusk.snap': const {'snapshot': '- root', 'groupId': 'g'},
+          'ext.dusk.exceptions': const {
+            'exceptions': <Map<String, dynamic>>[],
+            'count': 0,
+          },
+        },
+      );
+
+      await cmd.handle(ctx);
+
+      expect(cmd.lastResult!['reloaded'], isTrue);
     });
 
     test(

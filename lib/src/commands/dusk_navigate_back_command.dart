@@ -35,12 +35,16 @@ class DuskNavigateBackCommand extends ArtisanCommand {
       {'includeSnapshot': includeSnapshot.toString()},
     );
     reportFrameWarning(ctx, response);
-    if (includeSnapshot) {
+    if (includeSnapshot || wantsJson(ctx)) {
       ctx.output.writeln(jsonEncode(response));
-    } else {
-      emitEnvelope(
-          ctx, response, () => ctx.output.success('Popped current route'));
+      return 0;
     }
+
+    if (response['popped'] == false) {
+      ctx.output.warning('Nothing to pop: already at the root route');
+      return 0;
+    }
+    ctx.output.success('Popped current route');
     return 0;
   }
 }

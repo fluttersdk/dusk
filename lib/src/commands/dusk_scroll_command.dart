@@ -4,6 +4,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
 import 'json_output.dart';
+import 'web_visibility.dart';
 
 /// `artisan dusk:scroll --ref=<eN> [--dy=<px>] [--dx=<px>] [--intoView]`
 /// — scroll inside a scrollable widget by ref token.
@@ -52,6 +53,13 @@ class DuskScrollCommand extends ArtisanCommand {
     parser.addFlag('includeSnapshot',
         help: 'Embed the post-scroll snapshot in the response.',
         defaultsTo: false);
+    parser.addOption(
+      'snapshot',
+      allowed: <String>['full', 'diff', 'none'],
+      help: 'Print the post-scroll snapshot after the summary: the whole '
+          'tree, only the lines changed since the last snapshot, or nothing. '
+          'Overrides --includeSnapshot.',
+    );
   }
 
   @override
@@ -100,18 +108,33 @@ class DuskScrollCommand extends ArtisanCommand {
     if (intoView != null && intoView != false) {
       params['intoView'] = intoView.toString();
     }
-    final includeSnapshot =
-        (ctx.input.option('includeSnapshot') as bool?) ?? false;
-    params['includeSnapshot'] = includeSnapshot.toString();
-
-    final response = await ctx.callExtension<Map<String, dynamic>>(
-        'ext.dusk.scroll', params);
-    reportFrameWarning(ctx, response);
-    if (includeSnapshot) {
-      ctx.output.writeln(jsonEncode(response));
+    final snapshotMode = ctx.input.option('snapshot') as String?;
+    final includeSnapshot = snapshotMode == null &&
+        ((ctx.input.option('includeSnapshot') as bool?) ?? false);
+    if (snapshotMode != null) {
+      params['snapshot'] = snapshotMode;
     } else {
-      emitEnvelope(ctx, response, () => ctx.output.success('Scrolled $ref'));
+      params['includeSnapshot'] = includeSnapshot.toString();
     }
+
+    final response = await callExtensionVisible(ctx, 'ext.dusk.scroll', params);
+    reportFrameWarning(ctx, response);
+    if (includeSnapshot || wantsJson(ctx)) {
+      ctx.output.writeln(jsonEncode(response));
+      return 0;
+    }
+
+    final effect = response['effect'] as Map<String, dynamic>?;
+    if (effect?['changed'] == false) {
+      ctx.output.warning(
+        'Scrolled $ref (nothing moved: not scrollable, or already at the '
+        'edge)',
+      );
+    } else {
+      ctx.output.success('Scrolled $ref');
+    }
+    final snapshot = response['snapshot'] as String?;
+    if (snapshot != null) ctx.output.writeln(snapshot);
     return 0;
   }
 }

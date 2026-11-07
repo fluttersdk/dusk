@@ -19,6 +19,7 @@ void main() {
   /// Verbs that print a one-line human summary and therefore need the
   /// escape hatch to the full envelope.
   const Set<String> summarising = <String>{
+    'dusk:snap',
     'dusk:tap',
     'dusk:hover',
     'dusk:drag',
@@ -83,7 +84,6 @@ void main() {
         declared[command.name] = parser.options.containsKey('json');
       }
 
-      expect(declared['dusk:snap'], isFalse);
       expect(declared['dusk:find'], isFalse);
       expect(declared['dusk:observe'], isFalse);
       expect(declared['dusk:exceptions'], isFalse);

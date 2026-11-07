@@ -53,5 +53,38 @@ void main() {
         isEmpty,
       );
     });
+
+    group('.handle() outcome summary', () {
+      test('popped:false prints a nothing-to-pop line and exits 0', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {}),
+          output: output,
+          response: const {'navigatedBack': true, 'popped': false},
+        );
+
+        final exit = await DuskNavigateBackCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        expect(
+          output.content,
+          contains('Nothing to pop: already at the root route'),
+        );
+        expect(output.content, isNot(contains('Popped current route')));
+      });
+
+      test('popped:true keeps the plain summary', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {}),
+          output: output,
+          response: const {'navigatedBack': true, 'popped': true},
+        );
+
+        await DuskNavigateBackCommand().handle(ctx);
+
+        expect(output.content, contains('Popped current route'));
+      });
+    });
   });
 }
