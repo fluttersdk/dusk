@@ -106,7 +106,7 @@ void main() {
       expect(await DuskScrollCommand().handle(ctx), equals(0));
     });
 
-    test('handle translates --direction=down --pixels=200 to positive --dy',
+    test('handle passes --direction and --pixels on for the extension to read',
         () async {
       final ctx = _StubContext(
         input:
@@ -117,65 +117,22 @@ void main() {
       await DuskScrollCommand().handle(ctx);
 
       expect(ctx.lastMethod, equals('ext.dusk.scroll'));
-      expect(ctx.lastParams, containsPair('dy', '200.0'));
+      expect(ctx.lastParams, containsPair('direction', 'down'));
+      expect(ctx.lastParams, containsPair('pixels', '200'));
+      expect(ctx.lastParams, isNot(contains('dy')));
     });
 
-    test('handle translates --direction=up --pixels=300 to negative --dy',
-        () async {
+    test('handle passes --dy and --dx through untouched', () async {
       final ctx = _StubContext(
-        input:
-            MapInput(const {'ref': 'e5', 'direction': 'up', 'pixels': '300'}),
+        input: MapInput(const {'ref': 'e5', 'dy': '500', 'dx': '-20'}),
         output: BufferedOutput(),
       );
 
       await DuskScrollCommand().handle(ctx);
 
-      expect(ctx.lastParams, containsPair('dy', '-300.0'));
-    });
-
-    test('handle translates --direction=right --pixels=150 to positive --dx',
-        () async {
-      final ctx = _StubContext(
-        input: MapInput(
-            const {'ref': 'e5', 'direction': 'right', 'pixels': '150'}),
-        output: BufferedOutput(),
-      );
-
-      await DuskScrollCommand().handle(ctx);
-
-      expect(ctx.lastParams, containsPair('dx', '150.0'));
-    });
-
-    test('handle translates --direction=left --pixels=80 to negative --dx',
-        () async {
-      final ctx = _StubContext(
-        input:
-            MapInput(const {'ref': 'e5', 'direction': 'left', 'pixels': '80'}),
-        output: BufferedOutput(),
-      );
-
-      await DuskScrollCommand().handle(ctx);
-
-      expect(ctx.lastParams, containsPair('dx', '-80.0'));
-    });
-
-    test('handle prefers explicit --dy/--dx over --direction/--pixels',
-        () async {
-      final ctx = _StubContext(
-        input: MapInput(const {
-          'ref': 'e5',
-          'dy': '500',
-          'direction': 'up',
-          'pixels': '50',
-        }),
-        output: BufferedOutput(),
-      );
-
-      await DuskScrollCommand().handle(ctx);
-
-      // Explicit --dy=500 wins over --direction=up (which would have produced --dy=-50).
       expect(ctx.lastParams, containsPair('dy', '500'));
-      expect(ctx.lastParams, isNot(containsPair('dy', '-50.0')));
+      expect(ctx.lastParams, containsPair('dx', '-20'));
+      expect(ctx.lastParams, isNot(contains('direction')));
     });
 
     group('.handle() outcome summary', () {

@@ -22,7 +22,7 @@
 - `dusk_fill` (`ext.dusk.fill`): Focus + clear + type + settle a text field in one call; composes the gated focus/clear/type handlers and retries once on a stale handle. Replaces the manual fill dance. A ref that is a button, checkbox, switch, slider or link is refused; `effect.target {matchKind, label, rect}` says which field was written, and `effect.verified` is read after the settle.
 
 *Scrolling*
-- `dusk_scroll` (`ext.dusk.scroll`): Scroll a Scrollable widget by direction + pixels.
+- `dusk_scroll` (`ext.dusk.scroll`): Scroll a Scrollable widget by `direction` + `pixels`, by `dx` / `dy`, or `intoView`.
 
 *Waits / Polling*
 - `dusk_wait_for` (`ext.dusk.wait_for`): Wait until text/textGone/expression condition met or timeout.

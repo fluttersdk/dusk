@@ -501,6 +501,9 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '`down`, `left`, `right`.\n'
               '- Optional `pixels` (default 300) tunes the scroll '
               'distance; pass larger values to page faster.\n'
+              '- `dx` / `dy` (signed logical pixels) take precedence over '
+              '`direction` / `pixels`; `intoView: true` brings `ref` itself '
+              'into view instead.\n'
               '- Re-snap after the scroll completes; off-screen widgets '
               'gain refs only once Flutter builds them.\n'
               '- `scrolled` is true only when the offset moved. With no '
@@ -528,6 +531,22 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'description': 'Logical pixels to scroll. Default 300. '
                     'Larger values page faster but may overshoot.',
               },
+              'dx': <String, dynamic>{
+                'type': 'number',
+                'description': 'Horizontal delta in logical pixels '
+                    '(positive = right). Overrides `direction` / `pixels`.',
+              },
+              'dy': <String, dynamic>{
+                'type': 'number',
+                'description': 'Vertical delta in logical pixels '
+                    '(positive = down). Overrides `direction` / `pixels`.',
+              },
+              'intoView': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Bring `ref` itself into view '
+                    '(`Scrollable.ensureVisible`) instead of scrolling by a '
+                    'delta.',
+              },
             },
             'required': <String>['ref'],
           },
@@ -543,20 +562,22 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'expires.\n'
               '\n'
               'Polls the running app at a fixed interval and returns once '
-              'one of three one-of conditions is met: `text` (a Semantics '
-              'node with that label exists), `textGone` (no Semantics node '
-              'with that label exists), or `expression` (a Dart expression '
-              'evaluated via the Tinker bridge returns truthy). Useful for '
+              'one of three one-of conditions is met: `text` (a Text with '
+              'that data exists), `textGone` (no such Text exists), or '
+              '`expression` (matched as text exactly like `text`; it is NOT '
+              'evaluated as Dart, use dusk_evaluate for that). Useful for '
               'bridging async UI transitions before a follow-up dusk_tap / '
               'dusk_snap.\n'
               '\n'
               'Usage:\n'
-              '- Pass exactly ONE of `text`, `textGone`, `expression`; the '
-              'handler errors when zero or multiple are passed.\n'
-              '- Optional `timeoutMs` (default 5000) caps the wait; on '
-              'timeout the call returns an error result, never silently '
-              'continues.\n'
-              '- Polling interval is 100 ms; the handler returns as soon '
+              '- Pass ONE of `text`, `textGone`, `expression`; the handler '
+              'errors when none is passed and, when several are, uses the '
+              'first in that order.\n'
+              '- Optional `timeoutMs` (default 5000) caps the wait. A '
+              'timeout is a normal result, `{ matched: false, reason: '
+              '"timeout" }`, not an error: check `matched` before going on. '
+              'A match returns `{ matched: true, elapsedMs }`.\n'
+              '- Polling interval is 200 ms; the handler returns as soon '
               'as the condition flips, never blocks the full timeout.\n'
               '\n'
               'Example: `{ "text": "Welcome", "timeoutMs": 3000 }`',
@@ -565,20 +586,21 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             'properties': <String, dynamic>{
               'text': <String, dynamic>{
                 'type': 'string',
-                'description': 'Wait until a Semantics node with this '
-                    'exact label exists. One-of: pair with neither '
-                    '`textGone` nor `expression`.',
+                'description': 'Wait until a Text widget with exactly this '
+                    'data exists (an icon button\'s semantics label does not '
+                    'count). One-of: pair with neither `textGone` nor '
+                    '`expression`.',
               },
               'textGone': <String, dynamic>{
                 'type': 'string',
-                'description': 'Wait until NO Semantics node with this '
-                    'label exists. One-of: pair with neither `text` nor '
+                'description': 'Wait until no Text widget with exactly this '
+                    'data exists. One-of: pair with neither `text` nor '
                     '`expression`.',
               },
               'expression': <String, dynamic>{
                 'type': 'string',
-                'description': 'Wait until this Dart expression (evaluated '
-                    'via the Tinker bridge) returns a truthy value. '
+                'description': 'Wait until a Text with this data exists '
+                    '(matched as text, not evaluated as Dart). '
                     'One-of: pair with neither `text` nor `textGone`.',
               },
               'timeoutMs': <String, dynamic>{
@@ -1126,8 +1148,9 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'of the widget identified by `ref`, with ~100ms between the '
               'two taps, matching Playwright\'s double-click model. Triggers '
               '`GestureDetector.onDoubleTap` and any double-tap handlers '
-              'registered on that widget. The 4-gate actionability check '
-              '(enabled, non-zero rect, in-viewport, stable) runs before the '
+              'registered on that widget. The six-step actionability gate '
+              '(defunct, enabled, zero rect, off-viewport, stable, receives '
+              'events) runs before the '
               'first tap; the post-action snapshot is captured once after the '
               'second tap completes.\n'
               '\n'
@@ -1422,12 +1445,12 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
           description: 'Fire a right (secondary mouse button) click at the '
               'widget identified by `ref`.\n\n'
               'Playwright parity: `locator.click({ button: "right" })`. '
-              'Useful for context menus. Runs the 5-gate actionability check '
+              'Useful for context menus. Runs the six-step actionability gate '
               'before injecting the PointerDownEvent + 50ms hold + '
               'PointerUpEvent (mouse kind, kSecondaryButton).\n\n'
               'Usage:\n'
               '- `ref` (required): widget ref token.\n'
-              '- `includeSnapshot` (default false): embed post-action snapshot.\n'
+              '- `includeSnapshot` (default true): embed post-action snapshot.\n'
               '- `checkStable`/`checkReceivesEvents` (both default true): '
               'gate opt-outs.',
           inputSchema: <String, dynamic>{
@@ -1439,8 +1462,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
               'includeSnapshot': <String, dynamic>{
                 'type': 'boolean',
-                'description':
-                    'Embed the post-action snapshot (default false).',
+                'description': 'Embed the post-action snapshot (default true).',
               },
               'checkStable': <String, dynamic>{
                 'type': 'boolean',
@@ -1463,11 +1485,11 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'widget identified by `ref`.\n\n'
               'Playwright parity: `locator.click({ clickCount: 3 })`. In '
               'Material text fields this selects an entire paragraph. Runs '
-              'the 5-gate actionability check once before the first tap; '
+              'the six-step actionability gate once before the first tap; '
               'subsequent taps assume the target is still actionable.\n\n'
               'Usage:\n'
               '- `ref` (required): widget ref token.\n'
-              '- `includeSnapshot` (default false): embed post-action snapshot.\n'
+              '- `includeSnapshot` (default true): embed post-action snapshot.\n'
               '- `checkStable`/`checkReceivesEvents` (both default true): '
               'gate opt-outs.',
           inputSchema: <String, dynamic>{
@@ -1479,8 +1501,7 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               },
               'includeSnapshot': <String, dynamic>{
                 'type': 'boolean',
-                'description':
-                    'Embed the post-action snapshot (default false).',
+                'description': 'Embed the post-action snapshot (default true).',
               },
               'checkStable': <String, dynamic>{
                 'type': 'boolean',

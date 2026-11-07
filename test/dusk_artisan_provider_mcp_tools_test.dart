@@ -531,5 +531,48 @@ void main() {
       final device = tools.firstWhere((t) => t.name == 'dusk_device_profile');
       expect(device.inputSchema.containsKey('required'), isFalse);
     });
+
+    test('dusk_scroll lists every key the extension reads', () {
+      final scroll = tools.firstWhere((t) => t.name == 'dusk_scroll');
+      final properties =
+          scroll.inputSchema['properties'] as Map<String, dynamic>;
+
+      // ext_scroll.dart reads these six; the schema used to list only the
+      // direction and pixels pair, which the extension then ignored.
+      expect(
+        properties.keys,
+        containsAll(
+            <String>['ref', 'direction', 'pixels', 'dx', 'dy', 'intoView']),
+      );
+    });
+
+    test('dusk_wait_for describes a timeout as a result, not an error', () {
+      final wait = tools.firstWhere((t) => t.name == 'dusk_wait_for');
+      final properties = wait.inputSchema['properties'] as Map<String, dynamic>;
+
+      // ext_wait_find.dart answers a timeout with `{matched: false, reason:
+      // 'timeout'}` as a success, and picks the first of several one-of keys.
+      expect(wait.description, contains('matched: false'));
+      expect(wait.description, isNot(contains('returns an error result')));
+      expect(wait.description, isNot(contains('multiple are passed')));
+      for (final key in <String>['text', 'textGone']) {
+        final description =
+            (properties[key] as Map<String, dynamic>)['description'] as String;
+        expect(description, contains('Text'), reason: key);
+        expect(description, isNot(contains('Semantics node')), reason: key);
+      }
+    });
+
+    test('the click variants say their snapshot default is true', () {
+      for (final name in <String>['dusk_right_click', 'dusk_triple_click']) {
+        final tool = tools.firstWhere((t) => t.name == name);
+        final properties =
+            tool.inputSchema['properties'] as Map<String, dynamic>;
+        final snapshot = properties['includeSnapshot'] as Map<String, dynamic>;
+
+        expect(snapshot['description'], contains('default true'), reason: name);
+        expect(tool.description, contains('includeSnapshot` (default true)'));
+      }
+    });
   });
 }

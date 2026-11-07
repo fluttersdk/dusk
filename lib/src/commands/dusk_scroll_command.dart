@@ -38,8 +38,8 @@ class DuskScrollCommand extends ArtisanCommand {
     parser.addOption(
       'direction',
       allowed: ['up', 'down', 'left', 'right'],
-      help: 'Convenience scroll direction; paired with --pixels. '
-          'Translates to --dy / --dx under the hood.',
+      help: 'Convenience scroll direction; paired with --pixels (default 300). '
+          'Ignored when --dy or --dx is given.',
     );
     parser.addOption(
       'pixels',
@@ -74,35 +74,13 @@ class DuskScrollCommand extends ArtisanCommand {
 
     final params = <String, dynamic>{'ref': ref};
 
-    // Resolve scroll delta: explicit --dy/--dx win; --direction/--pixels
-    // is the agent-friendly shorthand that maps onto a signed --dy or --dx
-    // depending on the chosen direction. Both forms may coexist; the
-    // direction/pixels pair only fires when --dy / --dx are absent.
-    String? dy = ctx.input.option('dy') as String?;
-    String? dx = ctx.input.option('dx') as String?;
-    if (dy == null && dx == null) {
-      final dir = ctx.input.option('direction') as String?;
-      final px = ctx.input.option('pixels') as String?;
-      if (dir != null && px != null) {
-        final magnitude = double.tryParse(px) ?? 0;
-        switch (dir) {
-          case 'down':
-            dy = magnitude.toString();
-            break;
-          case 'up':
-            dy = (-magnitude).toString();
-            break;
-          case 'right':
-            dx = magnitude.toString();
-            break;
-          case 'left':
-            dx = (-magnitude).toString();
-            break;
-        }
-      }
+    // The extension resolves the delta: explicit --dy / --dx win, and
+    // --direction / --pixels is the shorthand it turns into a signed delta, so
+    // the CLI and the MCP tool read the same four keys the same way.
+    for (final key in const ['dy', 'dx', 'direction', 'pixels']) {
+      final value = ctx.input.option(key) as String?;
+      if (value != null) params[key] = value;
     }
-    if (dy != null) params['dy'] = dy;
-    if (dx != null) params['dx'] = dx;
 
     final intoView = ctx.input.option('intoView');
     if (intoView != null && intoView != false) {

@@ -32,6 +32,57 @@ void registerScrollExtensions() {
 // ext.dusk.scroll
 // -----------------------------------------------------------------------------
 
+/// Pixels a `direction` alone scrolls, the default the MCP schema documents.
+const double _kDefaultScrollPixels = 300.0;
+
+/// The delta the call asks for, as `(dx, dy)` in logical pixels.
+///
+/// Explicit `dx` / `dy` win. Otherwise `direction` (default `down`) and
+/// `pixels` (default 300), the pair the MCP schema and the CLI advertise, name
+/// a delta: `pixels` is a distance, so the direction alone gives the sign. With
+/// none of the four there is no delta, so a call that only names a `ref` moves
+/// nothing.
+///
+/// Throws [FormatException] for a key that is present but cannot be a delta (not
+/// a number, NaN, infinite, or an unknown direction) rather than falling back to
+/// a default: a typo should not scroll 300 pixels the other way.
+(double, double) _scrollDelta(Map<String, String> params) {
+  final double? dx = _scrollNumber(params, 'dx');
+  final double? dy = _scrollNumber(params, 'dy');
+  if (dx != null || dy != null) return (dx ?? 0.0, dy ?? 0.0);
+
+  final String? direction = _scrollText(params, 'direction');
+  final double? pixels = _scrollNumber(params, 'pixels');
+  if (direction == null && pixels == null) return (0.0, 0.0);
+
+  final double magnitude = (pixels ?? _kDefaultScrollPixels).abs();
+  return switch (direction ?? 'down') {
+    'down' => (0.0, magnitude),
+    'up' => (0.0, -magnitude),
+    'right' => (magnitude, 0.0),
+    'left' => (-magnitude, 0.0),
+    final String other => throw FormatException(
+        "direction must be up, down, left or right, got '$other'",
+      ),
+  };
+}
+
+String? _scrollText(Map<String, String> params, String key) {
+  final String? raw = params[key];
+  return raw == null || raw.isEmpty ? null : raw;
+}
+
+double? _scrollNumber(Map<String, String> params, String key) {
+  final String? raw = _scrollText(params, key);
+  if (raw == null) return null;
+
+  final double? value = double.tryParse(raw);
+  if (value == null || !value.isFinite) {
+    throw FormatException("$key must be a finite number, got '$raw'");
+  }
+  return value;
+}
+
 /// Handler for the `ext.dusk.scroll` VM Service extension.
 ///
 /// Params:
@@ -41,6 +92,9 @@ void registerScrollExtensions() {
 ///   parent scrollable of that element is scrolled by `dy`/`dx`.
 /// - `dy` (optional): vertical delta in logical pixels (positive = down).
 /// - `dx` (optional): horizontal delta in logical pixels (positive = right).
+/// - `direction` (optional, `up` | `down` | `left` | `right`, default `down`)
+///   and `pixels` (optional, default 300): the same delta as a signed pair,
+///   used only when neither `dx` nor `dy` is given.
 /// - `intoView` (optional, default `false`): when `true`, calls
 ///   [Scrollable.ensureVisible] on the resolved element with `alignment: 0.5`
 ///   and a 300 ms duration. Requires `ref` to identify the target element.
@@ -62,8 +116,7 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
   try {
     // 1. Parse parameters.
     final String? ref = params['ref'];
-    final double dy = double.tryParse(params['dy'] ?? '') ?? 0.0;
-    final double dx = double.tryParse(params['dx'] ?? '') ?? 0.0;
+    final (double dx, double dy) = _scrollDelta(params);
     final bool intoView =
         params['intoView'] == 'true' || params['intoView'] == '1';
 
@@ -190,6 +243,14 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
     }
 
     return duskResult(payload);
+  } on FormatException catch (e) {
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.invalidParams,
+      wrapErrorDetail(
+        '[fluttersdk_dusk] ext.dusk.scroll: ${e.message}',
+        DuskErrorEnvelope.unexpected(),
+      ),
+    );
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.scroll error: $e\n$stackTrace',
