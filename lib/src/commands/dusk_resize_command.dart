@@ -38,13 +38,13 @@ final class DuskResizeCommand extends ArtisanCommand {
     parser
       ..addOption(
         'width',
-        help: 'Viewport width in CSS pixels (e.g. 375).',
-        mandatory: true,
+        help: 'Viewport width in CSS pixels (e.g. 375). Required unless '
+            '--reset.',
       )
       ..addOption(
         'height',
-        help: 'Viewport height in CSS pixels (e.g. 812).',
-        mandatory: true,
+        help: 'Viewport height in CSS pixels (e.g. 812). Required unless '
+            '--reset.',
       )
       ..addOption(
         'dpr',
@@ -81,6 +81,21 @@ final class DuskResizeCommand extends ArtisanCommand {
 
   @override
   Future<int> handle(ArtisanContext ctx) async {
+    // 0. A resize needs a size. The MCP schema leaves width and height
+    //    optional so that a bare `{"reset": true}` is callable, which makes
+    //    this the place that refuses a resize naming none: parsed as 0 they
+    //    would otherwise reach Chrome as a 0x0 override.
+    final bool resetOnly = (ctx.input.option('reset') as bool?) ?? false;
+    if (!resetOnly &&
+        (_readInt(ctx.input.option('width')) <= 0 ||
+            _readInt(ctx.input.option('height')) <= 0)) {
+      ctx.output.error(
+        'A resize needs a positive --width and --height (CSS pixels), or '
+        '--reset to clear the overrides.',
+      );
+      return 1;
+    }
+
     // 1. Read StateFile; fail fast when cdpPort is absent.
     final Map<String, dynamic>? state = await StateFile.read();
     if (state == null || state['cdpPort'] == null) {

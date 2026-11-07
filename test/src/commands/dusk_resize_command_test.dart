@@ -99,6 +99,45 @@ void main() {
 
   group('DuskResizeCommand.handle', () {
     // -----------------------------------------------------------------------
+    // (0) The MCP schema no longer requires width and height (a bare
+    //     `{"reset": true}` must be callable), so the command is what refuses a
+    //     resize that names no size.
+    // -----------------------------------------------------------------------
+    for (final Map<String, Object> input in <Map<String, Object>>[
+      <String, Object>{},
+      <String, Object>{'width': 375},
+      <String, Object>{'height': 812},
+      <String, Object>{'width': 0, 'height': 812},
+      <String, Object>{'width': '375', 'height': 'tall'},
+    ]) {
+      test('exits 1 and names width and height for $input', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(input: MapInput(input), output: output);
+
+        final exit = await DuskResizeCommand().handle(ctx);
+
+        expect(exit, equals(1));
+        expect(output.content, contains('--width'));
+        expect(output.content, contains('--height'));
+        expect(output.content, contains('--reset'));
+        expect(output.content, isNot(contains('CDP not enabled')));
+      });
+    }
+
+    test('--reset needs no size and reaches the CDP check', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'reset': true}),
+        output: output,
+      );
+
+      final exit = await DuskResizeCommand().handle(ctx);
+
+      expect(exit, equals(1));
+      expect(output.content, contains('CDP not enabled'));
+    });
+
+    // -----------------------------------------------------------------------
     // (a) No state file (cdpPort missing) → exit 1 + hint message.
     // -----------------------------------------------------------------------
     test('exits 1 with hint when cdpPort is absent from state', () async {
