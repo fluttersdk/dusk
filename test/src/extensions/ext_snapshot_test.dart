@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
 
+import '../../_support/merged_stage.dart';
+
 const String _unbalancedLabel = 'Container Sample (MP4, H.264';
 
 Widget _button(String label) {
@@ -463,6 +465,60 @@ void main() {
         expect(RefRegistry.lookup(ref), isNotNull);
         expect(RefRegistry.lookupBinding(ref), isNull);
       });
+    });
+  });
+
+  group('merged boundary tapOwner note (#60)', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'the issue tree names where the Skip intro control is, under its ref',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final SemanticsHandle handle = tester.ensureSemantics();
+        try {
+          await tester.pumpWidget(
+            mergedStageApp(onStageTap: () {}, onSkip: () {}),
+          );
+
+          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+
+          // The control is 120x40, inset 24px from the bottom-right corner.
+          expect(
+            snapshot,
+            matches(
+              RegExp(
+                r'button "Skip intro" \[ref=e\d+\]\n\s+'
+                r'tapOwner: \{"x":656\.0,"y":536\.0,"w":120\.0,"h":40\.0\}',
+              ),
+            ),
+          );
+        } finally {
+          handle.dispose();
+        }
+      },
+    );
+
+    testWidgets('a plain button carries no tapOwner note', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(
+          MaterialApp(home: Scaffold(body: _button('Save'))),
+        );
+
+        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+
+        expect(snapshot, contains('"Save"'));
+        expect(snapshot, isNot(contains('tapOwner')));
+      } finally {
+        handle.dispose();
+      }
     });
   });
 }

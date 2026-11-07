@@ -14,6 +14,7 @@ import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/snapshot_diff.dart';
+import '../utils/tap_owner.dart';
 import '../utils/viewport_visibility.dart';
 
 /// `ext.dusk.snap` — Playwright-MCP-shaped accessibility snapshot.
@@ -590,6 +591,16 @@ void _emitNode({
       if (role == 'textbox') {
         buffer.writeln('${_indent(depth + 1)}typeable: true');
         childEnclosingTextbox = renderObject;
+      }
+
+      // #60: a merge boundary whose centre is not on its own control. Additive
+      // sub-line, present only for the rare node that needs it, so the ref
+      // line (and the diff parser that reads it) stays as it was.
+      final Map<String, double>? tapOwner =
+          tapOwnerBounds(node: node, element: element, rect: rect);
+      if (tapOwner != null) {
+        buffer
+            .writeln('${_indent(depth + 1)}tapOwner: ${jsonEncode(tapOwner)}');
       }
 
       // Live overflow check: walk the render-object parent chain to find the
