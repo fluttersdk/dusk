@@ -562,8 +562,9 @@ void main() {
       // Closing a schema refuses every key it does not list, so each knob an
       // agent is meant to pass has to be listed. The coordinate keys (x, y,
       // toX, toY, drag dx/dy), reportPoint, perf_end's full and screenshot's
-      // geometry stay out on purpose: the perf runner and the CLI call the
-      // extensions directly, and they are not MCP surface.
+      // geometry, and dusk:resize's hold, stay out on purpose: the perf
+      // runner and the CLI call the extensions directly, and they are not MCP
+      // surface.
       const snapshot = ['snapshot', 'includeSnapshot'];
       const gate = ['checkStable', 'checkReceivesEvents'];
       final expected = <String, List<String>>{

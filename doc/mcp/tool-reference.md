@@ -1216,10 +1216,12 @@ Without `ref` the capture is the app-root viewport (the `RepaintBoundary` the ho
 the app in under `!kReleaseMode`). With `ref` it is the widget's own render-object region,
 rasterised out of its nearest repaint-boundary ancestor.
 
-A third mode, `geometry: "true"`, returns
+The extension has a third mode, `geometry: "true"`, that returns
 `{ rect: {x, y, width, height}, devicePixelRatio: <double> }` and skips rasterising
 altogether. It exists so the CLI can build a CDP clip on web, where rasterising is the
-step that hangs; agents normally want the pixels instead.
+step that hangs, and it is not part of this tool's schema: an MCP call that sends
+`geometry` is refused with `Additional property "geometry" is not allowed`. Agents want
+the pixels instead.
 
 ### Example call
 

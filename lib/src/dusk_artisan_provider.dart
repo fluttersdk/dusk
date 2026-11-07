@@ -48,8 +48,9 @@ import 'commands/dusk_wait_for_network_idle_command.dart';
 // and each schema is closed (`additionalProperties: false`), so a knob a handler
 // reads has to be listed here to be passable over MCP. The perf runner and the
 // CLI call the extensions directly: coordinate dispatch (x, y, toX, toY, drag
-// dx/dy), `reportPoint`, perf_end's `full` and screenshot's `geometry` are theirs
-// and deliberately not part of the MCP surface.
+// dx/dy), `reportPoint`, perf_end's `full` and screenshot's `geometry` are
+// theirs, and `dusk:resize --hold` keeps a CDP session an MCP call cannot hold.
+// None of them is part of the MCP surface.
 
 /// `snapshot`: the post-action snapshot mode, overriding `includeSnapshot`.
 const Map<String, dynamic> _kSnapshotProperty = <String, dynamic>{
@@ -268,7 +269,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'includeEnrichers': <String, dynamic>{
                 'type': 'boolean',
                 'description': 'Add the Magic and Wind enricher lines under '
-                    'each ref (default false).',
+                    'each ref (default false). A boolean here; '
+                    '`dusk_observe` takes `"true"`, `"false"` or `"full"`.',
               },
             },
             'additionalProperties': false,

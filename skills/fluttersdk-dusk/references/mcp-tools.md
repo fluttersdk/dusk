@@ -265,7 +265,8 @@ scope with `contains` plus another predicate, or use
 
 ## Click family: tap, dblclick, right_click, triple_click, hover, drag
 
-All gate-checked. All accept `ref` (required, `e<N>` or `q<N>`),
+All gate-checked. All take `ref` (required, `e<N>` or `q<N>`; `dusk_drag` takes
+`startRef` and `endRef` instead), and accept
 `checkStable` (default true), `checkReceivesEvents` (default true),
 `includeSnapshot` (default true) and `snapshot` (`full` | `diff` | `none`,
 which overrides `includeSnapshot`).
