@@ -346,7 +346,7 @@ Map<String, dynamic>? _buildCandidate({
 
   // #60: present only on a merge boundary whose centre is not on its control,
   // so a healthy candidate keeps the shape it had.
-  final Map<String, double>? tapOwner =
+  final Map<String, Object>? tapOwner =
       tapOwnerBounds(node: node, element: element, rect: rect);
   if (tapOwner != null) candidate['tapOwner'] = tapOwner;
 

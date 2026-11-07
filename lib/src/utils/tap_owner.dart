@@ -1,5 +1,6 @@
 import 'dart:ui' show FlutterView;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
@@ -14,6 +15,7 @@ final class TapOwnerReport {
     required this.point,
     required this.ownerRect,
     required this.canRetarget,
+    required this.centreHandled,
   });
 
   /// The point that was judged, in global logical pixels.
@@ -24,8 +26,14 @@ final class TapOwnerReport {
   final Rect ownerRect;
 
   /// True when exactly one labelled control owns the merged label and a hit
-  /// test at its centre reaches it, so a pointer sent there lands on it.
+  /// test at its centre reaches it inside the viewport, so a pointer sent
+  /// there lands on it.
   final bool canRetarget;
+
+  /// True when [point] lies inside a tap handler of its own (a stage that
+  /// pauses on any tap, a row that opens). Moving the pointer then trades one
+  /// real action for another, which the caller should say out loud.
+  final bool centreHandled;
 
   /// The point a retargeted pointer is sent to.
   Offset get target => ownerRect.center;
@@ -50,9 +58,12 @@ TapOwnerReport? judgeTapPoint({
   required SemanticsNode node,
   required Element element,
   required Offset point,
-  required int viewId,
+  required int Function() viewId,
 }) {
   if (!node.attached || !node.mergeAllDescendantsIntoThisNode) return null;
+  // A query handle whose element could not be found falls back to the root,
+  // and a walk from there would pick up controls from the whole app.
+  if (element == WidgetsBinding.instance.rootElement) return null;
 
   final List<_Carrier> carriers = _carriersBelow(element);
   if (carriers.isEmpty) return null;
@@ -70,7 +81,8 @@ TapOwnerReport? judgeTapPoint({
   return TapOwnerReport(
     point: point,
     ownerRect: first.rect,
-    canRetarget: owners.length == 1 && _isReached(first, viewId),
+    canRetarget: owners.length == 1 && _isReached(first, viewId()),
+    centreHandled: carriers.any((_Carrier c) => c.rect.contains(point)),
   );
 }
 
@@ -78,9 +90,12 @@ TapOwnerReport? judgeTapPoint({
 /// pixels, when a pointer at [rect]'s centre would miss it; null otherwise.
 /// Snapshot and observe both name the control this way.
 ///
-/// An empty rect (a sliver reports [Rect.zero]) has no centre worth judging,
-/// and without a view there is nothing to hit-test against.
-Map<String, double>? tapOwnerBounds({
+/// `centreHandled: true` is added when the centre has a tap handler of its own,
+/// and `retargets: false` when a tap on the ref cannot go to the owner (several
+/// candidates, or one that is covered or off screen); both are absent on the
+/// plain case. An empty rect (a sliver reports [Rect.zero]) has no centre worth
+/// judging, and without a view there is nothing to hit-test against.
+Map<String, Object>? tapOwnerBounds({
   required SemanticsNode node,
   required Element element,
   required Rect rect,
@@ -94,29 +109,43 @@ Map<String, double>? tapOwnerBounds({
     node: node,
     element: element,
     point: rect.center,
-    viewId: view.viewId,
+    viewId: () => view.viewId,
   );
   if (report == null) return null;
 
   final Rect owner = report.ownerRect;
-  return <String, double>{
+  return <String, Object>{
     'x': owner.left,
     'y': owner.top,
     'w': owner.width,
     'h': owner.height,
+    if (report.centreHandled) 'centreHandled': true,
+    if (!report.canRetarget) 'retargets': false,
   };
 }
 
-/// A hit test at the owner's centre must reach the owner: a control with no
-/// hit surface, or one something else is painted over, gains nothing from a
-/// pointer sent to it. A web probe that cannot answer lets the retarget stand.
+/// A pointer sent to the owner's centre must land on it: the centre has to lie
+/// inside the viewport and a hit test there has to reach the owner. A control
+/// with no hit surface, or one something else is painted over, gains nothing
+/// from a pointer. Only a web probe may be unable to answer, and there the
+/// retarget stands; on a native platform a root-only path means the point is
+/// outside the window or over nothing.
 bool _isReached(_Carrier owner, int viewId) {
+  final FlutterView? view =
+      WidgetsBinding.instance.platformDispatcher.view(id: viewId);
+  if (view == null ||
+      isRectOutsideViewport(
+          owner.rect, view.physicalSize / view.devicePixelRatio)) {
+    return false;
+  }
+
   final HitVerdict verdict = probeHitAt(
     target: owner.render,
     point: owner.rect.center,
     viewId: viewId,
   ).verdict;
-  return verdict == HitVerdict.reached || verdict == HitVerdict.platformOnly;
+  return verdict == HitVerdict.reached ||
+      (kIsWeb && verdict == HitVerdict.platformOnly);
 }
 
 /// Owners that share a rect (a `Semantics` wrapped round another) are one.

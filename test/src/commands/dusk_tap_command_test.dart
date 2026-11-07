@@ -293,6 +293,56 @@ void main() {
       expect(output.content, isNot(contains('outside the control')));
     });
 
+    test('a retargeted tap over a handled centre names the opt-out', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7'}),
+        output: output,
+        response: const {
+          'ref': 'e7',
+          'retargeted': {
+            'from': {'x': 400.0, 'y': 300.0},
+            'to': {'x': 716.0, 'y': 556.0},
+            'ownerRect': {
+              'left': 656.0,
+              'top': 536.0,
+              'width': 120.0,
+              'height': 40.0
+            },
+            'centreHandled': true,
+          },
+        },
+      );
+
+      await DuskTapCommand().handle(ctx);
+
+      expect(output.content, contains('--no-retarget'));
+    });
+
+    test('--no-retarget reaches the extension as retarget: false', () async {
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7', 'retarget': false}),
+        output: BufferedOutput(),
+        response: const {'ref': 'e7'},
+      );
+
+      await DuskTapCommand().handle(ctx);
+
+      expect(ctx.lastParams, containsPair('retarget', 'false'));
+    });
+
+    test('a default tap sends no retarget param', () async {
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7'}),
+        output: BufferedOutput(),
+        response: const {'ref': 'e7'},
+      );
+
+      await DuskTapCommand().handle(ctx);
+
+      expect(ctx.lastParams, isNot(contains('retarget')));
+    });
+
     test('a tap inside the control prints no warning', () async {
       final output = BufferedOutput();
       final ctx = _StubContext(

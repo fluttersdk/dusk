@@ -493,7 +493,8 @@ void main() {
             matches(
               RegExp(
                 r'button "Skip intro" \[ref=e\d+\]\n\s+'
-                r'tapOwner: \{"x":656\.0,"y":536\.0,"w":120\.0,"h":40\.0\}',
+                r'tapOwner: \{"x":656\.0,"y":536\.0,"w":120\.0,"h":40\.0,'
+                r'"centreHandled":true\}',
               ),
             ),
           );

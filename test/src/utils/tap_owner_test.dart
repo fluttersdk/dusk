@@ -24,7 +24,44 @@ Future<TapOwnerReport?> _judge(WidgetTester tester, Offset? point) async {
     node: entry.node!,
     element: entry.element,
     point: point ?? entry.rect.center,
-    viewId: tester.view.viewId,
+    viewId: () => tester.view.viewId,
+  );
+}
+
+/// A merged 300x120 boundary whose centre is empty space: no handler of its
+/// own, and a labelled `Skip intro` control in the bottom-right corner.
+Widget _emptyCentreBoundary() {
+  return MaterialApp(
+    home: Scaffold(
+      body: Align(
+        alignment: Alignment.topLeft,
+        child: MergeSemantics(
+          child: Container(
+            width: 300,
+            height: 120,
+            color: const Color(0xFFE0F2F1),
+            child: Stack(
+              children: <Widget>[
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: Semantics(
+                    button: true,
+                    label: 'Skip intro',
+                    onTap: () {},
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {},
+                      child: const SizedBox(width: 72, height: 28),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
   );
 }
 
@@ -67,6 +104,158 @@ Widget _unlabelledBoundary() {
 void main() {
   setUp(RefRegistry.resetForTesting);
   tearDown(RefRegistry.resetForTesting);
+
+  group('judgeTapPoint() safety', () {
+    testWidgets('says when the centre has a tap handler of its own', (
+      WidgetTester tester,
+    ) async {
+      _useSmallView(tester);
+      final SemanticsHandle handle = tester.ensureSemantics();
+      try {
+        await tester
+            .pumpWidget(mergedStageApp(onStageTap: () {}, onSkip: () {}));
+
+        final TapOwnerReport? report = await _judge(tester, null);
+
+        expect(report!.centreHandled, isTrue);
+      } finally {
+        handle.dispose();
+      }
+    });
+
+    testWidgets('an empty centre is not a handled centre', (
+      WidgetTester tester,
+    ) async {
+      _useSmallView(tester);
+      final SemanticsHandle handle = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(_emptyCentreBoundary());
+
+        final TapOwnerReport? report = await _judge(tester, null);
+
+        expect(report!.canRetarget, isTrue);
+        expect(report.centreHandled, isFalse);
+      } finally {
+        handle.dispose();
+      }
+    });
+
+    testWidgets('an owner below the fold is not retargeted', (
+      WidgetTester tester,
+    ) async {
+      _useSmallView(tester);
+      final SemanticsHandle handle = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: SizedBox(
+                  height: 1400,
+                  child: MergedStage(onStageTap: () {}, onSkip: () {}),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final TapOwnerReport? report = await _judge(tester, null);
+
+        expect(report, isNotNull);
+        expect(report!.ownerRect.top, greaterThan(600));
+        expect(report.canRetarget, isFalse);
+      } finally {
+        handle.dispose();
+      }
+    });
+
+    testWidgets('the root element is never judged', (
+      WidgetTester tester,
+    ) async {
+      _useSmallView(tester);
+      final SemanticsHandle handle = tester.ensureSemantics();
+      try {
+        await tester
+            .pumpWidget(mergedStageApp(onStageTap: () {}, onSkip: () {}));
+        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String ref =
+            RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
+        final RefEntry entry = RefRegistry.lookup(ref)!;
+
+        final TapOwnerReport? report = judgeTapPoint(
+          node: entry.node!,
+          element: tester.binding.rootElement!,
+          point: entry.rect.center,
+          viewId: () => tester.view.viewId,
+        );
+
+        expect(report, isNull);
+      } finally {
+        handle.dispose();
+      }
+    });
+  });
+
+  group('tapOwnerBounds()', () {
+    testWidgets('a retargetable owner is plain bounds plus the handled centre',
+        (
+      WidgetTester tester,
+    ) async {
+      _useSmallView(tester);
+      final SemanticsHandle handle = tester.ensureSemantics();
+      try {
+        await tester
+            .pumpWidget(mergedStageApp(onStageTap: () {}, onSkip: () {}));
+        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String ref =
+            RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
+        final RefEntry entry = RefRegistry.lookup(ref)!;
+
+        final Map<String, Object>? bounds = tapOwnerBounds(
+          node: entry.node!,
+          element: entry.element,
+          rect: entry.rect,
+        );
+
+        expect(bounds, <String, Object>{
+          'x': 656.0,
+          'y': 536.0,
+          'w': 120.0,
+          'h': 40.0,
+          'centreHandled': true,
+        });
+      } finally {
+        handle.dispose();
+      }
+    });
+
+    testWidgets('an owner a tap cannot go to says so', (
+      WidgetTester tester,
+    ) async {
+      _useSmallView(tester);
+      final SemanticsHandle handle = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(
+          mergedChoiceApp(onStageTap: () {}, onYes: () {}, onNo: () {}),
+        );
+        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String ref =
+            RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
+        final RefEntry entry = RefRegistry.lookup(ref)!;
+
+        final Map<String, Object>? bounds = tapOwnerBounds(
+          node: entry.node!,
+          element: entry.element,
+          rect: entry.rect,
+        );
+
+        expect(bounds, isNotNull);
+        expect(bounds!['retargets'], isFalse);
+      } finally {
+        handle.dispose();
+      }
+    });
+  });
 
   group('judgeTapPoint()', () {
     testWidgets('the labelled control wins over a full-frame handler', (

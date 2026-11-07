@@ -1205,8 +1205,13 @@ void main() {
                 );
         expect(
           skip['tapOwner'],
-          equals(
-              <String, dynamic>{'x': 656.0, 'y': 536.0, 'w': 120.0, 'h': 40.0}),
+          equals(<String, dynamic>{
+            'x': 656.0,
+            'y': 536.0,
+            'w': 120.0,
+            'h': 40.0,
+            'centreHandled': true,
+          }),
         );
       },
     );

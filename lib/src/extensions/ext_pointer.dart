@@ -235,7 +235,7 @@ TapOwnerReport? _judgeTapPoint(RefEntry entry, Offset point) {
     node: node,
     element: entry.element,
     point: point,
-    viewId: resolveViewFor(entry.element).viewId,
+    viewId: () => resolveViewFor(entry.element).viewId,
   );
 }
 
@@ -486,11 +486,15 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   final Offset liveCenter = dispatchRectOf(entry)?.center ?? entry.rect.center;
   // Read before the pointer goes in: a tap that navigates detaches the node.
   // A merge boundary's centre can belong to another handler (#60): when one
-  // labelled control owns the merged label, the pointer goes to it instead.
+  // labelled control owns the merged label, the pointer goes to it instead,
+  // unless the caller passed `retarget: false` to tap the centre itself.
   final TapOwnerReport? ownerReport = _judgeTapPoint(entry, liveCenter);
-  final Offset dispatchCenter = ownerReport != null && ownerReport.canRetarget
-      ? ownerReport.target
-      : liveCenter;
+  final TapOwnerReport? moved = ownerReport != null &&
+          ownerReport.canRetarget &&
+          _parseBoolFlag(params, 'retarget', defaultValue: true)
+      ? ownerReport
+      : null;
+  final Offset dispatchCenter = moved?.target ?? liveCenter;
   final Element element = entry.element;
   try {
     await runPerfInteraction<void>(
@@ -555,11 +559,12 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   // presence is the signal: a clean pass used to be indistinguishable from
   // a confirmed one.
   stampChecks(payload, gate);
-  if (ownerReport != null && ownerReport.canRetarget) {
+  if (moved != null) {
     payload['retargeted'] = <String, dynamic>{
-      'from': _pointJson(ownerReport.point),
-      'to': _pointJson(ownerReport.target),
-      'ownerRect': _rectJson(ownerReport.ownerRect),
+      'from': _pointJson(moved.point),
+      'to': _pointJson(moved.target),
+      'ownerRect': _rectJson(moved.ownerRect),
+      if (moved.centreHandled) 'centreHandled': true,
     };
   } else if (ownerReport != null) {
     payload['tapPointOutsideOwner'] = <String, dynamic>{

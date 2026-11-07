@@ -133,14 +133,16 @@ List<String> _refsFor(String snapshot, String label) {
 /// that collects re-resolved refs, pumping frames while the handler awaits.
 Future<ServiceExtensionResponse> _pumpTap(
   WidgetTester tester,
-  String ref,
-) async {
+  String ref, {
+  Map<String, String> extra = const <String, String>{},
+}) async {
   final Future<ServiceExtensionResponse> future =
       wrapDuskHandler(aiTestTapHandler)(
     'ext.dusk.tap',
     <String, String>{
       'ref': ref,
       'includeSnapshot': 'false',
+      ...extra,
     },
   );
   for (int i = 0; i < 10; i++) {
@@ -2151,6 +2153,8 @@ void main() {
           final Map<String, dynamic> to = moved['to'] as Map<String, dynamic>;
           expect(to['x'], closeTo(origin.dx + 216 + 36, 0.01));
           expect(to['y'], closeTo(origin.dy + 80 + 14, 0.01));
+          // Empty space at the centre: nothing else would have been tapped.
+          expect(moved, isNot(contains('centreHandled')));
         } finally {
           handle.dispose();
         }
@@ -2223,6 +2227,44 @@ void main() {
               moved['ownerRect'] as Map<String, dynamic>;
           expect(owner['width'], closeTo(120, 0.01));
           expect(owner['height'], closeTo(40, 0.01));
+          // The stage had its own handler at the centre: say so.
+          expect(moved['centreHandled'], isTrue);
+        } finally {
+          handle.dispose();
+        }
+      },
+    );
+
+    testWidgets(
+      'retarget: false taps the centre and warns instead',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        final SemanticsHandle handle = tester.ensureSemantics();
+        int stageTaps = 0;
+        int skips = 0;
+        try {
+          await tester.pumpWidget(
+            mergedStageApp(
+              onStageTap: () => stageTaps++,
+              onSkip: () => skips++,
+            ),
+          );
+          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+          final String ref = _refsFor(snapshot, 'Skip intro').single;
+
+          final ServiceExtensionResponse response = await _pumpTap(
+            tester,
+            ref,
+            extra: <String, String>{'retarget': 'false'},
+          );
+
+          expect(response.result, isNotNull, reason: response.errorDetail);
+          expect(stageTaps, 1);
+          expect(skips, 0);
+          final Map<String, dynamic> decoded =
+              jsonDecode(response.result!) as Map<String, dynamic>;
+          expect(decoded, isNot(contains('retargeted')));
+          expect(decoded, contains('tapPointOutsideOwner'));
         } finally {
           handle.dispose();
         }

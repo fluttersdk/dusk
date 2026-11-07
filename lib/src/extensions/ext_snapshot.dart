@@ -596,7 +596,7 @@ void _emitNode({
       // #60: a merge boundary whose centre is not on its own control. Additive
       // sub-line, present only for the rare node that needs it, so the ref
       // line (and the diff parser that reads it) stays as it was.
-      final Map<String, double>? tapOwner =
+      final Map<String, Object>? tapOwner =
           tapOwnerBounds(node: node, element: element, rect: rect);
       if (tapOwner != null) {
         buffer
