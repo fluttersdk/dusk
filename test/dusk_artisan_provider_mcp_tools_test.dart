@@ -537,13 +537,30 @@ void main() {
       final properties =
           scroll.inputSchema['properties'] as Map<String, dynamic>;
 
-      // ext_scroll.dart reads these five; the schema used to list only the
+      // ext_scroll.dart reads these six; the schema used to list only the
       // direction and pixels pair, which the extension then ignored.
       expect(
         properties.keys,
         containsAll(
             <String>['ref', 'direction', 'pixels', 'dx', 'dy', 'intoView']),
       );
+    });
+
+    test('dusk_wait_for describes a timeout as a result, not an error', () {
+      final wait = tools.firstWhere((t) => t.name == 'dusk_wait_for');
+      final properties = wait.inputSchema['properties'] as Map<String, dynamic>;
+
+      // ext_wait_find.dart answers a timeout with `{matched: false, reason:
+      // 'timeout'}` as a success, and picks the first of several one-of keys.
+      expect(wait.description, contains('matched: false'));
+      expect(wait.description, isNot(contains('returns an error result')));
+      expect(wait.description, isNot(contains('multiple are passed')));
+      for (final key in <String>['text', 'textGone']) {
+        final description =
+            (properties[key] as Map<String, dynamic>)['description'] as String;
+        expect(description, contains('Text'), reason: key);
+        expect(description, isNot(contains('Semantics node')), reason: key);
+      }
     });
 
     test('the click variants say their snapshot default is true', () {

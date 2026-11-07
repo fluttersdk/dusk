@@ -39,25 +39,48 @@ const double _kDefaultScrollPixels = 300.0;
 ///
 /// Explicit `dx` / `dy` win. Otherwise `direction` (default `down`) and
 /// `pixels` (default 300), the pair the MCP schema and the CLI advertise, name
-/// a signed delta; an unknown direction scrolls nothing. With none of the four
-/// there is no delta, so a call that only names a `ref` moves nothing.
+/// a delta: `pixels` is a distance, so the direction alone gives the sign. With
+/// none of the four there is no delta, so a call that only names a `ref` moves
+/// nothing.
+///
+/// Throws [FormatException] for a key that is present but cannot be a delta (not
+/// a number, NaN, infinite, or an unknown direction) rather than falling back to
+/// a default: a typo should not scroll 300 pixels the other way.
 (double, double) _scrollDelta(Map<String, String> params) {
-  final double? dx = double.tryParse(params['dx'] ?? '');
-  final double? dy = double.tryParse(params['dy'] ?? '');
+  final double? dx = _scrollNumber(params, 'dx');
+  final double? dy = _scrollNumber(params, 'dy');
   if (dx != null || dy != null) return (dx ?? 0.0, dy ?? 0.0);
 
-  final String? direction = params['direction'];
-  final double? pixels = double.tryParse(params['pixels'] ?? '');
+  final String? direction = _scrollText(params, 'direction');
+  final double? pixels = _scrollNumber(params, 'pixels');
   if (direction == null && pixels == null) return (0.0, 0.0);
 
-  final double magnitude = pixels ?? _kDefaultScrollPixels;
+  final double magnitude = (pixels ?? _kDefaultScrollPixels).abs();
   return switch (direction ?? 'down') {
     'down' => (0.0, magnitude),
     'up' => (0.0, -magnitude),
     'right' => (magnitude, 0.0),
     'left' => (-magnitude, 0.0),
-    _ => (0.0, 0.0),
+    final String other => throw FormatException(
+        "direction must be up, down, left or right, got '$other'",
+      ),
   };
+}
+
+String? _scrollText(Map<String, String> params, String key) {
+  final String? raw = params[key];
+  return raw == null || raw.isEmpty ? null : raw;
+}
+
+double? _scrollNumber(Map<String, String> params, String key) {
+  final String? raw = _scrollText(params, key);
+  if (raw == null) return null;
+
+  final double? value = double.tryParse(raw);
+  if (value == null || !value.isFinite) {
+    throw FormatException("$key must be a finite number, got '$raw'");
+  }
+  return value;
 }
 
 /// Handler for the `ext.dusk.scroll` VM Service extension.
@@ -220,6 +243,14 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
     }
 
     return duskResult(payload);
+  } on FormatException catch (e) {
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.invalidParams,
+      wrapErrorDetail(
+        '[fluttersdk_dusk] ext.dusk.scroll: ${e.message}',
+        DuskErrorEnvelope.unexpected(),
+      ),
+    );
   } catch (e, stackTrace) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.scroll error: $e\n$stackTrace',

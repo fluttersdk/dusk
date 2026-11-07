@@ -312,6 +312,99 @@ void main() {
       final effect = decoded['effect'] as Map<String, dynamic>;
       expect(effect['changed'], isFalse);
     });
+
+    testWidgets('a lone pixels scrolls down, the documented default direction',
+        (tester) async {
+      await pumpList(tester);
+
+      final decoded = await scrollBy(tester, {'pixels': '150'});
+
+      final effect = decoded['effect'] as Map<String, dynamic>;
+      expect(effect['after'], equals(150.0));
+    });
+
+    testWidgets('pixels is a distance: the direction alone gives the sign',
+        (tester) async {
+      await pumpList(tester);
+      await scrollBy(tester, {'dy': '300'});
+
+      final decoded = await scrollBy(
+        tester,
+        {'direction': 'up', 'pixels': '-100'},
+      );
+
+      final effect = decoded['effect'] as Map<String, dynamic>;
+      expect(effect['after'], equals(200.0));
+    });
+
+    testWidgets('left and right drive the horizontal axis', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              scrollDirection: Axis.horizontal,
+              children: List<Widget>.generate(
+                40,
+                (i) => SizedBox(width: 60, child: Text('row $i')),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final right = await scrollBy(
+        tester,
+        {'direction': 'right', 'pixels': '200'},
+      );
+      expect((right['effect'] as Map<String, dynamic>)['after'], equals(200.0));
+
+      final left = await scrollBy(
+        tester,
+        {'direction': 'left', 'pixels': '50'},
+      );
+      expect((left['effect'] as Map<String, dynamic>)['after'], equals(150.0));
+    });
+
+    group('a value that cannot be a delta is refused, not defaulted', () {
+      Future<void> expectInvalid(
+        WidgetTester tester,
+        Map<String, String> params,
+      ) async {
+        await pumpList(tester);
+        final response = await aiTestScrollHandler(
+          'ext.dusk.scroll',
+          {'includeSnapshot': 'false', ...params},
+        );
+
+        expect(response.errorCode, isNotNull);
+        expect(
+          response.errorCode,
+          equals(developer.ServiceExtensionResponse.invalidParams),
+        );
+      }
+
+      testWidgets('pixels that is not a number', (tester) async {
+        await expectInvalid(tester, {'direction': 'up', 'pixels': 'abc'});
+      });
+
+      testWidgets('pixels that is NaN', (tester) async {
+        await expectInvalid(tester, {'direction': 'up', 'pixels': 'NaN'});
+      });
+
+      testWidgets('pixels that is infinite', (tester) async {
+        await expectInvalid(
+            tester, {'direction': 'down', 'pixels': 'Infinity'});
+      });
+
+      testWidgets('an unknown direction', (tester) async {
+        await expectInvalid(tester, {'direction': 'sideways', 'pixels': '10'});
+      });
+
+      testWidgets('a dx that is not a number, even next to a direction',
+          (tester) async {
+        await expectInvalid(tester, {'dx': 'abc', 'direction': 'down'});
+      });
+    });
   });
 
   // ---------------------------------------------------------------------------

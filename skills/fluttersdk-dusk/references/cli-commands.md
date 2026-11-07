@@ -207,7 +207,7 @@ written; label and static-text refs still use the nearest one, with a warning.
 ### Scroll
 
 ```bash
-./bin/fsa dusk:scroll --dy=600                                  # scroll root down 600px
+./bin/fsa dusk:scroll --ref=e3 --dy=600                         # scroll the list holding e3 down 600px
 ./bin/fsa dusk:scroll --ref=e3 --dy=-400                        # scroll a specific scrollable up
 ./bin/fsa dusk:scroll --ref=q5 --intoView                       # bring q5 into view
 ./bin/fsa dusk:scroll --ref=e3 --dx=300                         # horizontal

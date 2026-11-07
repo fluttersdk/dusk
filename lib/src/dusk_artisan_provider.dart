@@ -570,11 +570,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'dusk_snap.\n'
               '\n'
               'Usage:\n'
-              '- Pass exactly ONE of `text`, `textGone`, `expression`; the '
-              'handler errors when zero or multiple are passed.\n'
-              '- Optional `timeoutMs` (default 5000) caps the wait; on '
-              'timeout the call returns an error result, never silently '
-              'continues.\n'
+              '- Pass ONE of `text`, `textGone`, `expression`; the handler '
+              'errors when none is passed and, when several are, uses the '
+              'first in that order.\n'
+              '- Optional `timeoutMs` (default 5000) caps the wait. A '
+              'timeout is a normal result, `{ matched: false, reason: '
+              '"timeout" }`, not an error: check `matched` before going on. '
+              'A match returns `{ matched: true, elapsedMs }`.\n'
               '- Polling interval is 200 ms; the handler returns as soon '
               'as the condition flips, never blocks the full timeout.\n'
               '\n'
@@ -584,14 +586,15 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             'properties': <String, dynamic>{
               'text': <String, dynamic>{
                 'type': 'string',
-                'description': 'Wait until a Semantics node with this '
-                    'exact label exists. One-of: pair with neither '
-                    '`textGone` nor `expression`.',
+                'description': 'Wait until a Text widget with exactly this '
+                    'data exists (an icon button\'s semantics label does not '
+                    'count). One-of: pair with neither `textGone` nor '
+                    '`expression`.',
               },
               'textGone': <String, dynamic>{
                 'type': 'string',
-                'description': 'Wait until NO Semantics node with this '
-                    'label exists. One-of: pair with neither `text` nor '
+                'description': 'Wait until no Text widget with exactly this '
+                    'data exists. One-of: pair with neither `text` nor '
                     '`expression`.',
               },
               'expression': <String, dynamic>{

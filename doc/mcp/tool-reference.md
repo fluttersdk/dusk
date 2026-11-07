@@ -1516,14 +1516,15 @@ soon as the condition flips.
 | `expression` | string | no | Matched as text, exactly like `text`; it is not evaluated as Dart (use `dusk_evaluate` for that). |
 | `timeoutMs` | integer | no | Wait timeout in milliseconds. Default `5000`. |
 
-Pass exactly ONE of `text`, `textGone`, `expression`; the handler errors when zero or
-multiple are passed.
+Pass one of `text`, `textGone`, `expression`; the handler errors when none is passed.
 
 ### Returns
 
-Success: `{ matched: true, waitedMs: <int> }`.
+Match: `{ matched: true, elapsedMs: <int> }`.
 
-Error on timeout: never silently continues; the call returns an MCP error result.
+Timeout: a normal result, `{ matched: false, reason: "timeout" }`, not an MCP error, so check
+`matched` before continuing (the CLI, `dusk:wait`, exits 1 in that case). With none of the
+three keys the call errors; with several it uses the first of `text`, `textGone`, `expression`.
 
 ### Example call
 
