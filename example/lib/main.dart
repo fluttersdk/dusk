@@ -40,6 +40,27 @@ class DuskShowroomApp extends StatelessWidget {
   }
 }
 
+/// Accepts every edit, then restores the previous value on the next frame, so
+/// a write that reports success is silently undone (the F-23 wrong-write case).
+class _RevertNextFrameFormatter extends TextInputFormatter {
+  _RevertNextFrameFormatter(this._controller);
+
+  final TextEditingController _controller;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text != oldValue.text) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _controller.value = oldValue,
+      );
+    }
+    return newValue;
+  }
+}
+
 class ShowroomHome extends StatefulWidget {
   const ShowroomHome({super.key});
   @override
@@ -49,6 +70,11 @@ class ShowroomHome extends StatefulWidget {
 class _ShowroomHomeState extends State<ShowroomHome> {
   final TextEditingController _nameCtrl = TextEditingController();
   final FocusNode _nameFocus = FocusNode();
+  final TextEditingController _quantityCtrl = TextEditingController();
+  final TextEditingController _revertingCtrl = TextEditingController();
+  late final _RevertNextFrameFormatter _revertingFormatter =
+      _RevertNextFrameFormatter(_revertingCtrl);
+  int _introSkips = 0;
   String _dropdown = 'alpha';
   bool _checked = false;
   bool _switched = false;
@@ -61,6 +87,8 @@ class _ShowroomHomeState extends State<ShowroomHome> {
   void dispose() {
     _nameCtrl.dispose();
     _nameFocus.dispose();
+    _quantityCtrl.dispose();
+    _revertingCtrl.dispose();
     super.dispose();
   }
 
@@ -147,6 +175,74 @@ class _ShowroomHomeState extends State<ShowroomHome> {
             ),
             const SizedBox(height: 8),
             Text('Last key: $_lastKey', key: const Key('last-key-label')),
+            const SizedBox(height: 24),
+
+            _section('Write verification: filtered and reverting fields'),
+            TextField(
+              key: const Key('quantity-field'),
+              controller: _quantityCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: 'Quantity',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              key: const Key('reverting-field'),
+              controller: _revertingCtrl,
+              inputFormatters: [_revertingFormatter],
+              decoration: const InputDecoration(
+                labelText: 'Reverting',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            _section('Merged semantics: tap inside a MergeSemantics boundary'),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: MergeSemantics(
+                key: const Key('merged-boundary'),
+                child: Container(
+                  width: 300,
+                  height: 120,
+                  color: Colors.teal.shade50,
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        right: 12,
+                        bottom: 12,
+                        child: Semantics(
+                          button: true,
+                          label: 'Skip intro',
+                          onTap: () => setState(() => _introSkips++),
+                          excludeSemantics: true,
+                          child: GestureDetector(
+                            key: const Key('skip-intro'),
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => setState(() => _introSkips++),
+                            child: Container(
+                              width: 72,
+                              height: 28,
+                              alignment: Alignment.center,
+                              color: Colors.teal.shade200,
+                              child: const Text('Skip'),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Intro skipped: $_introSkips',
+              key: const Key('intro-skips-label'),
+            ),
             const SizedBox(height: 24),
 
             _section('Selection: set_checkbox / select_option'),
