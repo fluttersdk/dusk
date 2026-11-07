@@ -75,6 +75,7 @@ class _ShowroomHomeState extends State<ShowroomHome> {
   late final _RevertNextFrameFormatter _revertingFormatter =
       _RevertNextFrameFormatter(_revertingCtrl);
   int _introSkips = 0;
+  int _stageTaps = 0;
   String _dropdown = 'alpha';
   bool _checked = false;
   bool _switched = false;
@@ -205,42 +206,49 @@ class _ShowroomHomeState extends State<ShowroomHome> {
               alignment: Alignment.centerLeft,
               child: MergeSemantics(
                 key: const Key('merged-boundary'),
-                child: Container(
-                  width: 300,
-                  height: 120,
-                  color: Colors.teal.shade50,
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        right: 12,
-                        bottom: 12,
-                        child: Semantics(
-                          button: true,
-                          label: 'Skip intro',
-                          onTap: () => setState(() => _introSkips++),
-                          excludeSemantics: true,
-                          child: GestureDetector(
-                            key: const Key('skip-intro'),
-                            behavior: HitTestBehavior.opaque,
+                // Like a player: the whole frame pauses on a tap, and the
+                // small button inside it skips.
+                child: GestureDetector(
+                  key: const Key('stage'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => setState(() => _stageTaps++),
+                  child: Container(
+                    width: 300,
+                    height: 120,
+                    color: Colors.teal.shade50,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          right: 12,
+                          bottom: 12,
+                          child: Semantics(
+                            button: true,
+                            label: 'Skip intro',
                             onTap: () => setState(() => _introSkips++),
-                            child: Container(
-                              width: 72,
-                              height: 28,
-                              alignment: Alignment.center,
-                              color: Colors.teal.shade200,
-                              child: const Text('Skip'),
+                            excludeSemantics: true,
+                            child: GestureDetector(
+                              key: const Key('skip-intro'),
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => setState(() => _introSkips++),
+                              child: Container(
+                                width: 72,
+                                height: 28,
+                                alignment: Alignment.center,
+                                color: Colors.teal.shade200,
+                                child: const Text('Skip'),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Intro skipped: $_introSkips',
+              'Intro skipped: $_introSkips, stage taps: $_stageTaps',
               key: const Key('intro-skips-label'),
             ),
             const SizedBox(height: 24),

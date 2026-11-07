@@ -317,8 +317,11 @@ SemanticsNode; re-find rather than retry.
   `set_checkbox` for that control. When `effect.target.matchKind` is
   `nearest`, the ref overlapped no field and a neighbour was written; check
   `target.label` and `target.rect` before moving on.
-- A tap warning about `tapPointOutsideOwner` means the tap landed outside
-  the control inside a merged boundary; check the result with `dusk:snap`.
+- A `tapOwner` line under a snapshot ref (or field on an observe candidate)
+  marks a merged boundary whose centre is not its control; `dusk:tap` goes to
+  that control and says so (`retargeted`). A warning about
+  `tapPointOutsideOwner` means it could not, and the tap landed at the centre
+  of the merged boundary; check the result with `dusk:snap`.
 - On web with a CDP port, the CLI brings a hidden tab to front itself. It
   repeats `snap` and `observe` only; after an acting verb run `dusk:snap`.
 - MCP clients should wait for `tools/list_changed` (or re-list tools) after

@@ -190,7 +190,9 @@ and verify with `./bin/fsa dusk:doctor`.
 
    A snapshot ref line ends with ` [offscreen]` (outside the viewport) or
    ` [occluded]` (something covers its centre) when that is true; observe
-   candidates carry `inViewport` and `occluded`. A `grep` that is not a
+   candidates carry `inViewport` and `occluded`. A merged node whose centre
+   is not its control has a `tapOwner` sub-line (field on observe), and a tap
+   goes to that control. A `grep` that is not a
    valid regex is matched as literal text and the response says
    `grepLiteral: true`.
 

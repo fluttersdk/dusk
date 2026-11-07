@@ -81,7 +81,7 @@ The one-line summaries name a no-op instead of ticking it (`--json` and
 | `dusk:navigate` | `navigated == false` prints `No navigation: ...` |
 | `dusk:navigate_back` | `popped == false` prints `Nothing to pop` |
 | `dusk:scroll` | `effect.changed == false` prints `nothing moved` |
-| `dusk:tap` | a tap point outside the control's own area prints one stderr warning (`tapPointOutsideOwner`) |
+| `dusk:tap` | a tap on a merged boundary goes to its labelled control and the summary says so (`retargeted`); when it cannot, one stderr warning (`tapPointOutsideOwner`) |
 | `dusk:fill`, `dusk:type` | when the field written was the `nearest` one (the ref overlapped no field) a warning names it |
 | `dusk:hot_reload_and_snap` | exits `1` when `reloaded` is false (the JSON is still on stdout) |
 

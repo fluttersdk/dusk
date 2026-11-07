@@ -20,7 +20,7 @@ Each section on the home route exposes one widget family that the matching dusk 
 |---------|---------|---------------|
 | Text input | TextField + last-key label | `dusk:type`, `dusk:clear`, `dusk:focus`, `dusk:blur`, `dusk:press_key` |
 | Write verification | Digits-only "Quantity" TextField + "Reverting" TextField whose formatter restores the old value on the next frame | `dusk:type`, `dusk:fill` |
-| Merged semantics | 300x120 `MergeSemantics` boundary holding an off-centre "Skip intro" button (fluttersdk/dusk#60) | `dusk:tap`, `dusk:find` |
+| Merged semantics | 300x120 `MergeSemantics` stage that pauses on any tap, holding an off-centre "Skip intro" button; `dusk:tap` must skip, not pause (fluttersdk/dusk#60) | `dusk:tap`, `dusk:observe` |
 | Selection | DropdownButton + Checkbox + Switch | `dusk:set_checkbox`, `dusk:select_option` |
 | Clicks | Counter ElevatedButton | `dusk:tap`, `dusk:dblclick`, `dusk:triple_click`, `dusk:right_click`, `dusk:hover` |
 | Drag | `Draggable<String>` + `DragTarget<String>` | `dusk:drag` |

@@ -171,7 +171,9 @@ observe once, then act many times without re-observing.
 
 `inViewport` is false when the bounds lie outside the view; `occluded` is
 true when a hit test at the bounds' centre reaches a widget painted above the
-candidate. Check both before tapping a candidate on a busy screen.
+candidate. Check both before tapping a candidate on a busy screen. A merged candidate
+whose centre is not on its own control also carries `tapOwner: {x, y, w, h}`, the control's
+rect; `dusk_tap` goes there.
 
 **Use it.** When the agent needs to enumerate candidates (form fill,
 "find every submit button on the page", "list every link in the
@@ -277,9 +279,12 @@ last unfiltered snapshot (a `dusk_snap` or an earlier action): a changed row is
 baseline yet the full text comes back; a filtered `dusk_snap` never records
 one, and a hot restart clears it. `"none"` drops the snapshot.
 
-When the tap point lies outside the control inside a merged boundary the
-response adds `tapPointOutsideOwner: { ownerRect, point }` (the gate still says
-confirmed): the tap may have hit something else, so check the result.
+A tap on a merged boundary goes to the one labelled control that owns the merged
+label and the response adds `retargeted: { from, to, ownerRect }` (the gate
+still says confirmed for the boundary's centre). When that is not safe (several
+candidates, or the control is covered) the tap stays at the centre and the
+response adds `tapPointOutsideOwner: { ownerRect, point }`: it may have hit
+something else, so check the result.
 
 ### dusk_dblclick
 
