@@ -15,6 +15,8 @@ app; it will save you a dozen dead-end round trips.
 - [4. dusk:exceptions is cumulative](#4-duskexceptions-is-cumulative)
 - [5. restart preserves the CDP port](#5-restart-preserves-the-cdp-port)
 - [6. Overlays get stuck](#6-overlays-get-stuck)
+- [7. A green tick is dispatch, not effect](#7-a-green-tick-is-dispatch-not-effect)
+- [8. A hidden desktop app](#8-a-hidden-desktop-app)
 
 ---
 
@@ -38,8 +40,12 @@ the next action on a stale `e<N>` fails with a not-found or stale envelope.
   element's LIVE rect, not the cached snapshot rect, so a target that merely
   shifted slots (same `Element`/`RenderObject`) is still hit correctly. The
   false-success class (gate passes, pointer lands on the stale position,
-  `onTap` never fires) is gone for slot shifts; genuine rebuilds still need a
-  re-snap.
+  `onTap` never fires) is gone for slot shifts.
+- An `e<N>` ref whose widget was rebuilt is relocated by its label when the live
+  tree still has the same number of nodes with that label on the same route,
+  and the response names it under `reresolved`. When the count differs, or
+  you have navigated to another route, the ref still fails as
+  `defunct (element no longer mounted)`; re-snap.
 
 ---
 
@@ -131,9 +137,50 @@ clear overlays that are not `PopupRoute`s.
 
 ---
 
+<a name="7-a-green-tick-is-dispatch-not-effect"></a>
+## 7. A green tick is dispatch, not effect
+
+`✓ Tapped e7` and `✓ Filled e5` say the event left dusk, not that the widget
+took it. A number field can swallow a fill and keep nothing; a button the gate
+accepted can have an `onTap` that never fires.
+
+**Workaround:**
+
+- Read the `effect` block on the response: `effect.changed` for `tap` and
+  `scroll`, `effect.verified` and `effect.value` for `type`, `fill` and `clear`.
+- In summary mode `dusk:fill` and `dusk:type` exit `1` when `effect.verified` is
+  false, and `dusk:navigate`, `dusk:navigate_back` and `dusk:scroll` say so when
+  nothing happened. With `--json` or `--includeSnapshot` you get the raw
+  envelope and read the field yourself.
+
+---
+
+<a name="8-a-hidden-desktop-app"></a>
+## 8. A hidden desktop app
+
+A hidden, minimised or occluded window moves the app to `AppLifecycleState.hidden`
+and stops frame production, so a tap used to report "no observable change", a
+snapshot went stale and a screenshot returned the last cached frame. This is
+not specific to a browser tab.
+
+**Workaround:**
+
+- Nothing, by default: dusk delivers `resumed` and forces a frame at the start of
+  each verb, and a response that did so carries `framesForced: true`. Verified on
+  macOS with the window hidden. The app's own lifecycle observers see `resumed`.
+- If a response still carries a `warnings` block, dusk could not force frames
+  (`--dart-define=DUSK_FORCE_FRAMES=false`, a `detached` app, a wake that
+  produced no frame, or any hidden web tab). Bring the
+  window to front and retry.
+- An asleep macOS display can still starve frames; `caffeinate -u -t 3` wakes it
+  (unverified for dusk). See [Frame production](../reference/frame-production.md).
+
+---
+
 ## See also
 
 - [dusk:fill](../commands/dusk-fill.md), [dusk:reset_overlays](../commands/dusk-reset-overlays.md)
 - [dusk:tap](../commands/dusk-tap.md) (`effect`, `--until`)
 - [dusk:exceptions](../commands/index.md), [dusk:find](../commands/dusk-find.md)
 - [Reference: Actionability gate](../reference/actionability-gate.md)
+- [Reference: Frame production](../reference/frame-production.md)

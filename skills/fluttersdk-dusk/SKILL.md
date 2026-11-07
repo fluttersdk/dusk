@@ -1,11 +1,11 @@
 ---
 name: fluttersdk-dusk
-description: "fluttersdk_dusk: E2E driver for Flutter apps that lets an LLM agent see (snap, observe, screenshot) and act (tap, type, drag, scroll, navigate) on a running Flutter app via 39 MCP tools (`dusk_*`) and 41 CLI commands (`./bin/fsa dusk:*`). Snapshots emit a YAML Semantics tree with stable `[ref=eN]` tokens; `dusk_find` and `dusk_observe` mint re-resolvable `q<N>` query handles. Every gesture passes a 6-step actionability gate with substring-parseable failure reasons (`not enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured by`, `defunct`). TRIGGER when: any `dusk_*` MCP tool call, any `dusk:*` CLI command, `./bin/fsa` invocation, the user asks the agent to drive / inspect / test / debug a running Flutter app, the user mentions snap / observe / actionability / ref / eN / qN, or the conversation touches end-to-end testing of a Flutter UI. DO NOT TRIGGER when: only authoring `flutter_test` widget tests, only reading telescope ring buffers without driving the UI (use fluttersdk-telescope), or only modifying Dart source without running it."
-version: 0.0.22
+description: "fluttersdk_dusk: E2E driver for Flutter apps that lets an LLM agent see (snap, observe, screenshot) and act (tap, type, drag, scroll, navigate) on a running Flutter app via 40 MCP tools (`dusk_*`) and 42 CLI commands (`./bin/fsa dusk:*`). Snapshots emit a YAML Semantics tree with stable `[ref=eN]` tokens; `dusk_find` and `dusk_observe` mint re-resolvable `q<N>` query handles. Every gesture passes a 6-step actionability gate with substring-parseable failure reasons (`not enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured by`, `defunct`). TRIGGER when: any `dusk_*` MCP tool call, any `dusk:*` CLI command, `./bin/fsa` invocation, the user asks the agent to drive / inspect / test / debug a running Flutter app, the user mentions snap / observe / actionability / ref / eN / qN, or the conversation touches end-to-end testing of a Flutter UI. DO NOT TRIGGER when: only authoring `flutter_test` widget tests, only reading telescope ring buffers without driving the UI (use fluttersdk-telescope), or only modifying Dart source without running it."
+version: 0.0.23
 when_to_use: "Any task where the agent drives or inspects a running Flutter app via dusk: calling `dusk_*` MCP tools in a loop (snap, tap, type, screenshot, hot_reload_and_snap), invoking `./bin/fsa dusk:<verb>` from a shell, recovering from an actionability failure, choosing between `e<N>` and `q<N>` ref tokens, waiting for text or network idle, navigating routes, or filling a form."
 ---
 
-<!-- fluttersdk_dusk v0.0.22 | Skill updated: 2026-10-18 -->
+<!-- fluttersdk_dusk v0.0.23 | Skill updated: 2026-11-07 -->
 
 # fluttersdk_dusk
 
@@ -26,7 +26,10 @@ and verify with `./bin/fsa dusk:doctor`.
    are deduped by `SemanticsNode.id`: the same widget across consecutive
    snaps returns the same `e<N>` and the ref stays valid as long as the
    node remains mounted. They become defunct when the node unmounts
-   (navigation, conditional render, list rebuild). `q<N>` (re-resolvable,
+   (navigation, conditional render, list rebuild), unless the live tree
+   still has the same number of nodes with that label as at snap time:
+   the action then relocates the ref by label and the response lists it
+   under `reresolved`. `q<N>` (re-resolvable,
    minted by `dusk_find` / `dusk_observe`) store a predicate and re-walk
    the live tree on every action. Use `e<N>` right after the snap that
    minted them when the UI is static. Reach for `q<N>` whenever the
@@ -81,7 +84,9 @@ and verify with `./bin/fsa dusk:doctor`.
    drive Chrome DevTools Protocol from outside the Flutter VM, so they
    only work on web with Chrome launched at a debug port (`artisan
    start --cdp-port=9222`). They will return `CDP not enabled` on mobile,
-   desktop, or any web run without the flag.
+   desktop, or any web run without the flag. `dusk_run`, `dusk_perf_run`,
+   `dusk_perf_compare` and `dusk_perf_trace` route through the substrate too
+   (7 in all), but need no CDP.
 
 5. **Network-idle and telescope readers need an adapter.**
    `dusk_wait_for_network_idle`, `dusk_console`, `dusk_exceptions` read
@@ -99,8 +104,10 @@ and verify with `./bin/fsa dusk:doctor`.
    (a) MCP responses are always JSON. On the CLI, **`--json` prints the
    raw envelope on any verb** and is what you want whenever the output
    feeds a tool rather than a terminal; you do not have to know which
-   verbs happen to emit JSON by default. Without it, read / query verbs
-   (`dusk:snap`, `dusk:observe`, `dusk:find`, `dusk:get_routes`,
+   verbs happen to emit JSON by default. Without it, `dusk:snap` prints the
+   tree as text (`dusk:snap --json` is the way to read `grepLiteral`,
+   `warnings` and `framesForced`), and read / query verbs
+   (`dusk:observe`, `dusk:find`, `dusk:get_routes`,
    `dusk:console`, `dusk:exceptions`, `dusk:hot_reload_and_snap`) and
    `dusk:reset_overlays` print JSON; the side-effect verbs and the two
    waits print a one-line summary. `dusk:screenshot` writes bytes to disk
@@ -113,15 +120,26 @@ and verify with `./bin/fsa dusk:doctor`.
    shell chain that depended on either proved nothing; if you carry a
    workaround for that, drop it.
 
-7. **A `warnings` block means the result is not trustworthy.** When the
-   app stops producing frames (a backgrounded browser tab is the usual
-   cause; Flutter maps `document.visibilityState: "hidden"` to
-   `AppLifecycleState.hidden`, which disables frames), semantics labels
-   are never rebuilt and dispatched gestures cannot take effect. Every
-   payload then carries:
+7. **A `warnings` block means the result is not trustworthy.** A hidden,
+   minimised or occluded desktop window and a backgrounded browser tab
+   (Flutter maps `document.visibilityState: "hidden"` to
+   `AppLifecycleState.hidden`) disable frame production: semantics labels
+   are never rebuilt and dispatched gestures cannot take effect. Dusk wakes
+   a `hidden` or `paused` app itself at the start of every verb (it delivers
+   `resumed` and forces a frame; verified on a hidden macOS window), and a
+   response that did carries `framesForced: true`. That is the normal
+   result; the app's lifecycle observers see `resumed`, and
+   `--dart-define=DUSK_FORCE_FRAMES=false` turns it off. A hidden browser
+   tab cannot be woken (Chrome withholds its animation frames), so on web
+   bring the page to front; the CLI does this itself with CDP
+   `Page.bringToFront` when the session has a `cdpPort`, repeating only
+   read-only verbs (snap, observe), so after a mutating verb run
+   `dusk:snap` to see what it did. Only when dusk could not force frames (that
+   opt-out, `detached`, or a wake that produced no frame) does the payload
+   carry:
 
    ```json
-   { "warnings": { "framesEnabled": false, "lifecycleState": "hidden", "hint": "..." } }
+   { "warnings": { "framesEnabled": false, "lifecycleState": "hidden", "platform": "macOS", "hint": "..." } }
    ```
 
    Two symptoms follow and both look like product defects. `dusk_snap`
@@ -129,8 +147,10 @@ and verify with `./bin/fsa dusk:doctor`.
    renders perfectly reads as completely empty. And an action returns a
    clean success for a gesture that could not have landed. **Never
    conclude "the screen is empty" or "the tap did nothing" while this
-   block is present.** Fix it with one CDP call, `Page.bringToFront`,
-   then retry. On the CLI the same condition prints a stderr banner,
+   block is present.** `hint` names the platform's fix: on web one CDP
+   call, `Page.bringToFront`; on desktop bring the window to front. An
+   asleep macOS display can still starve frames. Then retry. On the CLI
+   the same condition prints a stderr banner,
    because `dusk:snap` prints only the tree and `dusk:tap` prints
    `✓ Tapped e7`, so neither would show you the block otherwise. The key
    is absent on a healthy engine, so its presence is the whole signal.
@@ -143,7 +163,7 @@ and verify with `./bin/fsa dusk:doctor`.
    | Verb | `kind` | Read this |
    |---|---|---|
    | `dusk_tap` | `treeChanged` | `changed: false` means the target's own route and semantics subtree are unchanged, so nothing observable happened |
-   | `dusk_type` / `dusk_clear` / `dusk_fill` | `text` | `value` is read back off the live controller; `verified: false` means a formatter or keyboard type filtered the write |
+   | `dusk_type` / `dusk_clear` / `dusk_fill` | `text` | `value` is read back off the live controller after the settle; `verified: false` means a formatter, keyboard type or echo filtered or reverted the write. `target.matchKind` names which field was written: read it when it is `nearest` |
    | `dusk_scroll` | `scrollOffset` | `before` == `after` means nothing moved (a ref that is not a scrollable, or a list already at the end) |
    | `dusk_set_checkbox` | `checked` | `after` is re-read from the widget; `verified: false` means the control kept its old state |
 
@@ -168,7 +188,19 @@ and verify with `./bin/fsa dusk:doctor`.
    either: the threshold is wrong at every other width, and there is no
    sidebar at all on a phone. Scope by ref.
 
-## 2. Tool surface (39 MCP tools, 41 CLI commands)
+   A snapshot ref line ends with ` [offscreen]` (outside the viewport) or
+   ` [occluded]` (something covers its centre) when that is true; observe
+   candidates carry `inViewport` and `occluded`. A `grep` that is not a
+   valid regex is matched as literal text and the response says
+   `grepLiteral: true`.
+
+10. **Field rules from real agent runs.** Start every run with
+    `./bin/fsa dusk:doctor`; give each git worktree its own `fsa start` and
+    ports; read `effect`, not the green tick. The full list is in
+    `${CLAUDE_SKILL_DIR}/references/workflows.md` under "Field rules from
+    real agent runs".
+
+## 2. Tool surface (40 MCP tools, 42 CLI commands)
 
 | Family | Tools | Mental model |
 |---|---|---|
@@ -180,13 +212,19 @@ and verify with `./bin/fsa dusk:doctor`.
 | Scroll | `dusk_scroll` | Scrolls by `dx` / `dy` logical pixels, or `intoView: true` to bring a ref into view. Operates on the nearest scrollable ancestor. |
 | Wait | `dusk_wait_for`, `dusk_wait_for_network_idle` | `wait_for` polls every 200ms for `text` / `textGone` / `expression`, default 5s timeout. `wait_for_network_idle` waits for `idleMs` (default 500) of zero pending HTTP, max `timeoutMs` (default 5000). |
 | Navigation | `dusk_navigate`, `dusk_navigate_back`, `dusk_get_routes`, `dusk_dismiss_modals`, `dusk_reset_overlays` | `navigate` tries `Navigator.pushNamed`, then a consumer-registered `DuskNavigateAdapter`, then `SystemNavigator.routeInformationUpdated`. Returns `{ navigated, route, exactPath, reason? }`: `navigated` accepts a page under the route, `exactPath` only the route itself. `dismiss_modals` pops `PopupRoute`s only; `reset_overlays` escalates through pop, Escape, and a Cancel-tap, and is idempotent. |
-| Diagnostics | `dusk_console`, `dusk_exceptions` | Telescope ring-buffer reads. Empty when telescope is not wired. |
+| Diagnostics | `dusk_console`, `dusk_exceptions` | Telescope ring-buffer reads. Empty when telescope is not set up. |
 | Evaluation | `dusk_evaluate` (MCP-only) | Evaluates a Dart expression in the running isolate via the VM Service. Single expression, no semicolons. |
 | App control | `dusk_close_app` | `SystemNavigator.pop()`. Graceful; web `window.close()` may no-op if the tab was not script-opened. |
+| Batch | `dusk_run` | `steps: ["tap --ref=q3", "fill --ref=q1 --text=x", "snap --grep Total"]` runs several verbs in one call: one summary line per step, then the last step's output; stops at the first failing step (`continue: true` runs them all). CLI: `./bin/fsa dusk:run "tap --ref=q3" "snap"`. |
 | Composite | `dusk_hot_reload_and_snap` | Hot reload, then snap, screenshot, and recent exceptions in one round-trip. Returns `{ reloaded, durationMs, snapshot, screenshot, recentExceptions }`, or `{ reloaded: false, error, recentExceptions }` on compile failure. |
 | Performance | `dusk_perf_begin`, `dusk_perf_end`, `dusk_perf_insight` | Begin (`mode: attribution` profiles builds, `mode: timing` touches no flag), drive one interaction, end. `perf_end` returns a bounded report: check `refused` first, then `coverage`, then `insights` (each `id`, `severity`, `title`, `evidence` with its threshold, `nextStep`). `perf_insight {id}` returns the rows behind one insight. Rank by attribution ms; compare only timing ms. |
 | Perf runs | `dusk_perf_run`, `dusk_perf_compare`, `dusk_perf_trace` | `perf_run {scenario, variant, label}` repeats a scenario YAML (`variant` names the `variants` key, required when the file declares any) from a clean start (targets are `{text}` / `{label}` / `{role, name}` / `{key}`, never a ref) and writes `<out>/<scenario>-<label>.json`; `timing: true` adds the ms worth comparing, `semantics-pass: true` a `semanticsOff` series. `perf_compare {a, b}` gates on counts per painted frame, ms only from timing medians. `perf_trace {out}` writes a Perfetto file and returns its path. A whole campaign (every scenario from a cold start, hooks, Android prep, retries) is CLI only: `./bin/fsa dusk:perf_campaign <campaign.yaml> --platform=chrome`. |
 | CDP (web-only) | `dusk_resize_viewport`, `dusk_device_profile` | Drive Chrome via CDP. 8 device presets: `iphone-x`, `iphone-13`, `iphone-15-pro`, `pixel-5`, `pixel-8`, `ipad-pro-12.9`, `desktop-1440`, `desktop-1920`. |
+
+Cheaper loops: batch known steps with `dusk_run`, and pass `snapshot: "diff"`
+(CLI `--snapshot=diff`) to `dusk_tap` / `dusk_fill` / `dusk_navigate` to get
+only the lines the action changed since your last snapshot instead of the
+whole tree.
 
 Full per-tool input schema, return shape, and example calls:
 `${CLAUDE_SKILL_DIR}/references/mcp-tools.md`. CLI flags and exit codes:
@@ -263,11 +301,16 @@ Default: snap returns `e<N>`; use them inline. Switch to `dusk_find` /
 `dusk_observe` and `q<N>` the moment the agent enters a retry or
 multi-step flow against the same target.
 
-**e-ref staleness on rebuild-prone pages.** `e<N>` tokens are frozen to
-the Semantics node at snap time. The `RefRegistry` backing them does NOT
-re-resolve; on pages that rebuild (Settings, lists driven by async data,
-any page with conditional sections), use `dusk_find` from the start
-instead of snapping and then regretting the stale `defunct` failure.
+**e-ref staleness on rebuild-prone pages.** `e<N>` tokens are minted from
+the Semantics node at snap time. When the element behind one is gone, the
+action relocates it by label, but only if the live tree has the same
+number of nodes with that label; the response then carries
+`reresolved: ["e5"]`. With a different count (a list that grew or shrank)
+the ref still fails as `defunct`. The bound query has no role, so a
+different-role node with the same label in the same position could be
+matched. On pages that rebuild heavily (Settings, lists driven by async
+data, any page with conditional sections), use `dusk_find` from the start
+instead of relying on the relocation.
 
 **`--semanticsLabel` over-match.** `dusk_find { semanticsLabel: "X" }`
 exact-matches against the accessibility label and resolves to the FIRST node;

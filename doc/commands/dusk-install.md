@@ -12,7 +12,7 @@ flutter pub add fluttersdk_dusk
 dart run fluttersdk_dusk dusk:install
 ```
 
-After the second command, `./bin/fsa list` surfaces all 34 `dusk:*` commands and `./bin/fsa mcp:serve` exposes the 33 MCP tools.
+After the second command, `./bin/fsa list` surfaces all 42 `dusk:*` commands and `./bin/fsa mcp:serve` exposes the 40 MCP tools.
 
 ---
 

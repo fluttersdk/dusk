@@ -4,6 +4,8 @@ Capture the Semantics tree of the running Flutter app as YAML, tagging every int
 
 The `eN` namespace is snapshot-frozen: every fresh `dusk:snap` clears the registry and mints new tokens. For long-lived handles that survive rebuilds, use `dusk:find` (which mints `qN` tokens) or `dusk:observe`.
 
+An `eN` ref also recovers from a rebuild on its own, within limits. Each snapshot binds a label-and-index query, plus the number of nodes carrying that label, to every labelled ref. When the element behind the ref has left the tree, the action relocates the control by that query, but only if the live tree still has the same number of nodes with that label; the response then lists the ref under `reresolved` (for example `"reresolved": ["e5"]`). With a different count the ref fails as `defunct (element no longer mounted)` and you re-snap. The query has no role, so a node of another role with the same label in the same position could be matched.
+
 Interactive nodes inside a currently-overflowing render ancestor carry an additive `overflow: true` sub-line in the YAML output. This is a live current-state check (`RenderFlex.toStringShort()` appends ` OVERFLOWING` while the constraint is violated); it is not a historical record. For the full non-fatal error history including overflow details, use `dusk:exceptions`.
 
 Text fields collapse to a single typeable ref. A field such as a wind `WInput` produces two nested `textbox` Semantics nodes (the outer wrapper plus the `RenderEditable` leaf that always owns its own node). `dusk:snap` suppresses the inner duplicate when its render object is a render-tree descendant of the outer `textbox` node's render object, emitting one ref for the surviving node and tagging it with an additive `typeable: true` sub-line. Collapse is by render-object containment only, so two sibling fields sharing the same label stay two distinct refs. Target the node carrying `typeable: true` when typing: `dusk:type` resolves the inner `EditableText` from it.
@@ -31,6 +33,7 @@ dart run fluttersdk_dusk dusk:snap [--depth=<n>]
                                    [--interactiveOnly]
                                    [--grep=<regex>]
                                    [--includeEnrichers]
+                                   [--json]
 ```
 
 `dusk:snap` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI recorded in `~/.artisan/state.json`, calls `ext.dusk.snap`, and prints the snapshot YAML to stdout.
@@ -46,9 +49,11 @@ dart run fluttersdk_dusk dusk:snap [--depth=<n>]
 | `--includeEnrichers` | flag | `false` | Emit Magic and Wind enricher fragments under each ref entry. Default off matches the Playwright-style minimal snapshot; turn on when the agent needs the className tokens, route name, or form field metadata. |
 | `--within` | string (`e<N>`) | unset (whole tree) | Scope the walk to one subtree. Takes an `e<N>` ref from a prior snapshot; `q<N>` query handles are not addressable here, since they re-resolve per action and have no fixed subtree. An unknown or node-less ref is an error rather than a silent widening. |
 | `--interactiveOnly` | flag | `false` | Emit only nodes that carry a ref (buttons, text fields, links, headers, anything with a tap action) and drop the plain `- text` lines. |
-| `--grep` | string (regex) | unset | Emit only nodes whose label or value matches, plus the ancestors that lead to them. Ancestors survive because they carry the refs you act on: a matching `- text` line has none of its own. |
+| `--grep` | string (regex) | unset | Emit only nodes whose label or value matches, plus the ancestors that lead to them. Ancestors survive because they carry the refs you act on: a matching `- text` line has none of its own. A pattern that is not a valid regex (a label such as `Container Sample (MP4, H.264` is an unterminated group) is matched as a literal substring instead, and the envelope carries `"grepLiteral": true`. |
 
-Every flag is serialised as a string into the VM Service params map; the command does no key translation.
+| `--json` | flag | `false` | Print the whole envelope as JSON instead of the tree alone, so `grepLiteral`, `warnings`, `framesForced` and `renderErrors` are readable. Text mode is unchanged. |
+
+Every flag is serialised as a string into the VM Service params map; the command does no key translation. `dusk:snap` has no `--snapshot` option: it is the snapshot. The `--snapshot=full|diff|none` option belongs to the action verbs ([dusk:tap](dusk-tap.md), `dusk:fill`, `dusk:type`, `dusk:navigate`, `dusk:scroll`).
 
 ---
 
@@ -90,7 +95,20 @@ The VM Service handler returns a JSON envelope `{ "snapshot": "<yaml>", "groupId
 
 The `typeable: true` sub-line marks the single surviving `textbox` node after the nested-field collapse described above; it is the node `dusk:type` resolves.
 
+A ref line may end with ` [offscreen]` and/or ` [occluded]` after `[ref=eN]`:
+
+```yaml
+[ref=e9] role=button label="Archive" rect=(20,1400,335,48) actions=[tap] [offscreen]
+[ref=e4] role=button label="Save" rect=(20,600,335,48) actions=[tap] [occluded]
+```
+
+`[offscreen]` means the widget lies outside the viewport (scroll it into view with `dusk:scroll --intoView`). `[occluded]` means a hit test at its centre reaches a widget painted above it, such as a dialog or an overlay (dismiss that first). A healthy screen prints neither, so the output is unchanged. An offscreen node is never probed for occlusion, and a node with no area carries neither marker.
+
 When `--includeEnrichers` is set, each entry gains indented lines contributed by the registered enrichers (see [Enricher fragments](#enricher-fragments)).
+
+### The diff baseline
+
+An unfiltered `dusk:snap` records its text as the baseline that `--snapshot=diff` on an action verb compares against: the action then returns only the lines it changed. A snap with `--grep`, `--within`, `--depth`, `--interactiveOnly` or `--includeEnrichers` is a partial view and never replaces the baseline, and a hot restart clears it (the next diff then returns the full text). Take a plain `dusk:snap` first when you plan to use `diff`.
 
 ### Render errors
 
@@ -131,13 +149,16 @@ The `renderErrors` block is **omitted entirely** when no errors are in the buffe
 
 ### Frame production
 
-When the app is not producing frames, semantics labels are never rebuilt: the snapshot comes back with its buttons and none of its `- text` nodes, and a screen that renders perfectly reads as completely empty. The response then carries a `warnings` block and `dusk:snap` prints a banner to stderr:
+When the app is not producing frames, semantics labels are never rebuilt: the snapshot comes back with its buttons and none of its `- text` nodes, and a screen that renders perfectly reads as completely empty. Dusk first tries to wake a hidden or minimised app, and a snapshot taken after waking carries `"framesForced": true`. When it cannot (the `DUSK_FORCE_FRAMES=false` opt-out, a `detached` lifecycle, a wake that produced no frame, or any hidden web tab) the response carries a `warnings` block and `dusk:snap` prints a banner to stderr. On web:
 
 ```
-⚠ The app is not producing frames (lifecycle: hidden). The semantics tree is not being
-  rebuilt and gestures cannot take effect, so this result may be stale. A backgrounded
-  browser tab is the usual cause: bring the page to front and retry.
+⚠ The app is not producing frames (lifecycle: hidden), so this result may be stale. A
+  backgrounded browser tab is the usual cause: bring the page to front and retry.
 ```
+
+On desktop the banner names a hidden, minimised or occluded window or an asleep display instead.
+
+On a web session started with `--cdp-port`, the CLI acts on the web warning itself: it sends CDP `Page.bringToFront` once and calls `ext.dusk.snap` again, so a snapshot of a backgrounded tab usually comes back healthy. A CDP failure leaves the first result and its exit code. Without a `cdpPort` nothing changes.
 
 Do not read an empty tree as an empty screen without checking for this block first. See [Frame production](../reference/frame-production.md).
 
@@ -146,7 +167,7 @@ Do not read an empty tree as an empty screen without checking for this block fir
 The VM Service handler propagates errors as `ServiceExtensionResponse.error(extensionError, message)`. The CLI surfaces the exception via `ArtisanContext.callExtension` and exits with a non-zero status. Typical failure modes:
 
 - No running app at the recorded URI (the artisan dispatcher reports the dial failure before `dusk:snap` runs).
-- `DuskPlugin.install()` not wired in `lib/main.dart` (run `dusk:install`).
+- `DuskPlugin.install()` missing from `lib/main.dart` (run `dusk:install`).
 
 ---
 

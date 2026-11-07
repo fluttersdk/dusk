@@ -23,6 +23,7 @@ The handler routes through the actionability gate (enabled, zero-rect, off-viewp
 ```
 dart run fluttersdk_dusk dusk:tap --ref=<eN|qN>
                                    [--includeSnapshot]
+                                   [--snapshot=full|diff|none]
                                    [--[no-]checkStable]
                                    [--[no-]checkReceivesEvents]
                                    [--until=<text>]
@@ -42,6 +43,7 @@ The pointer is dispatched at the target's LIVE center: the handler re-resolves t
 |--------|------|---------|----------|-------------|
 | `--ref` | string | (none) | yes (`mandatory: true`) | Snapshot ref token (e.g. `e1` from a prior `dusk:snap`, or `q1` from a prior `dusk:find`). Empty values trigger a CLI-side error with exit code `1` before the VM Service call is made. |
 | `--includeSnapshot` | flag | `false` | no | Embed the post-tap snapshot YAML in the response. Useful when the tap is expected to trigger a navigation or modal and the next agent step needs the fresh tree. |
+| `--snapshot` | `full`, `diff` or `none` | (none) | no | Print the post-tap snapshot after the one-line summary and override `--includeSnapshot`. `full` is the whole tree; `diff` is only the lines the tap changed since your last unfiltered snapshot (a `dusk:snap` or an earlier action), as `- old` then `+ new` per changed row, `+ ` for an added row, `- ` for a removed one, and a `(K of N lines changed)` footer; `none` prints nothing. With no baseline yet, `diff` returns the full text. Over MCP this is the `snapshot` enum on `dusk_tap`. |
 | `--checkStable` | flag | `true` | no | Run the Stable (2-frame rect-unchanged) actionability gate. Disable when targeting an animating widget that intentionally rebuilds across frames. |
 | `--checkReceivesEvents` | flag | `true` | no | Run the Receives-Events (front-most hit-test) actionability gate. Disable when targeting a widget that is intentionally occluded by an overlay you also want to interact with. |
 | `--until` | string | (none) | no | After the tap settles, poll the live element tree (same loop as `dusk:wait`) for a `Text` whose data equals this value, up to the `--untilTimeoutMs` timeout (default 3000ms), and add an `untilMatched` boolean to the response reporting whether it appeared. Use to confirm a navigation / state change in one call instead of a separate `dusk:wait`. Off by default, which keeps the response shape unchanged. Setting `--until` always prints the JSON envelope (so `untilMatched` is visible) regardless of `--includeSnapshot`. |
@@ -96,6 +98,12 @@ claiming a plain success:
 `changed` is `true` when the target's route or its own semantics subtree differed after the tap, `false` when nothing observable changed. The signal is deliberately scoped to the TARGET rather than the whole tree, so unrelated background churn does not read as "something happened", and a counter button whose own label increments does.
 
 `changed: false` is the classic false success: a button the gate accepted, whose `onTap` never fired. It was an opt-in `--verify` flag until it became clear that the agents who most needed it were the ones who did not know to ask for it.
+
+**Stale `eN` refs.** When the widget behind an `eN` ref was rebuilt since the snapshot, the tap relocates it by the label and index the snapshot bound to the ref, provided the live tree has the same number of nodes with that label. The response then lists the ref: `"reresolved": ["e2"]`. With a different count the ref fails as `defunct (element no longer mounted)` and the agent re-snaps. The bound query has no role, so a node of another role with the same label in the same position could be matched.
+
+**Tap point outside the control (#60).** A `MergeSemantics` boundary (a row or card that merges a label and a button) taps at its own centre, which can be empty space beside the control that carries the tap handler, while the gate still reports `confirmed`. When the point lies outside every tap carrier inside the boundary (found through the element tree; `Semantics(onTap)` and `GestureDetector` carriers only) the response carries `"tapPointOutsideOwner": {"ownerRect": {"left", "top", "width", "height"}, "point": {"x", "y"}}` and the CLI prints one warning line on stderr naming both. The gate is unchanged. Treat the line as "this tap may have hit something else" and check the result with `dusk:snap`, or target the control's own ref.
+
+**Hidden window.** A hidden or minimised desktop app is woken before the tap and the response carries `"framesForced": true`; a tap against a window that cannot be woken carries a `warnings` block instead. On a web session started with `--cdp-port`, the CLI sends CDP `Page.bringToFront` once when the answer carries a web `warnings` block (or the call fails and the tab reports `hidden`). A tap is never repeated, because its gesture may already have fired: a stderr notice tells you to run `dusk:snap` to see what it did. See [Frame production](../reference/frame-production.md).
 
 **Error envelope (actionability gate failure):**
 
