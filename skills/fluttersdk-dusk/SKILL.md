@@ -123,7 +123,7 @@ not installed: see Install below.
 | Click family | `dusk_tap`, `dusk_dblclick`, `dusk_right_click`, `dusk_triple_click`, `dusk_hover`, `dusk_drag` | All gated. `dusk_drag` takes `startRef` + `endRef`. |
 | Text | `dusk_fill`, `dusk_type`, `dusk_clear`, `dusk_press_key`, `dusk_focus`, `dusk_blur` | `fill` is the default (focus, clear, type, settle, stale-ref retry). `type` fires `onChanged`. `press_key` takes modifiers and delivers to the focused widget. `fill` / `type` / `clear` refuse a ref that is not a text field. |
 | Form controls | `dusk_set_checkbox`, `dusk_select_option` | Idempotent; `select_option` calls `onChanged` directly. |
-| Scroll | `dusk_scroll` | By `dx` / `dy` logical pixels, or `intoView: true`, on the nearest scrollable. |
+| Scroll | `dusk_scroll` | By `dx` / `dy` logical pixels, or `direction` + `pixels`, or `intoView: true`, on the nearest scrollable. |
 | Wait | `dusk_wait_for`, `dusk_wait_for_network_idle` | `wait_for` polls 200ms for `text` / `textGone`, default 5s. |
 | Navigation | `dusk_navigate`, `dusk_navigate_back`, `dusk_get_routes`, `dusk_dismiss_modals`, `dusk_reset_overlays` | `navigate` returns `{ navigated, route, exactPath, reason? }`. `reset_overlays` escalates and is idempotent. |
 | Diagnostics | `dusk_console`, `dusk_exceptions`, `dusk_evaluate` | Rule 7 for the telescope dependency. `evaluate` takes one Dart expression, MCP-only. |

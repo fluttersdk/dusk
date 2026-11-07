@@ -433,12 +433,14 @@ the popup walk. Returns `{ selected: true, value }`.
 | `ref` | string | no | root scrollable | The scrollable to drive, or any widget within one |
 | `dx` | number | no | 0 | Horizontal scroll in logical pixels |
 | `dy` | number | no | 0 | Vertical scroll in logical pixels (positive = down) |
+| `direction` | string | no | `down` | `up`, `down`, `left` or `right`; used only when `dx` and `dy` are absent |
+| `pixels` | number | no | 300 | Distance for `direction` |
 | `intoView` | boolean | no | false | When true with `ref`, calls `Scrollable.ensureVisible` instead of scrolling by delta |
 | `includeSnapshot` | boolean | no | true | Append a post-scroll snapshot |
 
-The extension reads only `dx`, `dy` and `intoView`. The tool schema also lists
-`direction` and `pixels`; the extension ignores them (the CLI translates them
-into `dx` / `dy`), so pass `dx` / `dy` from MCP.
+`direction` (`up`, `down`, `left`, `right`; default `down`) and `pixels`
+(default 300) name the same delta as a signed pair; `dx` / `dy` win when both
+are given. A call with a `ref` and none of them moves nothing.
 
 **Returns.** `{ scrolled, finalOffset, effect, snapshot? }`. `scrolled` is
 true only when the offset moved; with no scrollable around the ref, or one

@@ -1100,7 +1100,7 @@ parity). Injects `PointerDownEvent` + 50ms hold + `PointerUpEvent` (mouse kind,
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
-| `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `false`. |
+| `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
 | `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
 | `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
 
@@ -1220,6 +1220,9 @@ ancestor of the widget identified by `ref`.
 | `ref` | string | yes | Widget ref (`e<N>`) inside the target Scrollable. |
 | `direction` | string | no | `up`, `down`, `left`, `right`. Default `down`. |
 | `pixels` | number | no | Logical pixels to scroll. Default `300`. |
+| `dx` | number | no | Horizontal delta in logical pixels (positive = right). Overrides `direction` / `pixels`. |
+| `dy` | number | no | Vertical delta in logical pixels (positive = down). Overrides `direction` / `pixels`. |
+| `intoView` | boolean | no | Bring `ref` itself into view (`Scrollable.ensureVisible`) instead of scrolling by a delta. |
 
 ### Returns
 
@@ -1454,7 +1457,7 @@ paragraph.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
-| `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `false`. |
+| `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
 | `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
 | `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
 
@@ -1501,16 +1504,16 @@ Success: `{ ref, text }`. Multi-line text uses `\n` line breaks.
 
 Dispatch: `ext.dusk.wait_for`
 
-Wait until a UI condition is satisfied or the timeout expires. Polls at 100ms; returns as
+Wait until a UI condition is satisfied or the timeout expires. Polls at 200ms; returns as
 soon as the condition flips.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `text` | string | no | Wait until a Semantics node with this exact label exists. |
-| `textGone` | string | no | Wait until NO Semantics node with this label exists. |
-| `expression` | string | no | Wait until this Dart expression (Tinker bridge) returns truthy. |
+| `text` | string | no | Wait until a `Text` with this exact data exists. |
+| `textGone` | string | no | Wait until no such `Text` exists. |
+| `expression` | string | no | Matched as text, exactly like `text`; it is not evaluated as Dart (use `dusk_evaluate` for that). |
 | `timeoutMs` | integer | no | Wait timeout in milliseconds. Default `5000`. |
 
 Pass exactly ONE of `text`, `textGone`, `expression`; the handler errors when zero or

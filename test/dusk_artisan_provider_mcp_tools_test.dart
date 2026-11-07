@@ -531,5 +531,31 @@ void main() {
       final device = tools.firstWhere((t) => t.name == 'dusk_device_profile');
       expect(device.inputSchema.containsKey('required'), isFalse);
     });
+
+    test('dusk_scroll lists every key the extension reads', () {
+      final scroll = tools.firstWhere((t) => t.name == 'dusk_scroll');
+      final properties =
+          scroll.inputSchema['properties'] as Map<String, dynamic>;
+
+      // ext_scroll.dart reads these five; the schema used to list only the
+      // direction and pixels pair, which the extension then ignored.
+      expect(
+        properties.keys,
+        containsAll(
+            <String>['ref', 'direction', 'pixels', 'dx', 'dy', 'intoView']),
+      );
+    });
+
+    test('the click variants say their snapshot default is true', () {
+      for (final name in <String>['dusk_right_click', 'dusk_triple_click']) {
+        final tool = tools.firstWhere((t) => t.name == name);
+        final properties =
+            tool.inputSchema['properties'] as Map<String, dynamic>;
+        final snapshot = properties['includeSnapshot'] as Map<String, dynamic>;
+
+        expect(snapshot['description'], contains('default true'), reason: name);
+        expect(tool.description, contains('includeSnapshot` (default true)'));
+      }
+    });
   });
 }
