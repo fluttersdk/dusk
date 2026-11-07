@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
+import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_text_input.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
 import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
@@ -473,6 +476,175 @@ void main() {
             {'key': 'Tab'},
           );
           expect(response.result, isNotNull);
+        },
+      );
+
+      for (final String modifiers in <String>[
+        '["control","shift"]',
+        'control,shift',
+      ]) {
+        test(
+          'holds control and shift while the key is pressed for $modifiers',
+          () async {
+            final List<(bool, bool)> heldOnKey = <(bool, bool)>[];
+            bool handler(KeyEvent event) {
+              if (event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.keyS) {
+                heldOnKey.add((
+                  HardwareKeyboard.instance.isControlPressed,
+                  HardwareKeyboard.instance.isShiftPressed,
+                ));
+              }
+
+              return false;
+            }
+
+            HardwareKeyboard.instance.addHandler(handler);
+            addTearDown(() => HardwareKeyboard.instance.removeHandler(handler));
+
+            final response = await aiTestPressKeyHandler(
+              'ext.dusk.press_key',
+              <String, String>{
+                'key': 'S',
+                'modifiers': modifiers,
+              },
+            );
+
+            expect(response.result, isNotNull);
+            expect(heldOnKey, <(bool, bool)>[
+              (true, true),
+            ]);
+            expect(HardwareKeyboard.instance.logicalKeysPressed, isEmpty);
+          },
+        );
+      }
+
+      test(
+        'returns an error naming an unknown modifier and presses nothing',
+        () async {
+          final List<KeyEvent> heard = <KeyEvent>[];
+          bool handler(KeyEvent event) {
+            heard.add(event);
+
+            return false;
+          }
+
+          HardwareKeyboard.instance.addHandler(handler);
+          addTearDown(() => HardwareKeyboard.instance.removeHandler(handler));
+
+          final response = await aiTestPressKeyHandler(
+            'ext.dusk.press_key',
+            <String, String>{
+              'key': 'Enter',
+              'modifiers': 'shift,hyper',
+            },
+          );
+
+          expect(response.result, isNull);
+          expect(response.errorDetail ?? '', contains('unknown modifier'));
+          expect(response.errorDetail ?? '', contains('hyper'));
+          expect(heard, isEmpty);
+        },
+      );
+
+      test('the same modifier named twice is pressed once', () async {
+        final List<KeyEvent> heard = <KeyEvent>[];
+        bool handler(KeyEvent event) {
+          heard.add(event);
+
+          return false;
+        }
+
+        HardwareKeyboard.instance.addHandler(handler);
+        addTearDown(() => HardwareKeyboard.instance.removeHandler(handler));
+
+        final response = await aiTestPressKeyHandler(
+          'ext.dusk.press_key',
+          <String, String>{
+            'key': 'g',
+            'modifiers': 'ctrl,control,shift,shift',
+            'includeSnapshot': 'false',
+          },
+        );
+
+        expect(response.errorDetail, isNull);
+        expect(
+          heard.whereType<KeyDownEvent>().map((e) => e.logicalKey).toList(),
+          equals(<LogicalKeyboardKey>[
+            LogicalKeyboardKey.controlLeft,
+            LogicalKeyboardKey.shiftLeft,
+            LogicalKeyboardKey.keyG,
+          ]),
+        );
+        expect(HardwareKeyboard.instance.physicalKeysPressed, isEmpty);
+      });
+
+      testWidgets(
+        'a Shift+Tab shortcut fires on Tab with shift held, and not on a '
+        'plain Tab',
+        (WidgetTester tester) async {
+          final List<KeyEvent> heard = <KeyEvent>[];
+          int fired = 0;
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: CallbackShortcuts(
+                  bindings: <ShortcutActivator, VoidCallback>{
+                    const SingleActivator(
+                      LogicalKeyboardKey.tab,
+                      shift: true,
+                    ): () => fired++,
+                  },
+                  child: Focus(
+                    autofocus: true,
+                    onKeyEvent: (FocusNode node, KeyEvent event) {
+                      heard.add(event);
+
+                      return KeyEventResult.ignored;
+                    },
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            ),
+          );
+
+          Future<void> press(Map<String, String> params) async {
+            final future = aiTestPressKeyHandler(
+              'ext.dusk.press_key',
+              <String, String>{
+                ...params,
+                'includeSnapshot': 'false',
+              },
+            );
+            bool done = false;
+            unawaited(future.whenComplete(() => done = true));
+            // Pumps with a duration so the handler's frame waits complete
+            // whichever frame they land on.
+            for (int i = 0; i < 20 && !done; i++) {
+              await tester.pump(const Duration(milliseconds: 50));
+            }
+            final response = await future;
+            expect(response.result, isNotNull);
+          }
+
+          await press(<String, String>{
+            'key': 'Tab',
+            'modifiers': 'shift',
+          });
+
+          expect(fired, 1);
+          expect(
+            heard.whereType<KeyDownEvent>().map((KeyEvent e) => e.logicalKey),
+            contains(LogicalKeyboardKey.tab),
+          );
+
+          await press(<String, String>{
+            'key': 'Tab',
+          });
+
+          expect(fired, 1);
+          expect(HardwareKeyboard.instance.logicalKeysPressed, isEmpty);
         },
       );
 
@@ -1082,6 +1254,262 @@ void main() {
     });
   });
 
+  group('text verbs on a ref that is not a text field', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'type on a dropdown ref is refused and no field changes',
+      (WidgetTester tester) async {
+        final SemanticsHandle semantics = tester.ensureSemantics();
+        final TextEditingController name = TextEditingController(text: 'Ada');
+        addTearDown(name.dispose);
+        await tester.pumpWidget(_DropdownForm(name: name));
+
+        final String ref = _registerNodeRef(
+          tester,
+          find.byType(DropdownButton<String>),
+        );
+        final response = await _drive(
+          tester,
+          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'Bob')),
+        );
+
+        expect(response.result, isNull);
+        expect(
+          parseMessageFromErrorDetail(response.errorDetail ?? ''),
+          contains('ref $ref is a button, not a text field'),
+        );
+        expect(name.text, equals('Ada'));
+        semantics.dispose();
+      },
+    );
+
+    testWidgets(
+      'clear on a dropdown ref is refused and leaves the Name field alone',
+      (WidgetTester tester) async {
+        final SemanticsHandle semantics = tester.ensureSemantics();
+        final TextEditingController name = TextEditingController(text: 'Ada');
+        addTearDown(name.dispose);
+        await tester.pumpWidget(_DropdownForm(name: name));
+
+        final String ref = _registerNodeRef(
+          tester,
+          find.byType(DropdownButton<String>),
+        );
+        final response = await _drive(
+          tester,
+          aiTestClearHandler('ext.dusk.clear', _quietParams(ref)),
+        );
+
+        expect(response.result, isNull);
+        expect(response.errorDetail ?? '', contains('not a text field'));
+        expect(name.text, equals('Ada'));
+        semantics.dispose();
+      },
+    );
+
+    testWidgets(
+      'type on a label ref writes the adjacent field and reports nearest',
+      (WidgetTester tester) async {
+        final SemanticsHandle semantics = tester.ensureSemantics();
+        final TextEditingController name = TextEditingController();
+        addTearDown(name.dispose);
+        await tester.pumpWidget(_LabelledForm(name: name));
+
+        final Finder label = find.text('Full name');
+        expect(
+          tester.getRect(label).overlaps(
+                tester.getRect(find.byType(EditableText)),
+              ),
+          isFalse,
+        );
+        final String ref = _registerNodeRef(tester, label);
+        final response = await _drive(
+          tester,
+          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'Ada')),
+        );
+
+        expect(name.text, equals('Ada'));
+        final Map<String, dynamic> effect = _effectOf(response);
+        expect(effect['verified'], isTrue);
+        final Map<String, dynamic> target =
+            effect['target'] as Map<String, dynamic>;
+        expect(target['matchKind'], equals('nearest'));
+        final Rect field = tester.getRect(find.byType(EditableText));
+        expect(
+          target['rect'],
+          equals(<String, dynamic>{
+            'x': field.left,
+            'y': field.top,
+            'width': field.width,
+            'height': field.height,
+          }),
+        );
+        semantics.dispose();
+      },
+    );
+
+    testWidgets(
+      'type on a field ref reports the overlapping field as its target',
+      (WidgetTester tester) async {
+        final SemanticsHandle semantics = tester.ensureSemantics();
+        final TextEditingController name = TextEditingController();
+        addTearDown(name.dispose);
+        await tester.pumpWidget(_LabelledForm(name: name));
+
+        final String ref = _registerNodeRef(tester, find.byType(TextField));
+        final response = await _drive(
+          tester,
+          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'Ada')),
+        );
+
+        final Map<String, dynamic> target =
+            _effectOf(response)['target'] as Map<String, dynamic>;
+        expect(target['matchKind'], equals('overlap'));
+        expect(target['label'], equals('Name'));
+        semantics.dispose();
+      },
+    );
+
+    testWidgets(
+      'type on a checkbox ref is refused as a checkbox',
+      (WidgetTester tester) async {
+        final SemanticsHandle semantics = tester.ensureSemantics();
+        final TextEditingController name = TextEditingController(text: 'Ada');
+        addTearDown(name.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: <Widget>[
+                  TextField(controller: name),
+                  Checkbox(value: false, onChanged: (_) {}),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final String ref = _registerNodeRef(tester, find.byType(Checkbox));
+        final response = await _drive(
+          tester,
+          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'Bob')),
+        );
+
+        expect(response.result, isNull);
+        expect(
+          response.errorDetail ?? '',
+          contains('ref $ref is a checkbox, not a text field'),
+        );
+        expect(name.text, equals('Ada'));
+        semantics.dispose();
+      },
+    );
+
+    testWidgets(
+      'type with no rect reports the element walk as its target',
+      (WidgetTester tester) async {
+        final TextEditingController name = TextEditingController();
+        addTearDown(name.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: TextField(controller: name)),
+          ),
+        );
+        TestRefRegistry.inject('e700', tester.element(find.byType(TextField)));
+        addTearDown(TestRefRegistry.clear);
+
+        final response = await _drive(
+          tester,
+          aiTestTypeHandler(
+            'ext.dusk.type',
+            _quietParams('e700', text: 'walked'),
+          ),
+        );
+
+        expect(name.text, equals('walked'));
+        expect(
+          (_effectOf(response)['target'] as Map<String, dynamic>)['matchKind'],
+          equals('element'),
+        );
+      },
+    );
+  });
+
+  group('aiTestTypeHandler settled value', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    testWidgets(
+      'a field that reverts on the next frame reports verified:false',
+      (WidgetTester tester) async {
+        final TextEditingController controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: _RevertingField(controller: controller)),
+          ),
+        );
+
+        final String ref = RefRegistry.registerForTesting(
+          rect: tester.getRect(find.byType(TextField)),
+          element: tester.element(find.byType(TextField)),
+          groupId: 'g',
+          isTextField: true,
+        );
+        final response = await _drive(
+          tester,
+          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'abc')),
+        );
+
+        final Map<String, dynamic> effect = _effectOf(response);
+        expect(effect['verified'], isFalse);
+        expect(effect['value'], equals(''));
+        expect(controller.text, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'a digits-only field rejecting letters reports verified:false',
+      (WidgetTester tester) async {
+        final TextEditingController controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: TextField(
+                controller: controller,
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final String ref = RefRegistry.registerForTesting(
+          rect: tester.getRect(find.byType(TextField)),
+          element: tester.element(find.byType(TextField)),
+          groupId: 'g',
+          isTextField: true,
+        );
+        final response = await _drive(
+          tester,
+          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'abc')),
+        );
+
+        final Map<String, dynamic> effect = _effectOf(response);
+        expect(effect['verified'], isFalse);
+        expect(effect['value'], equals(''));
+        expect(
+          (effect['target'] as Map<String, dynamic>)['matchKind'],
+          equals('overlap'),
+        );
+      },
+    );
+  });
+
   group('TestRefRegistry', () {
     testWidgets('inject + lookup roundtrip, clear empties the table',
         (tester) async {
@@ -1261,6 +1689,62 @@ void main() {
         expect(decoded['snapshot'] as String, contains('textbox'));
       },
     );
+
+    testWidgets(
+      'snapshot=diff answers the field line the type changed',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        resetSnapshotBaselineForTesting();
+        addTearDown(resetSnapshotBaselineForTesting);
+
+        final TextEditingController controller = TextEditingController();
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(child: TextField(controller: controller)),
+            ),
+          ),
+        );
+        await duskSnapBuild();
+
+        final Element element = tester.element(find.byType(TextField));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(100, 100, 200, 40),
+          element: element,
+          groupId: 'g',
+          isTextField: true,
+        );
+
+        final future = aiTestTypeHandler(
+          'ext.dusk.type',
+          <String, String>{
+            'ref': ref,
+            'text': 'diff-typed',
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+            'snapshot': 'diff',
+          },
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['snapshotMode'], 'diff');
+        final List<String> lines = (decoded['snapshot'] as String).split('\n');
+        expect(
+          lines.where((String l) => l.startsWith('+ ')),
+          contains(contains('"diff-typed"')),
+        );
+        expect(lines.last, endsWith('lines changed)'));
+      },
+    );
   });
 
   group('aiTestPressKeyHandler snapshot-in-response', () {
@@ -1338,6 +1822,34 @@ void main() {
             jsonDecode(response.result!) as Map<String, dynamic>;
         expect(
             decoded['snapshot'] as String, contains('presskey-content-marker'));
+      },
+    );
+
+    testWidgets(
+      'snapshot=diff on a key that changed nothing reports zero lines',
+      (WidgetTester tester) async {
+        resetSnapshotBaselineForTesting();
+        addTearDown(resetSnapshotBaselineForTesting);
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: Text('presskey-diff'))),
+          ),
+        );
+        await duskSnapBuild();
+
+        final future = aiTestPressKeyHandler(
+          'ext.dusk.press_key',
+          <String, String>{'key': 'Escape', 'snapshot': 'diff'},
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['snapshotMode'], 'diff');
+        expect(decoded['snapshot'],
+            matches(RegExp(r'^\(0 of \d+ lines changed\)$')));
       },
     );
   });
@@ -1418,6 +1930,144 @@ void main() {
       );
     });
   });
+}
+
+/// Gate opt-outs for a test-minted ref, whose rect is not re-validated.
+Map<String, String> _quietParams(String ref, {String? text}) =>
+    <String, String>{
+      'ref': ref,
+      if (text != null) 'text': text,
+      'checkStable': 'false',
+      'checkReceivesEvents': 'false',
+      'includeSnapshot': 'false',
+    };
+
+/// Registers an `e<N>` ref the way a snapshot mints one from a semantics
+/// node: the node and its rect, carried by the app-root element.
+String _registerNodeRef(WidgetTester tester, Finder finder) =>
+    RefRegistry.register(
+      rect: tester.getRect(finder),
+      element: WidgetsBinding.instance.rootElement!,
+      groupId: 'g',
+      isTextField: false,
+      node: tester.getSemantics(finder),
+    );
+
+/// Pumps frames until [pending] completes, so a handler's frame waits land.
+Future<developer.ServiceExtensionResponse> _drive(
+  WidgetTester tester,
+  Future<developer.ServiceExtensionResponse> pending,
+) async {
+  bool done = false;
+  unawaited(pending.whenComplete(() => done = true));
+  for (int i = 0; i < 20 && !done; i++) {
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+
+  return pending;
+}
+
+Map<String, dynamic> _effectOf(developer.ServiceExtensionResponse response) {
+  expect(response.result, isNotNull, reason: response.errorDetail);
+  final Map<String, dynamic> decoded =
+      jsonDecode(response.result!) as Map<String, dynamic>;
+
+  return decoded['effect'] as Map<String, dynamic>;
+}
+
+/// A Name field above a dropdown, the F-23 shape: the dropdown's rect overlaps
+/// no editable, so the nearest one used to be written instead.
+class _DropdownForm extends StatelessWidget {
+  const _DropdownForm({required this.name});
+
+  final TextEditingController name;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        body: Column(
+          children: <Widget>[
+            TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: 'Name'),
+            ),
+            const SizedBox(height: 40),
+            DropdownButton<String>(
+              value: 'apple',
+              items: const <DropdownMenuItem<String>>[
+                DropdownMenuItem<String>(value: 'apple', child: Text('Apple')),
+                DropdownMenuItem<String>(value: 'pear', child: Text('Pear')),
+              ],
+              onChanged: (_) {},
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A static label above a field it does not overlap, the handle shape a find
+/// by label text returns.
+class _LabelledForm extends StatelessWidget {
+  const _LabelledForm({required this.name});
+
+  final TextEditingController name;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        body: Column(
+          children: <Widget>[
+            Semantics(container: true, child: const Text('Full name')),
+            const SizedBox(height: 24),
+            TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: 'Name'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A field whose owner resets it a frame after every write, the shape of a
+/// formatter or an echo that refuses the value asynchronously.
+class _RevertingField extends StatefulWidget {
+  const _RevertingField({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  State<_RevertingField> createState() => _RevertingFieldState();
+}
+
+class _RevertingFieldState extends State<_RevertingField> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_revert);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_revert);
+    super.dispose();
+  }
+
+  void _revert() {
+    if (widget.controller.text.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.controller.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      TextField(controller: widget.controller);
 }
 
 /// A focused [Focus] that records every key event it hears, which is what a

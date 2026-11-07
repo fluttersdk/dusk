@@ -11,6 +11,7 @@ Internally `dusk:fill` composes the existing gated `ext.dusk.focus`, `ext.dusk.c
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
+- [Which field was written](#which-field-was-written)
 - [Stale-retry](#stale-retry)
 - [Examples](#examples)
 - [See also](#see-also)
@@ -23,6 +24,7 @@ Internally `dusk:fill` composes the existing gated `ext.dusk.focus`, `ext.dusk.c
 ```
 dart run fluttersdk_dusk dusk:fill --ref=<eN|qN> --text=<value>
                                     [--includeSnapshot]
+                                    [--snapshot=full|diff|none]
                                     [--[no-]checkStable]
                                     [--[no-]checkReceivesEvents]
 ```
@@ -39,6 +41,7 @@ dart run fluttersdk_dusk dusk:fill --ref=<eN|qN> --text=<value>
 | `--ref` | string | (none) | yes (`mandatory: true`) | Text-field ref token (`e1` from a prior `dusk:snap`, or `q1` from a prior `dusk:find`). Empty values trigger a CLI-side error with exit code `1` before the VM Service call. |
 | `--text` | string | (none) | yes (`mandatory: true`) | Value to set. Replaces existing content. Pass an empty string to clear the field. |
 | `--includeSnapshot` | flag | `false` | no | Embed the post-fill snapshot YAML in the response. |
+| `--snapshot` | `full`, `diff` or `none` | (none) | no | Print the post-fill snapshot after the one-line summary and override `--includeSnapshot`. `diff` prints only the lines the fill changed since your last unfiltered snapshot (a `dusk:snap` or an earlier action), as `- old` then `+ new` per changed row, with a `(K of N lines changed)` footer; with no baseline yet it prints the full text. Over MCP this is the `snapshot` enum on `dusk_fill`. |
 | `--checkStable` | flag | `true` | no | Run the Stable (2-frame rect-unchanged) actionability gate during the type step. |
 | `--checkReceivesEvents` | flag | `true` | no | Run the Receives-Events (front-most hit-test) actionability gate during the type step. |
 
@@ -49,9 +52,17 @@ dart run fluttersdk_dusk dusk:fill --ref=<eN|qN> --text=<value>
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | Field filled. Emits `Filled <ref>` (default) or the full JSON envelope when `--includeSnapshot` is set. |
-| `1` | `--ref` or `--text` was missing (CLI-side guard fires before the VM Service call). |
+| `0` | Field filled. Emits `Filled <ref>` (default) or the full JSON envelope when `--includeSnapshot` or `--json` is set. |
+| `1` | `--ref` or `--text` was missing (CLI-side guard fires before the VM Service call); OR, in the one-line mode, `effect.verified` came back `false`. |
 | non-zero | VM Service handler returned an error: ref not found, actionability gate failure, no editable under the ref, or a stale handle that did not recover on retry. |
+
+**A fill that did not stick.** The response carries `effect.verified`, read back from the live controller after the two-frame settle, so a formatter or echo that reverts the write a frame later reports `verified: false` too. A green tick only means the text was dispatched: an input formatter that trimmed or rejected it leaves the field holding something else. In the one-line mode that case prints an error naming what the field holds and exits `1`:
+
+```
+Fill not verified: e7 holds "12", not the text that was typed ("12abc")
+```
+
+With `--includeSnapshot` or `--json` the JSON envelope is printed and the exit code stays `0`; read `effect.verified` and `effect.value` yourself.
 
 **Success envelope (`--includeSnapshot` on):**
 
@@ -63,6 +74,24 @@ dart run fluttersdk_dusk dusk:fill --ref=<eN|qN> --text=<value>
   "snapshot": "[ref=e7] role=textbox typeable:true ..."
 }
 ```
+
+---
+
+<a name="which-field-was-written"></a>
+## Which field was written
+
+`dusk:fill` resolves the target field once and uses it for focus, clear and type, so the three steps cannot land in different fields. The response says which one in `effect.target`:
+
+```json
+"effect": {
+  "kind": "text", "verified": true, "value": "alice@example.com",
+  "target": { "matchKind": "overlap", "label": "Email", "rect": { "x": 20, "y": 200, "width": 335, "height": 56 } }
+}
+```
+
+`matchKind` is `overlap` (the field overlapping the ref's rect the most: the ref is the field), `nearest` (nothing overlaps, so the field nearest the ref's centre was written) or `element` (the ref had no rect, so the first editable under its element was used). Label and static-text handles keep the `nearest` fallback, since a label above its field is how you address that field. On `nearest` the CLI prints a warning naming the field and its rect, so a fill into a neighbouring field is visible.
+
+A ref whose node is an interactive control other than a text field is refused instead of falling back to the nearest field (a dropdown, checkbox or button ref used to wipe and rewrite whichever field sat closest). The error reads `ref e9 is a button, not a text field`, with the role being `button`, `checkbox`, `radio`, `switch`, `slider` or `link`. Target the field itself, or use `dusk:tap`, `dusk:select_option` or `dusk:set_checkbox`. The same rules apply to `dusk:type` and `dusk:clear`.
 
 ---
 

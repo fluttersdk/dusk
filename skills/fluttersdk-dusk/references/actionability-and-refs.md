@@ -31,7 +31,10 @@ mounted)"`.
 **Why it fails.** The ref was minted under an earlier snap; the widget
 has since unmounted (route change, list rebuild, conditional render).
 
-**Recovery.** Call `dusk_snap` and pick a fresh `e<N>`. If the ref came
+**Recovery.** A labelled `e<N>` is relocated by label before the gate
+runs, so `defunct` on one means the live tree has a different number of
+nodes with that label (or the ref had no label). Call `dusk_snap` and pick
+a fresh `e<N>`. If the ref came
 from `dusk_find` / `dusk_observe` (`q<N>`), it should re-resolve; if
 even the `q<N>` is defunct, the widget is genuinely gone from the tree.
 
@@ -203,13 +206,22 @@ predicates.
 - Become defunct when the node unmounts (the widget leaves the tree).
   After hot-reload, navigation, or a list rebuild, expect every
   not-refreshed `e<N>` to fail with `"defunct"`.
-- **The `RefRegistry` backing `e<N>` tokens is FROZEN (a FIFO token
-  store, not a live observer).** There is no way to refresh a stale
-  `e<N>` in place; the design intent is that `dusk_snap` re-mints
-  the ref after every page change. For pages that rebuild frequently
-  (Settings, lists driven by async data, any page with conditional
-  sections), prefer `dusk_find` / `dusk_observe` from the start to
-  get a `q<N>` handle that re-resolves on every action.
+- **A stale `e<N>` is relocated when it is safe.** Every labelled ref
+  carries a binding: a label-and-index query plus the number of nodes with
+  that label at snap time. When the element behind the ref is gone, the
+  action re-runs the query and trusts the hit only if the live tree has
+  the same number of namesakes on the same route; the token then points
+  at the new control and the response lists it under `reresolved`. With a
+  different count (a list that grew or shrank) or on another route (you
+  navigated away) nothing is guessed and the ref fails as `defunct`, so
+  re-snap. The query has no role, so a node of another role
+  with the same label in the same position could match. Unlabelled refs
+  have no binding and always fail as `defunct`. For pages that rebuild
+  frequently (Settings, lists driven by async data, any page with
+  conditional sections), prefer `dusk_find` / `dusk_observe` from the
+  start to get a `q<N>` handle that re-resolves on every action.
+- A ref line may end with ` [offscreen]` or ` [occluded]`: the first
+  needs a scroll before a gesture, the second a dismissed cover.
 
 When to use them: immediately after the snap that minted them, when
 the UI is static, when the action is one-shot.

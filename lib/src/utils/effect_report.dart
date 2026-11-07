@@ -24,21 +24,60 @@
 /// carry `changed`.
 library;
 
+import 'dart:ui' show Rect;
+
+/// How a text verb picked the editable it wrote for a ref.
+enum TextTargetMatch {
+  /// The editable overlapping the ref's rect the most: the ref is the field.
+  overlap,
+
+  /// No editable overlaps the ref's rect, so the one nearest its centre was
+  /// written. Right for a label handle, and the one to read twice otherwise.
+  nearest,
+
+  /// The ref had no rect, so the first editable under its element was used.
+  element,
+}
+
+/// The `target` block of a text effect: which field the write landed in.
+///
+/// [rect] is the editable's global rect read when the verb returns; [label]
+/// is its semantics label, null when it has none or semantics are off.
+Map<String, dynamic> textTarget({
+  required TextTargetMatch match,
+  required String? label,
+  required Rect rect,
+}) {
+  return <String, dynamic>{
+    'matchKind': match.name,
+    'label': label,
+    'rect': <String, double>{
+      'x': rect.left,
+      'y': rect.top,
+      'width': rect.width,
+      'height': rect.height,
+    },
+  };
+}
+
 /// Effect of a text write: what the field holds after it, and whether that
 /// matches what was requested.
 ///
-/// [actual] is read back from the live `TextEditingController`, never echoed
-/// from the request. `verified: false` with an [actual] shorter than
-/// [expected] is the signature of an input formatter or a keyboard type
-/// filtering the write.
+/// [actual] is read back from the live `TextEditingController` once the
+/// write has settled, never echoed from the request. `verified: false` with
+/// an [actual] shorter than [expected] is the signature of an input
+/// formatter or a keyboard type filtering the write. [target], from
+/// [textTarget], names the field that was written; omitted when unknown.
 Map<String, dynamic> textEffect({
   required String expected,
   required String? actual,
+  Map<String, dynamic>? target,
 }) {
   return <String, dynamic>{
     'kind': 'text',
     'verified': actual == expected,
     'value': actual,
+    if (target != null) 'target': target,
   };
 }
 

@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/actionability_gate.dart' show resolveViewFor;
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/key_press.dart';
@@ -27,11 +29,11 @@ import '../utils/perf_interaction.dart';
 ///
 /// Call this once from [registerAllAiTestExtensions] in `extensions.dart`.
 void registerModalRouterExtension() {
-  registerExtensionIdempotent(
+  registerDuskExtension(
     'ext.dusk.dismiss_modals',
     aiTestDismissModalsHandler,
   );
-  registerExtensionIdempotent(
+  registerDuskExtension(
     'ext.dusk.reset_overlays',
     aiTestResetOverlaysHandler,
   );
@@ -349,8 +351,7 @@ bool _tapDismissAffordance() {
 
   final Rect rect = match!.rect;
   final Offset center = rect.center;
-  final int viewId =
-      WidgetsBinding.instance.platformDispatcher.implicitView!.viewId;
+  final int viewId = resolveViewFor(null).viewId;
   WidgetsBinding.instance.handlePointerEvent(
     PointerDownEvent(
       position: center,

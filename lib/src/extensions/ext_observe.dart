@@ -10,8 +10,10 @@ import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostic
 import '../dusk_plugin.dart';
 import '../dusk_snapshot_enricher.dart';
 import '../ref_registry.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
+import '../utils/viewport_visibility.dart';
 
 // ---------------------------------------------------------------------------
 // MCP descriptor constants — consumed by DuskArtisanProvider.mcpTools()
@@ -63,7 +65,7 @@ const Set<String> _kDefaultWindKeys = <String>{
 /// Idempotent via [registerExtensionIdempotent]. Call from
 /// `registerAllDuskExtensions` once during `DuskPlugin.install`.
 void registerObserveExtensions() {
-  registerExtensionIdempotent(kDuskObserveMcpExtension, extDuskObserveHandler);
+  registerDuskExtension(kDuskObserveMcpExtension, extDuskObserveHandler);
 }
 
 // ---------------------------------------------------------------------------
@@ -93,6 +95,10 @@ void registerObserveExtensions() {
 ///   ([_kDefaultEnricherKeys]); `'full'` projects every enricher field;
 ///   `'false'` projects no enricher fields.
 ///
+/// `inViewport` is false when the bounds lie outside the view; `occluded` is
+/// true when a hit test at the bounds' centre reaches a widget painted above
+/// the candidate instead of the candidate itself.
+///
 /// Response JSON:
 /// ```json
 /// {
@@ -105,6 +111,8 @@ void registerObserveExtensions() {
 ///       "bounds": {"x": 100, "y": 200, "w": 80, "h": 36},
 ///       "isEnabled": true,
 ///       "isVisible": true,
+///       "inViewport": true,
+///       "occluded": false,
 ///       "magicFormField": "email",
 ///       "wind": {"breakpoint": "lg", "states": "[hover]"}
 ///     }
@@ -279,7 +287,23 @@ Map<String, dynamic>? _buildCandidate({
 
   final Rect rect = _globalRectFor(renderObject);
   final bool isEnabled = data.flagsCollection.isEnabled != Tristate.isFalse;
-  final bool isVisible = _isVisible(rect);
+  final FlutterView? view =
+      WidgetsBinding.instance.platformDispatcher.implicitView;
+  final bool inViewport = view == null ||
+      !isRectOutsideViewport(rect, view.physicalSize / view.devicePixelRatio);
+  // Informational, not gating: the agent decides what an off-viewport or
+  // zero-area candidate means. Same overlap rule as the actionability gate's
+  // `off-viewport` precondition.
+  final bool isVisible = !rect.isEmpty && inViewport;
+  // An off-screen or area-less candidate has no centre worth probing.
+  final bool occluded = view != null &&
+      isVisible &&
+      probeHitAt(
+            target: renderObject,
+            point: rect.center,
+            viewId: view.viewId,
+          ).verdict ==
+          HitVerdict.covered;
 
   // Mint a q-ref by deriving the most stable predicate available from the
   // semantics data. Prefer the semantics label (covers buttons + labelled
@@ -315,6 +339,8 @@ Map<String, dynamic>? _buildCandidate({
     },
     'isEnabled': isEnabled,
     'isVisible': isVisible,
+    'inViewport': inViewport,
+    'occluded': occluded,
   };
 
   // Merge enricher-projected fields per mode. Off => emit nothing extra.
@@ -538,20 +564,6 @@ Rect _globalRectFor(RenderObject renderObject) {
   if (!renderObject.hasSize) return Rect.zero;
   final Offset topLeft = renderObject.localToGlobal(Offset.zero);
   return topLeft & renderObject.size;
-}
-
-/// `true` when the rect has non-zero area AND overlaps the active view
-/// logical viewport. Mirrors the actionability-gate's `off-viewport`
-/// precondition; here it is informational (the field is emitted; the agent
-/// decides) rather than gating.
-bool _isVisible(Rect rect) {
-  if (rect.width <= 0 || rect.height <= 0) return false;
-  final FlutterView? view =
-      WidgetsBinding.instance.platformDispatcher.implicitView;
-  if (view == null) return true;
-  final Size viewSize = view.physicalSize / view.devicePixelRatio;
-  final Rect viewport = Rect.fromLTWH(0, 0, viewSize.width, viewSize.height);
-  return rect.overlaps(viewport);
 }
 
 String? _roleFor(SemanticsData data) {

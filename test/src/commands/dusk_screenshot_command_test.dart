@@ -138,6 +138,94 @@ void main() {
         );
       });
 
+      test('infers png from a .png --output when --format is absent', () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({'output': '${tempDir.path}/snap.png'}),
+          output: output,
+          response: const {'base64': 'aGVsbG8='},
+        );
+        await DuskScreenshotCommand().handle(ctx);
+
+        expect(ctx.lastParams, containsPair('format', 'png'));
+        expect(output.content, isNot(contains('[ERROR]')));
+      });
+
+      test('infers jpeg from .jpg and .jpeg --output extensions', () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        for (final name in <String>['snap.jpg', 'snap.JPEG']) {
+          final ctx = _StubContext(
+            input: MapInput({'output': '${tempDir.path}/$name'}),
+            output: BufferedOutput(),
+            response: const {'base64': 'aGVsbG8='},
+          );
+          await DuskScreenshotCommand().handle(ctx);
+
+          expect(ctx.lastParams, containsPair('format', 'jpeg'), reason: name);
+        }
+      });
+
+      test('keeps the jpeg default for an unrecognised extension', () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({'output': '${tempDir.path}/snap.bin'}),
+          output: BufferedOutput(),
+          response: const {'base64': 'aGVsbG8='},
+        );
+        await DuskScreenshotCommand().handle(ctx);
+
+        expect(ctx.lastParams, containsPair('format', 'jpeg'));
+      });
+
+      test('an explicit --format wins and warns when the extension disagrees',
+          () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/snap.png',
+            'format': 'jpeg',
+          }),
+          output: output,
+          response: const {'base64': 'aGVsbG8='},
+        );
+        final exit = await DuskScreenshotCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        expect(ctx.lastParams, containsPair('format', 'jpeg'));
+        expect(output.content, contains('[ERROR]'));
+        expect(output.content, contains('--format=jpeg'));
+        expect(output.content, contains('.png'));
+      });
+
+      test('an explicit --format that matches the extension stays quiet',
+          () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/snap.png',
+            'format': 'png',
+          }),
+          output: output,
+          response: const {'base64': 'aGVsbG8='},
+        );
+        await DuskScreenshotCommand().handle(ctx);
+
+        expect(output.content, isNot(contains('[ERROR]')));
+      });
+
       test('returns 1 when --output is missing', () async {
         await _writeState(tempDir, {'pid': 1234});
         StateFile.debugHomeOverride = tempDir.path;

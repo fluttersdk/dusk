@@ -51,7 +51,6 @@ class DuskScreenshotCommand extends ArtisanCommand {
   @override
   Future<int> handle(ArtisanContext ctx) async {
     final String? output = ctx.input.option('output') as String?;
-    final String format = ctx.input.option('format') as String? ?? 'jpeg';
     final int quality =
         int.tryParse(ctx.input.option('quality') as String? ?? '70') ?? 70;
     final String? rawRef = ctx.input.option('ref') as String?;
@@ -74,6 +73,23 @@ class DuskScreenshotCommand extends ArtisanCommand {
         'capture the whole viewport.',
       );
       return 1;
+    }
+
+    // 0. The extension names the format the caller means; only an explicit
+    //    --format overrides it, because the parser default would otherwise
+    //    write JPEG bytes into a `.png` file.
+    final String? inferred = _formatFromExtension(output);
+    final String format;
+    if (ctx.input.hasOption('format')) {
+      format = ctx.input.option('format') as String? ?? 'jpeg';
+      if (inferred != null && inferred != format) {
+        ctx.output.error(
+          '--format=$format disagrees with the extension of $output; the '
+          'file will hold $format bytes.',
+        );
+      }
+    } else {
+      format = inferred ?? ctx.input.option('format') as String? ?? 'jpeg';
     }
 
     // 1. Read StateFile to determine whether a CDP port is available. A
@@ -227,6 +243,15 @@ class DuskScreenshotCommand extends ArtisanCommand {
       'height': resolved['height'],
       'scale': 1,
     };
+  }
+
+  /// Maps the [output] extension to a capture format, or null when it names
+  /// neither `png` nor `jpeg`.
+  String? _formatFromExtension(String output) {
+    final String lower = output.toLowerCase();
+    if (lower.endsWith('.png')) return 'png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'jpeg';
+    return null;
   }
 
   /// Reads `cdpPort` from the state map, tolerating `int`, `num`, or numeric

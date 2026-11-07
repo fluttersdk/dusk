@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'package:fluttersdk_artisan/artisan.dart';
 
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 
@@ -45,7 +46,11 @@ Future<void> defaultCloseApp() async {
 /// extension table persists across hot-restart; duplicate registration silently
 /// no-ops. Step 13 wires this into the [registerAllDuskExtensions] aggregator.
 void registerCloseAppExtension() {
-  registerExtensionIdempotent('ext.dusk.close_app', extDuskCloseAppHandler);
+  registerDuskExtension(
+    'ext.dusk.close_app',
+    extDuskCloseAppHandler,
+    ensureFrames: false,
+  );
 }
 
 /// Handler for `ext.dusk.close_app`.

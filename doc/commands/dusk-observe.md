@@ -82,12 +82,13 @@ Every candidate ships with:
 - The Semantics `role` (button, textbox, checkbox, link, etc.).
 - The Semantics `label` (visible text or explicit a11y label).
 - The widget `rect` as `[left, top, width, height]`.
+- `inViewport`, `false` when the bounds lie outside the view, and `occluded`, `true` when a hit test at the bounds' centre reaches a widget painted above the candidate instead of the candidate itself. `isVisible` is unchanged (non-empty bounds that overlap the viewport); `occluded` is only probed for a visible candidate, so it is `false` for one that is not.
 - The available `actions` list (typically a subset of `tap`, `focus`, `type`, `scroll`).
 - The `enrichers` map when `includeEnrichers` is `true` or `full`.
 
 **Error envelope:**
 
-The VM Service handler propagates errors as `ServiceExtensionResponse.error(extensionError, message)`. Common causes: no running app at the recorded URI, `DuskPlugin.install()` not wired.
+The VM Service handler propagates errors as `ServiceExtensionResponse.error(extensionError, message)`. Common causes: no running app at the recorded URI, `DuskPlugin.install()` never called.
 
 ---
 

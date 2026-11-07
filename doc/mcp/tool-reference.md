@@ -1,35 +1,53 @@
 # Dusk MCP Tool Reference
 
 Per-tool input schema, return shape, and example payload for every `dusk_*` MCP tool
-contributed by `DuskArtisanProvider`. 36 tools total: 33 dispatch through `ext.dusk.*` VM
-Service extensions and 3 (`dusk_hot_reload_and_snap`, `dusk_resize_viewport`,
-`dusk_device_profile`) route through the `artisan:dusk:*` substrate path to a CLI command
-because the orchestration cannot run inside the target isolate.
+contributed by `DuskArtisanProvider`. 40 tools total: 33 dispatch through `ext.dusk.*` VM
+Service extensions and 7 (`dusk_hot_reload_and_snap`, `dusk_resize_viewport`,
+`dusk_device_profile`, `dusk_perf_run`, `dusk_perf_compare`, `dusk_perf_trace`, `dusk_run`)
+route through the `artisan:dusk:*` substrate path to a CLI command because the orchestration
+cannot run inside the target isolate.
 
 Sections are ordered alphabetically. Every section names the dispatch surface
 (`extensionMethod`) at the top so the consumer knows which path the server takes. All
 example payloads show the `params.arguments` object inside the `tools/call` JSON-RPC
 request; the substrate MCP server wraps the response as `CallToolResult` text content.
 
-## Universal response field: `warnings`
+## Universal response fields: `framesForced`, `warnings`, `reresolved`
 
-Every tool's success payload gains a `warnings` block while the app has stopped producing
-frames (a backgrounded browser tab is the usual cause). In that state the semantics tree is
-not rebuilt and dispatched gestures cannot take effect, so a snapshot reads as empty and an
-action reports a success that could not have landed.
+A hidden or minimised desktop window and a backgrounded browser tab stop the app producing
+frames, and a snapshot then reads as empty while an action reports a success that could not
+have landed. Dusk wakes a hidden or paused app at the entry of every `ext.dusk.*` verb
+except the perf verbs, `boot_id`, `close_app`, `console`, `exceptions`, `semantics_hold`
+and `evaluate`, and a response that had to wake it carries `"framesForced": true`. The app's
+lifecycle observers see `resumed` while that happens;
+`--dart-define=DUSK_FORCE_FRAMES=false` turns it off. A browser tab is the exception: Chrome
+withholds animation frames from a hidden tab, so dusk does not attempt the wake on web and
+the `warnings` block stays. The CLI (not the MCP tool) covers that case itself when the
+session has a `cdpPort`: see [Frame production](../reference/frame-production.md).
+
+When dusk could not force frames (the opt-out, a `detached` lifecycle, or a wake that produced
+no frame) the success payload
+gains a `warnings` block instead:
 
 ```json
 {
   "warnings": {
     "framesEnabled": false,
     "lifecycleState": "hidden",
+    "platform": "web",
     "hint": "... Bring the page to front (CDP Page.bringToFront) and retry ..."
   }
 }
 ```
 
-The block is omitted entirely on a healthy engine, so its presence is the signal. See
-[Frame production](../reference/frame-production.md) for the full picture and the fix.
+`platform` is `web` or the desktop `TargetPlatform` name, and `hint` names the usual cause
+for it: a backgrounded browser tab on web, a hidden, minimised or occluded window or an
+asleep display on desktop. The block is omitted entirely on a healthy engine, so its
+presence is the signal. See [Frame production](../reference/frame-production.md) for the
+full picture and the fallback.
+
+A call that relocated a stale `e<N>` ref to the control that replaced it adds
+`"reresolved": ["e5"]`. See [`dusk_tap`](#dusk_tap).
 
 ## Universal response field: `effect`
 
@@ -40,7 +58,7 @@ widget received.
 | Verb | `kind` | Fields |
 |---|---|---|
 | `dusk_tap` | `treeChanged` | `changed` |
-| `dusk_type`, `dusk_clear`, `dusk_fill` | `text` | `verified`, `value` (read back off the live controller) |
+| `dusk_type`, `dusk_clear`, `dusk_fill` | `text` | `verified`, `value` (read back off the live controller after the settle), `target` (`matchKind`, `label`, `rect`: which field was written) |
 | `dusk_scroll` | `scrollOffset` | `changed`, `before`, `after` |
 | `dusk_set_checkbox` | `checked` | `verified`, `before`, `after` |
 
@@ -83,6 +101,7 @@ story survived two rewrites of the widget before anyone read the field back.
 - [`dusk_reset_overlays`](#dusk_reset_overlays)
 - [`dusk_resize_viewport`](#dusk_resize_viewport)
 - [`dusk_right_click`](#dusk_right_click)
+- [`dusk_run`](#dusk_run)
 - [`dusk_screenshot`](#dusk_screenshot)
 - [`dusk_scroll`](#dusk_scroll)
 - [`dusk_select_option`](#dusk_select_option)
@@ -196,7 +215,7 @@ Success: an empty object `{}`. After the call the VM Service URI is gone, so the
 Dispatch: `ext.dusk.console`
 
 Read recent log entries from the running app's telescope store. Missing-telescope graceful:
-returns an empty list when the host has not wired telescope.
+returns an empty list when the host has not set telescope up.
 
 ### Input schema
 
@@ -421,11 +440,19 @@ once when the ref goes stale mid-fill. Replaces the manual focus + clear + type 
 | `ref` | string | yes | Text-field ref token (`e<N>` or `q<N>`) from a prior `dusk_snap` / `dusk_find`. |
 | `text` | string | yes | Value to set. Replaces existing content. Pass `""` to clear. |
 | `includeSnapshot` | boolean | no | Embed the post-fill snapshot (default `true`). |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. `diff` returns only the snapshot lines the fill changed since your last unfiltered snapshot (see [`dusk_tap`](#dusk_tap)). |
 
 ### Returns
 
-Success: `{ ref, text, filled: true }` plus an optional `snapshot` (YAML). On a permanently
-stale handle (after the single retry) the response is a typed `stale` error envelope.
+Success: `{ ref, text, filled: true, effect }` plus an optional `snapshot` (YAML). The
+`effect` block is `{kind: "text", verified, value, target}`: `value` is read after the
+two-frame settle, so a formatter or echo that reverts the write reports `verified: false`,
+and `target` is `{matchKind: "overlap"|"nearest"|"element", label, rect}`, which field was
+written. A label or static-text handle keeps the `nearest` fallback; read `target` when
+`matchKind` is `nearest`. A ref whose node is an interactive non-text control (button,
+checkbox, radio, switch, slider, link) is refused with `ref eN is a <role>, not a text
+field`. On a permanently stale handle (after the single retry) the response is a typed
+`stale` error envelope.
 
 ### Example call
 
@@ -555,7 +582,8 @@ Success: `{ reloaded: true, durationMs: <int>, snapshot: "<yaml>", screenshot: "
 or screenshotError>", recentExceptions: [...] }`.
 
 Compile error: `{ reloaded: false, durationMs: <int>, error: "<compile message>",
-recentExceptions: [...] }`. `snapshot` + `screenshot` are omitted on compile error.
+recentExceptions: [...] }`. `snapshot` + `screenshot` are omitted on compile error, and the
+call is returned as an error result, so a client never reads a compile failure as success.
 
 ### Example call
 
@@ -604,10 +632,11 @@ when Magic is installed, falling back to `Navigator.of(root).pushNamed(...)`.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `route` | string | yes | Route path. Must start with `/`. Example: `/monitors/123`. |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. After a navigation `diff` mostly shows a whole new screen; it pays off when the route only changes a part of it. |
 
 ### Returns
 
-Success: `{ navigated, route: "<path>", exactPath, reason?, snapshot? }`. `navigated` is
+Success: `{ navigated, route: "<path>", exactPath, reason?, snapshot?, snapshotMode? }`. `navigated` is
 read off the first mounted Router two frames after the dispatch: `true` when its path is
 the route's or a page under it (a navigate to `/monitors` that shows `/monitors/7`, a
 default child), `false` with a `reason` when the router dropped or redirected it.
@@ -648,8 +677,9 @@ left (a subtree under `Offstage(offstage: true)`, `TickerMode(enabled: false)` o
 
 ### Returns
 
-Success: `{ navigatedBack: true, popped, snapshot? }`. `popped` is `false` when no Navigator
-had a page to leave (the bottom of every stack), so the call did nothing; read
+Success: `{ navigatedBack, popped, snapshot? }`. `navigatedBack` equals `popped`. `popped`
+is `false` when no Navigator had a page to leave (the bottom of every stack, the root route),
+so the call did nothing; read
 `dusk_get_routes` `uri`, or the snapshot, to see where the app is.
 
 ### Example call
@@ -683,7 +713,11 @@ boundary node; the descendants it absorbs get no candidate.
 ### Returns
 
 Success: `{ candidates: [ { ref, role, label, value, bounds, isEnabled, isVisible,
-enrichers: { ... } }, ... ] }`. The enricher subset projects
+inViewport, occluded, enrichers: { ... } }, ... ] }`. `inViewport` is `false` when the
+bounds lie outside the view; `occluded` is `true` when a hit test at the bounds' centre
+reaches a widget painted above the candidate instead of the candidate itself (`false` for
+a candidate that is not visible, since it has no centre worth probing). `isVisible` keeps
+its meaning: non-empty bounds that overlap the viewport. The enricher subset projects
 `magicFormField`, `magicRoute`, `magicGateResult`, `wind.breakpoint`, `wind.states` by
 default.
 
@@ -973,7 +1007,7 @@ that character; text entry still goes through `dusk_type`.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `key` | string | yes | Logical key label (e.g. `Enter`, `Escape`, `Tab`, `ArrowDown`), or one letter or digit (`S`, `7`). |
-| `modifiers` | array<string> | no | Subset of `control`, `shift`, `alt`, `meta`; accepted, not yet applied to the press. |
+| `modifiers` | array<string> | no | Subset of `control` (or `ctrl`), `shift`, `alt`, `meta`, in any case. Each is held down before the key and released after it, even when delivery throws, so exact-match shortcuts such as Shift+Tab or Ctrl+S fire. An unknown name is an error before anything is pressed. On the CLI this is a comma list (`--modifiers=control,shift`). |
 
 ### Returns
 
@@ -1082,6 +1116,40 @@ Error: actionability gate failure, or stale-handle.
 
 ---
 
+## dusk_run
+
+Dispatch: `artisan:dusk:run` (substrate-routed)
+
+Run several dusk verbs against the running app in one call. Each step is a CLI verb line
+without the `dusk:` prefix, tokenised like a shell (quotes and backslash escapes), and takes
+the same options as the standalone command. Saves a round trip per step when the next refs
+are already known. See [dusk:run](../commands/dusk-run.md) for the step grammar.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `steps` | array<string> | yes | Verb lines, run in order (e.g. `"tap --ref=e5"`). |
+| `continue` | boolean | no | Keep running after a failing step (default `false`). |
+
+### Returns
+
+Text: one line per step (`[1/3] tap --ref=e5 ok: <first output line, cut to 120
+characters>`), then the last step's full output. The batch stops at the first failing step
+and returns `step N failed (exit C): <step>` with that step's output; with `continue: true`
+it runs every step and reports the first failure. A step cannot be another `dusk_run`, nor a
+verb that does not run on the connected app (resize, device, install, doctor). Use `--text`,
+`--key` or `q<N>` handles between steps that change the screen: `e<N>` refs belong to one
+snapshot.
+
+### Example call
+
+```json
+{ "name": "dusk_run", "arguments": { "steps": ["tap --ref=e5", "fill --ref=q1 --text=\"a b\"", "snap --grep Total"] } }
+```
+
+---
+
 ## dusk_screenshot
 
 Dispatch: `ext.dusk.screenshot` (in-isolate, all targets). The CDP `Page.captureScreenshot` web fallback is implemented in the CLI command `dusk:screenshot --output=<path>`, NOT in this MCP tool.
@@ -1114,6 +1182,10 @@ meaningless without the widget it is relative to.
 ### Returns
 
 Success: `{ format: "<jpeg|png>", base64: "<base64>", width: <int>, height: <int> }`.
+
+A hidden or minimised desktop window is woken before the capture, so the image is a fresh
+frame and not the last cached one; the response then carries `framesForced: true`. The CLI
+infers `format` from the `--output` extension; this tool takes `format` as given.
 
 Without `ref` the capture is the app-root viewport (the `RepaintBoundary` the host wraps
 the app in under `!kReleaseMode`). With `ref` it is the widget's own render-object region,
@@ -1149,7 +1221,10 @@ ancestor of the widget identified by `ref`.
 
 ### Returns
 
-Success: `{ ref, direction, pixels }`. Re-snap after; off-screen widgets gain refs only
+Success: `{ scrolled, finalOffset, effect, snapshot? }`. `scrolled` is `true` only when the
+scroll offset moved; with `intoView` and no `Scrollable` around the ref, or a list already at
+its edge, it is `false` and `effect.changed` is `false` (a delta scroll with no laid-out
+`Scrollable` at all returns a not-found error). A delta is clamped to the scroll extents. Re-snap after; off-screen widgets gain refs only
 once Flutter builds them.
 
 ### Example call
@@ -1249,7 +1324,7 @@ and actions, which is what the platform exposes.
 | `depth` | integer | no | Max tree-traversal depth from the root. Omit for full tree. |
 | `within` | string | no | Scope the walk to one subtree: the `e<N>` ref of the region to read. `q<N>` handles are not addressable here. An unknown ref is an error, not a silent widening. |
 | `interactiveOnly` | boolean | no | Emit only nodes carrying a ref; drop the plain `- text` lines. Default `false`. |
-| `grep` | string | no | Emit only nodes whose label or value matches this regular expression, plus the ancestors leading to them. |
+| `grep` | string | no | Emit only nodes whose label or value matches this regular expression, plus the ancestors leading to them. A pattern that is not a valid regex (an unbalanced `(` in a label, say) is matched as a literal substring and the response carries `grepLiteral: true`. |
 
 A full tree is the wrong default answer to most questions. It costs context on any real
 screen, and on a shell whose sidebar repeats the labels of the pages it opens it is also
@@ -1262,6 +1337,11 @@ Success: `{ "snapshot": "<yaml>", "groupId": "<id>" }`. The `snapshot` value is 
 document where each node is annotated with a `[ref=e<N>]` token, its role, label, actions,
 bounds, optional `overflow: true` and `typeable: true` sub-lines, and any enricher-contributed
 indented lines.
+
+A ref line may end with ` [offscreen]` (the widget lies outside the viewport) and/or
+` [occluded]` (a hit test at its centre reaches something painted above it), after
+`[ref=e<N>]`. Both are absent on a healthy screen. An offscreen node is never probed for
+occlusion, and a node with no area carries neither marker.
 
 When non-fatal render or build `FlutterError`s are in the capture buffer (for example a
 `ParentDataWidget` misuse or a layout overflow), a `renderErrors` block is added to the
@@ -1310,6 +1390,7 @@ detached render objects). A button whose host rebuilt it into a shifted slot bet
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
+| `snapshot` | string | no | Post-tap snapshot: `full` (the default), `diff` or `none`. `diff` returns only the lines the tap changed since your last unfiltered snapshot (a `dusk_snap` or an earlier action): a changed row is `- <old line>` then `+ <new line>`, an added row `+ `, a removed row `- `, then a `(K of N lines changed)` footer, and the payload adds `snapshotMode: "diff"`. With no baseline yet the full text comes back. A filtered `dusk_snap` (`grep`, `within`, `depth`, `interactiveOnly`) never records the baseline, and a hot restart clears it. |
 | `until` | string | no | After the tap settles, poll the live element tree for a `Text` equal to this value (up to `untilTimeoutMs`) and add an `untilMatched` boolean. Confirms a navigation / state change in one call. Default off, which keeps the response shape unchanged. |
 | `untilTimeoutMs` | integer | no | Poll ceiling for `until`, in milliseconds. Default `3000`. |
 
@@ -1321,8 +1402,24 @@ subtree differed after the tap, false when nothing observable happened. With `un
 the response also carries `untilMatched: true|false` (true when the expected text appeared
 within the window).
 
+**Tap point outside the control.** A tap at the centre of a `MergeSemantics` boundary can
+land in empty space beside the control that carries the handler while the gate still says
+confirmed (issue #60). When the point lies outside every tap carrier inside the boundary
+(found through the element tree; `Semantics(onTap)` and `GestureDetector` carriers only) the
+response adds `tapPointOutsideOwner: {ownerRect: {left, top, width, height}, point: {x, y}}`.
+The gate is unchanged.
+
 Error: actionability gate failure (`"not enabled"` / `"zero rect"` / `"off-viewport"`) or
 stale-handle.
+
+**Stale `e<N>` refs.** When the element behind an `e<N>` ref has left the tree, the
+action relocates it through the label-and-index query the snapshot bound to the ref, and
+trusts the result only if the live tree has the same number of nodes with that label as at
+snapshot time and the hit sits on the route the ref was minted on. A relocation adds
+`reresolved: ["e5"]` to the response. With a different count, or on another route, the ref
+fails as before with `defunct (element no longer mounted)`; re-snap. Known limit: the bound
+query has no role, so a node of another role with the same label in the same position on
+the same route could match.
 
 ### Example call
 
@@ -1427,7 +1524,7 @@ Dispatch: `ext.dusk.wait_for_network_idle`
 
 Wait until the running app reports zero in-flight HTTP requests for a contiguous `idleMs`
 window. Playwright `waitForLoadState` network-idle semantics. Missing-telescope graceful:
-returns idle immediately when telescope is not wired.
+returns idle immediately when telescope is not set up.
 
 ### Input schema
 

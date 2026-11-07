@@ -17,6 +17,7 @@ equivalents have identical params.
 - [Capture a "before / after" diff for a UI change](#capture-a-before--after-diff-for-a-ui-change)
 - [Recovery patterns](#recovery-patterns)
 - [Multi-tool composites worth knowing](#multi-tool-composites-worth-knowing)
+- [Field rules from real agent runs](#field-rules-from-real-agent-runs)
 
 ## Fill a form and submit
 
@@ -187,7 +188,7 @@ startup, hot-reload will not pick it up. Use `dusk_close_app` then
 ```
 
 Empty arrays mean either: nothing logged at that level, or telescope
-is not wired. Verify telescope is active by triggering a known log
+is not set up. Verify telescope is active by triggering a known log
 (call a controller, then read `dusk_console`); if still empty, run
 `dusk:doctor` and check the enricher count.
 
@@ -209,6 +210,9 @@ equivalent for human watchers is `./bin/fsa telescope:tail`.
 
 5. <diff the two YAMLs locally>
 ```
+
+To skip steps 4 and 5, take the baseline snap and then pass
+`snapshot: "diff"` to the action: it returns only the lines it changed.
 
 For visual diffs, use `dusk_screenshot` before and after. PNG format
 preserves details for pixel-diff tools; JPEG q70 is good enough for
@@ -277,7 +281,51 @@ SemanticsNode; re-find rather than retry.
 | "Reload and check for errors" | `dusk_hot_reload_and_snap { screenshot: false }` then inspect `recentExceptions` |
 | "Confirm a button is tappable" | `dusk_snap` → pick `e<N>` → `dusk_observe { roles: "button" }` → check `isEnabled` on the matching candidate |
 | "Wait for HTTP, then for UI" | `dusk_wait_for_network_idle` → `dusk_wait_for { text: "Done" }` |
-| "Fill 5 fields fast" | `dusk_observe { roles: "textbox" }` → 5 × `dusk_type` against `q<N>` from the candidates |
+| "Fill 5 fields fast" | `dusk_observe { roles: "textbox" }` → 5 × `dusk_type` against `q<N>` from the candidates, or one `dusk_run` with 5 `fill --ref=q<N> --text=...` steps |
 | "Find a row in a long list" | `dusk_find { contains: "..." }` → `dusk_scroll { ref: <q>, intoView: true }` → `dusk_tap` |
 | "Set device and re-test" | `dusk_device_profile { preset: "iphone-15-pro" }` → `dusk_snap` |
 | "Inspect singleton state when YAML is not enough" | `dusk_evaluate { expression: "MyService.instance.state.toString()" }` (replace with the host app's singleton accessor) |
+
+## Field rules from real agent runs
+
+- Start every run with `./bin/fsa dusk:doctor`.
+- Give each git worktree its own `fsa start` and its own ports. A worktree
+  nested under the repo passes artisan's ownership guard, so a dusk call
+  made there can drive the main checkout's app.
+- A green tick is dispatch, not effect. Read `effect` (`changed`,
+  `verified`, `value`); `dusk:fill` and `dusk:type` exit `1` on an
+  unverified write.
+- The `dusk:wait` timeout flag is `--timeoutMs`, not `--timeout`.
+- Reach an off-screen row with `dusk:scroll --ref=<ref> --intoView`, and
+  trust a `[offscreen]` or `[occluded]` marker on a snapshot line before
+  tapping it.
+- `e<N>` refs re-resolve after a rebuild when the label count is unchanged;
+  `reresolved` in the response tells you it happened.
+- `dusk:press_key --modifiers=control,shift` holds the modifiers down for the
+  press and releases them after it, so exact-match shortcuts fire; an unknown
+  modifier name is an error before anything is pressed.
+- Batch steps whose inputs you already know with `dusk:run` (or `dusk_run`):
+  one call, one summary line per step, the last step's output. Between steps
+  that change the screen use `--text`, `--key` or `q<N>` refs, since `e<N>`
+  refs belong to one snapshot, and end with `snap` to read the new refs.
+- Prefer `--snapshot=diff` (`snapshot: "diff"` over MCP) on `tap`, `fill`,
+  `type`, `navigate` and `scroll`: it returns only the lines that changed
+  since your last unfiltered snapshot. Take a plain `dusk:snap` first, or the
+  first diff is the full tree.
+- A refused `fill` (`ref eN is a button, not a text field`) means the ref is
+  not a text field: pick the field's own ref, or use `tap`, `select_option` or
+  `set_checkbox` for that control. When `effect.target.matchKind` is
+  `nearest`, the ref overlapped no field and a neighbour was written; check
+  `target.label` and `target.rect` before moving on.
+- A tap warning about `tapPointOutsideOwner` means the tap landed outside
+  the control inside a merged boundary; check the result with `dusk:snap`.
+- On web with a CDP port, the CLI brings a hidden tab to front itself. It
+  repeats `snap` and `observe` only; after an acting verb run `dusk:snap`.
+- MCP clients should wait for `tools/list_changed` (or re-list tools) after
+  `initialize`: artisan's MCP server answers `tools/list` with an empty list
+  until its plugin tools register (seen from `example/`; an artisan-side
+  finding, not a dusk change).
+- On web, a WPopover trigger may need a real CDP mouse click rather than a
+  dusk tap (a hypothesis, not confirmed).
+- A hidden macOS window is woken by dusk (`framesForced: true`), but an
+  asleep display can still starve frames.

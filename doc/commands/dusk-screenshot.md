@@ -41,7 +41,7 @@ dart run fluttersdk_dusk dusk:screenshot --output=<path>
 | Option | Abbr | Type | Default | Required | Description |
 |--------|------|------|---------|----------|-------------|
 | `--output` | `-o` | string (path) | (none) | yes (`mandatory: true`) | Output file path. Resolved relative to the CWD. The directory must already exist. |
-| `--format` | none | enum | `jpeg` | no | One of `jpeg`, `png`. Constrained by `allowed: ['jpeg', 'png']` so any other value errors out at parse time. |
+| `--format` | none | enum | inferred from `--output`, else `jpeg` | no | One of `jpeg`, `png`. Constrained by `allowed: ['jpeg', 'png']` so any other value errors out at parse time. See [Format and quality](#format-and-quality) for the inference. |
 | `--quality` | none | int (string-parsed) | `70` | no | JPEG quality, range 1-100. Ignored for PNG. Falls back to `70` when the value fails `int.tryParse`. |
 | `--ref` | none | string | (none) | no | Capture only this widget. An `e<N>` token from `dusk:snap` or a `q<N>` handle from `dusk:find`. Omit for the whole viewport. |
 | `--rect` | none | string `x,y,w,h` | (none) | no | Sub-rect in logical pixels, relative to the ref's top-left. Requires `--ref`. |
@@ -79,8 +79,12 @@ The CLI calls `base64Decode(base64Str)` and writes the resulting bytes to `outpu
 <a name="format-and-quality"></a>
 ## Format and quality
 
+When `--format` is not given, the format follows the `--output` extension: `.png` captures PNG, `.jpg` and `.jpeg` capture JPEG, so a `.png` file never holds JPEG bytes. Any other extension falls back to `jpeg`. An explicit `--format` always wins; when it disagrees with the extension (`--output=a.png --format=jpeg`) the command writes the file as asked and warns on stderr that the file will hold the other format's bytes.
+
 - **jpeg** (default): on native targets the VM Service handler encodes via the `image` package's JPEG encoder at the supplied quality; on web (CDP path) the `format` + `quality` params are forwarded directly to `Page.captureScreenshot`. Quality 70 is a Playwright-aligned default; bump to 90 for visual-regression diffs, drop to 40 for quick sanity checks.
 - **png**: lossless, larger files (typically 5x JPEG at quality 70). The `--quality` value is ignored.
+
+On a hidden or minimised desktop window the in-isolate path used to return the last cached frame. Dusk now wakes the app before capturing (the response carries `framesForced: true`), so the image is fresh. The CDP path on web is unaffected by the lifecycle. See [Frame production](../reference/frame-production.md).
 
 The handler never resizes the screenshot; the captured image matches the running viewport's pixel dimensions (logical size times DPR). To capture at a controlled viewport, run `dusk:resize` or `dusk:device` first.
 

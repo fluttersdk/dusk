@@ -6,7 +6,9 @@ import 'package:flutter/widgets.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/actionability_gate.dart' show resolveViewFor;
 import '../utils/dusk_exceptions.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
@@ -33,7 +35,7 @@ const String kDuskSetCheckboxMcpExtension = 'ext.dusk.set_checkbox';
 /// Idempotent via [registerExtensionIdempotent]. Call from
 /// [registerAllDuskExtensions] once during [DuskPlugin.install].
 void registerCheckboxExtensions() {
-  registerExtensionIdempotent(
+  registerDuskExtension(
     kDuskSetCheckboxMcpExtension,
     aiTestSetCheckboxHandler,
   );
@@ -54,8 +56,8 @@ void registerCheckboxExtensions() {
 /// Params (all string-valued):
 /// - `ref` (required): opaque ref string from a prior `ext.dusk.snapshot` call.
 /// - `value` (required): target value — `'true'` or `'false'`.
-/// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
-///   embedding the post-action snapshot in the response.
+/// - `includeSnapshot`: accepted and ignored. The response never embeds a
+///   snapshot; run `ext.dusk.snap` afterwards to see the post-toggle tree.
 ///
 /// Response JSON (default):
 /// ```json
@@ -148,11 +150,12 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
   //    (duplicate here to keep the checkbox module self-contained and avoid
   //    a circular import on the private _injectTap function).
   final Offset center = entry.rect.center;
+  final Element element = entry.element;
   try {
     await runPerfInteraction<void>(
       'set_checkbox',
       ref,
-      () => _injectTapAt(center),
+      () => _injectTapAt(center, element),
     );
   } catch (e, st) {
     developer.log(
@@ -238,16 +241,16 @@ bool? _checkboxValueFromElement(Element element) {
   return null;
 }
 
-/// Injects a tap sequence (Down + 50ms + Up) at [center] in logical pixels.
+/// Injects a tap sequence (Down + 50ms + Up) at [center] in logical pixels,
+/// into the view [element] belongs to.
 ///
 /// Mirrors the `_injectTap` implementation in `ext_pointer.dart`. Duplicated
 /// here to keep `ext_checkbox.dart` self-contained — `_injectTap` is private
 /// to that file and exposing it would break the module boundary. Both copies
 /// must be kept in sync if the timing constants ever change.
-Future<void> _injectTapAt(Offset center) async {
+Future<void> _injectTapAt(Offset center, Element element) async {
   const int pointerId = 1;
-  final int viewId =
-      WidgetsBinding.instance.platformDispatcher.implicitView!.viewId;
+  final int viewId = resolveViewFor(element).viewId;
   const Duration ts = Duration.zero;
 
   WidgetsBinding.instance.handlePointerEvent(

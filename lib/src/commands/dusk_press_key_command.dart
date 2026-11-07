@@ -4,6 +4,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
 import 'json_output.dart';
+import 'web_visibility.dart';
 
 /// `artisan dusk:press_key --key=<name|letter|digit> [--modifiers=<csv>]`:
 /// press a key on the focused widget. Mirrors the
@@ -30,7 +31,8 @@ class DuskPressKeyCommand extends ArtisanCommand {
     );
     parser.addOption(
       'modifiers',
-      help: 'Comma-separated modifier list, e.g. ctrl,shift.',
+      help: 'Comma-separated modifiers held during the press: control '
+          '(or ctrl), shift, alt, meta, e.g. control,shift.',
     );
     parser.addFlag('includeSnapshot',
         help: 'Embed the post-press snapshot in the response.',
@@ -55,7 +57,8 @@ class DuskPressKeyCommand extends ArtisanCommand {
         (ctx.input.option('includeSnapshot') as bool?) ?? false;
     params['includeSnapshot'] = includeSnapshot.toString();
 
-    final response = await ctx.callExtension<Map<String, dynamic>>(
+    final response = await callExtensionVisible(
+      ctx,
       'ext.dusk.press_key',
       params,
     );

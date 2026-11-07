@@ -1039,6 +1039,140 @@ void main() {
     );
   });
 
+  group('extDuskObserveHandler — inViewport / occluded', () {
+    setUp(() {
+      RefRegistry.resetForTesting();
+      DuskPlugin.enrichers.clear();
+    });
+
+    tearDown(() {
+      RefRegistry.resetForTesting();
+      DuskPlugin.enrichers.clear();
+    });
+
+    Widget button(String label) {
+      return Semantics(
+        container: true,
+        button: true,
+        label: label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {},
+          child: const SizedBox(width: 160, height: 40),
+        ),
+      );
+    }
+
+    testWidgets(
+      'a visible, an off-screen and a covered widget each report their own flags',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: <Widget>[
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[button('Visible'), button('Covered')],
+                  ),
+                  Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Transform.translate(
+                      offset: const Offset(5000, 0),
+                      child: button('Away'),
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    top: 40,
+                    width: 160,
+                    height: 40,
+                    child: Listener(
+                      behavior: HitTestBehavior.opaque,
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final response = await extDuskObserveHandler(
+          'ext.dusk.observe',
+          <String, String>{},
+        );
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final Map<String, Map<String, dynamic>> byLabel =
+            <String, Map<String, dynamic>>{
+          for (final dynamic c in decoded['candidates'] as List<dynamic>)
+            (c as Map<String, dynamic>)['label'] as String: c,
+        };
+
+        expect(byLabel['Visible']!['inViewport'], isTrue);
+        expect(byLabel['Visible']!['occluded'], isFalse);
+
+        expect(byLabel['Away']!['inViewport'], isFalse);
+        expect(byLabel['Away']!['occluded'], isFalse);
+        expect(byLabel['Away']!['isVisible'], isFalse);
+
+        expect(byLabel['Covered']!['inViewport'], isTrue);
+        expect(byLabel['Covered']!['occluded'], isTrue);
+        expect(byLabel['Covered']!['isVisible'], isTrue);
+      },
+    );
+
+    testWidgets(
+      'a widget whose own container claims its centre is not occluded',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: Listener(
+                  behavior: HitTestBehavior.opaque,
+                  child: Semantics(
+                    container: true,
+                    button: true,
+                    label: 'Inside',
+                    onTap: () {},
+                    child: const SizedBox(width: 160, height: 40),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final response = await extDuskObserveHandler(
+          'ext.dusk.observe',
+          <String, String>{},
+        );
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final Map<String, dynamic> inside =
+            (decoded['candidates'] as List<dynamic>)
+                .cast<Map<String, dynamic>>()
+                .firstWhere((Map<String, dynamic> c) => c['label'] == 'Inside');
+
+        expect(inside['inViewport'], isTrue);
+        expect(inside['occluded'], isFalse);
+      },
+    );
+  });
+
   group('extDuskObserveHandler — MCP descriptor constants', () {
     test('dusk_observe MCP descriptor name is "dusk_observe"', () {
       expect(kDuskObserveMcpName, equals('dusk_observe'));

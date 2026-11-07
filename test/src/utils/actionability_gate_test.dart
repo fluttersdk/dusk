@@ -746,6 +746,59 @@ void main() {
     );
 
     testWidgets(
+      'receives-events-fail: throws "obscured by other widget" when only an'
+      ' ancestor of the entry claims its centre',
+      (WidgetTester tester) async {
+        // The pointer would land on the container, not on the target, so the
+        // gate refuses even though the snapshot does not mark it occluded.
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: Listener(
+                  behavior: HitTestBehavior.opaque,
+                  child: const SizedBox(
+                    key: ValueKey<String>('inside'),
+                    width: 100,
+                    height: 50,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(
+          find.byKey(const ValueKey<String>('inside')),
+        );
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+
+        await expectLater(
+          ensureActionable(
+            _buildEntry(
+              rect: box.localToGlobal(Offset.zero) & box.size,
+              element: element,
+            ),
+            ref: 'e16',
+            checkStable: false,
+          ),
+          throwsA(
+            isA<DuskActionabilityException>().having(
+              (DuskActionabilityException e) => e.reason,
+              'reason',
+              equals('obscured by other widget (top=RenderPointerListener)'),
+            ),
+          ),
+        );
+      },
+    );
+
+    testWidgets(
       'receives-events-skip: passes when checkReceivesEvents is false even on'
       ' an obscured widget',
       (WidgetTester tester) async {
@@ -1144,7 +1197,100 @@ void main() {
       },
     );
   });
+
+  group('resolveViewFor', () {
+    testWidgets('returns the view the element belongs to', (
+      WidgetTester tester,
+    ) async {
+      late BuildContext captured;
+      await tester.pumpWidget(
+        Builder(
+          builder: (BuildContext context) {
+            captured = context;
+            return const SizedBox.shrink();
+          },
+        ),
+      );
+
+      expect(
+        resolveViewFor(captured as Element),
+        same(View.of(captured)),
+      );
+    });
+
+    testWidgets('falls back to the implicit view for a null element', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      expect(
+        resolveViewFor(null),
+        same(WidgetsBinding.instance.platformDispatcher.implicitView),
+      );
+    });
+  });
+
+  group('selectView', () {
+    final _FakeView owned = _FakeView();
+    final _FakeView implicit = _FakeView();
+    final _FakeView first = _FakeView();
+    final _FakeView second = _FakeView();
+
+    test('prefers the view the element belongs to', () {
+      expect(
+        selectView(
+          owned: owned,
+          implicit: implicit,
+          views: <FlutterView>[first, second],
+        ),
+        same(owned),
+      );
+    });
+
+    test('falls back to the implicit view', () {
+      expect(
+        selectView(
+          owned: null,
+          implicit: implicit,
+          views: <FlutterView>[first, second],
+        ),
+        same(implicit),
+      );
+    });
+
+    test('falls back to the first attached view when there is no implicit one',
+        () {
+      expect(
+        selectView(
+          owned: null,
+          implicit: null,
+          views: <FlutterView>[first, second],
+        ),
+        same(first),
+      );
+    });
+
+    test('fails with a clear message when no view is attached', () {
+      expect(
+        () => selectView(
+          owned: null,
+          implicit: null,
+          views: const <FlutterView>[],
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (StateError e) => e.message,
+            'message',
+            contains('no Flutter view is attached'),
+          ),
+        ),
+      );
+    });
+  });
 }
+
+/// Identity-only [FlutterView] for the resolver's pure fallback logic.
+class _FakeView extends Fake implements FlutterView {}
 
 /// Stateful widget used by the stable-gate tests. Holds an
 /// [AnimationController] driving an [AnimatedBuilder] that translates a

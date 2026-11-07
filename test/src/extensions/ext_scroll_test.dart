@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/extensions/ext_scroll.dart';
+import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
 import 'package:fluttersdk_dusk/src/ref_registry.dart';
 
 bool _isError(developer.ServiceExtensionResponse response) =>
@@ -314,6 +315,72 @@ void main() {
             jsonDecode(response.result!) as Map<String, dynamic>;
         expect(
             decoded['snapshot'] as String, contains('scroll-content-marker'));
+      },
+    );
+
+    testWidgets(
+      'snapshot=diff answers the rows the scroll changed',
+      (WidgetTester tester) async {
+        resetSnapshotBaselineForTesting();
+        addTearDown(resetSnapshotBaselineForTesting);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ListView(
+                children: List<Widget>.generate(
+                  40,
+                  (i) => SizedBox(height: 60, child: Text('diff-row-$i')),
+                ),
+              ),
+            ),
+          ),
+        );
+        await duskSnapBuild();
+
+        final future = aiTestScrollHandler(
+          'ext.dusk.scroll',
+          const <String, String>{'dy': '600', 'snapshot': 'diff'},
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['snapshotMode'], 'diff');
+        final String diff = decoded['snapshot'] as String;
+        expect(diff, contains('- - text "diff-row-0"'));
+        expect(diff, matches(RegExp(r'\(\d+ of \d+ lines changed\)$')));
+      },
+    );
+
+    testWidgets(
+      'snapshot=none omits the snapshot',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ListView(
+                children: List<Widget>.generate(
+                  40,
+                  (i) => SizedBox(height: 60, child: Text('none-row-$i')),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final future = aiTestScrollHandler(
+          'ext.dusk.scroll',
+          const <String, String>{'dy': '120', 'snapshot': 'none'},
+        );
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded.containsKey('snapshot'), isFalse);
       },
     );
   });
@@ -626,6 +693,173 @@ void main() {
       expect(effect['before'], equals(0.0));
       expect(effect['after'], equals(300.0));
       expect(effect['changed'], isTrue);
+    });
+  });
+
+  group('aiTestScrollHandler scrolled flag', () {
+    setUp(RefRegistry.resetForTesting);
+    tearDown(RefRegistry.resetForTesting);
+
+    Future<Map<String, dynamic>> scroll(
+      WidgetTester tester,
+      Map<String, String> params,
+    ) async {
+      final Future<developer.ServiceExtensionResponse> future =
+          aiTestScrollHandler('ext.dusk.scroll', <String, String>{
+        ...params,
+        'includeSnapshot': 'false',
+      });
+      for (int i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      return jsonDecode((await future).result!) as Map<String, dynamic>;
+    }
+
+    testWidgets('is false for a ref with no scrollable around it', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: Text('flat'))),
+      );
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(0, 0, 100, 20),
+        element: tester.element(find.text('flat')),
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final Map<String, dynamic> decoded = await scroll(
+          tester, <String, String>{'ref': ref, 'intoView': 'true'});
+
+      expect(decoded['scrolled'], isFalse);
+      expect(
+        (decoded['effect'] as Map<String, dynamic>)['changed'],
+        isFalse,
+        reason: 'with no scrollable there is no offset to compare',
+      );
+    });
+
+    testWidgets('is false when the offset did not move', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: <Widget>[
+                for (int i = 0; i < 40; i++)
+                  SizedBox(height: 100, child: Text('row-$i')),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final Map<String, dynamic> decoded =
+          await scroll(tester, <String, String>{'dy': '0'});
+
+      expect(decoded['scrolled'], isFalse);
+      expect(decoded['effect']['changed'], isFalse);
+    });
+
+    testWidgets('is false past the end of the list, and stops at the edge', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: <Widget>[
+                for (int i = 0; i < 40; i++)
+                  SizedBox(height: 100, child: Text('row-$i')),
+              ],
+            ),
+          ),
+        ),
+      );
+      final ScrollableState scrollable =
+          tester.state<ScrollableState>(find.byType(Scrollable).first);
+      final double max = scrollable.position.maxScrollExtent;
+      scrollable.position.jumpTo(max);
+      await tester.pump();
+
+      final Map<String, dynamic> decoded =
+          await scroll(tester, <String, String>{'dy': '500'});
+
+      expect(decoded['scrolled'], isFalse);
+      expect(decoded['finalOffset'], equals(max));
+      expect(decoded['effect']['changed'], isFalse);
+    });
+
+    testWidgets('skips a list that was built offstage and never laid out', (
+      WidgetTester tester,
+    ) async {
+      // The bottom overlay entry is kept alive but not laid out under an
+      // opaque entry, so its scroll position has pixels and no extents.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Overlay(
+            initialEntries: <OverlayEntry>[
+              OverlayEntry(
+                maintainState: true,
+                builder: (_) => ListView(
+                  children: <Widget>[
+                    for (int i = 0; i < 40; i++)
+                      SizedBox(height: 100, child: Text('hidden-$i')),
+                  ],
+                ),
+              ),
+              OverlayEntry(
+                opaque: true,
+                builder: (_) => ListView(
+                  children: <Widget>[
+                    for (int i = 0; i < 40; i++)
+                      SizedBox(height: 100, child: Text('shown-$i')),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      final Future<developer.ServiceExtensionResponse> future =
+          aiTestScrollHandler('ext.dusk.scroll', <String, String>{
+        'dy': '200',
+        'includeSnapshot': 'false',
+      });
+      for (int i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      final developer.ServiceExtensionResponse response = await future;
+
+      expect(response.errorCode, isNull, reason: '${response.errorDetail}');
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['scrolled'], isTrue);
+      expect(find.text('shown-0'), findsNothing,
+          reason: 'the visible list is the one that scrolled');
+    });
+
+    testWidgets('is true when the offset moved', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: <Widget>[
+                for (int i = 0; i < 40; i++)
+                  SizedBox(height: 100, child: Text('row-$i')),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final Map<String, dynamic> decoded =
+          await scroll(tester, <String, String>{'dy': '200'});
+
+      expect(decoded['scrolled'], isTrue);
+      expect(decoded['finalOffset'], equals(200.0));
     });
   });
 

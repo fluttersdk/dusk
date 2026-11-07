@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fluttersdk_dusk/src/utils/dusk_register.dart';
 import 'package:fluttersdk_dusk/src/utils/dusk_response.dart';
 import 'package:fluttersdk_dusk/src/utils/frame_sync.dart';
 
@@ -103,6 +104,55 @@ void main() {
       expect(decoded['snapshot'], equals('tree'));
       expect(decoded['renderErrors'], equals(2));
       expect(decoded.containsKey('warnings'), isTrue);
+    });
+
+    testWidgets('carries no framesForced key outside a forcing call', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      _restoreFrames(tester);
+
+      await _setLifecycle(tester, AppLifecycleState.hidden);
+
+      final Map<String, dynamic> decoded = jsonDecode(
+        duskResult(<String, dynamic>{'ok': true}).result!,
+      ) as Map<String, dynamic>;
+      expect(decoded.containsKey('framesForced'), isFalse);
+    });
+
+    testWidgets('carries no reresolved key outside a wrapped call', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final Map<String, dynamic> decoded = jsonDecode(
+        duskResult(<String, dynamic>{'ok': true}).result!,
+      ) as Map<String, dynamic>;
+      expect(decoded.containsKey('reresolved'), isFalse);
+    });
+
+    testWidgets('stamps the refs the current call re-resolved', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      Future<developer.ServiceExtensionResponse> relocating(
+        String method,
+        Map<String, String> params,
+      ) async {
+        markRefReresolved('e2');
+        return duskResult(<String, dynamic>{'ref': 'e2'});
+      }
+
+      final developer.ServiceExtensionResponse? response =
+          await tester.runAsync(
+        () => wrapDuskHandler(relocating)('ext.dusk.tap', <String, String>{}),
+      );
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response!.result!) as Map<String, dynamic>;
+      expect(decoded['ref'], equals('e2'));
+      expect(decoded['reresolved'], equals(<String>['e2']));
     });
   });
 }

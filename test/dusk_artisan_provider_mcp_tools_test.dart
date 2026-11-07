@@ -13,8 +13,14 @@ void main() {
       cmds = DuskArtisanProvider().commands();
     });
 
-    test('returns exactly 41 commands', () {
-      expect(cmds, hasLength(41));
+    test('returns exactly 42 commands', () {
+      expect(cmds, hasLength(42));
+    });
+
+    test('registers dusk:run as a connected command', () {
+      final run = cmds.firstWhere((c) => c.name == 'dusk:run');
+      expect(run.runtimeType.toString(), 'DuskRunCommand');
+      expect(run.boot, CommandBoot.connected);
     });
 
     test(
@@ -89,8 +95,8 @@ void main() {
     // Length
     // -------------------------------------------------------------------------
 
-    test('returns exactly 39 descriptors', () {
-      expect(tools, hasLength(39));
+    test('returns exactly 40 descriptors', () {
+      expect(tools, hasLength(40));
     });
 
     // -------------------------------------------------------------------------
@@ -146,6 +152,7 @@ void main() {
           'dusk_perf_run',
           'dusk_perf_compare',
           'dusk_perf_trace',
+          'dusk_run',
         ]),
       );
     });
@@ -231,6 +238,22 @@ void main() {
       expect(byName['dusk_perf_run'], equals('artisan:dusk:perf_run'));
       expect(byName['dusk_perf_compare'], equals('artisan:dusk:perf_compare'));
       expect(byName['dusk_perf_trace'], equals('artisan:dusk:perf_trace'));
+      // The batch runs every step's command in the MCP server's process on
+      // its one VM Service connection.
+      expect(byName['dusk_run'], equals('artisan:dusk:run'));
+    });
+
+    test('dusk_run requires a steps string array and takes continue', () {
+      final run = tools.firstWhere((t) => t.name == 'dusk_run');
+      expect(run.inputSchema['required'], <String>['steps']);
+      final properties = run.inputSchema['properties'] as Map<String, dynamic>;
+      final steps = properties['steps'] as Map<String, dynamic>;
+      expect(steps['type'], 'array');
+      expect((steps['items'] as Map<String, dynamic>)['type'], 'string');
+      expect(
+        (properties['continue'] as Map<String, dynamic>)['type'],
+        'boolean',
+      );
     });
 
     test('dusk_perf_run requires scenario and names every option', () {
@@ -314,6 +337,22 @@ void main() {
       final fill = tools.firstWhere((t) => t.name == 'dusk_fill');
       final required = fill.inputSchema['required'] as List<dynamic>;
       expect(required, containsAll(<String>['ref', 'text']));
+    });
+
+    test('dusk_tap, dusk_fill and dusk_navigate take a snapshot mode enum', () {
+      for (final String name in <String>[
+        'dusk_tap',
+        'dusk_fill',
+        'dusk_navigate',
+      ]) {
+        final tool = tools.firstWhere((t) => t.name == name);
+        final properties = tool.inputSchema['properties'] as Map;
+        final snapshot = properties['snapshot'] as Map?;
+        expect(snapshot, isNotNull, reason: '$name has no snapshot property');
+        expect(snapshot!['type'], 'string');
+        expect(snapshot['enum'], <String>['full', 'diff', 'none']);
+        expect(tool.description, contains('`snapshot: "diff"`'), reason: name);
+      }
     });
 
     test('dusk_reset_overlays does not declare required params', () {

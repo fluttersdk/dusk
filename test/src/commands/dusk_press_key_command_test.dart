@@ -74,5 +74,50 @@ void main() {
       expect(exit, equals(1));
       expect(ctx.lastMethod, isNull);
     });
+
+    group('.handle() outcome summary', () {
+      test('--modifiers presses without a not-applied notice', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'key': 'a', 'modifiers': 'ctrl,shift'}),
+          output: output,
+        );
+
+        final exit = await DuskPressKeyCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        expect(output.content, isNot(contains('[ERROR]')));
+        expect(output.content, isNot(contains('not applied')));
+        expect(output.content, contains('Pressed a'));
+      });
+
+      test('--modifiers help names every accepted modifier', () {
+        final parser = ArgParser();
+        DuskPressKeyCommand().configure(parser);
+
+        expect(
+          parser.options['modifiers']!.help,
+          allOf(
+            contains('control'),
+            contains('ctrl'),
+            contains('shift'),
+            contains('alt'),
+            contains('meta'),
+          ),
+        );
+      });
+
+      test('no notice without --modifiers', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'key': 'Enter'}),
+          output: output,
+        );
+
+        await DuskPressKeyCommand().handle(ctx);
+
+        expect(output.content, isNot(contains('not applied')));
+      });
+    });
   });
 }

@@ -1,18 +1,20 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:ui' show CheckedState;
+import 'dart:ui' show CheckedState, FlutterView;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
-import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
 
 import '../dusk_error_capture.dart';
 import '../dusk_plugin.dart';
 import '../ref_registry.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
+import '../utils/snapshot_diff.dart';
+import '../utils/viewport_visibility.dart';
 
 /// `ext.dusk.snap` — Playwright-MCP-shaped accessibility snapshot.
 ///
@@ -48,6 +50,13 @@ import '../utils/error_envelope.dart';
 /// { "snapshot": "<yaml>", "groupId": "snapshot-1700000000000" }
 /// ```
 ///
+/// A `grep` that is not a valid regex matches as a literal substring and the
+/// envelope gains `"grepLiteral": true`; the key is absent otherwise.
+///
+/// A ref-bearing line outside the viewport ends with ` [offscreen]`, and one
+/// whose centre another widget covers ends with ` [occluded]`; a healthy
+/// screen carries neither.
+///
 /// When non-fatal render/build FlutterErrors have been captured (ParentDataWidget
 /// misuse, overflow, etc.), a `renderErrors` block is added so a silently-broken
 /// widget is visible without a separate `ext.dusk.exceptions` call. Omitted when
@@ -64,7 +73,7 @@ void registerSnapExtension() {
   // Profile builds carry it so a profile-mode perf session can still be
   // driven; release tree-shakes it.
   if (kReleaseMode) return;
-  registerExtensionIdempotent('ext.dusk.snap', duskSnapHandler);
+  registerDuskExtension('ext.dusk.snap', duskSnapHandler);
 }
 
 Future<developer.ServiceExtensionResponse> duskSnapHandler(
@@ -123,14 +132,16 @@ Future<Map<String, dynamic>> duskSnapBuild({
   String? grep,
 }) async {
   final String groupId = 'snapshot-${DateTime.now().microsecondsSinceEpoch}';
+  final (RegExp? pattern, bool grepLiteral) = _compileGrep(grep);
   final _SnapFilter filter = _SnapFilter(
     interactiveOnly: interactiveOnly,
-    grep: (grep == null || grep.isEmpty) ? null : RegExp(grep),
+    grep: pattern,
   );
   final SemanticsHandle handle = WidgetsBinding.instance.ensureSemantics();
   try {
     final Map<RenderObject, Element> elementByRenderObject =
         _buildElementByRenderObject();
+    final Map<String, List<SemanticsNode>> nodesByLabel = _nodesByOwnLabel();
 
     // Walk rootPipelineOwner AND descend into every child pipeline owner.
     // The Flutter test harness, Flutter web, and modern engine configs
@@ -150,6 +161,7 @@ Future<Map<String, dynamic>> duskSnapBuild({
         buffer: buffer,
         groupId: groupId,
         elementByRenderObject: elementByRenderObject,
+        nodesByLabel: nodesByLabel,
         includeEnrichers: includeEnrichers,
         filter: filter,
       );
@@ -164,6 +176,7 @@ Future<Map<String, dynamic>> duskSnapBuild({
             buffer: buffer,
             groupId: groupId,
             elementByRenderObject: elementByRenderObject,
+            nodesByLabel: nodesByLabel,
             includeEnrichers: includeEnrichers,
             filter: filter,
           );
@@ -183,9 +196,21 @@ Future<Map<String, dynamic>> duskSnapBuild({
     final List<Map<String, dynamic>> captured =
         recentCapturedExceptions(limit: 50);
 
+    final String snapshot = buffer.toString();
+    // Only the full, default-shaped tree is a fair thing to diff against: a
+    // narrowed walk or one carrying enricher lines would read as a wall of
+    // added and removed rows next to it.
+    final bool unfiltered = maxDepth == null &&
+        (within == null || within.isEmpty) &&
+        pattern == null &&
+        !interactiveOnly &&
+        !includeEnrichers;
+    if (unfiltered) recordSnapshotBaseline(snapshot);
+
     return <String, dynamic>{
-      'snapshot': buffer.toString(),
+      'snapshot': snapshot,
       'groupId': groupId,
+      if (grepLiteral) 'grepLiteral': true,
       if (captured.isNotEmpty)
         'renderErrors': <String, dynamic>{
           'count': captured.length,
@@ -206,6 +231,73 @@ Future<Map<String, dynamic>> duskSnapBuild({
   }
 }
 
+String? _snapshotBaseline;
+
+/// The text of the last unfiltered snapshot, or `null` before the first one
+/// (and after a hot restart, which clears module state).
+///
+/// Held here rather than in [RefRegistry], whose surface is frozen. It is the
+/// reference a later snapshot is diffed against.
+String? get snapshotBaseline => _snapshotBaseline;
+
+/// Stores [snapshot] as the new baseline, replacing the previous one.
+void recordSnapshotBaseline(String snapshot) {
+  _snapshotBaseline = snapshot;
+}
+
+@visibleForTesting
+void resetSnapshotBaselineForTesting() {
+  _snapshotBaseline = null;
+}
+
+/// The snapshot entries an action verb adds to its response payload.
+///
+/// The `snapshot` param (`full`, `diff`, `none`) wins over `includeSnapshot`
+/// when present. Without it, `includeSnapshot` decides as it always has
+/// (default on): the full text under `snapshot`, or nothing.
+///
+/// `diff` answers the lines that changed since the last unfiltered snapshot
+/// (a `dusk:snap` or an earlier action), with `snapshotMode: "diff"` beside
+/// it; with no baseline yet the full text comes back. The baseline is read
+/// before the post-action build because that build replaces it.
+///
+/// The mode is read case-insensitively. An unknown `snapshot` value does not
+/// throw, because this runs after the action has already taken effect and
+/// every embed site would swallow the error and return no snapshot at all;
+/// the payload carries `snapshotError` instead, so the caller sees why.
+Future<Map<String, dynamic>> snapshotForAction(
+  Map<String, String> params,
+) async {
+  final String mode =
+      params['snapshot']?.trim().toLowerCase() ?? _legacySnapshotMode(params);
+  switch (mode) {
+    case 'none':
+      return <String, dynamic>{};
+    case 'full':
+      final Map<String, dynamic> snap = await duskSnapBuild();
+      return <String, dynamic>{'snapshot': snap['snapshot']};
+    case 'diff':
+      final String? previous = snapshotBaseline;
+      final Map<String, dynamic> snap = await duskSnapBuild();
+      return <String, dynamic>{
+        'snapshot': diffSnapshots(previous, snap['snapshot'] as String),
+        'snapshotMode': 'diff',
+      };
+    default:
+      return <String, dynamic>{
+        'snapshotError':
+            'unknown snapshot mode "${params['snapshot']}": use full, diff or none',
+      };
+  }
+}
+
+/// The mode `includeSnapshot` asks for: `none` only for an explicit
+/// `'false'` or `'0'`.
+String _legacySnapshotMode(Map<String, String> params) {
+  final String raw = params['includeSnapshot'] ?? '';
+  return raw == 'false' || raw == '0' ? 'none' : 'full';
+}
+
 /// The three ways a snapshot walk can be narrowed.
 ///
 /// A full tree is the wrong default answer to most questions. It costs
@@ -224,6 +316,22 @@ final class _SnapFilter {
   /// on the path to one. Ancestors are kept because they carry the refs an
   /// agent acts on: a matching `- text` line has none of its own.
   final RegExp? grep;
+}
+
+/// Compiles the `grep` param, falling back to a literal substring match when
+/// it is not a valid regex.
+///
+/// Agents pass label text, and a label such as `Container Sample (MP4, H.264`
+/// is an unterminated group. The fallback is reported through the second
+/// element so the response can say the pattern was read literally; a valid
+/// regex keeps its regex meaning and reports `false`.
+(RegExp?, bool) _compileGrep(String? grep) {
+  if (grep == null || grep.isEmpty) return (null, false);
+  try {
+    return (RegExp(grep), false);
+  } on FormatException {
+    return (RegExp(RegExp.escape(grep)), true);
+  }
 }
 
 /// True when [node] or any node beneath it matches [pattern].
@@ -296,6 +404,75 @@ Map<RenderObject, Element> _buildElementByRenderObject() {
   return index;
 }
 
+/// Every labelled node in the live tree, grouped by its own label in the walk
+/// order `resolveQuery` counts in (each pipeline owner's root, then its child
+/// owners).
+///
+/// A full walk of its own rather than counts gathered while emitting: `within`
+/// and `depth` cut the emit walk short, and an index or count taken from a cut
+/// walk would disagree with the resolver's, which always counts the whole
+/// tree. Keyed on [SemanticsNode.label], the string the resolver compares,
+/// for the reason `ext_observe.dart` gives at its `seenByLabel` counter.
+Map<String, List<SemanticsNode>> _nodesByOwnLabel() {
+  final Map<String, List<SemanticsNode>> byLabel =
+      <String, List<SemanticsNode>>{};
+
+  void visit(SemanticsNode node) {
+    if (node.label.isNotEmpty) {
+      byLabel.putIfAbsent(node.label, () => <SemanticsNode>[]).add(node);
+    }
+    node.visitChildren((SemanticsNode child) {
+      visit(child);
+      return true;
+    });
+  }
+
+  void visitOwner(PipelineOwner owner) {
+    final SemanticsNode? root = owner.semanticsOwner?.rootSemanticsNode;
+    if (root != null) visit(root);
+    owner.visitChildren(visitOwner);
+  }
+
+  visitOwner(RendererBinding.instance.rootPipelineOwner);
+  return byLabel;
+}
+
+/// How [node]'s ref re-finds it after a rebuild, or `null` when it cannot.
+///
+/// A node with no label of its own is unreachable through the resolver's
+/// label walk, so it gets no binding. Neither does one whose reported label
+/// differs from its own (a merging boundary): the index was counted under one
+/// string and would be searched under another, the mismatch `ext_observe.dart`
+/// refuses to index for the same reason.
+///
+/// [element] is the node's mounted element, read for the route the binding
+/// pins relocation to.
+RefBinding? _bindingFor(
+  SemanticsNode node,
+  SemanticsData data,
+  Map<String, List<SemanticsNode>> nodesByLabel,
+  Element element,
+) {
+  final String label = node.label;
+  if (label.isEmpty || data.label != label) return null;
+  // A node under a pipeline owner the root walk does not reach has no index
+  // the resolver could reproduce.
+  final List<SemanticsNode> namesakes =
+      nodesByLabel[label] ?? const <SemanticsNode>[];
+  final int index = namesakes.indexOf(node);
+  if (index < 0) return null;
+
+  final Route<dynamic>? route = ModalRoute.of(element);
+  return RefBinding(
+    query: DuskQuery(
+      semanticsLabel: label,
+      matchIndex: index,
+    ),
+    matchCount: namesakes.length,
+    route: route == null ? null : WeakReference<Route<dynamic>>(route),
+  );
+}
+
 void _emitNode({
   required SemanticsNode node,
   required int depth,
@@ -303,6 +480,7 @@ void _emitNode({
   required StringBuffer buffer,
   required String groupId,
   required Map<RenderObject, Element> elementByRenderObject,
+  required Map<String, List<SemanticsNode>> nodesByLabel,
   required bool includeEnrichers,
   _SnapFilter filter = const _SnapFilter(interactiveOnly: false, grep: null),
   RenderObject? enclosingTextboxRenderObject,
@@ -323,6 +501,7 @@ void _emitNode({
         buffer: buffer,
         groupId: groupId,
         elementByRenderObject: elementByRenderObject,
+        nodesByLabel: nodesByLabel,
         includeEnrichers: includeEnrichers,
         filter: filter,
         enclosingTextboxRenderObject: enclosingTextboxRenderObject,
@@ -375,6 +554,7 @@ void _emitNode({
           buffer: buffer,
           groupId: groupId,
           elementByRenderObject: elementByRenderObject,
+          nodesByLabel: nodesByLabel,
           includeEnrichers: includeEnrichers,
           filter: filter,
           enclosingTextboxRenderObject: enclosingTextboxRenderObject,
@@ -394,12 +574,14 @@ void _emitNode({
         node: node,
         renderObject: renderObject,
       );
+      RefRegistry.bind(token, _bindingFor(node, data, nodesByLabel, element));
 
       buffer.write('${_indent(depth)}- $role "${_escape(label)}"');
       if (value.isNotEmpty) {
         buffer.write(': "${_escape(value)}"');
       }
-      buffer.writeln(' [ref=$token]');
+      buffer.write(' [ref=$token]');
+      buffer.writeln(_visibilityMarker(renderObject, rect));
 
       // D2: the surviving textbox is the one `dusk:type` resolves. Annotate it
       // so agents target the typeable node directly. Additive sub-line; no
@@ -477,6 +659,7 @@ void _emitNode({
       buffer: buffer,
       groupId: groupId,
       elementByRenderObject: elementByRenderObject,
+      nodesByLabel: nodesByLabel,
       includeEnrichers: includeEnrichers,
       filter: filter,
       enclosingTextboxRenderObject: childEnclosingTextbox,
@@ -552,6 +735,29 @@ Rect _globalRectFor(RenderObject renderObject) {
   if (!renderObject.hasSize) return Rect.zero;
   final Offset topLeft = renderObject.localToGlobal(Offset.zero);
   return topLeft & renderObject.size;
+}
+
+/// The trailing marker for a ref-bearing line: ` [offscreen]` when [rect] is
+/// outside the view, ` [occluded]` when something above it claims its centre,
+/// and an empty string on a healthy screen so its output does not change.
+///
+/// An off-screen node is never probed for occlusion: a hit test at a point
+/// outside the view finds nothing, which would read as a cover. Nor is one
+/// with no area (a sliver reports [Rect.zero]): its centre is not its own.
+String _visibilityMarker(RenderObject renderObject, Rect rect) {
+  if (rect.isEmpty) return '';
+  final FlutterView? view =
+      WidgetsBinding.instance.platformDispatcher.implicitView;
+  if (view == null) return '';
+  if (isRectOutsideViewport(rect, view.physicalSize / view.devicePixelRatio)) {
+    return ' [offscreen]';
+  }
+  final HitProbe probe = probeHitAt(
+    target: renderObject,
+    point: rect.center,
+    viewId: view.viewId,
+  );
+  return probe.verdict == HitVerdict.covered ? ' [occluded]' : '';
 }
 
 String _indent(int depth) => '  ' * depth;

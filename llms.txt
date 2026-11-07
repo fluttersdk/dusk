@@ -1,15 +1,15 @@
 # fluttersdk_dusk
 
-> E2E driver for Flutter apps targeting LLM agents and CI. 41 CLI commands and 39 MCP tools drive a running Flutter app over 38 `ext.dusk.*` VM Service extensions, 33 of which are reached directly by an MCP tool, plus 6 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). The consumer gates with `!kReleaseMode` (debug and profile); release builds tree-shake the entire subsystem.
+> E2E driver for Flutter apps targeting LLM agents and CI. 42 CLI commands and 40 MCP tools drive a running Flutter app over 38 `ext.dusk.*` VM Service extensions, 33 of which are reached directly by an MCP tool, plus 7 `artisan:dusk:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `dusk:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). The consumer gates with `!kReleaseMode` (debug and profile); release builds tree-shake the entire subsystem.
 
-**MCP tools (39)**, see `doc/mcp/tool-reference.md` for full input schemas. The 33 `ext.dusk.*` and 6 `artisan:dusk:*` (substrate-routed) tools are listed below.
+**MCP tools (40)**, see `doc/mcp/tool-reference.md` for full input schemas. The 33 `ext.dusk.*` and 7 `artisan:dusk:*` (substrate-routed) tools are listed below.
 
 *Snapshot / Screenshot*
 - `dusk_snap` (`ext.dusk.snap`): Capture Semantics tree YAML with stable `[ref=eN]` tokens. Narrow instead of reading everything: `within: "e12"` walks one subtree, `interactiveOnly: true` drops the prose, `grep: "<regex>"` keeps only matches plus the ancestors carrying their refs. A full tree costs context, and on a shell whose sidebar repeats page labels the unscoped read is also the misleading one. Nodes inside a currently-overflowing ancestor carry an `overflow: true` sub-line. Nested `textbox` nodes collapse by render-object containment to a single ref tagged `typeable: true` (the node `dusk_type` resolves); sibling fields sharing a label stay distinct. A node absorbed by `MergeSemantics` (`isMergedIntoParent`) prints no line and mints no ref, so a merged control is one ref on its boundary node. When non-fatal render/build FlutterErrors are in the capture buffer, the response includes a `renderErrors: {count, recent: [{type, message}], hint}` block so a silently-broken screen is visible without a separate `dusk_exceptions` call. A `warnings: {framesEnabled, lifecycleState, hint}` block appears on EVERY tool's payload while the app is not producing frames, which is when a rendering screen reads as empty.
 - `dusk_screenshot` (`ext.dusk.screenshot`, in-isolate): Capture base64-encoded JPEG/PNG frame. Optional `ref` captures ONLY that widget (an `e<N>`/`q<N>` token), optional `rect: "x,y,w,h"` narrows further within it; reach for `ref` whenever the question is about one component, since a full-screen capture of a tall page costs far more tokens and buries it. Can hang on web under CanvasKit+DWDS; for reliable web screenshots use the CLI `dusk:screenshot --output=<path>`, which falls back to CDP `Page.captureScreenshot` when artisan was started with `--cdp-port` (CLI-only, not this MCP tool).
 
 *Gestures (pointer actions)*
-- `dusk_tap` (`ext.dusk.tap`): Tap a widget (Down + 50ms hold + Up at the LIVE ref center, re-resolved post-gate). Every response carries an `effect: {kind: "treeChanged", changed: bool}` block; `changed: false` means the target's own route and semantics subtree are unchanged, so nothing the agent can see happened. Opt-in `until:"<text>"` polls (up to `untilTimeoutMs`, default 3000) for that text post-tap and adds an `untilMatched` boolean.
+- `dusk_tap` (`ext.dusk.tap`): Tap a widget (Down + 50ms hold + Up at the LIVE ref center, re-resolved post-gate). Every response carries an `effect: {kind: "treeChanged", changed: bool}` block; `changed: false` means the target's own route and semantics subtree are unchanged, so nothing the agent can see happened. `snapshot: "diff"` returns only the snapshot lines the tap changed since the last snapshot. When the tap point lies outside the control's own area inside a merged boundary the response carries `tapPointOutsideOwner {ownerRect, point}`. Opt-in `until:"<text>"` polls (up to `untilTimeoutMs`, default 3000) for that text post-tap and adds an `untilMatched` boolean.
 - `dusk_hover` (`ext.dusk.hover`): Hover mouse cursor over a widget (PointerHoverEvent).
 - `dusk_drag` (`ext.dusk.drag`): Drag from one widget to another (Down + 5x Move + Up).
 - `dusk_dblclick` (`ext.dusk.dblclick`): Double-click a widget (two tap sequences ~100ms apart).
@@ -19,7 +19,7 @@
 *Text Input*
 - `dusk_type` (`ext.dusk.type`): Type text into a TextField (calls userUpdateTextEditingValue).
 - `dusk_clear` (`ext.dusk.clear`): Clear TextEditingController backing a text field.
-- `dusk_fill` (`ext.dusk.fill`): Focus + clear + type + settle a text field in one call; composes the gated focus/clear/type handlers and retries once on a stale handle. Replaces the manual fill dance.
+- `dusk_fill` (`ext.dusk.fill`): Focus + clear + type + settle a text field in one call; composes the gated focus/clear/type handlers and retries once on a stale handle. Replaces the manual fill dance. A ref that is a button, checkbox, switch, slider or link is refused; `effect.target {matchKind, label, rect}` says which field was written, and `effect.verified` is read after the settle.
 
 *Scrolling*
 - `dusk_scroll` (`ext.dusk.scroll`): Scroll a Scrollable widget by direction + pixels.
@@ -52,7 +52,7 @@
 - `dusk_perf_trace` (`artisan:dusk:perf_trace`, substrate-routed): Write the last closed perf session's interactions, frames and host rows as Chrome Trace Event JSON (opens in ui.perfetto.dev or chrome://tracing) and return only its path.
 
 *Keyboard / Input*
-- `dusk_press_key` (`ext.dusk.press_key`): Press a hardware key (a named key, or one letter or digit) so the focused widget hears it; modifiers (control, shift, alt, meta) are accepted, not yet applied.
+- `dusk_press_key` (`ext.dusk.press_key`): Press a hardware key (a named key, or one letter or digit) so the focused widget hears it; `modifiers` (control, shift, alt, meta) are held down before the key and released after it.
 - `dusk_focus` (`ext.dusk.focus`): Request keyboard focus on widget identified by ref.
 - `dusk_blur` (`ext.dusk.blur`): Clear keyboard focus from current focus holder.
 
@@ -69,6 +69,9 @@
 *Hot Reload (substrate-routed)*
 - `dusk_hot_reload_and_snap` (`artisan:dusk:hot_reload_and_snap`): Hot reload app, capture snapshot + screenshot + recent exceptions in one round-trip.
 
+*Batch (substrate-routed)*
+- `dusk_run` (`artisan:dusk:run`): Run several dusk verbs in one call (`steps: ["tap --ref=e5", "snap --grep Total"]`, optional `continue`). One summary line per step, then the last step's output; stops at the first failing step. Saves a round trip per step; use `--text`, `--key` or q-refs between steps, since e-refs belong to one snapshot.
+
 *Viewport / Device Emulation (substrate-routed, CDP)*
 - `dusk_resize_viewport` (`artisan:dusk:resize`): Resize Flutter web viewport via Chrome DevTools Protocol; the override lasts only as long as the call's CDP session (the CLI's `dusk:resize --hold` keeps it).
 - `dusk_device_profile` (`artisan:dusk:device`): Emulate named device preset via CDP; the emulation lasts only as long as the call's CDP session, only the window size stays.
@@ -78,6 +81,7 @@
 - [Quickstart](https://fluttersdk.com/dusk/getting-started/quickstart.md)
 - [Commands index](https://fluttersdk.com/dusk/commands/index.md)
 - [Driving real apps: gotchas for agents](https://fluttersdk.com/dusk/getting-started/driving-real-apps-gotchas.md)
+- [dusk:run](https://fluttersdk.com/dusk/commands/dusk-run.md): several verbs in one call, one summary line per step.
 - [dusk:snap](https://fluttersdk.com/dusk/commands/dusk-snap.md)
 - [dusk:tap](https://fluttersdk.com/dusk/commands/dusk-tap.md)
 - [dusk:fill](https://fluttersdk.com/dusk/commands/dusk-fill.md)
@@ -100,7 +104,7 @@
 ## MCP
 - [MCP overview](https://fluttersdk.com/dusk/mcp/overview.md)
 - [MCP setup (.mcp.json wiring)](https://fluttersdk.com/dusk/mcp/setup.md): when fastcli is absent, `mcp:install` auto-selects `dart run fluttersdk_dusk mcp:serve` as the plugin-aware fallback (no manual edit needed).
-- [MCP tool reference (39 tools)](https://fluttersdk.com/dusk/mcp/tool-reference.md)
+- [MCP tool reference (40 tools)](https://fluttersdk.com/dusk/mcp/tool-reference.md)
 
 ## Plugins
 - [Magic integration](https://fluttersdk.com/dusk/plugins/magic-integration.md)

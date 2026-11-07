@@ -8,6 +8,7 @@ import 'commands/dusk_dblclick_command.dart';
 import 'commands/dusk_device_command.dart';
 import 'commands/dusk_focus_command.dart';
 import 'commands/dusk_right_click_command.dart';
+import 'commands/dusk_run_command.dart';
 import 'commands/dusk_triple_click_command.dart';
 import 'commands/dusk_doctor_command.dart';
 import 'commands/dusk_drag_command.dart';
@@ -143,6 +144,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
         DuskPerfTraceCommand(),
         // The whole campaign, one cold start per scenario (CLI only).
         DuskPerfCampaignCommand(),
+        // Batch: several verbs on one connection, one round trip.
+        DuskRunCommand(),
       ];
 
   @override
@@ -188,6 +191,10 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'full tree is the wrong default answer to most questions, and '
               'on a shell whose sidebar repeats page labels it is also the '
               'misleading one.\n'
+              '- A ref line ends with ` [offscreen]` (outside the viewport) '
+              'or ` [occluded]` (another widget covers its center) when '
+              'true. An invalid `grep` regex matches as literal text and '
+              'the response carries `grepLiteral: true`.\n'
               '- Returns YAML; the model parses ref tokens out of the '
               'shape `[ref=e<N>]` next to each widget.',
           inputSchema: <String, dynamic>{
@@ -250,7 +257,17 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '`{kind: "treeChanged", changed: bool}`. `changed: false` means '
               "the target's own route and semantics subtree are byte-"
               'identical after the tap, so nothing the agent can see '
-              'happened. Read it before concluding the app is broken.',
+              'happened. Read it before concluding the app is broken.\n'
+              '- A hidden or minimised desktop window is woken first (dusk '
+              'delivers `resumed` on the lifecycle channel) and the response '
+              'carries `framesForced: true`; when it cannot be woken the '
+              'response carries a `warnings` block instead.\n'
+              '- A stale `e<N>` ref is relocated by label when the live tree '
+              'has the same number of matches as at snapshot time, and the '
+              'response lists it under `reresolved`.\n'
+              '- `snapshot: "diff"` returns only the snapshot lines the tap '
+              'changed since your last dusk_snap (`- old` / `+ new`, then '
+              '`(K of N lines changed)`); `"none"` drops it.',
           inputSchema: <String, dynamic>{
             'type': 'object',
             'properties': <String, dynamic>{
@@ -258,6 +275,12 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'type': 'string',
                 'description': 'Widget ref token from a prior dusk_snap '
                     'call. Shape: `e<N>` (e.g. `e5`, `e23`).',
+              },
+              'snapshot': <String, dynamic>{
+                'type': 'string',
+                'enum': <String>['full', 'diff', 'none'],
+                'description': 'Post-tap snapshot: the whole tree (`full`, '
+                    'the default), only the changed lines (`diff`), or none.',
               },
               'until': <String, dynamic>{
                 'type': 'string',
@@ -298,6 +321,10 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'there by resolving the region first and clipping the capture. '
               'That CDP fallback is CLI-only; it does not apply to this MCP '
               'tool.\n'
+              '\n'
+              'A hidden or minimised desktop window is woken before the '
+              'capture, so the image is a fresh frame rather than the last '
+              'cached one; the response then carries `framesForced: true`.\n'
               '\n'
               'Usage:\n'
               '- No required params; defaults to the whole viewport as JPEG '
@@ -470,6 +497,10 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'distance; pass larger values to page faster.\n'
               '- Re-snap after the scroll completes; off-screen widgets '
               'gain refs only once Flutter builds them.\n'
+              '- `scrolled` is true only when the offset moved. With no '
+              'Scrollable around the ref, or one already at its edge, '
+              '`scrolled` is false and `effect.changed` is false; read them '
+              'before assuming the content moved.\n'
               '\n'
               'Example: `{ "ref": "e12", "direction": "down", "pixels": 500 }`',
           inputSchema: <String, dynamic>{
@@ -606,6 +637,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'Router shows the route itself.\n'
               '- For going back use dusk_navigate_back; to list known '
               'routes use dusk_get_routes.\n'
+              '- `snapshot: "diff"` returns only the snapshot lines that '
+              'changed since your last dusk_snap; `"none"` drops it.\n'
               '\n'
               'Example: `{ "route": "/login" }`',
           inputSchema: <String, dynamic>{
@@ -615,6 +648,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
                 'type': 'string',
                 'description': 'Route path to push. Must start with `/`. '
                     'Example: `/monitors/123`.',
+              },
+              'snapshot': <String, dynamic>{
+                'type': 'string',
+                'enum': <String>['full', 'diff', 'none'],
+                'description': 'Post-navigate snapshot: the whole tree '
+                    '(`full`, the default), only the changed lines (`diff`), '
+                    'or none.',
               },
             },
             'required': <String>['route'],
@@ -695,8 +735,9 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '`Escape`, `Tab`, `ArrowDown`, `Backspace`. A single '
               'letter or digit (`G`, `m`, `7`) presses the key that '
               'types it, for shortcuts bound to a letter.\n'
-              '- Optional `modifiers: ["control", "shift"]` is accepted '
-              'and not yet applied to the press.\n'
+              '- Optional `modifiers: ["control", "shift"]` are held down '
+              'before the key and released after it, so exact-match '
+              'shortcuts such as Shift+Tab or Ctrl+S fire.\n'
               '- For text input prefer dusk_type; this tool is for '
               'shortcut keys only.\n'
               '\n'
@@ -1169,7 +1210,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '(model-agnostic locked decision).\n'
               '\n'
               'Each candidate carries: `ref`, `role`, `label`, `value`, '
-              '`bounds` (x/y/w/h), `isEnabled`, `isVisible`, plus a subset '
+              '`bounds` (x/y/w/h), `isEnabled`, `isVisible`, `inViewport`, '
+              '`occluded` (covered from above), plus a subset '
               'of per-candidate enricher fields when '
               '`includeEnrichers=true` (default: `magicFormField`, '
               '`magicRoute`, `magicGateResult`, `wind.breakpoint`, '
@@ -1271,7 +1313,8 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '`recentExceptions`.\n'
               '- On compile error the response carries `reloaded: false`, '
               '`durationMs`, `error` (the compile message), and '
-              '`recentExceptions`. snapshot + screenshot are omitted.\n'
+              '`recentExceptions`. snapshot + screenshot are omitted, and the '
+              'call returns as an error result.\n'
               '- Recent exceptions reuse dusk_exceptions wiring; missing '
               'telescope is graceful (empty list).\n'
               '\n'
@@ -1631,6 +1674,9 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'cleanly on the second pass.\n'
               '- Returns `{ref, text, filled: true}` plus an optional '
               'post-fill snapshot.\n'
+              '- `snapshot: "diff"` returns only the snapshot lines the fill '
+              'changed since your last dusk_snap; `"none"` drops it. It '
+              'overrides `includeSnapshot`.\n'
               '\n'
               'Example: `{ "ref": "e7", "text": "alice@example.com" }`',
           inputSchema: <String, dynamic>{
@@ -1649,6 +1695,13 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               'includeSnapshot': <String, dynamic>{
                 'type': 'boolean',
                 'description': 'Embed the post-fill snapshot (default true).',
+              },
+              'snapshot': <String, dynamic>{
+                'type': 'string',
+                'enum': <String>['full', 'diff', 'none'],
+                'description': 'Post-fill snapshot: the whole tree (`full`), '
+                    'only the changed lines (`diff`), or none. Overrides '
+                    '`includeSnapshot`.',
               },
             },
             'required': <String>['ref', 'text'],
@@ -1753,7 +1806,9 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
               '- Check `refused` FIRST. When the liveness counter advanced by '
               '1 or less the engine rendered nothing, the response carries no '
               'metrics, and a zero report would have read as "fast". A '
-              'backgrounded browser tab is the usual cause.\n'
+              'backgrounded browser tab (web) or a hidden desktop window is '
+              'the usual cause; the perf verbs do not force frames, so bring '
+              'the window to front yourself.\n'
               '- Read `coverage.complete` and `coverage.missing` before the '
               'numbers: a subset or a missing source is not "nothing slow".\n'
               '- Call dusk_perf_insight with an insight id for the rows '
@@ -1977,6 +2032,60 @@ class DuskArtisanProvider extends ArtisanServiceProvider {
             'required': <String>['out'],
           },
           extensionMethod: 'artisan:dusk:perf_trace',
+        ),
+        // -------------------------------------------------------------------
+        // 35. Run: a batch of verb lines in one call.
+        //
+        // Through the substrate because the batch dispatches each step's CLI
+        // command in-process on the server's one VM Service connection.
+        // -------------------------------------------------------------------
+        McpToolDescriptor(
+          name: 'dusk_run',
+          description: 'Run several dusk verbs against the running app in '
+              'one call.\n'
+              '\n'
+              'Each step is a CLI verb line without the `dusk:` prefix, '
+              'tokenised like a shell (quotes and backslash escapes), and '
+              'takes the same options as the standalone command. The '
+              'response carries one line per step (`[1/3] tap --ref=e5 ok: '
+              '<first output line>`), then the last step\'s full output. '
+              'Saves a round trip per step when the next refs are already '
+              'known.\n'
+              '\n'
+              'Usage:\n'
+              '- Pass steps, e.g. `["tap --ref=e5", "fill --ref=q1 '
+              '--text=\\"a b\\"", "snap --grep Total"]`.\n'
+              '- The batch stops at the first failing step and returns '
+              '`step N failed (exit C)` with that step\'s output; pass '
+              '`continue: true` to run every step and report the first '
+              'failure.\n'
+              '- A step cannot be another run, nor a verb that does not run '
+              'on the connected app (resize, device, install, doctor, '
+              'perf_campaign, perf_compare); a step that ends the app '
+              '(close_app, perf_run) must come last.\n'
+              '- Refs minted by a snap inside the batch are not known before '
+              'the call; end the batch with snap and read them from the '
+              'output.',
+          inputSchema: <String, dynamic>{
+            'type': 'object',
+            'properties': <String, dynamic>{
+              'steps': <String, dynamic>{
+                'type': 'array',
+                'items': <String, dynamic>{
+                  'type': 'string',
+                },
+                'description': 'Verb lines, run in order (e.g. '
+                    '`"tap --ref=e5"`).',
+              },
+              'continue': <String, dynamic>{
+                'type': 'boolean',
+                'description': 'Keep running after a failing step '
+                    '(default false).',
+              },
+            },
+            'required': <String>['steps'],
+          },
+          extensionMethod: 'artisan:dusk:run',
         ),
       ];
 }

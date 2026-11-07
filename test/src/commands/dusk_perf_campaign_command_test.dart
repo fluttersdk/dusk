@@ -351,6 +351,11 @@ void main() {
     dir = Directory.systemTemp.createTempSync('dusk_perf_campaign_');
     previousCwd = Directory.current;
     Directory.current = dir;
+    // The command resolves its project root as the nearest pubspec.yaml
+    // above the cwd; without one here, a stray pubspec.yaml in any ancestor
+    // of the system temp dir becomes the root and the android and
+    // working-directory assertions read a directory the test never wrote.
+    File('${dir.path}/pubspec.yaml').writeAsStringSync('name: perf_app\n');
   });
 
   tearDown(() {

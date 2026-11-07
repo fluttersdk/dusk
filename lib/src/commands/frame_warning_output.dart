@@ -16,10 +16,13 @@ void reportFrameWarning(ArtisanContext ctx, Map<String, dynamic>? result) {
   if (warnings == null) return;
 
   final lifecycle = warnings['lifecycleState'] ?? 'unknown';
+  final cause = warnings['platform'] == 'web'
+      ? 'A backgrounded browser tab is the usual cause: bring the page to '
+          'front and retry.'
+      : 'The window is hidden, minimised or occluded, or the display is '
+          'asleep: bring the window to front and retry.';
   ctx.output.error(
-    '⚠ The app is not producing frames (lifecycle: $lifecycle). The '
-    'semantics tree is not being rebuilt and gestures cannot take effect, '
-    'so this result may be stale. A backgrounded browser tab is the usual '
-    'cause: bring the page to front and retry.',
+    '⚠ The app is not producing frames (lifecycle: $lifecycle), so this '
+    'result may be stale. $cause',
   );
 }

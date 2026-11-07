@@ -1,8 +1,8 @@
 # MCP tools reference
 
-The 39 `dusk_*` MCP tools an LLM agent calls to drive a running Flutter app.
+The 40 `dusk_*` MCP tools an LLM agent calls to drive a running Flutter app.
 Each entry: one-line purpose, input schema, return shape, when to use it,
-common errors. Use this file as a lookup; the agent rarely needs all 39 in
+common errors. Use this file as a lookup; the agent rarely needs all 40 in
 the same session.
 
 ## Contents
@@ -39,20 +39,34 @@ Every tool returns a JSON object via `ServiceExtensionResponse.result` on
 success. Failures return a `DuskErrorEnvelope`: at minimum `{ message }`,
 often with `{ reason, ref, method }` for agent branching.
 
-One field is universal across every `ext.dusk.*`-backed success payload
-(33 tools): `warnings`. It is
-present only while the app has stopped producing frames, and it means the
+Three fields can appear on any `ext.dusk.*`-backed success payload (33
+tools).
+
+`framesForced: true` means the desktop window was hidden and dusk woke it
+for this call (a hidden browser tab cannot be woken) (it delivers `AppLifecycleState.resumed` and forces a frame
+at the start of every verb except the perf verbs, `boot_id`, `close_app`,
+`console`, `exceptions`, `semantics_hold` and `evaluate`). The result is
+fresh. The app's lifecycle observers see `resumed`;
+`--dart-define=DUSK_FORCE_FRAMES=false` turns the forcing off.
+
+`warnings` is present only while the app is not producing frames and dusk
+could not force them (that opt-out, or a `detached` app). It means the
 result cannot be trusted, because the semantics tree is not being rebuilt
 and dispatched gestures cannot take effect.
 
 ```json
-{ "warnings": { "framesEnabled": false, "lifecycleState": "hidden", "hint": "..." } }
+{ "warnings": { "framesEnabled": false, "lifecycleState": "hidden", "platform": "macOS", "hint": "..." } }
 ```
 
-A backgrounded browser tab is the usual cause. Recover with one CDP call,
-`Page.bringToFront`, then retry. Never read an empty snapshot as an empty
-screen, or a clean action payload as an applied gesture, while this key is
-present. It is omitted entirely on a healthy engine.
+`platform` and `hint` are platform-aware. On web a backgrounded browser tab
+is the usual cause: recover with one CDP call, `Page.bringToFront`. On
+desktop it is a hidden, minimised or occluded window or an asleep display:
+bring the window to front. Then retry. Never read an empty snapshot as an
+empty screen, or a clean action payload as an applied gesture, while this
+key is present. It is omitted entirely on a healthy engine.
+
+`reresolved: ["e5"]` means a stale `e<N>` ref was relocated by label to the
+control that replaced it.
 
 Prerequisites for every `dusk_*` MCP tool:
 
@@ -86,13 +100,15 @@ with stable `[ref=eN]` tokens.
 | `depth` | integer | no | unlimited | Maximum tree depth to walk |
 | `within` | string | no | whole tree | `e<N>` ref of the subtree to walk. `q<N>` handles are not addressable here |
 | `interactiveOnly` | boolean | no | false | Emit only ref-bearing nodes; drop the plain `- text` lines |
-| `grep` | string | no | none | Emit only nodes whose label or value matches this regex, plus the ancestors leading to them |
+| `grep` | string | no | none | Emit only nodes whose label or value matches this regex, plus the ancestors leading to them. An invalid regex is matched as a literal substring and the response carries `grepLiteral: true` |
 
 **Returns.** `{ snapshot: "<yaml>", groupId: "snapshot-<timestamp>" }`.
 
 YAML format per interactive node: `- <role> "<label>": "<value>" [ref=eN]`
 followed by indented enricher lines (`magicFormField: email`, `magicRoute:
-/login`, `wind: { breakpoint: lg, states: [hover] }`, etc.).
+/login`, `wind: { breakpoint: lg, states: [hover] }`, etc.). The line may
+end with ` [offscreen]` (outside the viewport) and/or ` [occluded]` (another
+widget covers its centre); a healthy screen has neither.
 
 **Use it.** As the first call of any new agent session, or whenever the
 UI mutates (navigation, modal open, hot-reload). Re-snap after each act
@@ -105,8 +121,10 @@ page labels it is also the misleading read: the unscoped lookup resolves
 the nav item and you end up measuring the sidebar.
 
 **Common pitfalls.** `e<N>` tokens become defunct when their node
-unmounts. After a route push or a list rebuild, an old `e<N>` will fail
-the gate with `"defunct (element no longer mounted)"`; re-snap and pick
+unmounts. After a route push or a list rebuild, an old `e<N>` is relocated
+by label when the live tree has the same number of nodes with that label
+(the response lists it under `reresolved`); otherwise it fails the gate
+with `"defunct (element no longer mounted)"`; re-snap and pick
 a fresh ref. For multi-step flows prefer `dusk_find` / `dusk_observe` to
 mint `q<N>` handles that survive disposal.
 
@@ -140,6 +158,8 @@ observe once, then act many times without re-observing.
       "bounds": { "x": 24.0, "y": 120.0, "w": 320.0, "h": 48.0 },
       "isEnabled": true,
       "isVisible": true,
+      "inViewport": true,
+      "occluded": false,
       "magicFormField": "email",
       "magicRoute": "/login",
       "wind": { "breakpoint": "lg", "states": "[]" }
@@ -148,6 +168,10 @@ observe once, then act many times without re-observing.
   "count": 6
 }
 ```
+
+`inViewport` is false when the bounds lie outside the view; `occluded` is
+true when a hit test at the bounds' centre reaches a widget painted above the
+candidate. Check both before tapping a candidate on a busy screen.
 
 **Use it.** When the agent needs to enumerate candidates (form fill,
 "find every submit button on the page", "list every link in the
@@ -177,7 +201,10 @@ specific widget by ref, or a sub-rect within a widget.
 | `quality` | integer | no | 70 | JPEG quality 1-100 |
 
 **Returns.** `{ format, base64, width, height }`. JPEG q70 is typically
-40-120 KB; PNG is 300-800 KB.
+40-120 KB; PNG is 300-800 KB. A hidden or minimised desktop window is
+woken first, so the image is a fresh frame (`framesForced: true`), not the
+last cached one. The CLI infers `format` from the `-o` extension (`.png`,
+`.jpg`, `.jpeg`) when `--format` is not given.
 
 **Use it.** When the verification is visual (layout, colors, image
 content) and the snapshot tree alone is not enough. For pure
@@ -240,8 +267,19 @@ All gate-checked. All accept `ref` (required, `e<N>` or `q<N>`),
 
 ### dusk_tap
 
-`ref` (required). Down + 50ms hold + Up at the widget's center.
-Returns `{ ref, snapshot? }`.
+`ref` (required), `snapshot` (`full` | `diff` | `none`, optional). Down +
+50ms hold + Up at the widget's center. Returns `{ ref, effect, snapshot? }`.
+
+`snapshot: "diff"` returns only the snapshot lines the tap changed since your
+last unfiltered snapshot (a `dusk_snap` or an earlier action): a changed row is
+`- <old line>` then `+ <new line>`, an added row `+ `, a removed row `- `, then
+`(K of N lines changed)`, and the payload adds `snapshotMode: "diff"`. With no
+baseline yet the full text comes back; a filtered `dusk_snap` never records
+one, and a hot restart clears it. `"none"` drops the snapshot.
+
+When the tap point lies outside the control inside a merged boundary the
+response adds `tapPointOutsideOwner: { ownerRect, point }` (the gate still says
+confirmed): the tap may have hit something else, so check the result.
 
 ### dusk_dblclick
 
@@ -293,8 +331,8 @@ TextEditingController and calls `.clear()`. No gate. Returns
 
 ### dusk_press_key
 
-`key` (required), `modifiers` (optional array of `control`, `shift`,
-`alt`, `meta`). Delivers a Down+Up through the binding's `onKeyData`, the
+`key` (required), `modifiers` (optional array of `control` (or `ctrl`),
+`shift`, `alt`, `meta`, any case). Delivers a Down+Up through the binding's `onKeyData`, the
 path real key data takes, so `Focus.onKeyEvent` and `Shortcuts` on the
 currently focused widget hear it; it targets that widget, not a ref.
 Supported keys: `Enter`, `Tab`, `Escape`, `Backspace`, `Delete`, `Space`,
@@ -303,8 +341,10 @@ Supported keys: `Enter`, `Tab`, `Escape`, `Backspace`, `Delete`, `Space`,
 which presses the key carrying that character (text still goes through
 `dusk_type`). Returns `{ ok: true, key, snapshot? }`.
 
-**Pitfall.** Modifiers are reserved for future use; only the key
-itself fires for now.
+Modifiers are held down before the key and released after it, even when
+delivery throws, so `{ "key": "S", "modifiers": ["control"] }` fires an
+exact-match Ctrl+S. An unknown modifier name is an error before anything is
+pressed.
 
 ### dusk_focus
 
@@ -324,12 +364,21 @@ Returns `{ blurred: true, hadFocus, snapshot? }`.
 | `ref` | string | yes | -- | Text-field ref (`e<N>` or `q<N>`) from a prior snap or find |
 | `text` | string | yes | -- | Value to set; replaces existing content. `""` clears the field |
 | `includeSnapshot` | boolean | no | true | Embed the post-fill snapshot |
+| `snapshot` | string | no | -- | `full`, `diff` or `none`; overrides `includeSnapshot` (see `dusk_tap` for the diff form) |
 
 Focus, clear, type, and settle in one call. Composes the gated focus / clear /
 type handlers, so the actionability gate, IME focus, and `onChanged` plus
 validator firing all still run, and retries the whole sequence once when the
-ref goes stale mid-fill. Returns `{ ref, text, filled: true }` plus the
+ref goes stale mid-fill. Returns `{ ref, text, filled: true, effect }` plus the
 optional snapshot.
+
+The field is resolved once for focus, clear and type. A ref that is a button,
+checkbox, radio, switch, slider or link is refused with `ref eN is a <role>,
+not a text field`; a label or static-text handle keeps the nearest-field
+fallback. `effect.target` is `{ matchKind: overlap | nearest | element, label,
+rect }`: read it when `matchKind` is `nearest`. `effect.verified` is computed
+from the value read after the two-frame settle, so a formatter or echo that
+reverts the write reports `false`.
 
 Reach for this instead of the manual focus + clear + type + wait sequence.
 Prefer a `q<N>` handle from `dusk_find` when the field may rebuild between the
@@ -372,7 +421,9 @@ the popup walk. Returns `{ selected: true, value }`.
 | `intoView` | boolean | no | false | When true with `ref`, calls `Scrollable.ensureVisible` instead of scrolling by delta |
 | `includeSnapshot` | boolean | no | true | Append a post-scroll snapshot |
 
-**Returns.** `{ scrolled: true, finalOffset, snapshot? }`.
+**Returns.** `{ scrolled, finalOffset, effect, snapshot? }`. `scrolled` is
+true only when the offset moved; with no scrollable around the ref, or one
+already at its edge, it is false and `effect.changed` is false.
 
 **Use it.** Combine with `dusk_find` or `dusk_observe` to bring a
 known-but-off-screen widget into reach, then `dusk_tap` it. The
@@ -431,7 +482,8 @@ telescope is not active.
 ### dusk_navigate
 
 `route` (required, must start with `/`), `includeSnapshot` (default
-true). Tries three paths: (1) `Navigator.pushNamed(route)`, (2)
+true), `snapshot` (`full` | `diff` | `none`, overrides `includeSnapshot`).
+Tries three paths: (1) `Navigator.pushNamed(route)`, (2)
 consumer-registered `DuskNavigateAdapter`, (3)
 `SystemNavigator.routeInformationUpdated` (Router-based apps like
 GoRouter, auto_route). Before navigating, dismisses every modal.
@@ -447,8 +499,8 @@ also covers a page under the route (`/monitors/7` for `/monitors`);
 `includeSnapshot` (default true). Pops the top page of the outermost
 Navigator that can pop (a page stacked inside a shell included; a branch
 kept alive offstage by a `StatefulShellRoute` is skipped). Returns
-`{ navigatedBack: true, popped, snapshot? }`; `popped: false` means nothing
-could pop and the call did nothing.
+`{ navigatedBack, popped, snapshot? }`; `navigatedBack` equals `popped`, and
+`false` means nothing could pop (the root route) and the call did nothing.
 
 ### dusk_get_routes
 
@@ -495,7 +547,7 @@ Idempotent, so it is safe to call speculatively between flows. Prefer it over
 | `minLevel` | string | no | (all) | `INFO`, `WARNING`, `ERROR`, etc. |
 
 Returns `{ logs: [{ level, loggerName, message, time, error?, stackTrace? }], count }`.
-Empty when telescope is not wired.
+Empty when telescope is not set up.
 
 ### dusk_exceptions
 
@@ -571,8 +623,9 @@ about 6 KB at most, and restores every profiling flag to its prior value.
 
 **Check `refused` first.** When the liveness counter advanced by 1 or
 less the engine rendered nothing, the response carries no metrics, and a
-zero report would have read as "fast"; a backgrounded browser tab is the
-usual cause. `insights` are sorted by severity then estimated savings;
+zero report would have read as "fast"; a backgrounded browser tab (web) or
+a hidden desktop window is the usual cause, and the perf verbs do not force
+frames, so bring the window to front yourself. `insights` are sorted by severity then estimated savings;
 drill into one with `dusk_perf_insight`. Attribution milliseconds are
 inflated by the profiling itself; compare milliseconds only across
 `mode="timing"` sessions.
@@ -642,6 +695,26 @@ the trace reads.
 ---
 
 ## Composite (substrate-routed)
+
+### dusk_run
+
+| Param | Type | Required | Default | Note |
+|---|---|---|---|---|
+| `steps` | string[] | yes | -- | Verb lines without the `dusk:` prefix, e.g. `["tap --ref=q3", "fill --ref=q1 --text=\"a b\"", "snap --grep Total"]` |
+| `continue` | boolean | no | false | Keep running after a failing step |
+
+Runs several verbs in one call (routes as `artisan:dusk:run`). Each step is
+tokenised like a shell (quotes, backslash) and takes the options of the
+standalone command. The response is one line per step (`[1/3] tap --ref=e8 ok:
+Tapped e8`, the first output line cut to 120 characters), then the last step's
+full output. It stops at the first failing step with `step N failed (exit C):
+<step>` and that exit code; `continue: true` runs every step and reports the
+first failure. A step cannot be another `dusk_run`, an unknown verb, or a verb
+that does not run on the connected app (resize, device, install, doctor).
+
+`e<N>` refs are scoped to one snapshot, so between steps that change the
+screen use `--text`, `--key` or `q<N>` handles, and end the batch with `snap`
+to read the new refs.
 
 ### dusk_hot_reload_and_snap
 

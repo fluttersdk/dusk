@@ -10,6 +10,7 @@ import 'package:image/image.dart' as img_lib;
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../ref_registry.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
@@ -25,7 +26,7 @@ import 'ext_pointer.dart' show resolveRefForAction;
 /// is a no-op per extension name on repeated calls via
 /// [registerExtensionIdempotent].
 void registerScreenshotExtension() {
-  registerExtensionIdempotent(
+  registerDuskExtension(
     'ext.dusk.screenshot',
     screenshotHandler,
   );

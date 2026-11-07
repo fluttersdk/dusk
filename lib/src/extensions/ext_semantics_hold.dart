@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import '../dusk_plugin.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
@@ -12,9 +13,10 @@ import 'ext_perf.dart' show perfSessionOpen;
 /// Registers `ext.dusk.semantics_hold`. Idempotent via
 /// [registerExtensionIdempotent]; call once from `registerAllDuskExtensions()`.
 void registerSemanticsHoldExtension() {
-  registerExtensionIdempotent(
+  registerDuskExtension(
     'ext.dusk.semantics_hold',
     duskSemanticsHoldHandler,
+    ensureFrames: false,
   );
 }
 

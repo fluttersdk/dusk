@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
 import 'package:fluttersdk_dusk/src/extensions/ext_navigation.dart';
+import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
 
 /// Tests for the navigation extensions (Step 6 of fluttersdk-dusk-alpha-2 plan).
 ///
@@ -99,8 +100,12 @@ void main() {
       expect(result.keys, unorderedEquals(<String>['navigatedBack', 'popped']));
     });
 
-    test('carries popped=false for a no-op', () {
-      expect(buildNavigateBackResponse(popped: false)['popped'], isFalse);
+    test('carries popped=false and navigatedBack=false for a no-op', () {
+      final Map<String, dynamic> result =
+          buildNavigateBackResponse(popped: false);
+
+      expect(result['popped'], isFalse);
+      expect(result['navigatedBack'], isFalse);
     });
 
     test('navigatedBack value is a bool (not a string)', () {
@@ -464,10 +469,11 @@ void main() {
       expect(response, isNotNull);
     });
 
-    testWidgets('answers popped=false when no Navigator can pop',
+    testWidgets(
+        'answers navigatedBack=false and popped=false at the root route',
         (WidgetTester tester) async {
-      // An agent reading only `navigatedBack` could not tell a pop from a
-      // no-op at the bottom of the stack; `popped` says which happened.
+      // A no-op at the bottom of the stack must not read as a successful
+      // back: `navigatedBack` and `popped` agree.
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
       final Future<developer.ServiceExtensionResponse> future =
           extDuskNavigateBackHandler(
@@ -480,8 +486,9 @@ void main() {
 
       final Map<String, dynamic> body =
           jsonDecode(response.result!) as Map<String, dynamic>;
-      expect(body['navigatedBack'], isTrue);
+      expect(body['navigatedBack'], isFalse);
       expect(body['popped'], isFalse);
+      expect(body['navigatedBack'], body['popped']);
     });
 
     testWidgets('result encodes to valid JSON', (WidgetTester tester) async {
@@ -837,6 +844,68 @@ void main() {
           jsonDecode(response.result!) as Map<String, dynamic>;
       expect(body['snapshot'], isA<String>());
     });
+
+    testWidgets('snapshot=diff answers the lines against the last snapshot',
+        (WidgetTester tester) async {
+      resetSnapshotBaselineForTesting();
+      addTearDown(resetSnapshotBaselineForTesting);
+      // No transition, so the two settle frames land on the finished page.
+      await tester.pumpWidget(
+        MaterialApp(
+          initialRoute: '/',
+          onGenerateRoute: (RouteSettings settings) => PageRouteBuilder<void>(
+            settings: settings,
+            transitionDuration: Duration.zero,
+            pageBuilder: (_, __, ___) => Scaffold(
+              body: Text(settings.name == '/' ? 'diff-home' : 'diff-next'),
+            ),
+          ),
+        ),
+      );
+      await duskSnapBuild();
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateHandler(
+        'ext.dusk.navigate',
+        <String, String>{'route': '/next', 'snapshot': 'diff'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body['snapshotMode'], 'diff');
+      expect(body['snapshot'], contains('+ - text "diff-next"'));
+      expect(body['snapshot'], contains('lines changed)'));
+    });
+
+    testWidgets('snapshot=none omits the snapshot',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          initialRoute: '/',
+          routes: <String, WidgetBuilder>{
+            '/': (BuildContext context) => const Scaffold(body: Text('Home')),
+            '/away': (BuildContext context) =>
+                const Scaffold(body: Text('Away')),
+          },
+        ),
+      );
+
+      final Future<developer.ServiceExtensionResponse> future =
+          extDuskNavigateHandler(
+        'ext.dusk.navigate',
+        <String, String>{'route': '/away', 'snapshot': 'none'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final developer.ServiceExtensionResponse response = await future;
+
+      final Map<String, dynamic> body =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(body.containsKey('snapshot'), isFalse);
+    });
   });
 
   group('extDuskNavigateBackHandler snapshot-in-response', () {
@@ -895,7 +964,7 @@ void main() {
       final Map<String, dynamic> body =
           jsonDecode(response.result!) as Map<String, dynamic>;
       expect(body.containsKey('snapshot'), isFalse);
-      expect(body['navigatedBack'], isTrue);
+      expect(body['navigatedBack'], isFalse);
     });
 
     testWidgets('snapshot YAML is a populated string after navigate_back',

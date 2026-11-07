@@ -140,7 +140,9 @@ class DuskHotReloadAndSnapCommand extends ArtisanCommand {
       };
       lastResult = result;
       ctx.output.writeln(jsonEncode(result));
-      return 0;
+      // A failed reload exits non-zero so a shell chain or CI step cannot
+      // read the compile error as a green run.
+      return 1;
     }
 
     // 3. Success: capture the post-reload snapshot. Snap failure aborts the
@@ -307,9 +309,20 @@ Future<HotReloadResult> _defaultReload(ArtisanContext ctx) async {
   }
 }
 
-/// Resolve the canonical flutter run log path (`~/.artisan/flutter-dev.log`)
-/// in the same shape `start` writes it.
+/// Resolve the flutter run log the way `artisan logs` does: next to the state
+/// file (the per-project session directory `start` writes into), else the
+/// legacy `~/.artisan/flutter-dev.log`. Reading only the legacy file made a
+/// reload that succeeded look like a timeout.
 String? _defaultLogPath() {
+  // Only when the state file itself exists: without it `StateFile.read()` fell
+  // back to the legacy pointer, and an earlier run's leftover session log
+  // would belong to a different app than the FIFO being written.
+  final stateFile = File(StateFile.path);
+  if (stateFile.existsSync()) {
+    final session = File('${stateFile.parent.path}/flutter-dev.log');
+    if (session.existsSync()) return session.path;
+  }
+
   final home = Platform.environment['HOME'];
   if (home == null || home.isEmpty) return null;
   return '$home/.artisan/flutter-dev.log';

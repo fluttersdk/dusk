@@ -78,7 +78,7 @@ ride on it.
    { "command": "./bin/fsa", "args": ["mcp:serve"], "cwd": "." }
    ```
 
-2. **`dart run fluttersdk_dusk mcp:serve`** — when fastcli is absent (Windows or scaffold skipped). Auto-selected: the dusk wrapper injects `--invocation=fluttersdk_dusk` before forwarding `mcp:install` to the substrate, so the correct payload is written without any manual intervention. ~3s startup per call. This path surfaces all 33 dusk_* tools without scaffold dependency, because the wrapper forces `collectMcpTools: true` when dispatching `mcp:serve`.
+2. **`dart run fluttersdk_dusk mcp:serve`** — when fastcli is absent (Windows or scaffold skipped). Auto-selected: the dusk wrapper injects `--invocation=fluttersdk_dusk` before forwarding `mcp:install` to the substrate, so the correct payload is written without any manual intervention. ~3s startup per call. This path surfaces all 40 dusk_* tools without scaffold dependency, because the wrapper forces `collectMcpTools: true` when dispatching `mcp:serve`.
 
    ```json
    { "command": "dart", "args": ["run", "fluttersdk_dusk", "mcp:serve"], "cwd": "." }

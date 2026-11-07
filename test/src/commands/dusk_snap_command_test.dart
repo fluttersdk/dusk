@@ -1,30 +1,99 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:fluttersdk_artisan/artisan.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fluttersdk_dusk/src/commands/dusk_snap_command.dart';
+
+import '../cdp/fake_cdp_server.dart';
 
 class _StubContext extends ArtisanContext {
   _StubContext({
     required ArtisanInput input,
     required ArtisanOutput output,
     Map<String, dynamic> response = const {},
+    Map<String, dynamic>? retryResponse,
   })  : _response = response,
+        _retryResponse = retryResponse,
         super.bare(input, output);
 
   final Map<String, dynamic> _response;
+  final Map<String, dynamic>? _retryResponse;
   String? lastMethod;
   Map<String, dynamic>? lastParams;
+  int calls = 0;
 
   @override
   Future<T> callExtension<T>(String method,
       [Map<String, dynamic>? params]) async {
     lastMethod = method;
     lastParams = params;
+    calls++;
+    if (calls > 1 && _retryResponse != null) return _retryResponse as T;
     return _response as T;
   }
 }
 
 void main() {
+  group('DuskSnapCommand on a hidden web tab', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('dusk_snap_web_');
+    });
+
+    tearDown(() async {
+      StateFile.debugHomeOverride = null;
+      await tempDir.delete(recursive: true);
+    });
+
+    test('brings the page to front once and prints the re-taken snapshot',
+        () async {
+      final List<String> frames = <String>[];
+      final FakeCdpServer server = await FakeCdpServer.start(
+        pageUrl: 'http://localhost:5123/',
+        handlers: {
+          'Page.bringToFront': (Map<String, dynamic> _) async {
+            frames.add('Page.bringToFront');
+            return <String, dynamic>{};
+          },
+        },
+      );
+      addTearDown(server.stop);
+      final Directory stateDir = Directory('${tempDir.path}/.artisan');
+      await stateDir.create(recursive: true);
+      await File('${stateDir.path}/state.json').writeAsString(
+        jsonEncode({'cdpPort': server.port, 'webPort': 5123}),
+      );
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: output,
+        response: const {
+          'snapshot': '- stale',
+          'warnings': {
+            'framesEnabled': false,
+            'lifecycleState': 'hidden',
+            'platform': 'web',
+          },
+        },
+        retryResponse: const {'snapshot': '- button "Save" [ref=e1]'},
+      );
+
+      final exit = await DuskSnapCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(frames, equals(<String>['Page.bringToFront']));
+      expect(ctx.calls, equals(2));
+      expect(output.content, contains('[ref=e1]'));
+      expect(output.content, isNot(contains('- stale')));
+      expect(output.content, isNot(contains('not producing frames')));
+    });
+  });
+
   group('DuskSnapCommand', () {
     test('name is dusk:snap', () {
       expect(DuskSnapCommand().name, equals('dusk:snap'));
@@ -161,6 +230,51 @@ void main() {
       await DuskSnapCommand().handle(ctx);
       expect(output.content, contains('no snapshot key'));
     });
+    test('configure declares --json defaulting to off', () {
+      final parser = ArgParser();
+      DuskSnapCommand().configure(parser);
+      expect(parser.options.keys, contains('json'));
+      expect(parser.options['json']!.defaultsTo, isFalse);
+    });
+
+    test('handle with --json prints the whole envelope', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'json': true}),
+        output: output,
+        response: const {
+          'snapshot': '- button "Save" [ref=e1]',
+          'grepLiteral': true,
+          'framesForced': true,
+        },
+      );
+
+      final exit = await DuskSnapCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      // The text mode prints only the tree, so these two fields never reach
+      // an agent unless the envelope is printed.
+      expect(output.content, contains('"grepLiteral":true'));
+      expect(output.content, contains('"framesForced":true'));
+      expect(output.content, contains('[ref=e1]'));
+    });
+
+    test('handle without --json prints the snapshot text only', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: output,
+        response: const {
+          'snapshot': '- button "Save" [ref=e1]',
+          'grepLiteral': true,
+        },
+      );
+
+      await DuskSnapCommand().handle(ctx);
+
+      expect(output.content, equals('- button "Save" [ref=e1]\n'));
+    });
+
     test('handle forwards the narrowing options to ext.dusk.snap', () async {
       // The three narrowing options are what make a snapshot answerable on a
       // large screen; a command that swallows one sends back the whole tree

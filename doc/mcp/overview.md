@@ -95,7 +95,7 @@ dispatch path. Dusk uses two:
   `VmServiceClient.callServiceExtension(method, args)` against the running Flutter app's VM
   Service. The handler runs inside the app isolate and returns a `ServiceExtensionResponse`.
   This is the standard pattern; every action / inspection tool uses it.
-- **`artisan:dusk:*` (3 tools).** Dispatched in-process by the MCP server via the artisan
+- **`artisan:dusk:*` (7 tools).** Dispatched in-process by the MCP server via the artisan
   registry, executing the matching CLI command (`dusk:hot_reload_and_snap`,
   `dusk:resize`, `dusk:device`). These three tools cannot run inside the app isolate:
   `dusk_hot_reload_and_snap` triggers `vm.reloadSources` against the very isolate that would

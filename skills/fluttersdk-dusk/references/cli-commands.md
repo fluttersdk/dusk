@@ -57,10 +57,13 @@ know which verbs happen to emit JSON.
 
 Without it, stdout shape depends on the command:
 
-- **JSON payload** on read / query verbs: `dusk:snap`, `dusk:observe`,
-  `dusk:find`, `dusk:get_routes`, `dusk:console`, `dusk:exceptions`,
+- **JSON payload** on read / query verbs: `dusk:observe`, `dusk:find`,
+  `dusk:get_routes`, `dusk:console`, `dusk:exceptions`,
   `dusk:hot_reload_and_snap`. These mirror the MCP response shape and are
   safe to pipe through `jq`.
+- **The tree as text** for `dusk:snap`. `dusk:snap --json` prints the whole
+  envelope instead, which is the only way to read `grepLiteral`, `warnings`,
+  `framesForced` and `renderErrors` from Bash.
 - **One-line human summary** on the side-effect verbs and on `dusk:wait` /
   `dusk:wait_for_network_idle`. The summary is not lossy by accident: where
   the envelope carries a verdict, the line names it (`✓ Tapped e7 (no
@@ -69,8 +72,32 @@ Without it, stdout shape depends on the command:
   prints `Wrote N bytes (K KB, format) to <path>`).
 - **Categorised report** for `dusk:install` and `dusk:doctor`.
 
+The one-line summaries name a no-op instead of ticking it (`--json` and
+`--includeSnapshot` print the raw envelope and are unchanged):
+
+| Command | Line or exit |
+|---|---|
+| `dusk:fill`, `dusk:type` | `effect.verified == false` prints an error naming the value the field holds and exits `1` |
+| `dusk:navigate` | `navigated == false` prints `No navigation: ...` |
+| `dusk:navigate_back` | `popped == false` prints `Nothing to pop` |
+| `dusk:scroll` | `effect.changed == false` prints `nothing moved` |
+| `dusk:tap` | a tap point outside the control's own area prints one stderr warning (`tapPointOutsideOwner`) |
+| `dusk:fill`, `dusk:type` | when the field written was the `nearest` one (the ref overlapped no field) a warning names it |
+| `dusk:hot_reload_and_snap` | exits `1` when `reloaded` is false (the JSON is still on stdout) |
+
 stderr carries error messages, including the actionability reason
-substring on gate failures, and the frame-production banner.
+substring on gate failures, and the frame-production banner. The banner
+now appears only when dusk could not force frames, and names the real
+cause per platform (web: hidden tab and `Page.bringToFront`; desktop:
+window hidden, minimised or occluded, or display asleep).
+
+On web with a `cdpPort` in the session, `snap`, `observe`, `tap`, `fill`,
+`type`, `navigate`, `scroll` and `press_key` send CDP `Page.bringToFront`
+once when the answer carries a web `warnings` block (or the call fails and the
+tab reports `hidden`). `snap` and `observe` are then called again; a verb that
+acts is not repeated, since its gesture may already have fired, and a stderr
+notice tells you to run `dusk:snap`. A CDP failure leaves the first result and
+exit code.
 
 **Exit code: 0 on success, 1 on any failure, and `dusk:wait` counts a
 condition that never matched as a failure.** It used to print
@@ -80,7 +107,8 @@ exists to catch. If a shell loop of yours worked around that, drop the
 workaround.
 
 ```bash
-./bin/fsa dusk:snap | jq -r '.snapshot' > snap.yaml
+./bin/fsa dusk:snap > snap.yaml
+./bin/fsa dusk:snap --json | jq '.grepLiteral'
 ./bin/fsa dusk:observe --roles=button --limit=10 | jq '.candidates[].label'
 ./bin/fsa dusk:tap --ref=e7 --json | jq '.effect.changed'
 ./bin/fsa dusk:wait --text="Saved" || echo "never appeared"
@@ -103,7 +131,9 @@ workaround.
 ```
 
 `dusk:screenshot` requires `-o <path>` (the CLI writes the decoded
-bytes to disk; the JSON `base64` is reserved for the MCP path).
+bytes to disk; the JSON `base64` is reserved for the MCP path). The format
+follows the extension (`.png`, `.jpg`, `.jpeg`) when `--format` is not
+given; an explicit `--format` wins and a mismatch warns on stderr.
 
 ### Find
 
@@ -122,6 +152,7 @@ Returns `{ "ref": "q3", "matched": true }` or `{ "ref": null, "matched": false }
 ```bash
 ./bin/fsa dusk:tap --ref=e7
 ./bin/fsa dusk:tap --ref=q3 --no-checkStable                  # for animated targets
+./bin/fsa dusk:tap --ref=e7 --snapshot=diff                   # print only the lines the tap changed
 ./bin/fsa dusk:dblclick --ref=e12
 ./bin/fsa dusk:right_click --ref=e8
 ./bin/fsa dusk:triple_click --ref=e15
@@ -136,6 +167,7 @@ Returns `{ "ref": "q3", "matched": true }` or `{ "ref": null, "matched": false }
 ./bin/fsa dusk:clear --ref=e4
 ./bin/fsa dusk:press_key --key=Enter
 ./bin/fsa dusk:press_key --key=G                     # one letter or digit: a shortcut key
+./bin/fsa dusk:press_key --key=S --modifiers=control # held before the key, released after it
 ./bin/fsa dusk:focus --ref=e4
 ./bin/fsa dusk:blur
 
@@ -150,7 +182,17 @@ text. `--ref` and `--text` are both mandatory. `--includeSnapshot` defaults
 to false on the CLI while the `dusk_fill` MCP tool defaults it to true;
 pass it explicitly when you want the post-fill tree from Bash.
 `--no-checkStable` and `--no-checkReceivesEvents` skip the matching
-actionability steps, same as on the other gestures.
+actionability steps, same as on the other gestures. `--snapshot=full|diff|none`
+(also on `tap`, `type`, `navigate` and `scroll`) prints the post-action
+snapshot after the summary and overrides `--includeSnapshot`; `diff` prints
+only the changed lines since your last unfiltered snapshot.
+
+A `fill`, `type` or `clear` on a ref that is a button, checkbox, radio,
+switch, slider or link is refused (`ref eN is a <role>, not a text field`)
+instead of writing the nearest field. `effect.target` says which field was
+written; label and static-text refs still use the nearest one, with a warning.
+`--modifiers` takes a comma list: `control` (or `ctrl`), `shift`, `alt`,
+`meta`.
 
 ### Form controls
 
@@ -209,13 +251,30 @@ speculatively between flows; reach for it when the overlay is not a
 ./bin/fsa dusk:exceptions --limit=5
 ```
 
-Empty arrays when telescope is not wired.
+Empty arrays when telescope is not set up.
 
 ### App control
 
 ```bash
 ./bin/fsa dusk:close_app
 ```
+
+### Batch
+
+```bash
+./bin/fsa dusk:run "tap --ref=q3" "fill --ref=q1 --text=\"a b\"" "snap --grep Total"
+./bin/fsa dusk:run --continue "press_key --key=Escape" "snap"
+```
+
+Runs several verbs in one process and one VM connection. Each step is a verb
+line (a bare verb gets `dusk:`), tokenised like a shell and parsed by that
+verb's own options. Output is one `[1/3] tap --ref=q3 ok: <first line>` per
+step, then the last step's output. It stops at the first failing step with
+`step N failed (exit C): <step>` and that exit code; `--continue` runs them
+all and exits with the first non-zero code. Nested `dusk:run`, unknown verbs
+and verbs that are not connected (`dusk:resize`, `dusk:device`, `dusk:install`,
+`dusk:doctor`) fail as that step. Use `--text`, `--key` or `q<N>` handles
+between steps, because `e<N>` refs belong to one snapshot.
 
 ### Composite
 
@@ -262,7 +321,8 @@ rm -f .artisan/build.stamp                                      # rebuild a disp
 ```
 
 Check `refused` in `dusk:perf_end`'s output first: a session the engine did
-not render through (a backgrounded tab, usually) returns no metrics rather
+not render through (a backgrounded browser tab on web, a hidden window on
+desktop; the perf verbs do not force frames) returns no metrics rather
 than a report reading all zeros as "fast". `dusk:perf_run` repeats a
 scenario from a clean start and writes medians to a file; `dusk:perf_compare`
 gates on counts per painted frame, never on raw counts, and exits 1 on an
@@ -322,10 +382,14 @@ set -e
 ./bin/fsa dusk:tap --ref=e7 >result.json 2>error.txt
 
 # Snap as YAML to disk for diffing
-./bin/fsa dusk:snap | jq -r '.snapshot' > /tmp/snap-before.yaml
+./bin/fsa dusk:snap > /tmp/snap-before.yaml
 ./bin/fsa dusk:tap --ref=e7
-./bin/fsa dusk:snap | jq -r '.snapshot' > /tmp/snap-after.yaml
+./bin/fsa dusk:snap > /tmp/snap-after.yaml
 diff /tmp/snap-before.yaml /tmp/snap-after.yaml
+
+# Or let dusk diff for you: only the lines the tap changed since the last snap
+./bin/fsa dusk:snap > /dev/null
+./bin/fsa dusk:tap --ref=e7 --snapshot=diff
 ```
 
 ## MCP-only: there is no CLI for evaluate

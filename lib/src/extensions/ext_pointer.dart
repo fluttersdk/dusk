@@ -1,20 +1,21 @@
 import 'dart:developer' as developer;
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../dusk_plugin.dart';
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
 import '../utils/dusk_exceptions.dart';
+import '../utils/dusk_register.dart';
 import '../utils/dusk_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import '../utils/perf_interaction.dart';
 import 'ext_find.dart';
-import 'ext_snapshot.dart' show duskSnapBuild;
+import 'ext_snapshot.dart' show snapshotForAction;
 import 'ext_wait_find.dart' show findByTextWaitLoop;
 import 'package:fluttersdk_artisan/artisan.dart';
 
@@ -22,7 +23,7 @@ import 'package:fluttersdk_artisan/artisan.dart';
 /// returning [defaultValue] when missing or empty.
 ///
 /// Used to thread Playwright-style opt-out flags
-/// (`checkStable`, `checkReceivesEvents`, `includeSnapshot`) through the
+/// (`checkStable`, `checkReceivesEvents`, `reportPoint`) through the
 /// VM Service param map (always `Map<String, String>`).
 bool _parseBoolFlag(
   Map<String, String> params,
@@ -93,26 +94,6 @@ int _semanticsSubtreeHash(SemanticsNode? node) {
   return hash;
 }
 
-/// Builds the post-action snapshot YAML and appends it under the
-/// `snapshot` key of [payload], unless [params] sets
-/// `includeSnapshot: 'false'`.
-///
-/// Mirrors Playwright MCP's `setIncludeSnapshot()` pattern: every mutating
-/// action returns the fresh accessibility tree alongside its primary
-/// confirmation so the agent can decide its next move without a second
-/// round-trip. Caller already awaited any necessary `endOfFrame` ticks so
-/// the snapshot reflects the post-action tree.
-Future<void> _appendSnapshotIfRequested(
-  Map<String, dynamic> payload,
-  Map<String, String> params,
-) async {
-  if (!_parseBoolFlag(params, 'includeSnapshot', defaultValue: true)) {
-    return;
-  }
-  final Map<String, dynamic> snap = await duskSnapBuild();
-  payload['snapshot'] = snap['snapshot'];
-}
-
 /// Resolves a ref string to a live [RefEntry].
 ///
 /// When [ref] begins with `q` it is treated as a Playwright-Locator-style
@@ -125,7 +106,10 @@ Future<void> _appendSnapshotIfRequested(
 ///
 /// When [ref] begins with `e` it is a snapshot-frame token: a direct
 /// [RefRegistry.lookup] returns the cached entry or `null` when the
-/// snapshot group has been disposed.
+/// snapshot group has been disposed. A cached entry whose element left the
+/// tree is relocated through its [RefBinding] (see [_relocateStaleRef]); when
+/// that is not safe the stale entry comes back unchanged, so the gate still
+/// reports `defunct (element no longer mounted)`.
 ///
 /// All other prefixes (or empty ref) return `null` so the caller surfaces
 /// the familiar "ref not found in registry" error.
@@ -149,7 +133,50 @@ RefEntry? resolveRefForAction(String ref) {
     }
     return entry;
   }
-  return RefRegistry.lookup(ref);
+  final RefEntry? entry = RefRegistry.lookup(ref);
+  if (entry == null || entry.element.mounted) return entry;
+  return _relocateStaleRef(ref, entry);
+}
+
+/// Re-finds the control a stale `e<N>` [ref] named and rebinds the token to
+/// it, or returns [stale] untouched when that cannot be done safely.
+///
+/// Relocation runs the ref's bound label-and-index query through the same
+/// resolver `q<N>` handles use, and is trusted only when the live tree has
+/// exactly as many nodes with that label as the minting snapshot saw. With
+/// a different count the index may name a different control, and tapping a
+/// sibling while reporting success is the failure this guard exists for.
+///
+/// The candidate must also sit on the route the ref was minted on: the count
+/// is taken over the whole tree, so after a navigation the next screen's only
+/// namesake would pass it.
+RefEntry _relocateStaleRef(String ref, RefEntry stale) {
+  // 1. Without a binding there is nothing to relocate by.
+  final RefBinding? binding = RefRegistry.lookupBinding(ref);
+  if (binding == null) return stale;
+
+  // 2. Re-walk the live tree under a semantics handle, as the q-branch does.
+  final SemanticsHandle handle = WidgetsBinding.instance.ensureSemantics();
+  final RefEntry? live;
+  final int count;
+  try {
+    (live, count, _) = resolveQueryWithCount(binding.query);
+  } finally {
+    handle.dispose();
+  }
+  if (live == null || count != binding.matchCount) return stale;
+
+  // 3. A collected or different route means the screen the ref named is gone.
+  final Route<dynamic>? candidate = ModalRoute.of(live.element);
+  final bool sameRoute = binding.route == null
+      ? candidate == null
+      : candidate != null && identical(binding.route!.target, candidate);
+  if (!sameRoute) return stale;
+
+  // 4. Same token, new control; the response names the ref it relocated.
+  RefRegistry.rebind(ref, live);
+  markRefReresolved(ref);
+  return RefRegistry.lookup(ref)!;
 }
 
 /// Number of intermediate Move events emitted during a drag gesture.
@@ -173,14 +200,6 @@ const int _kUntilPollIntervalMs = 100;
 /// gesture sequences avoids cache collisions from concurrent calls.
 const int _kSinglePointer = 1;
 
-/// Resolves a view ID from the platform dispatcher.
-///
-/// `PointerDownEvent` (and related events) require the view ID of the Flutter
-/// view they target. The implicit view is correct for single-window Flutter Web
-/// apps.
-int _viewId() =>
-    WidgetsBinding.instance.platformDispatcher.implicitView!.viewId;
-
 /// The logical-pixel point named by [params]' [xKey] and [yKey], or null
 /// when either is absent or not a number.
 Offset? _pointParam(Map<String, String> params, String xKey, String yKey) {
@@ -193,6 +212,75 @@ Map<String, dynamic> _pointJson(Offset point) => <String, dynamic>{
       'x': point.dx,
       'y': point.dy,
     };
+
+/// The global rects of the controls inside the merge boundary at [element], in
+/// logical pixels; empty when no descendant render object visibly carries a
+/// tap handler.
+///
+/// A `MergeSemantics` boundary folds everything beneath it into one node, and
+/// the framework keeps no [SemanticsNode] for the absorbed controls, so the
+/// semantics tree cannot say where they are. Their render objects can: a
+/// `Semantics(onTap:)` is a [RenderSemanticsAnnotations] and a
+/// `GestureDetector` is a [RenderSemanticsGestureHandler].
+List<Rect> _tapCarrierRects(Element element) {
+  final List<Rect> carriers = <Rect>[];
+
+  void visit(Element child) {
+    final RenderObject? render = child.renderObject;
+    final bool carriesTap = (render is RenderSemanticsAnnotations &&
+            render.properties.onTap != null) ||
+        (render is RenderSemanticsGestureHandler && render.onTap != null);
+    if (carriesTap &&
+        render is RenderBox &&
+        render.attached &&
+        render.hasSize) {
+      carriers.add(
+        MatrixUtils.transformRect(
+          render.getTransformTo(null),
+          Offset.zero & render.size,
+        ),
+      );
+    }
+    child.visitChildren(visit);
+  }
+
+  element.visitChildren(visit);
+  return carriers;
+}
+
+/// The `tapPointOutsideOwner` payload block for a tap dispatched at [point],
+/// or null when the point is inside the control's own area.
+///
+/// The tap lands at the live centre of the ref's element, and for a merged
+/// boundary that is the boundary's centre, which can be empty space beside the
+/// real control while the actionability gate still confirms it (#60). Null as
+/// well when [entry] is not a merge boundary (the node is the control and the
+/// point is its own centre) or when no tap-carrying descendant can be found
+/// (there is nothing to compare against). With several carriers the point is
+/// outside only when it is inside none of them, and `ownerRect` names the
+/// first.
+Map<String, dynamic>? _tapPointOutsideOwner(RefEntry entry, Offset point) {
+  final SemanticsNode? node = entry.node;
+  if (node == null || !node.attached || !node.mergeAllDescendantsIntoThisNode) {
+    return null;
+  }
+
+  final List<Rect> owners = _tapCarrierRects(entry.element);
+  if (owners.isEmpty || owners.any((Rect owner) => owner.contains(point))) {
+    return null;
+  }
+
+  final Rect owner = owners.first;
+  return <String, dynamic>{
+    'ownerRect': <String, dynamic>{
+      'left': owner.left,
+      'top': owner.top,
+      'width': owner.width,
+      'height': owner.height,
+    },
+    'point': _pointJson(point),
+  };
+}
 
 /// The interaction target a coordinate dispatch records, in place of a ref.
 String _pointTarget(Offset point) => '@${point.dx},${point.dy}';
@@ -252,9 +340,16 @@ EditableTextState? _findEditableTextState(Element element) {
 /// [pointerId] must be unique relative to any concurrent in-flight Down/Up
 /// sequence. Callers that issue sequential taps may reuse the same ID between
 /// sequences because the Up event closes the hit-test cache entry.
-Future<void> _injectTap(Offset center,
-    {int pointerId = _kSinglePointer}) async {
-  final viewId = _viewId();
+///
+/// [element] is the tap target; the events go into the view it belongs to,
+/// the same view the actionability gate measured. Null for a dispatch at raw
+/// coordinates.
+Future<void> _injectTap(
+  Offset center, {
+  Element? element,
+  int pointerId = _kSinglePointer,
+}) async {
+  final viewId = resolveViewFor(element).viewId;
   final ts = Duration.zero;
 
   // 1. Pointer down.
@@ -309,6 +404,10 @@ Future<void> _injectTap(Offset center,
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
 ///   embedding the post-action accessibility snapshot in the response.
 ///   Mirrors Playwright MCP's `setIncludeSnapshot()` opt-out.
+/// - `snapshot` (optional, `full` | `diff` | `none`): overrides
+///   `includeSnapshot`; `diff` embeds only the lines changed since the last
+///   snapshot, plus `snapshotMode: "diff"`. Every pointer verb here reads it
+///   through [snapshotForAction].
 ///
 /// Every response carries an `effect` block. A cheap TARGET-scoped signal
 /// (route + semantics-subtree hash) is captured before and after the tap;
@@ -429,11 +528,15 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   final String preSignal = _captureEffectSignal(entry);
   final Offset dispatchCenter =
       dispatchRectOf(entry)?.center ?? entry.rect.center;
+  // Read before the pointer goes in: a tap that navigates detaches the node.
+  final Map<String, dynamic>? outsideOwner =
+      _tapPointOutsideOwner(entry, dispatchCenter);
+  final Element element = entry.element;
   try {
     await runPerfInteraction<void>(
       'tap',
       ref,
-      () => _injectTap(dispatchCenter),
+      () => _injectTap(dispatchCenter, element: element),
     );
   } catch (e, st) {
     developer.log(
@@ -492,6 +595,7 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   // presence is the signal: a clean pass used to be indistinguishable from
   // a confirmed one.
   stampChecks(payload, gate);
+  if (outsideOwner != null) payload['tapPointOutsideOwner'] = outsideOwner;
   try {
     final String postSignal = _captureEffectSignal(entry);
     payload['effect'] = treeChangedEffect(before: preSignal, after: postSignal);
@@ -533,7 +637,7 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   //    under `snapshot`. Snapshot-build failures are post-dispatch noise
   //    and must NOT convert a successful tap into an error envelope.
   try {
-    await _appendSnapshotIfRequested(payload, params);
+    payload.addAll(await snapshotForAction(params));
   } catch (e) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.tap: post-dispatch snapshot build swallowed '
@@ -663,12 +767,13 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     //    detached / synthetic-test entry).
     final Offset hoverCenter =
         dispatchRectOf(entry)?.center ?? entry.rect.center;
+    final int viewId = resolveViewFor(entry.element).viewId;
     await runPerfInteraction<void>('hover', ref, () async {
       WidgetsBinding.instance.handlePointerEvent(
         PointerHoverEvent(
           pointer: _kSinglePointer,
           position: hoverCenter,
-          viewId: _viewId(),
+          viewId: viewId,
           timeStamp: Duration.zero,
           kind: PointerDeviceKind.mouse,
         ),
@@ -687,7 +792,7 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     }
     stampChecks(payload, gate);
     try {
-      await _appendSnapshotIfRequested(payload, params);
+      payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
         '[fluttersdk_dusk] ext.dusk.hover: post-dispatch snapshot build '
@@ -883,7 +988,7 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     final Offset end = endEntry == null
         ? start + offset
         : dispatchRectOf(endEntry)?.center ?? endEntry.rect.center;
-    await _injectDrag(start, end, startRef);
+    await _injectDrag(start, end, startRef, element: startEntry.element);
 
     // Embed post-action snapshot (opt-out via includeSnapshot:'false').
     final Map<String, dynamic> payload = <String, dynamic>{
@@ -901,7 +1006,7 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       stampChecks(payload, endGate);
     }
     try {
-      await _appendSnapshotIfRequested(payload, params);
+      payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
         '[fluttersdk_dusk] ext.dusk.drag: post-dispatch snapshot build '
@@ -929,10 +1034,18 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
 /// Carries pointer 2 from [start] to [end] in logical pixels as one
 /// interaction on [target], then waits two frames for drag-end callbacks and
 /// the rebuild.
-Future<void> _injectDrag(Offset start, Offset end, String target) async {
+///
+/// [element] is the drag source, as for [_injectTap]; null for raw
+/// coordinates.
+Future<void> _injectDrag(
+  Offset start,
+  Offset end,
+  String target, {
+  Element? element,
+}) async {
   // Drag uses pointer ID 2 to stay separate from single-touch events (ID 1).
   const int dragPointer = 2;
-  final viewId = _viewId();
+  final viewId = resolveViewFor(element).viewId;
 
   await runPerfInteraction<void>('drag', target, () async {
     // 1. Pointer down at the drag source.
@@ -1071,7 +1184,10 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     // 1. First tap at the LIVE center (D1): re-resolve via `dispatchRectOf`
     //    after the gate passed, falling back to the cached center when null.
     try {
-      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+      await _injectTap(
+        dispatchRectOf(target)?.center ?? target.rect.center,
+        element: target.element,
+      );
     } catch (e, st) {
       developer.log(
         '[fluttersdk_dusk] ext.dusk.dblclick: first _injectTap failed for ref '
@@ -1095,7 +1211,10 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     //    Re-resolve the live center again (D1): the first tap may itself have
     //    rebuilt the host into a shifted slot between the two clicks.
     try {
-      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+      await _injectTap(
+        dispatchRectOf(target)?.center ?? target.rect.center,
+        element: target.element,
+      );
     } catch (e, st) {
       developer.log(
         '[fluttersdk_dusk] ext.dusk.dblclick: second _injectTap failed for ref '
@@ -1119,7 +1238,7 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
   final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
   stampChecks(payload, gate);
   try {
-    await _appendSnapshotIfRequested(payload, params);
+    payload.addAll(await snapshotForAction(params));
   } catch (e) {
     developer.log(
       '[fluttersdk_dusk] ext.dusk.dblclick: post-dispatch snapshot build '
@@ -1145,13 +1264,12 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
 /// - `ext.dusk.drag` — Down+5×Move+Up from startRef to endRef.
 /// - `ext.dusk.dblclick` — two tap sequences (~100ms apart) at ref center.
 void registerPointerExtensions() {
-  registerExtensionIdempotent('ext.dusk.tap', aiTestTapHandler);
-  registerExtensionIdempotent('ext.dusk.hover', aiTestHoverHandler);
-  registerExtensionIdempotent('ext.dusk.drag', aiTestDragHandler);
-  registerExtensionIdempotent('ext.dusk.dblclick', aiTestDoubleClickHandler);
-  registerExtensionIdempotent('ext.dusk.right_click', aiTestRightClickHandler);
-  registerExtensionIdempotent(
-      'ext.dusk.triple_click', aiTestTripleClickHandler);
+  registerDuskExtension('ext.dusk.tap', aiTestTapHandler);
+  registerDuskExtension('ext.dusk.hover', aiTestHoverHandler);
+  registerDuskExtension('ext.dusk.drag', aiTestDragHandler);
+  registerDuskExtension('ext.dusk.dblclick', aiTestDoubleClickHandler);
+  registerDuskExtension('ext.dusk.right_click', aiTestRightClickHandler);
+  registerDuskExtension('ext.dusk.triple_click', aiTestTripleClickHandler);
 }
 
 /// Right-click (secondary mouse button) at the ref center. Playwright parity:
@@ -1213,7 +1331,7 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
         ),
       );
     }
-    final viewId = _viewId();
+    final viewId = resolveViewFor(entry.element).viewId;
     final ts = Duration.zero;
     // Dispatch at the LIVE center (D1): re-resolve via `dispatchRectOf` after
     // the gate passed, falling back to the cached center when null. Computed
@@ -1248,7 +1366,7 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
       'button': 'right',
     };
     stampChecks(payload, gate);
-    await _appendSnapshotIfRequested(payload, params);
+    payload.addAll(await snapshotForAction(params));
     return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(
@@ -1327,11 +1445,15 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
     // when null. A preceding tap may rebuild the host into a shifted slot.
     final RefEntry target = entry;
     await runPerfInteraction<void>('triple_click', ref, () async {
-      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-      await _injectTap(dispatchRectOf(target)?.center ?? target.rect.center);
+      for (int click = 0; click < 3; click++) {
+        if (click > 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+        await _injectTap(
+          dispatchRectOf(target)?.center ?? target.rect.center,
+          element: target.element,
+        );
+      }
     });
     await awaitFrameOrTimeout();
     final Map<String, dynamic> payload = <String, dynamic>{
@@ -1339,7 +1461,7 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
       'clickCount': 3,
     };
     stampChecks(payload, gate);
-    await _appendSnapshotIfRequested(payload, params);
+    payload.addAll(await snapshotForAction(params));
     return duskResult(payload);
   } catch (e, stackTrace) {
     developer.log(

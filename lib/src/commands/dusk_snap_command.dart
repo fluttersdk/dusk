@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:fluttersdk_artisan/artisan.dart';
 
 import 'frame_warning_output.dart';
+import 'json_output.dart';
+import 'web_visibility.dart';
 
 /// `artisan dusk:snap` — captures Semantics tree YAML from the running app.
 class DuskSnapCommand extends ArtisanCommand {
@@ -18,6 +20,7 @@ class DuskSnapCommand extends ArtisanCommand {
 
   @override
   void configure(ArgParser parser) {
+    addJsonFlag(parser);
     parser.addOption('depth', help: 'Optional max tree depth.');
     parser.addFlag(
       'includeEnrichers',
@@ -58,9 +61,11 @@ class DuskSnapCommand extends ArtisanCommand {
     if (interactiveOnly) params['interactiveOnly'] = 'true';
     final grep = ctx.input.option('grep') as String?;
     if (grep != null && grep.isNotEmpty) params['grep'] = grep;
-    final result = await ctx.callExtension<Map<String, dynamic>>(
+    final result = await callExtensionVisible(
+      ctx,
       'ext.dusk.snap',
       params,
+      retry: true,
     );
     reportFrameWarning(ctx, result);
     // Surface captured render/build FlutterErrors so a silently-broken widget
@@ -81,8 +86,12 @@ class DuskSnapCommand extends ArtisanCommand {
       }
     }
 
-    final snapshot = result['snapshot'] as String? ?? jsonEncode(result);
-    ctx.output.writeln(snapshot);
+    // The tree alone drops `grepLiteral` and `framesForced`; `--json` is the
+    // way to read them.
+    emitEnvelope(ctx, result, () {
+      final snapshot = result['snapshot'] as String? ?? jsonEncode(result);
+      ctx.output.writeln(snapshot);
+    });
     return 0;
   }
 }
