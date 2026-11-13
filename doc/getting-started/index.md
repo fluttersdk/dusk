@@ -9,18 +9,18 @@ snapshot, and drive real user gestures from an AI agent or CLI session.
 - [When to use it](#when-to-use-it)
 - [Requirements](#requirements)
 - [High-level workflow](#high-level-workflow)
-- [Next steps](#next-steps)
+- [Related Documentation](#related-documentation)
 
 <a name="pick-your-path"></a>
 ## Pick your path
 
-- [**Installation**](installation): Wire TapirPlugin into a Flutter app and connect
+- [**Installation**](installation.md): Wire TapirPlugin into a Flutter app and connect
   the MCP tools to your AI client.
-- [**Quickstart**](quickstart): 3-step walkthrough from zero to driving the example
+- [**Quickstart**](quickstart.md): 3-step walkthrough from zero to driving the example
   app with snap, tap, and screenshot.
-- [**MCP setup**](../mcp/setup): Register the tapir MCP tools in Claude Code, Cursor,
+- [**MCP setup**](../mcp/setup.md): Register the tapir MCP tools in Claude Code, Cursor,
   Windsurf, or any MCP-compliant client.
-- [**Driving real apps: gotchas for agents**](driving-real-apps-gotchas): the
+- [**Driving real apps: gotchas for agents**](driving-real-apps-gotchas.md): the
   recurring traps in real-app E2E sessions (stale refs, nested text fields,
   cumulative exceptions, stuck overlays) and the workaround each one has built in.
 
@@ -30,7 +30,7 @@ snapshot, and drive real user gestures from an AI agent or CLI session.
 `tapir` is a Flutter E2E driver that gives an AI agent (or a CLI session)
 eyes and hands over a running Flutter app. It works by registering a set of VM
 Service extensions under the `ext.tapir.*` namespace during debug builds, then
-exposing those extensions as 33 MCP tools and 34 CLI commands. The agent snaps a
+exposing those extensions as MCP tools and CLI commands. The agent snaps a
 Semantics YAML to identify widget references, then drives gestures, text input,
 scrolling, and navigation against those references without any test instrumentation
 in the production widget tree.
@@ -51,7 +51,7 @@ exploratory agent-driven automation, where the agent needs to navigate an unfami
 UI, read its current state, and take adaptive actions.
 
 `tapir` solves this by exporting the Semantics tree as a YAML snapshot
-with stable `e<N>` (snapshot-frozen) and re-resolvable `q<N>` (find-minted) ref
+with stable `e<N>` (snapshot-frozen) and re-resolvable `q<N>` (minted by `tapir:find` or `tapir:observe`) ref
 tokens. The agent reads the snapshot, locates the target element by semantic role or
 label, and passes the ref token to an action extension. No test harness setup, no
 build step, no `flutter drive` orchestration needed.
@@ -66,7 +66,7 @@ build step, no `flutter drive` orchestration needed.
   writing widget tests, useful for ad-hoc QA against a staging build.
 - **Screenshot pipelines**: capture consistent screenshots of specific app states for
   documentation, design review, or visual regression baselines.
-- **CI smoke checks**: run a small set of dowel commands in CI to confirm critical
+- **CI smoke checks**: run a small set of tapir commands in CI to confirm critical
   paths render without crash, complementing (not replacing) widget unit tests.
 
 <a name="requirements"></a>
@@ -76,10 +76,10 @@ build step, no `flutter drive` orchestration needed.
 |:-----------|:----------------|:------|
 | Dart       | `>= 3.4.0`      | Records, sealed classes, class modifiers. |
 | Flutter    | `>= 3.22.0`     | `RepaintBoundary` render-tree walk and Semantics APIs used internally. |
-| dowel | `^0.0.20` | Provides the MCP server, CLI framework, and `registerExtensionIdempotent`. |
+| dowel | `^0.0.21` | Provides the MCP server, CLI framework, and `registerExtensionIdempotent`. |
 
 `tapir` requires Flutter. It cannot run on a pure-Dart environment because
-it synthesizes pointer events against a live widget tree and walks the Semantics tree
+it synthesises pointer events against a live widget tree and walks the Semantics tree
 at runtime. The `dowel` CLI is the recommended host for the MCP server
 and all tapir CLI commands; install it before adding `tapir`.
 
@@ -92,7 +92,7 @@ The typical agent session follows three phases:
 1. Capture snapshot   --  tapir_snap / tapir:snap
    Walks the Semantics tree and emits a YAML file with every
    visible widget, its ref token, role, label, bounds, and
-   any enricher-contributed metadata (className, MagicRoute, ...).
+   any enricher-contributed metadata (a `wind:` block, `magicRoute`, ...).
 
 2. Identify a ref     --  read the YAML / tapir_find
    The agent scans the snapshot for the target widget by label
@@ -101,8 +101,8 @@ The typical agent session follows three phases:
 
 3. Drive an action    --  tapir_tap / tapir_type / tapir_scroll / ...
    The agent passes the ref token to an action tool. The extension
-   looks up the live element, checks the actionability gate
-   (enabled, non-zero-rect, on-viewport), synthesizes the event,
+   looks up the live element, checks the actionability gate,
+   synthesises the event,
    and returns the result or a structured error.
 ```
 
@@ -110,8 +110,10 @@ After an action the agent re-snaps to observe the updated UI and continues the l
 Screenshot requests can be inserted at any point to capture a PNG of the current
 viewport.
 
-<a name="next-steps"></a>
-## Next steps
+<a name="related-documentation"></a>
+## Related Documentation
 
-- New here? Start with [Installation](installation).
-- Already installed? Run the [Quickstart](quickstart).
+- [Installation](installation.md): new here? Start with adding the package and wiring `TapirPlugin.install()`.
+- [Quickstart](quickstart.md): already installed? Run a first snap, tap and screenshot.
+- [Commands](../commands/index.md): every `tapir:*` command grouped by intent.
+- [Reference: Actionability gate](../reference/actionability-gate.md): how tapir decides whether a widget is safe to act on.

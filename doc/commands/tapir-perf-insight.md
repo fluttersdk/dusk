@@ -1,6 +1,8 @@
 # tapir:perf_insight
 
-Drill into one insight of the report `tapir:perf_end` last produced: its title, a summary in prose, the raw rows behind it, the estimated savings and the next step. The report stays small because these rows live here; ask for the one insight you are acting on.
+Drill into one insight of the report `tapir:perf_end` last produced: its title, a summary in prose, the raw rows behind it, the estimated savings and the next step.
+
+The report stays small because these rows live here; ask for the one insight you are acting on.
 
 - [Synopsis](#synopsis)
 - [Returns](#returns)

@@ -1,6 +1,8 @@
 # The semantics hold
 
-`TapirPlugin.install()` takes a semantics handle for the whole process, because every snapshot, `q<N>` handle and actionability check reads the semantics tree. The cost is that every frame of a tapir-driven app also builds that tree, which an app without tapir (and without a screen reader) does not. `ext.tapir.semantics_hold` lets `tapir:perf_run --semantics-pass` measure the app without it, for one timed window.
+`ext.tapir.semantics_hold` releases tapir's semantics handle for one timed window, so `tapir:perf_run --semantics-pass` can measure the app without the semantics tree.
+
+`TapirPlugin.install()` takes a semantics handle for the whole process, because every snapshot, `q<N>` handle and actionability check reads the semantics tree. The cost is that every frame of a tapir-driven app also builds that tree, which an app without tapir (and without a screen reader) does not.
 
 - [ext.tapir.semantics_hold](#exttapirsemantics_hold)
 - [Driving while the tree is released](#driving-while-the-tree-is-released)
@@ -10,7 +12,7 @@
 ## ext.tapir.semantics_hold
 
 | Param | Meaning |
-|---|---|
+|:---|:---|
 | `action=release` | Drops tapir's handle. Refused unless a perf session is open, so the tree can only go away inside a timed window. |
 | `action=acquire` | Takes the handle again, then awaits one frame (bounded, 200 ms) so the tree exists again when it answers. |
 
@@ -31,7 +33,7 @@ The caller owns the pairing: acquire after `perf_end`, so the acquire's full tre
 Anything that resolves a target reads the tree, so while it is released nothing may: `ext.tapir.find`, a `q<N>` action and a snapshot would all see no nodes, and a transient handle taken to look would rebuild the tree inside the window being measured. Resolve first, with the tree on, then dispatch by coordinates:
 
 | Extension | Records the point (tree on) | Dispatches by coordinates |
-|---|---|---|
+|:---|:---|:---|
 | `ext.tapir.tap` | `reportPoint: true` adds `point: {x, y}` | `{x, y}` with no `ref` |
 | `ext.tapir.drag` | `reportPoint: true` adds `from` and `to`; `startRef` plus `dx`/`dy` drags by an offset | `{x, y, toX, toY}` with no ref |
 | `ext.tapir.hover` | `reportPoint: true` adds `point` | (a wheel then goes through CDP) |
@@ -49,5 +51,5 @@ A coordinate dispatch has no element, so none of the actionability gate's checks
 <a name="related-documentation"></a>
 ## Related Documentation
 
-- [tapir:perf_run](../commands/tapir-perf-run.md#the-semantics-pass), which drives the pass.
-- [The actionability gate](actionability-gate.md).
+- [tapir:perf_run](../commands/tapir-perf-run.md#the-semantics-pass): the command that drives the pass.
+- [Actionability gate](actionability-gate.md): the checks a coordinate dispatch skips.

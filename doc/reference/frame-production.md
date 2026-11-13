@@ -1,6 +1,8 @@
 # Frame production
 
-Every tapir read and every tapir action depends on the app producing frames. When it stops, both go wrong at once and neither looks like a tooling problem. This page describes when that happens, what tapir does about it, and the fallback when it cannot.
+Every tapir read and action depends on the app producing frames, and this page covers when that stops, what tapir does about it, and the fallback.
+
+When frame production stops, reads and actions go wrong at once, and neither looks like a tooling problem.
 
 - [When frame production stops](#when-frame-production-stops)
 - [What breaks, and why it reads as a product defect](#what-breaks-and-why-it-reads-as-a-product-defect)
@@ -11,10 +13,10 @@ Every tapir read and every tapir action depends on the app producing frames. Whe
 <a name="when-frame-production-stops"></a>
 ## When frame production stops
 
-Flutter turns frame production off for three lifecycle states:
+Flutter turns frame production off for some lifecycle states:
 
 | `AppLifecycleState` | Frames |
-|---|---|
+|:---|:---|
 | `resumed`, `inactive` | on |
 | `hidden`, `paused`, `detached` | off |
 
@@ -89,7 +91,7 @@ When tapir could not force frames (the opt-out above, a `detached` lifecycle, or
 ```
 
 | Field | Type | Description |
-|-------|------|-------------|
+|:------|:-----|:------------|
 | `framesEnabled` | bool | Always `false` when the block is present. |
 | `lifecycleState` | string \| null | The `AppLifecycleState` behind it (`hidden`, `paused`, `detached`), or null before the first lifecycle message. |
 | `platform` | string | `web`, or the `TargetPlatform` name (`macOS`, `windows`, `linux`, `iOS`, ...). |
@@ -131,5 +133,6 @@ Two blank-screen causes look identical and are not, so read the console entry co
 <a name="related-documentation"></a>
 ## Related Documentation
 
-- [Actionability gate](actionability-gate.md): the six preconditions each gesture passes before dispatch.
-- [Driving real apps: gotchas for agents](../getting-started/driving-real-apps-gotchas.md)
+- [Actionability gate](actionability-gate.md): the preconditions each gesture passes before dispatch.
+- [Driving real apps: gotchas for agents](../getting-started/driving-real-apps-gotchas.md): the other blank-screen and stale-result traps.
+- [Tool reference](../mcp/tool-reference.md): the `framesForced` and `warnings` response fields on every verb.

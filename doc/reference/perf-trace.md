@@ -1,6 +1,10 @@
 # Interactions and the perf trace
 
-Inside a perf session, every gesture tapir dispatches opens an **interaction**: a handle that says which verb caused the work that follows. `ext.tapir.perf_trace` exports the closed session's interactions, frames and the host's timeline rows as Chrome Trace Event JSON, which opens as is in [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing`.
+Inside a perf session every gesture tapir dispatches opens an interaction, and `ext.tapir.perf_trace` exports them with the session's frames as Chrome Trace Event JSON.
+
+An **interaction** is a handle that says which verb caused the work that follows. The export
+carries the closed session's interactions, frames and the host's timeline rows, and opens as is
+in [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing`.
 
 - [Interactions](#interactions)
 - [Reaching an interaction from app code](#reaching-an-interaction-from-app-code)
@@ -16,7 +20,7 @@ The verbs that dispatch into the app open one: `tap`, `dblclick`, `triple_click`
 A `PerfInteraction` carries:
 
 | Field | Meaning |
-|---|---|
+|:---|:---|
 | `id` | `i<N>`, unique for the isolate's lifetime. |
 | `verb` | The `ext.tapir.*` verb without its prefix. |
 | `target` | The ref, route or key the verb acted on; `null` for `blur`, `navigate_back`, `dismiss_modals`, `reset_overlays`. |
@@ -54,7 +58,7 @@ final PerfInteraction? interaction =
 ## ext.tapir.perf_trace
 
 | Param | Meaning |
-|---|---|
+|:---|:---|
 | `token` | Optional. The session's `sessionToken`; when given it must name the most recent closed session, the only one kept. |
 
 ```json
@@ -79,9 +83,9 @@ final PerfInteraction? interaction =
 ```
 
 - **Interactions** are `X` slices on the `interactions` track, from `startUs` to `closedAtUs`; one still open when the session closed ends at the session's end.
-- **Frames** are `X` slices on the `frames` track, placed at `vsyncStartUs` for `totalSpanMicros`. A frame record without `vsyncStartUs` cannot be placed and is left out; one placed outside the session window (drawn before `perf_begin`, or the idle flush frame after it) is left out and counted in `otherData.framesOutsideWindow`. The window is cut by the rule `perf_end` uses, so the two artifacts agree on the frames: when frames carry a timestamp and none lands in the window, the engine's vsync clock and the session's clock disagree, every frame is kept where its own clock puts it (so it may sit apart from the interactions and rows), `framesOutsideWindow` reads 0 and `otherData.sessionClockMismatch` is `true`, as `perf_end`'s `coverage.sessionClockMismatch` is.
+- **Frames** are `X` slices on the `frames` track, placed at `vsyncStartUs` for `totalSpanMicros`. A frame record without `vsyncStartUs` cannot be placed and is left out; one placed outside the session window (drawn before `perf_begin`, or the idle flush frame after it) is left out and counted in `otherData.framesOutsideWindow`. The window is cut by the rule `perf_end` uses, so the two artefacts agree on the frames: when frames carry a timestamp and none lands in the window, the engine's vsync clock and the session's clock disagree, every frame is kept where its own clock puts it (so it may sit apart from the interactions and rows), `framesOutsideWindow` reads 0 and `otherData.sessionClockMismatch` is `true`, as `perf_end`'s `coverage.sessionClockMismatch` is.
 - **Host spans with an `id`** become async `b`/`e` pairs keyed by that id, with `cat` set to the track: the shape for work that overlaps other work on its track, such as two requests in flight. Spans without an id become `X` slices, instants `i` events, counters `C` events.
-- `X` slices must nest on their track for Perfetto to draw them. Two can straddle in ordinary use (a tap before the last one settled, a frame whose build starts while the previous one rasterizes), so a slice that would straddle another moves to an overflow lane, `interactions (2)`, rather than being trimmed. Durations stay true.
+- `X` slices must nest on their track for Perfetto to draw them. Two can straddle in ordinary use (a tap before the last one settled, a frame whose build starts while the previous one rasterises), so a slice that would straddle another moves to an overflow lane, `interactions (2)`, rather than being trimmed. Durations stay true.
 - Only what STARTED inside the session window is exported; the window runs from `perf_begin` to `perf_end`.
 
 The frames and the host rows are read when you call `perf_trace`, not when the session closed. Export before the next `perf_begin`, whose host hook clears those buffers: while a session is open `perf_trace` answers an error rather than a trace that silently lost its frames. It also answers an error before any session closed, for a token that is not the one held, and when a host reader throws.

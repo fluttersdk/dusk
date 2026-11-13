@@ -1,6 +1,8 @@
 # tapir:snap
 
-Capture the Semantics tree of the running Flutter app as YAML, tagging every interactive node with a `[ref=eN]` token. `tapir:snap` is the foundational read command: every action command (`tapir:tap`, `tapir:type`, `tapir:drag`, etc.) consumes one of its `eN` refs to locate the target widget.
+Capture the Semantics tree of the running Flutter app as YAML, tagging every interactive node with a `[ref=eN]` token.
+
+`tapir:snap` is the foundational read command: every action command (`tapir:tap`, `tapir:type`, `tapir:drag`, etc.) consumes one of its `eN` refs to locate the target widget.
 
 The `eN` namespace is snapshot-frozen: every fresh `tapir:snap` clears the registry and mints new tokens. For long-lived handles that survive rebuilds, use `tapir:find` (which mints `qN` tokens) or `tapir:observe`.
 
@@ -30,7 +32,7 @@ dart run tapir tapir:snap [--depth=<n>]
                                    [--json]
 ```
 
-`tapir:snap` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI recorded in `~/.dowel/state.json`, calls `ext.tapir.snap`, and prints the snapshot YAML to stdout.
+`tapir:snap` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI recorded for this project's dowel session, calls `ext.tapir.snap`, and prints the snapshot YAML to stdout.
 
 ---
 
@@ -44,7 +46,6 @@ dart run tapir tapir:snap [--depth=<n>]
 | `--within` | string (`e<N>`) | unset (whole tree) | Scope the walk to one subtree. Takes an `e<N>` ref from a prior snapshot; `q<N>` query handles are not addressable here, since they re-resolve per action and have no fixed subtree. An unknown or node-less ref is an error rather than a silent widening. |
 | `--interactiveOnly` | flag | `false` | Emit only nodes that carry a ref (buttons, text fields, links, headers, anything with a tap action) and drop the plain `- text` lines. |
 | `--grep` | string (regex) | unset | Emit only nodes whose label or value matches, plus the ancestors that lead to them. Ancestors survive because they carry the refs you act on: a matching `- text` line has none of its own. A pattern that is not a valid regex (a label such as `Container Sample (MP4, H.264` is an unterminated group) is matched as a literal substring instead, and the envelope carries `"grepLiteral": true`. |
-
 | `--json` | flag | `false` | Print the whole envelope as JSON instead of the tree alone, so `grepLiteral`, `warnings`, `framesForced` and `renderErrors` are readable. Text mode is unchanged. |
 
 Every flag is serialised as a string into the VM Service params map; the command does no key translation. `tapir:snap` has no `--snapshot` option: it is the snapshot. The `--snapshot=full|diff|none` option belongs to the action verbs ([tapir:tap](tapir-tap.md), `tapir:fill`, `tapir:type`, `tapir:navigate`, `tapir:scroll`).
@@ -81,19 +82,19 @@ The VM Service handler returns a JSON envelope `{ "snapshot": "<yaml>", "groupId
 **Success envelope (illustrative):**
 
 ```yaml
-[ref=e1] role=button label="Sign in" rect=(120,400,120,48) actions=[tap]
-[ref=e2] role=textbox label="Email" rect=(20,200,335,56) actions=[tap, focus, type]
+- text "Welcome back"
+- textbox "Email" [ref=e1]
   typeable: true
-[ref=e3] role=text label="Welcome back" rect=(20,80,335,32)
+- button "Sign in" [ref=e2]
 ```
 
-The `typeable: true` sub-line marks the single surviving `textbox` node after the nested-field collapse described above; it is the node `tapir:type` resolves.
+Each line is `- <role> "<label>"`, with `: "<value>"` after the label when the node has a value and the `[ref=eN]` token on interactive nodes; plain text nodes print as `- text "..."` and carry no ref. Children are indented two spaces under their parent. The `typeable: true` sub-line marks the single surviving `textbox` node after the nested-field collapse described above; it is the node `tapir:type` resolves.
 
 A ref line may end with ` [offscreen]` and/or ` [occluded]` after `[ref=eN]`:
 
 ```yaml
-[ref=e9] role=button label="Archive" rect=(20,1400,335,48) actions=[tap] [offscreen]
-[ref=e4] role=button label="Save" rect=(20,600,335,48) actions=[tap] [occluded]
+- button "Archive" [ref=e9] [offscreen]
+- button "Save" [ref=e4] [occluded]
 ```
 
 `[offscreen]` means the widget lies outside the viewport (scroll it into view with `tapir:scroll --intoView`). `[occluded]` means a hit test at its centre reaches a widget painted above it, such as a dialog or an overlay (dismiss that first). A healthy screen prints neither, so the output is unchanged. An offscreen node is never probed for occlusion, and a node with no area carries neither marker.
@@ -172,8 +173,8 @@ The VM Service handler propagates errors as `ServiceExtensionResponse.error(exte
 
 When `--includeEnrichers` is true, every `TapirSnapshotEnricher` appended to the `TapirPlugin.enrichers` live list contributes indented lines under each ref. The two first-party enrichers:
 
-- **MagicTapirIntegration** ships seven enrichers covering forms, routes, controllers, models, http, cache, and the policy gate.
-- **Wind alpha-10** surfaces a six-field `wind:` block (breakpoint, brightness, platform, states, bgColor, textColor) through the neutral `wind_kit_diagnostics_contracts.WindDebugRegistry` bridge rather than via an enricher, so the data appears under each W-prefixed widget ref without any enricher registration.
+- **MagicTapirIntegration** ships the Magic enrichers (see [Plugins: Magic integration](../plugins/magic-integration.md) for the fields).
+- **`wind_kit`** surfaces a six-field `wind:` block (breakpoint, brightness, platform, states, bgColor, textColor) through the neutral `wind_kit_diagnostics_contracts.WindDebugRegistry` bridge rather than via an enricher, once the app calls `Wind.installDebugResolver()`, so the data appears under each W-prefixed widget ref without any enricher registration.
 
 Each enricher is synchronous and stateless; the `Element` reference is never retained across calls.
 
@@ -182,7 +183,7 @@ Each enricher is synchronous and stateless; the `Element` reference is never ret
 The `overflow: true` sub-line is emitted by the snapshot dispatcher itself (not via an enricher) when the resolved `RenderObject.toStringShort()` contains the Flutter debug suffix ` OVERFLOWING`. It appears for any interactive node whose nearest render ancestor is currently violating its constraints, regardless of whether enrichers are enabled. Example output:
 
 ```yaml
-[ref=e5] role=button label="Submit" rect=(0,0,320,48) actions=[tap]
+- button "Submit" [ref=e5]
   overflow: true
 ```
 
@@ -191,7 +192,7 @@ The `overflow: true` sub-line is emitted by the snapshot dispatcher itself (not 
 A text field commonly produces two nested `textbox` Semantics nodes: an outer wrapper (e.g. a wind `WInput`'s `Semantics(textField:true)`) and the `RenderEditable` leaf, which always owns its own `textField` node and which `MergeSemantics` cannot absorb. Both nodes used to mint a ref; typing on the inner leaf threw `-32000`. The snapshot walk now suppresses the inner node when its render object is a render-tree descendant of the outer `textbox` node's render object, leaving one ref for the surviving node and appending `typeable: true` beneath it:
 
 ```yaml
-[ref=e2] role=textbox label="Email" rect=(20,200,335,56) actions=[tap, focus, type]
+- textbox "Email" [ref=e2]
   typeable: true
 ```
 
@@ -215,9 +216,9 @@ dart run tapir tapir:snap
 Expected output (illustrative; truncated):
 
 ```yaml
-[ref=e1] role=text label="Monitors" rect=(20,80,200,32)
-[ref=e2] role=button label="New monitor" rect=(20,140,335,48) actions=[tap]
-[ref=e3] role=button label="Settings" rect=(355,140,40,48) actions=[tap]
+- text "Monitors"
+- button "New monitor" [ref=e1]
+- button "Settings" [ref=e2]
 ```
 
 ### 2. Snapshot with depth cap
@@ -237,9 +238,11 @@ dart run tapir tapir:snap --includeEnrichers
 Expected output (illustrative):
 
 ```yaml
-[ref=e2] role=button label="New monitor" rect=(20,140,335,48) actions=[tap]
+- button "New monitor" [ref=e1]
+  wind:
+    breakpoint: lg
+    brightness: light
   magicRoute: /monitors
-  windClassName: bg-primary-600 dark:bg-primary-500 text-white
 ```
 
 ---

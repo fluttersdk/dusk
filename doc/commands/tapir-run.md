@@ -1,6 +1,8 @@
 # tapir:run
 
-Run several tapir verbs against the running app in one call. Every step is a verb line, so an agent that already knows its next three moves (tap a button, fill a field, read the result) spends one round trip instead of three, and gets one summary line per step instead of three full outputs.
+Run several tapir verbs against the running app in one call.
+
+Every step is a verb line, so an agent that already knows its next three moves (tap a button, fill a field, read the result) spends one round trip instead of three, and gets one summary line per step instead of three full outputs.
 
 `tapir:run` runs each step through the verb's own command class, so a step accepts exactly the options the standalone command accepts. The steps share the one VM Service connection of the call.
 
@@ -87,7 +89,7 @@ Without `--continue` the batch ends at that step. With it, every step runs and t
 <a name="mcp-form"></a>
 ## MCP form
 
-The `tapir_run` tool takes the same steps as a list and routes through `dowel:tapir:run` (the seventh substrate-routed tool).
+The `tapir_run` tool takes the same steps as a list and routes through the substrate command `dowel:tapir:run`.
 
 ```json
 {

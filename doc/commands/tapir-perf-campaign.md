@@ -1,6 +1,8 @@
 # tapir:perf_campaign
 
-Run every scenario of a perf campaign on one platform, each from a cold start of the app, and summarise which passed. One command replaces the shell harness that used to boot services, start the app, log in and loop over `tapir:perf_run`: the app declares that work in a campaign YAML, and tapir runs it.
+Run every scenario of a perf campaign on one platform, each from a cold start of the app, and summarise which passed.
+
+One command replaces the shell harness that used to boot services, start the app, log in and loop over `tapir:perf_run`: the app declares that work in a campaign YAML, and tapir runs it.
 
 - [Synopsis](#synopsis)
 - [The campaign file](#the-campaign-file)

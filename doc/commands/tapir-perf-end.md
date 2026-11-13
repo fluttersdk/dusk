@@ -1,6 +1,8 @@
 # tapir:perf_end
 
-Close the measurement session opened by `tapir:perf_begin` and read a bounded report: frame percentiles against a stated budget, blocks ranked by self time and by count per painted frame, wind and magic counters, and ranked insights you can drill into with `tapir:perf_insight`. It also restores every profiling flag the session changed, so a session you forget to close is the one that taxes every later frame.
+Close the measurement session opened by `tapir:perf_begin` and read a bounded report of frames, blocks, counters and insights.
+
+The report holds frame percentiles against a stated budget, blocks ranked by self time and by count per painted frame, wind and magic counters, and ranked insights you can drill into with `tapir:perf_insight`. The command also restores every profiling flag the session changed, so a session you forget to close is the one that taxes every later frame.
 
 - [Synopsis](#synopsis)
 - [Returns](#returns)

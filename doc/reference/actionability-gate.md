@@ -1,5 +1,7 @@
 # Actionability gate
 
+The actionability gate is the precondition check tapir runs before it dispatches a pointer or key event at a widget.
+
 - [Overview](#overview)
 - [Precondition chain](#precondition-chain)
 - [Live-rect dispatch (post-gate, pre-dispatch)](#live-rect-dispatch-post-gate-pre-dispatch)
@@ -8,13 +10,20 @@
 - [Opt-out flags](#opt-out-flags)
 - [Intentional gate skips](#intentional-gate-skips)
 - [Cross-package implications](#cross-package-implications)
+- [Related Documentation](#related-documentation)
 
 <a name="overview"></a>
 ## Overview
 
-The actionability gate is the precondition check the four direct-action handlers
-(`tap`, `hover`, `drag`, `type`) run BEFORE synthesising the pointer or key
-event. It lives in [`lib/src/utils/actionability_gate.dart`][src] and is invoked
+A refused gesture reads like this:
+
+```
+Widget ref=e5 is not actionable: not enabled
+```
+
+The pointer verbs (`tap`, `hover`, `drag`, `dblclick`, `right_click`, `triple_click`) and the
+text verbs (`type`, `clear`, `fill`) run the gate BEFORE synthesising the pointer or key
+event. It lives in `lib/src/utils/actionability_gate.dart` and is invoked
 through `ensureActionable(entry, ref: ...)`. The gate guards an agent against
 firing a gesture against a widget that cannot accept it: disabled, collapsed,
 off-screen, animating, or covered by another widget.
@@ -25,13 +34,11 @@ re-emitted by the VM-Service handler as
 parse the failure-reason substring to decide whether to re-snap, re-find,
 scroll, wait, or abort.
 
-[src]: ../../lib/src/utils/actionability_gate.dart
-
 <a name="precondition-chain"></a>
 ## Precondition chain
 
-The gate evaluates six preconditions in evaluation order (Step 0 defunct preflight + Steps 1-5 ordered checks). **The order is
-FROZEN** per `CLAUDE.md` Off-limits: agents branch on the failure-reason
+The gate evaluates its preconditions in a fixed order (a defunct preflight, then five ordered checks). **The order is
+FROZEN**: agents branch on the failure-reason
 substring, so adding, removing, or reordering checks is a breaking change.
 
 0. **Defunct (preflight)**; the entry's `Element` may have been deactivated by parent
@@ -53,15 +60,15 @@ substring, so adding, removing, or reordering checks is a breaking change.
 3. **Off-viewport**; the entry's rect does not intersect the active
    `FlutterView`'s visible logical viewport (recomputed every call from
    `WidgetsBinding.instance.platformDispatcher.views.firstOrNull` so window
-   resizes between actions are honored). Visible means the view minus its
+   resizes between actions are honoured). Visible means the view minus its
    `viewInsets`: the app keeps laying out under a soft keyboard, but a
-   pointer there never reaches it. When the rect's center lies outside the
+   pointer there never reaches it. When the rect's centre lies outside the
    visible viewport the gate first attempts `RenderObject.showOnScreen` to
    bring the element into view, then re-checks; it fails only when
    scroll-into-view cannot place the target inside the viewport. Skipped
    gracefully when no `FlutterView` is attached (headless test harnesses,
    multi-view race).
-4. **Stable** (Wave 3 addition); the entry's bounding box, sampled from the
+4. **Stable**; the entry's bounding box, sampled from the
    live `RenderBox` before and after one frame, has not drifted by more than
    0.5 logical pixels on any side. Animated widgets (sliding sheets,
    expanding tiles, page transitions) fail this gate so the agent waits for
@@ -69,7 +76,7 @@ substring, so adding, removing, or reordering checks is a breaking change.
    layout change that finished before the gate ran (the soft keyboard
    opening, the step 3 auto-scroll) does not trip this check. Opt out via
    `checkStable: false`.
-5. **Receives events** (Wave 3 addition); a hit-test at `rect.center` on the
+5. **Receives events**; a hit-test at `rect.center` on the
    active view confirms the entry's render object (or a descendant) appears
    in the hit-test path. If the topmost target is anything else, an overlay,
    modal scrim, or stacked widget is swallowing the pointer. The thrown reason
@@ -85,7 +92,7 @@ substring, so adding, removing, or reordering checks is a breaking change.
 After the gate passes and BEFORE the pointer is synthesised, every pointer verb
 (`tap`, `hover`, `drag` start + end endpoints, `dblclick`, `right_click`,
 `triple_click`) re-resolves the target's CURRENT bounding rect via
-`dispatchRectOf(entry)` and dispatches at that live center, falling back to the
+`dispatchRectOf(entry)` and dispatches at that live centre, falling back to the
 cached `entry.rect.center` only when the live rect is `null` (a sliver, a
 detached / unsized render object, or a synthetic test entry). `dispatchRectOf`
 reuses the same `_liveRectOf(entry.element)` helper the stable check (step 4)
@@ -113,7 +120,7 @@ Web's debug build that is routine, because DWDS pipes hit-tests through a
 snapshot view that does not mirror the live element subtree, so the path
 comes back carrying only the root render view.
 
-Breaking every valid tap on that artifact would be the worse failure, so the
+Breaking every valid tap on that artefact would be the worse failure, so the
 gate proceeds. It used to proceed silently, and a clean pass was then
 indistinguishable from a confirmed one: that is how a fill printed a green
 tick four times onto a row covered by a pinned footer, with nothing in any
@@ -136,7 +143,7 @@ verb that runs the gate emits it, `tap`, `hover`, `drag`, `dblclick`,
 ```
 
 | `receivesEvents` | Meaning |
-|---|---|
+|:---|:---|
 | absent | Confirmed. The hit-test reached the target or a descendant. |
 | `indeterminate` | The hit-test could not answer. The action was dispatched anyway. |
 | `skipped` | The caller passed `checkReceivesEvents: false`. |
@@ -156,14 +163,14 @@ The thrown message has the shape
 `Widget ref=$ref is not actionable: $reason`. Agents perform substring matches
 against `$reason` to branch their recovery. **The substring list is FROZEN**:
 
-| Reason substring   | Trips when                                                                  | Suggested agent recovery                      |
-|--------------------|-----------------------------------------------------------------------------|-----------------------------------------------|
-| `defunct (...)`    | `findRenderObject()` returns null OR Element is in `_ElementLifecycle.defunct` lifecycle state | Re-snap; the widget was deactivated. |
-| `not enabled`      | `flagsCollection.isEnabled == Tristate.isFalse`                             | Re-snap; the widget may enable later.         |
-| `zero rect`        | `rect.width == 0 \|\| rect.height == 0`                                     | Re-snap or re-find; layout has shifted.       |
-| `off-viewport`     | rect does not overlap the visible viewport (view minus `viewInsets`) even after `showOnScreen` + one frame | `tapir_scroll_to_ref` then retry. |
-| `not stable`       | live rect drifted > 0.5 logical pixels on any side across one frame         | `tapir_wait_for_network_idle` or settle delay. |
-| `obscured by`      | hit-test at `rect.center` resolves to a non-descendant render object first  | Dismiss the obscurer (modal, scrim, overlay). |
+| Reason substring | Trips when | Suggested agent recovery |
+|:-----------------|:-----------|:-------------------------|
+| `defunct (...)` | `findRenderObject()` returns null OR Element is in `_ElementLifecycle.defunct` lifecycle state | Re-snap; the widget was deactivated. |
+| `not enabled` | `flagsCollection.isEnabled == Tristate.isFalse` | Re-snap; the widget may enable later. |
+| `zero rect` | `rect.width == 0 \|\| rect.height == 0` | Re-snap or re-find; layout has shifted. |
+| `off-viewport` | rect does not overlap the visible viewport (view minus `viewInsets`) even after `showOnScreen` + one frame | `tapir_scroll` with `intoView: true`, then retry. |
+| `not stable` | live rect drifted > 0.5 logical pixels on any side across one frame | `tapir_wait_for_network_idle` or settle delay. |
+| `obscured by` | hit-test at `rect.center` resolves to a non-descendant render object first | Dismiss the obscurer (modal, scrim, overlay). |
 
 The off-viewport reason carries the rect and viewport
 (`off-viewport (rect=..., viewport=...)`); the not-stable reason carries the
@@ -175,10 +182,10 @@ Match on the leading substring shown above, not the trailing detail.
 ## Opt-out flags
 
 `ensureActionable` exposes two opt-out parameters; both default to `true` to
-match Playwright's "4-gate" actionability semantics:
+match Playwright's actionability semantics:
 
 ```dart
-Future<void> ensureActionable(
+Future<ActionabilityReport> ensureActionable(
   RefEntry entry, {
   required String ref,
   bool checkStable = true,
@@ -186,20 +193,19 @@ Future<void> ensureActionable(
 });
 ```
 
-| Flag                      | Disables                       | When to opt out                                                                                            |
-|---------------------------|--------------------------------|------------------------------------------------------------------------------------------------------------|
-| `checkStable: false`      | the stable precondition (4)    | widget tests that fabricate synthetic `RefEntry` rects which do not match the live render-object geometry. |
-| `checkReceivesEvents: false` | the receives-events precondition (5) | the same widget-test scenarios, plus environments where the platform compositor swallows hit-tests.   |
+| Flag | Disables | When to opt out |
+|:-----|:---------|:----------------|
+| `checkStable: false` | the stable precondition (4) | widget tests that fabricate synthetic `RefEntry` rects which do not match the live render-object geometry. |
+| `checkReceivesEvents: false` | the receives-events precondition (5) | the same widget-test scenarios, plus environments where the platform compositor swallows hit-tests. |
 
-Action handlers in production never override the defaults; only widget tests
-of the gate itself flip these flags.
+The pointer verbs, `type` and `fill` expose the same two flags as `checkStable` and
+`checkReceivesEvents` inputs (see [tool-reference.md](../mcp/tool-reference.md)); both default to `true`.
 
 <a name="intentional-gate-skips"></a>
 ## Intentional gate skips
 
-Three action handlers do NOT route through the actionability gate. The skips
-are deliberate, documented under `Known gaps` in `CHANGELOG.md`, and listed
-here so contributors do not add the gate "for symmetry":
+Some action handlers do NOT route through the actionability gate. These skips
+are deliberate and listed here so contributors do not add the gate "for symmetry":
 
 - **`scroll`**; operates on the parent `Scrollable` rather than the ref
   target. Gating the ref would refuse scrolls against widgets that are
@@ -210,18 +216,14 @@ here so contributors do not add the gate "for symmetry":
 - **`press_key`**; targets the currently focused widget, not a ref. The gate
   contract requires a `RefEntry`; the focused widget may not have a token.
 
-Promoting these skips to gated handlers is a deferred candidate; see the
-CHANGELOG `### Known gaps` section.
-
 <a name="cross-package-implications"></a>
 ## Cross-package implications
 
-The four gated actions share a common error envelope. `TapirActionabilityException`
+The gated actions share a common error shape. `TapirActionabilityException`
 is caught by the VM-Service handler and re-emitted via
-`ServiceExtensionResponse.error(extensionError, exception.message)`. The
-MCP/CLI layer wraps the wire error in a `TapirErrorEnvelope` carrying the
-flat message string; consuming agents (Claude Code, Cursor, Windsurf via the
-MCP tool surface) parse the envelope and branch on the reason substring.
+`ServiceExtensionResponse.error(extensionError, exception.message)`. The wire
+error is the flat message string; consuming agents (Claude Code, Cursor,
+Windsurf via the MCP tool surface) branch on the reason substring.
 
 The contract guarantee is:
 
@@ -233,8 +235,15 @@ The contract guarantee is:
   the agent cannot diagnose.
 
 A change to any of these guarantees requires a coordinated bump across
-`tapir` (this package), `magic` (whose `MagicTapirIntegration` ships
-seven enrichers and may surface gated actions through Magic facades), and
-`wind` (whose `WindClassNameEnricher` participates in the snapshot pipeline
-that mints the refs the gate guards). Treat the gate's public contract as
+`tapir` (this package), `magic` (whose `MagicTapirIntegration` adds
+enrichers to the snapshots that mint the refs the gate guards) and `wind_kit`
+(whose diagnostics reach the same snapshots through
+`wind_kit_diagnostics_contracts`). Treat the gate's public contract as
 load-bearing across the ecosystem.
+
+<a name="related-documentation"></a>
+## Related Documentation
+
+- [tool-reference.md](../mcp/tool-reference.md): the `checkStable` and `checkReceivesEvents` inputs and the `effect` block of every gated verb.
+- [frame-production.md](frame-production.md): why a hidden window or tab produces no frames for the stable check to sample.
+- [magic-integration.md](../plugins/magic-integration.md): the Magic enrichers that annotate the refs the gate guards.

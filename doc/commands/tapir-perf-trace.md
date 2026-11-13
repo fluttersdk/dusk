@@ -1,6 +1,8 @@
 # tapir:perf_trace
 
-Write the last closed perf session as a Chrome Trace JSON file and print only its path. The file opens as is in [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing`.
+Write the last closed perf session as a Chrome Trace JSON file and print only its path.
+
+The file opens as is in [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing`.
 
 - [Synopsis](#synopsis)
 - [Related Documentation](#related-documentation)

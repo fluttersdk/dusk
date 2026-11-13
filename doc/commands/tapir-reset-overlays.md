@@ -1,6 +1,8 @@
 # tapir:reset_overlays
 
-Return the app to a known clean screen by dismissing every modal, pressing Escape, and tapping a Cancel/Dismiss affordance as a fallback. `tapir:reset_overlays` promotes the manual overlay-reset dance (dismiss + Escape + Cancel-tap) into one idempotent command, so an agent can reliably clear stuck dialogs, bottom sheets, dropdown menus, and barrier modals between flows without composing the steps by hand.
+Return the app to a known clean screen by dismissing every modal, pressing Escape, and tapping a Cancel/Dismiss affordance as a fallback.
+
+`tapir:reset_overlays` promotes the manual overlay-reset dance (dismiss + Escape + Cancel-tap) into one idempotent command, so an agent can reliably clear stuck dialogs, bottom sheets, dropdown menus, and barrier modals between flows without composing the steps by hand.
 
 - [Synopsis](#synopsis)
 - [Layers](#layers)
@@ -24,9 +26,9 @@ dart run tapir tapir:reset_overlays
 
 Three escalating layers run in order, each a no-op when the prior already cleared the overlays:
 
-1. **Dismiss modals** ; pops every `PopupRoute` (dialogs, bottom sheets, popups) across every `NavigatorState`, reusing the same `dismissAllModals` path as `tapir:modal`. The page navigation stack is never touched.
-2. **Escape key** ; delivers an `Escape` key down + up through the binding's `onKeyData` (the path real key data takes, so the focus tree hears it), dismissing overlays driven by the dismiss shortcut that are NOT `PopupRoute`s (custom `OverlayEntry` panels, dropdown menus closed via `Shortcuts`).
-3. **Cancel/Dismiss tap** ; only attempted when an overlay still appears present. Finds the first tappable Semantics node whose label matches `Cancel`, `Dismiss`, `Close`, `OK`, or `Done` (case-insensitive) and synthesizes a tap at its center, for modal barriers that require an explicit affordance to close.
+1. **Dismiss modals**: pops every `PopupRoute` (dialogs, bottom sheets, popups) across every `NavigatorState`, reusing the same `dismissAllModals` path as `tapir:modal`. The page navigation stack is never touched.
+2. **Escape key**: delivers an `Escape` key down + up through the binding's `onKeyData` (the path real key data takes, so the focus tree hears it), dismissing overlays driven by the dismiss shortcut that are NOT `PopupRoute`s (custom `OverlayEntry` panels, dropdown menus closed via `Shortcuts`).
+3. **Cancel/Dismiss tap**: only attempted when an overlay still appears present. Finds the first tappable Semantics node whose label matches `Cancel`, `Dismiss`, `Close`, `OK`, or `Done` (case-insensitive) and synthesises a tap at its centre, for modal barriers that require an explicit affordance to close.
 
 ---
 
@@ -48,9 +50,9 @@ Three escalating layers run in order, each a no-op when the prior already cleare
 }
 ```
 
-- `popped` ; number of `PopupRoute`s dismissed by layer 1.
-- `escaped` ; whether the Escape key press was dispatched.
-- `dismissTapped` ; whether layer 3 tapped a Cancel/Dismiss affordance.
+- `popped`: number of `PopupRoute`s dismissed by layer 1.
+- `escaped`: whether the Escape key press was dispatched.
+- `dismissTapped`: whether layer 3 tapped a Cancel/Dismiss affordance.
 
 On a clean tree all three indicate no work was done (`popped: 0`, `dismissTapped: false`), confirming idempotency.
 
@@ -83,6 +85,6 @@ Safe to call even when nothing is open; the no-op path returns `popped: 0`.
 <a name="related-documentation"></a>
 ## Related Documentation
 
-- [tapir:dismiss_modals](index.md): the underlying dismiss-modals path; `tapir:reset_overlays` adds Escape + Cancel-tap fallback on top.
+- [tapir:modal](index.md#navigation): the underlying dismiss-modals path (the `tapir_dismiss_modals` MCP tool); `tapir:reset_overlays` adds Escape + Cancel-tap fallback on top.
 - [tapir:tap](tapir-tap.md): tap a specific Cancel button by ref when you want precise control.
 - [tapir:snap](tapir-snap.md): re-snapshot after a reset; refs from before the reset are stale.

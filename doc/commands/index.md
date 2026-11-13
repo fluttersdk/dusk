@@ -1,6 +1,6 @@
 # Commands
 
-Catalog of every user-facing command shipped by `tapir`. Forty-two commands, grouped by intent.
+Every `tapir` command, grouped by intent, with its boot mode and the VM Service extension behind it.
 
 Every command is invoked as `dart run tapir <name>` (Flutter-free wrapper at `bin/tapir.dart`), or via the consumer-side dowel dispatcher (`./bin/dowel <name>` / `dart run dowel <name>`) once the project has run `tapir:install`. Commands are auto-discovered through `TapirDowelProvider`; nothing wires by hand.
 
@@ -23,6 +23,7 @@ Need a quick reminder of what a command does without leaving the terminal? Run `
 - [Batch](#batch)
 - [Performance](#performance)
 - [Boot mode and deep-dives](#boot-mode-and-deep-dives)
+- [Related Documentation](#related-documentation)
 
 <a name="how-to-read-this-page"></a>
 ## How to read this page
@@ -30,16 +31,16 @@ Need a quick reminder of what a command does without leaving the terminal? Run `
 Each group section ships a single table with four columns:
 
 - **Command** is the canonical name you type after `dart run tapir` (or via the dowel dispatcher).
-- **Description** is the one-line summary returned by the command's `description` getter; the same string surfaces in `dart run dowel list`.
-- **Boot Mode** is the `CommandBoot` value the dispatcher reads before invoking `handle()`. `none` means pure CLI: no VM Service connection. `connected` means the command dials `~/.dowel/state.json` and fails fast if no app is running.
+- **Description** is a one-line summary of the command; `dart run dowel list` prints each command's own wording, which differs for a few.
+- **Boot Mode** is the `CommandBoot` value the dispatcher reads before invoking `handle()`. `none` means pure CLI: no VM Service connection. `connected` means the command dials the VM Service URI recorded for this project's dowel session and fails fast if no app is running.
 - **VM Extension** is the `ext.tapir.*` method the command calls over the VM Service. `none` for commands that operate purely on the consumer filesystem.
 
-Deep-dive pages exist for the seventeen commands whose flag surface, return shape, or composition rules outgrow a single table row. The remaining twenty-five commands share this index page; reach for `dart run dowel help <name>` for their full flag surface.
+Deep-dive pages exist for the commands whose flag surface, return shape, or composition rules outgrow a single table row; the tables below link them. The other commands share this index page; reach for `dart run dowel help <name>` for their full flag surface.
 
 <a name="snapshot-and-screenshot"></a>
 ## Snapshot and screenshot
 
-The two foundational read commands. `tapir:snap` walks the Semantics tree and emits YAML with `[ref=eN]` tokens that every subsequent action command consumes. `tapir:screenshot` captures the rendered pixel buffer over Chrome DevTools Protocol (web) or `RepaintBoundary.toImage` (desktop, mobile).
+The two foundational read commands. `tapir:snap` walks the Semantics tree and emits YAML with `[ref=eN]` tokens that every subsequent action command consumes. `tapir:screenshot` captures a frame of the running app and writes it to a file.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
@@ -49,7 +50,7 @@ The two foundational read commands. `tapir:snap` walks the Semantics tree and em
 <a name="gestures"></a>
 ## Gestures
 
-Pointer-driven actions that synthesise touch, mouse, or pen events at a widget located by ref token. All four route through the actionability gate (enabled, zero-rect, off-viewport) before the event leaves the VM.
+Pointer-driven actions that synthesise touch, mouse, or pen events at a widget located by ref token. All four route through the actionability gate (see [Reference: Actionability gate](../reference/actionability-gate.md)) before the event leaves the VM.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
@@ -109,11 +110,11 @@ Pure-CLI checks that verify the consumer wiring and the running session health. 
 <a name="install"></a>
 ## Install
 
-The one-shot bootstrap. Injects three lines into the consumer's `lib/main.dart` and is otherwise idempotent. No `bin/dowel.dart` scaffold; `tapir` ships its own Flutter-free CLI entry point.
+The one-shot bootstrap. Patches the consumer's `lib/main.dart`, then chains `dowel install` and `plugin:install tapir` on a best-effort basis; `tapir` ships its own Flutter-free CLI entry point, so the chain only adds the faster `./bin/dowel` path. Idempotent on re-run.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`tapir:install`](tapir-install.md) | Wire TapirPlugin.install() into lib/main.dart AND chain dowel install + plugin:install so ./bin/dowel surfaces all 42 tapir:* commands (idempotent on re-run; Phase 2 chain is best-effort). | none | none |
+| [`tapir:install`](tapir-install.md) | Wire TapirPlugin.install() into lib/main.dart AND chain dowel install + plugin:install so ./bin/dowel surfaces every tapir:* command (idempotent on re-run; Phase 2 chain is best-effort). | none | none |
 
 <a name="cdp"></a>
 ## CDP
@@ -128,13 +129,13 @@ Chrome DevTools Protocol commands that manipulate the browser viewport directly.
 <a name="click-variants"></a>
 ## Click variants
 
-Pointer gestures that go beyond the primary tap. All four route through the actionability gate.
+Pointer gestures that go beyond the primary tap. All three route through the actionability gate.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `tapir:dblclick` | Fire a double-click at the widget identified by a snapshot ref. | connected | ext.tapir.tap |
-| `tapir:triple_click` | Fire three primary clicks (~100ms apart) at the widget identified by --ref. | connected | ext.tapir.tap |
-| `tapir:right_click` | Fire a right (secondary mouse button) click at the widget identified by --ref. | connected | ext.tapir.tap |
+| `tapir:dblclick` | Fire a double-click at the widget identified by a snapshot ref. | connected | ext.tapir.dblclick |
+| `tapir:triple_click` | Fire three primary clicks (~100ms apart) at the widget identified by --ref. | connected | ext.tapir.triple_click |
+| `tapir:right_click` | Fire a right (secondary mouse button) click at the widget identified by --ref. | connected | ext.tapir.right_click |
 
 <a name="focus-and-blur"></a>
 ## Focus and blur
@@ -154,7 +155,7 @@ Diagnostics readers backed by tapir's own in-package capture plus an optional cr
 `tapir:console` reads from tapir's in-package `debugPrint` ring buffer (populated by `installLogCapture()`,
 wired by `TapirPlugin.install()`). This buffer captures every call that routes through the `debugPrint` global
 callback (`debugPrint(...)`, `print(...)`, and any Flutter framework path that calls `debugPrint`). It does NOT
-capture direct `dart:developer` `log()` calls that bypass `debugPrint`; those require `crumbs`'s
+capture direct `dart:developer` `log()` calls that bypass `debugPrint`; those require the crumbs
 `LogWatcher`. When crumbs is wired the two sources are merged and deduped; crumbs also adds `package:logging`
 (`Logger.root.onRecord`) and any other watcher it ships.
 
@@ -186,7 +187,7 @@ The single-round-trip composite that hot-reloads the running app and then captur
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `tapir:hot_reload_and_snap` | Hot reload the running app, then capture snapshot + screenshot + recent exceptions in a single round-trip. | connected | dowel:reload + ext.tapir.snap |
+| `tapir:hot_reload_and_snap` | Hot reload the running app, then capture snapshot + screenshot + recent exceptions in a single round-trip. | connected | VM Service `reloadSources`, then `ext.tapir.snap`, `ext.tapir.screenshot`, `ext.tapir.exceptions` |
 
 <a name="batch"></a>
 ## Batch
@@ -215,6 +216,14 @@ One measurement session and its drill-down. `tapir:perf_begin` opens it (`--mode
 <a name="boot-mode-and-deep-dives"></a>
 ## Boot mode and deep-dives
 
-Six of forty-two commands run with `CommandBoot.none` (`tapir:install`, `tapir:doctor`, `tapir:perf_compare`, `tapir:perf_campaign`, `tapir:device`, `tapir:resize`; the last two dial Chrome DevTools Protocol directly rather than the VM Service). Every other command is `CommandBoot.connected`: it dials the VM Service URI in `~/.dowel/state.json` and fails fast when the running app cannot be reached.
+`tapir:install`, `tapir:doctor`, `tapir:perf_compare`, `tapir:perf_campaign`, `tapir:device` and `tapir:resize` run with `CommandBoot.none` (the last two dial Chrome DevTools Protocol directly rather than the VM Service). Every other command is `CommandBoot.connected`: it dials the VM Service URI recorded for the project's dowel session and fails fast when the running app cannot be reached.
 
-Seventeen commands earn their own pages: [tapir:install](tapir-install.md), [tapir:run](tapir-run.md), [tapir:snap](tapir-snap.md), [tapir:tap](tapir-tap.md), [tapir:fill](tapir-fill.md), [tapir:reset_overlays](tapir-reset-overlays.md), [tapir:screenshot](tapir-screenshot.md), [tapir:find](tapir-find.md), [tapir:doctor](tapir-doctor.md), [tapir:observe](tapir-observe.md), [tapir:perf_begin](tapir-perf-begin.md), [tapir:perf_end](tapir-perf-end.md), [tapir:perf_insight](tapir-perf-insight.md), [tapir:perf_run](tapir-perf-run.md), [tapir:perf_compare](tapir-perf-compare.md), [tapir:perf_trace](tapir-perf-trace.md), [tapir:perf_campaign](tapir-perf-campaign.md). Slug rule: the URL replaces the `:` separator with `-`. The remaining twenty-five commands share this index page; reach for `dart run dowel help <name>` for their full flag surface.
+These commands earn their own pages: [tapir:install](tapir-install.md), [tapir:run](tapir-run.md), [tapir:snap](tapir-snap.md), [tapir:tap](tapir-tap.md), [tapir:fill](tapir-fill.md), [tapir:reset_overlays](tapir-reset-overlays.md), [tapir:screenshot](tapir-screenshot.md), [tapir:find](tapir-find.md), [tapir:doctor](tapir-doctor.md), [tapir:observe](tapir-observe.md), [tapir:perf_begin](tapir-perf-begin.md), [tapir:perf_end](tapir-perf-end.md), [tapir:perf_insight](tapir-perf-insight.md), [tapir:perf_run](tapir-perf-run.md), [tapir:perf_compare](tapir-perf-compare.md), [tapir:perf_trace](tapir-perf-trace.md), [tapir:perf_campaign](tapir-perf-campaign.md). Slug rule: the URL replaces the `:` separator with `-`. The other commands share this index page; reach for `dart run dowel help <name>` for their full flag surface.
+
+<a name="related-documentation"></a>
+## Related Documentation
+
+- [Installation](../getting-started/installation.md): add `tapir` to an app and wire `TapirPlugin.install()`.
+- [Quickstart](../getting-started/quickstart.md): a first snap, tap and screenshot.
+- [MCP tool reference](../mcp/tool-reference.md): the same verbs as `tapir_*` tools, with their schemas.
+- [Reference: Actionability gate](../reference/actionability-gate.md): the checks every gesture command runs first.

@@ -1,11 +1,11 @@
 # Tapir MCP Tool Reference
 
-Per-tool input schema, return shape, and example payload for every `tapir_*` MCP tool
-contributed by `TapirDowelProvider`. 40 tools total: 33 dispatch through `ext.tapir.*` VM
-Service extensions and 7 (`tapir_hot_reload_and_snap`, `tapir_resize_viewport`,
-`tapir_device_profile`, `tapir_perf_run`, `tapir_perf_compare`, `tapir_perf_trace`, `tapir_run`)
-route through the `dowel:tapir:*` substrate path to a CLI command because the orchestration
-cannot run inside the target isolate.
+The input schema, return shape and an example payload for every `tapir_*` MCP tool that `TapirDowelProvider` contributes.
+
+Most tools dispatch through an `ext.tapir.*` VM Service extension. Seven (`tapir_hot_reload_and_snap`,
+`tapir_resize_viewport`, `tapir_device_profile`, `tapir_perf_run`, `tapir_perf_compare`,
+`tapir_perf_trace`, `tapir_run`) route through the `dowel:tapir:*` substrate path to a CLI command,
+because their orchestration cannot run inside the target isolate.
 
 Sections are ordered alphabetically. Every section names the dispatch surface
 (`extensionMethod`) at the top so the consumer knows which path the server takes. All
@@ -56,6 +56,13 @@ request; the substrate MCP server wraps the response as `CallToolResult` text co
 - [tapir_wait_for_network_idle](#tapir_wait_for_network_idle)
 - [Related Documentation](#related-documentation)
 
+A minimal session: read the screen, then act on a ref from the snapshot.
+
+```json
+{ "name": "tapir_snap", "arguments": { "interactiveOnly": true } }
+{ "name": "tapir_tap", "arguments": { "ref": "e5" } }
+```
+
 <a name="universal-response-fields-framesforced-warnings-reresolved"></a>
 ## Universal response fields: `framesForced`, `warnings`, `reresolved`
 
@@ -102,7 +109,7 @@ do. A tapir action confirms that it DISPATCHED; the `effect` block is what confi
 widget received.
 
 | Verb | `kind` | Fields |
-|---|---|---|
+|:---|:---|:---|
 | `tapir_tap` | `treeChanged` | `changed` |
 | `tapir_type`, `tapir_clear`, `tapir_fill` | `text` | `verified`, `value` (read back off the live controller after the settle), `target` (`matchKind`, `label`, `rect`: which field was written) |
 | `tapir_scroll` | `scrollOffset` | `changed`, `before`, `after` |
@@ -127,7 +134,7 @@ Clear keyboard focus from whatever currently holds it (Playwright
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `includeSnapshot` | boolean | no | Embed the post-blur snapshot in the response. Default `false`. |
 
 ### Returns
@@ -162,7 +169,7 @@ Empty the `TextEditingController` backing the resolved text field (Playwright
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | yes | Widget ref of a `TextField` / `TextFormField` / `EditableText` (e.g. `"e5"`). |
 | `includeSnapshot` | boolean | no | Embed the post-clear snapshot. Default `false`. |
 
@@ -225,7 +232,7 @@ returns an empty list when the host has not set crumbs up.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `limit` | integer | no | Maximum number of entries to return. Default `50`. |
 | `minLevel` | string | no | Minimum severity level (`INFO`, `WARNING`, `ERROR`). Omit for all levels. |
 
@@ -248,14 +255,14 @@ Error: never; missing crumbs is treated as the empty-entries success path.
 
 Dispatch: `ext.tapir.dblclick`
 
-Double-click a widget by ref. Synthesizes two pointer Down+50ms+Up sequences at the
-widget's center with ~100ms between them (Playwright double-click model). Triggers
+Double-click a widget by ref. Synthesises two pointer Down+50ms+Up sequences at the
+widget's centre with ~100ms between them (Playwright double-click model). Triggers
 `GestureDetector.onDoubleTap`.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | yes | Widget ref from a prior `tapir_snap`. Shape `e<N>` or `q<N>`. |
 | `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
 | `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
@@ -292,7 +299,7 @@ that lasts, run the CLI `tapir:resize --hold` in the background.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `preset` | string | no | One of `iphone-x`, `iphone-13`, `iphone-15-pro`, `pixel-5`, `pixel-8`, `ipad-pro-12.9`, `desktop-1440`, `desktop-1920`. Omit when using `list` or `reset`. |
 | `list` | boolean | no | List all available presets. When `true`, `preset` + `reset` are ignored. Default `false`. |
 | `reset` | boolean | no | Clear all viewport overrides (metrics + touch + user agent). Default `false`. |
@@ -346,13 +353,13 @@ Error: never; safe to call speculatively.
 
 Dispatch: `ext.tapir.drag`
 
-Drag from one widget to another by ref tokens. Synthesizes pointer Down + 5x intermediate
-Move events + Up sequence from `startRef`'s center to `endRef`'s center.
+Drag from one widget to another by ref tokens. Synthesises pointer Down + 5x intermediate
+Move events + Up sequence from `startRef`'s centre to `endRef`'s centre.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `startRef` | string | yes | Source widget ref (`e<N>`). |
 | `endRef` | string | yes | Target widget ref (`e<N>`). |
 | `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
@@ -385,7 +392,7 @@ Evaluate a Dart expression in the running app isolate via the Tinker bridge
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `expression` | string | yes | Single Dart expression. No statements, no trailing semicolon. |
 
 ### Returns
@@ -425,9 +432,10 @@ buffer ensures non-fatal errors are visible even without crumbs.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `limit` | integer | no | Maximum number of entries to return. Default `20`. |
 | `since` | string | no | ISO8601 timestamp. When set, only exceptions whose `time` is strictly after this value are returned. Omit to return the full cumulative list. Unparseable values are silently ignored. |
+| `clear` | boolean | no | Empty the in-package capture buffer after returning the current entries. The buffer is cumulative, so clear between routes to get a real delta. A wired crumbs keeps its own store. |
 
 ### Returns
 
@@ -456,7 +464,7 @@ once when the ref goes stale mid-fill. Replaces the manual focus + clear + type 
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | yes | Text-field ref token (`e<N>` or `q<N>`) from a prior `tapir_snap` / `tapir_find`. |
 | `text` | string | yes | Value to set. Replaces existing content. Pass `""` to clear. |
 | `includeSnapshot` | boolean | no | Embed the post-fill snapshot (default `true`). |
@@ -497,7 +505,7 @@ predicates still match.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `text` | string | no | Exact match against accessibility label first, then `Text.data`. |
 | `contains` | string | no | Substring match against accessibility label first, then `Text.data` (case-sensitive). Use when the visible label is dynamic (counters, timestamps, plurals). |
 | `semanticsLabel` | string | no | Exact match against `SemanticsNode.label` only (no Text fallback). |
@@ -534,7 +542,7 @@ parity). Walks to the nearest `Focus` ancestor and calls `requestFocus()`.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | yes | Widget ref (e.g. `"e5"`). |
 | `includeSnapshot` | boolean | no | Embed the post-focus snapshot. Default `false`. |
 
@@ -568,7 +576,7 @@ No parameters.
 Success: `{ location, title, uri }`.
 
 | Field | Meaning |
-|---|---|
+|:---|:---|
 | `uri` | The first mounted `Router`'s location, the value `tapir_navigate` verifies against. `null` while no Router is mounted, as on a loading screen right after a restart. |
 | `location` | The root Navigator's top page name. A Router-based app (go_router, MagicRouter) names no page, so it reads `""` on every screen there; read `uri`. |
 | `title` | A location hint from the platform's default route name; `""` when there is none. |
@@ -599,7 +607,7 @@ cannot reload itself.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `screenshot` | boolean | no | Capture a screenshot after the reload. Default `true`. |
 
 ### Returns
@@ -624,13 +632,13 @@ call is returned as an error result, so a client never reads a compile failure a
 
 Dispatch: `ext.tapir.hover`
 
-Hover a mouse cursor over a widget by ref. Mouse-only (no touch equivalent). Synthesizes a
-`PointerHoverEvent` of `PointerDeviceKind.mouse` at the widget's center.
+Hover a mouse cursor over a widget by ref. Mouse-only (no touch equivalent). Synthesises a
+`PointerHoverEvent` of `PointerDeviceKind.mouse` at the widget's centre.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
 | `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
 | `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
@@ -662,7 +670,7 @@ when Magic is installed, falling back to `Navigator.of(root).pushNamed(...)`.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `route` | string | yes | Route path. Must start with `/`. Example: `/monitors/123`. |
 | `includeSnapshot` | boolean | no | Embed the post-navigation snapshot. Default `true`. |
 | `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. After a navigation `diff` mostly shows a whole new screen; it pays off when the route only changes a part of it. |
@@ -706,7 +714,7 @@ left (a subtree under `Offstage(offstage: true)`, `TickerMode(enabled: false)` o
 ### Input schema
 
 | Parameter | Type | Default | Meaning |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `includeSnapshot` | boolean | `true` | Embed the post-pop snapshot in the response. |
 | `snapshot` | string | (none) | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
 
@@ -740,7 +748,7 @@ boundary node; the descendants it absorbs get no candidate.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `intent` | string | no | Free-form caller hint (e.g. `"login form"`). Echoed in audit logs, NOT used server-side. |
 | `roles` | string | no | Comma-separated role filter (`button,textbox,link,checkbox,heading,image`). Omit for every role. |
 | `limit` | integer | no | Maximum number of candidates. Default `50`. |
@@ -782,7 +790,7 @@ one interaction, end.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `mode` | string | no | `attribution` (default): blocks by self time, counts per painted frame, wind and magic counters, insights. `timing`: no profiling flag is touched and the report carries frame timings only. |
 | `phases` | boolean | no | Also profile layout and paint, not just builds. Default `false`; the span volume multiplies. Rejected with `mode: "timing"`. |
 
@@ -903,7 +911,7 @@ range is `unchanged`. Thresholds: warn +10%, error +25%, or the scenario's.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `a` | string | yes | Baseline run file. |
 | `b` | string | yes | Candidate run file. |
 | `json` | boolean | no | Return the JSON result instead of the table. |
@@ -934,7 +942,7 @@ most recent closed session is kept.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `id` | string | yes | Insight id (`I<n>`) from `insights[]`. One counted in `omitted.insights` is drillable too. |
 | `token` | string | no | The report's `sessionToken`; a token naming any other session is refused. |
 
@@ -973,7 +981,7 @@ resolved on the live screen, `perf_end` with `full=true`. Writes
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `scenario` | string | yes | Scenario YAML path. |
 | `variant` | string | no | The `variants` key to run: required when the file declares `variants`, refused when it does not; applies to `against` too. |
 | `label` | string | no | `[a-z0-9_-]`, default `run`. |
@@ -1020,7 +1028,7 @@ the trace reads.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `out` | string | yes | File to write. |
 | `token` | string | no | The session's `sessionToken`; a stale one is refused. |
 
@@ -1050,7 +1058,7 @@ that character; text entry still goes through `tapir_type`.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `key` | string | yes | Logical key label (e.g. `Enter`, `Escape`, `Tab`, `ArrowDown`), or one letter or digit (`S`, `7`). |
 | `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
 | `includeSnapshot` | boolean | no | Embed the post-key snapshot. Default `true`. |
@@ -1111,7 +1119,7 @@ the session open and is the way to drive the app at the new size.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `width` | integer | no | Viewport width in CSS pixels (e.g. `375` for mobile, `1440` for desktop). Required unless `reset`: the command refuses a resize without it. |
 | `height` | integer | no | Viewport height in CSS pixels. Required unless `reset`. |
 | `dpr` | number | no | Device pixel ratio (default `1.0`). Use `2.0` for Retina, `3.0` for iPhone Pro. Must be > 0. |
@@ -1150,7 +1158,7 @@ parity). Injects `PointerDownEvent` + 50ms hold + `PointerUpEvent` (mouse kind,
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
 | `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
 | `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
@@ -1184,7 +1192,7 @@ are already known. See [tapir:run](../commands/tapir-run.md) for the step gramma
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `steps` | array<string> | yes | Verb lines, run in order (e.g. `"tap --ref=e5"`). |
 | `continue` | boolean | no | Keep running after a failing step (default `false`). |
 
@@ -1194,7 +1202,8 @@ Text: one line per step (`[1/3] tap --ref=e5 ok: <first output line, cut to 120
 characters>`), then the last step's full output. The batch stops at the first failing step
 and returns `step N failed (exit C): <step>` with that step's output; with `continue: true`
 it runs every step and reports the first failure. A step cannot be another `tapir_run`, nor a
-verb that does not run on the connected app (resize, device, install, doctor). Use `--text`,
+verb that does not run on the connected app (resize, device, install, doctor, perf_campaign,
+perf_compare). A step that ends the app (`close_app`, `perf_run`) must come last. Use `--text`,
 `--key` or `q<N>` handles between steps that change the screen: `e<N>` refs belong to one
 snapshot.
 
@@ -1223,7 +1232,7 @@ fallback is CLI-only and does not apply to this MCP tool.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `format` | string | no | `jpeg` or `png`. Default `jpeg`. |
 | `quality` | integer | no | JPEG quality 0-100 (higher is better). Default `70`. Ignored when format is `png`. |
 | `ref` | string | no | Capture only this widget: an `e<N>` from `tapir_snap` or a `q<N>` from `tapir_find`. Omit for the whole viewport. |
@@ -1274,7 +1283,7 @@ ancestor of the widget identified by `ref`.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | no | Widget ref (`e<N>`) inside the target Scrollable. Without it the first Scrollable found is scrolled. |
 | `direction` | string | no | `up`, `down`, `left`, `right`. Default `down`. |
 | `pixels` | number | no | Logical pixels to scroll. Default `300`. |
@@ -1311,7 +1320,7 @@ the dropdown, finds the matching item, and taps it.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | yes | Dropdown widget ref (`e<N>`). |
 | `value` | string | yes | Option to select. Matches displayed label first, then `toString()` of the underlying value. |
 
@@ -1341,7 +1350,7 @@ current value already matches `value`, the call returns without tapping.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | yes | Checkbox or Switch widget ref (`e<N>`). |
 | `value` | string | yes | `"true"` or `"false"` (target checked state). |
 
@@ -1388,7 +1397,7 @@ and actions, which is what the platform exposes.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `depth` | integer | no | Max tree-traversal depth from the root. Omit for full tree. |
 | `within` | string | no | Scope the walk to one subtree: the `e<N>` ref of the region to read. `q<N>` handles are not addressable here. An unknown ref is an error, not a silent widening. |
 | `interactiveOnly` | boolean | no | Emit only nodes carrying a ref; drop the plain `- text` lines. Default `false`. |
@@ -1450,8 +1459,8 @@ stack traces.
 
 Dispatch: `ext.tapir.tap`
 
-Tap a widget by ref. Synthesizes a pointer Down + 50ms hold + Up sequence at the widget's
-LIVE center. Triggers `GestureDetector.onTap`, `InkWell.onTap`, button `onPressed`. For
+Tap a widget by ref. Synthesises a pointer Down + 50ms hold + Up sequence at the widget's
+LIVE centre. Triggers `GestureDetector.onTap`, `InkWell.onTap`, button `onPressed`. For
 `TextField` widgets the tap also requests keyboard focus.
 
 The pointer dispatches at the target's live rect, re-resolved immediately after the
@@ -1462,7 +1471,7 @@ detached render objects). A button whose host rebuilt it into a shifted slot bet
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
 | `snapshot` | string | no | Post-tap snapshot: `full` (the default), `diff` or `none`. `diff` returns only the lines the tap changed since your last unfiltered snapshot (a `tapir_snap` or an earlier action): a changed row is `- <old line>` then `+ <new line>`, an added row `+ `, a removed row `- `, then a `(K of N lines changed)` footer, and the payload adds `snapshotMode: "diff"`. With no baseline yet the full text comes back. A filtered `tapir_snap` (`grep`, `within`, `depth`, `interactiveOnly`) never records the baseline, and a hot restart clears it. |
 | `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
@@ -1482,7 +1491,7 @@ within the window).
 
 **A merge boundary taps its own control.** A tap at the centre of a `MergeSemantics`
 boundary can land on another handler (a full-frame stage) while the gate still says
-confirmed (issue #60). When exactly one labelled control owns the merged label and a hit test
+confirmed. When exactly one labelled control owns the merged label and a hit test
 at its centre reaches it inside the viewport, the pointer goes there and the response adds
 `retargeted: {from: {x, y}, to: {x, y}, ownerRect: {left, top, width, height}, centreHandled?}`
 (`centreHandled: true` when the centre has a tap handler of its own). Pass `retarget: false` to
@@ -1524,7 +1533,7 @@ paragraph.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
 | `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
 | `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
@@ -1555,7 +1564,7 @@ append).
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `ref` | string | yes | TextField widget ref (`e<N>`). |
 | `text` | string | yes | Text to enter. Pass empty string to clear. |
 | `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
@@ -1586,7 +1595,7 @@ soon as the condition flips.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `text` | string | no | Wait until a `Text` with this exact data exists. |
 | `textGone` | string | no | Wait until no such `Text` exists. |
 | `expression` | string | no | Matched as text, exactly like `text`; it is not evaluated as Dart (use `tapir_evaluate` for that). |
@@ -1622,7 +1631,7 @@ returns idle immediately when crumbs is not set up.
 ### Input schema
 
 | Parameter | Type | Required | Description |
-|---|---|---|---|
+|:---|:---|:---|:---|
 | `timeoutMs` | integer | no | Maximum total wait time. Default `5000`. |
 | `idleMs` | integer | no | Contiguous-zero window before declaring idle. Default `500`. |
 | `pollIntervalMs` | integer | no | Poll cadence in milliseconds. Minimum `100`; default `200`. |
@@ -1645,7 +1654,7 @@ count observed: <int>" }`.
 <a name="related-documentation"></a>
 ## Related Documentation
 
-- [overview.md](overview.md): tool catalog, dispatch surfaces, lifecycle.
-- [setup.md](setup.md): per-client install matrix and reconnect ritual.
-- [`lib/src/tapir_dowel_provider.dart`](../../lib/src/tapir_dowel_provider.dart): the
-  source-of-truth `McpToolDescriptor` list.
+- [overview.md](overview.md): the tool catalogue, dispatch surfaces and lifecycle.
+- [setup.md](setup.md): the per-client install matrix and the reconnect ritual.
+- [actionability-gate.md](../reference/actionability-gate.md): the checks behind every "not actionable" error.
+- [perf-trace.md](../reference/perf-trace.md): the Chrome Trace export behind `tapir_perf_trace`.
