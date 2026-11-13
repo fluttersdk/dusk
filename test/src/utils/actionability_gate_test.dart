@@ -1365,12 +1365,12 @@ class _StubElement extends ComponentElement {
 }
 
 /// Singleton render object handed out by [_StubElement.findRenderObject].
-final RenderObject _stubRenderObject = _StubRenderBox();
+final RenderObject _stubRenderObject = _StubRenderBox()
+  ..attach(PipelineOwner());
 
-class _StubRenderBox extends RenderBox {
-  @override
-  bool get attached => true;
-}
+/// `attached` is not overridable since Flutter 3.50, so the stub attaches to an
+/// owner that never lays out or paints.
+class _StubRenderBox extends RenderBox {}
 
 class _StubWidget extends Widget {
   const _StubWidget();
