@@ -192,7 +192,7 @@ The `tapir_*` tools ride on the `dowel` MCP server, so the client config key is 
 - [Documentation](https://anilcancakir.com/tapir/docs/getting-started/installation): installation, quickstart, every command, MCP setup, the actionability gate, Magic and Wind integration, and the [MCP tool reference](https://anilcancakir.com/tapir/docs/mcp/tool-reference)
 - [API reference](https://pub.dev/documentation/tapir/latest/)
 - [llms.txt](llms.txt) and the [agent skill](skills/tapir/SKILL.md) for AI coding agents: `npx skills add anilcancakir/tapir`
-- [Changelog](CHANGELOG.md), [report an issue](https://github.com/anilcancakir/tapir/issues), [security policy](SECURITY.md)
+- [Changelog](CHANGELOG.md), [report an issue](https://github.com/anilcancakir/tapir/issues), [security policy](https://github.com/anilcancakir/tapir/security/policy)
 
 ## License
 
