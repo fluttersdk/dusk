@@ -10,12 +10,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dowel/dowel.dart' show McpToolDescriptor;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tapir/src/tapir_dowel_provider.dart';
 
 /// Integration smoke test for `dart run tapir mcp:serve`.
 ///
-/// Exercises the full stdio JSON-RPC boot path and asserts that the 31
-/// `tapir_*` MCP tools are advertised via `tools/list`.
+/// Exercises the full stdio JSON-RPC boot path and asserts that every
+/// `tapir_*` MCP tool the provider registers is advertised via `tools/list`.
 ///
 /// Skipped by default. Tagged `integration` so the manual invocation opts in:
 ///
@@ -190,18 +192,23 @@ dependency_overrides:
               as Map<String, dynamic>?)?['tools'] as List<dynamic>? ??
           <dynamic>[];
 
-      // 5. Assert that the tapir_* slice has exactly 31 entries.
+      // 5. Assert that the tapir_* slice is exactly what the provider
+      //    registers, so the smoke test never carries a count of its own.
       final List<String> tapirToolNames = tools
           .whereType<Map<String, dynamic>>()
           .map((Map<String, dynamic> t) => t['name'] as String? ?? '')
           .where((String name) => name.startsWith('tapir_'))
           .toList();
+      final Set<String> expectedToolNames = TapirDowelProvider()
+          .mcpTools()
+          .map((McpToolDescriptor tool) => tool.name)
+          .toSet();
 
       expect(
-        tapirToolNames.length,
-        equals(31),
-        reason: 'Expected 31 tapir_* tools, got ${tapirToolNames.length}. '
-            'Full tool names: ${tools.whereType<Map<String, dynamic>>().map((t) => t['name']).toList()}',
+        tapirToolNames.toSet(),
+        equals(expectedToolNames),
+        reason: 'tools/list must advertise every tool the provider registers. '
+            'Got: $tapirToolNames',
       );
 
       // 6. Verify a sample of canonical alpha-1 tool names are present.
