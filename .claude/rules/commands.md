@@ -23,12 +23,12 @@ An MCP tool routes through `dowel:tapir:*` instead of an `ext.tapir.*` call when
 
 - Targeting a widget takes `--ref=<eN|qN>`. Gate opt-outs are `--no-checkStable` and `--no-checkReceivesEvents`. Waiting commands take `--timeoutMs`. `tapir:screenshot` infers png or jpeg from `--output` unless `--format` is given.
 - `--json` (`addJsonFlag`, `wantsJson`, `emitEnvelope` in `json_output.dart`) prints the full envelope; without it, a summary command prints one honest line. The summary reads the verdict, not just the dispatch: `effect.verified`, `navigated`, `popped`, `effect.changed`. Warnings go to stderr, the payload to stdout.
-- Exit codes: 0 success, the verb's own code on a refusal, 1 for bad input, 3 when the call throws, 75 when `ext.tapir.*` is not registered yet.
+- Exit codes: 0 success, the verb's own code on a refusal, 1 for bad input, 3 when the call throws (dowel's dispatcher maps any throw to it), 75 (`DowelCommand.exitTryAgain`) when `ext.tapir.*` is not registered yet.
 - Call the extension through `callExtensionVisible` (`web_visibility.dart`) and finish with `reportFrameWarning` so a hidden web tab is recovered over CDP. Read-only verbs pass `retry: true`; a verb that acts is never repeated.
 
 ## MCP descriptors
 
-Each entry of `mcpTools()` is a const `McpToolDescriptor`: an imperative opening sentence, one context paragraph, a `Usage:` bullet list, under 2048 characters (a test enforces it). `inputSchema` is JSON Schema with `type: object`, `properties`, `required` and `additionalProperties: false`. Names are `tapir_<verb>`; the six alpha-1 names and their `extensionMethod` strings are frozen.
+Each entry of `mcpTools()` is a const `McpToolDescriptor`: an imperative opening sentence, one context paragraph, a `Usage:` bullet list, under 2048 characters (a test enforces it). `inputSchema` is JSON Schema with `type: object`, `properties`, `required` and `additionalProperties: false`. Names are `tapir_<verb>`; the six original names (CLAUDE.md Off-limits 8) and their `extensionMethod` strings are frozen.
 
 ## Adding a command
 

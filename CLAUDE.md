@@ -2,7 +2,7 @@
 
 ## Stack
 
-Flutter package `tapir` (Dart 3.13+, Flutter 3.47+), a plugin of `dowel`. `TapirDowelProvider` contributes the `tapir:*` CLI commands and the `tapir_*` MCP tool descriptors, both over the `ext.tapir.*` VM Service extensions. The counts are asserted in `test/tapir_dowel_provider_mcp_tools_test.dart`; do not copy them into prose without updating every doc that holds them.
+Flutter package `tapir` (Dart 3.13+, Flutter 3.47+), a plugin of `dowel`. `TapirDowelProvider` contributes the `tapir:*` CLI commands and the `tapir_*` MCP tool descriptors, both over the `ext.tapir.*` VM Service extensions. Prose (README, `llms.txt`, `doc/**`, the skill, this file) states no counts of commands, tools or extensions; `test/tapir_dowel_provider_mcp_tools_test.dart` holds them.
 
 Production dependencies are limited to the list in Off-limits item 10. Consumers wrap `TapirPlugin.install()` in `if (!kReleaseMode)`, so debug and profile builds carry tapir (a profile build is what `tapir:perf_run` measures) and release builds tree-shake it.
 
@@ -38,7 +38,7 @@ A release is a `release: X.Y.Z` PR that bumps the version stamps and promotes `#
 
 ## Off-limits (FROZEN contracts)
 
-These change only with a coordinated bump across `tapir`, `magic` and `wind`:
+These change only with a coordinated bump across `tapir`, `magic` and `wind_kit`:
 
 1. `TapirSnapshotEnricher` typedef: `String? Function(Element, RefRegistry)`.
 2. `TapirNavigateAdapter` typedef: `Future<bool> Function(String route)`.
@@ -47,7 +47,7 @@ These change only with a coordinated bump across `tapir`, `magic` and `wind`:
 5. The `TapirActionabilityException` reason substrings agents branch on: `"defunct (element no longer mounted)"`, `"not enabled"`, `"zero rect"`, `"off-viewport (rect=..., viewport=...)"`, `"not stable (rect changed by Xpx)"`, `"obscured by other widget (top=...)"`.
 6. The actionability-gate evaluation order: (0) defunct preflight, (1) enabled, (2) zero rect, (3) off-viewport (auto `showOnScreen` under a `Scrollable`), (4) not stable (2-frame drift above 0.5px; `--no-checkStable`), (5) receives events (hit test reaches the target or a descendant; `--no-checkReceivesEvents`). New checks append. Step 5 reports `confirmed` / `indeterminate` / `skipped`; the report may grow, the order and substrings may not.
 7. The `e<N>` and `q<N>` token spaces are disjoint: never mint `e<N>` from `find`/`observe`, nor `q<N>` from `snap`.
-8. The six alpha-1 MCP names (`tapir_snap`, `tapir_tap`, `tapir_screenshot`, `tapir_hover`, `tapir_drag`, `tapir_type`) and their `ext.tapir.*` methods.
+8. The six original MCP tool names (`tapir_snap`, `tapir_tap`, `tapir_screenshot`, `tapir_hover`, `tapir_drag`, `tapir_type`) and their `ext.tapir.*` methods.
 9. `install.yaml`: load-bearing for `plugin:install`; keep its bootstrap message and `executables:` mapping.
 10. No production dependency beyond `dowel`, `image`, `meta`, `wind_kit_diagnostics_contracts`, `yaml`.
 
