@@ -1,7 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <!-- FlutterSDK Dusk: line geometry mirrors fluttersdk_magic verbatim (chevron stack + orbit rings); only gradient IDs are renamed (d* not m*) to avoid ID collision when both logos render in the same page. -->
-
     <linearGradient id="d1-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#7C3AED"/>
       <stop offset="100%" stop-color="#A78BFA"/>
@@ -35,7 +33,6 @@
       <stop offset="100%" stop-color="#5B21B6"/>
     </linearGradient>
 
-    <!-- Orbit stroke gradients -->
     <linearGradient id="d-orbit-1" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#C4B5FD" stop-opacity="0.7"/>
       <stop offset="50%" stop-color="#DDD6FE" stop-opacity="0.5"/>
@@ -53,27 +50,21 @@
     </linearGradient>
   </defs>
 
-  <!-- ORBIT RINGS: Behind chevrons (drawn first) -->
-
-  <!-- Orbit 1 - wide horizontal ellipse, tilted slightly -->
   <g transform="rotate(-12, 265, 245)">
     <ellipse cx="265" cy="245" rx="248" ry="100" fill="none"
              stroke="url(#d-orbit-1)" stroke-width="3.5" stroke-linecap="round"/>
   </g>
 
-  <!-- Orbit 2 - narrower, tilted opposite -->
   <g transform="rotate(25, 265, 245)">
     <ellipse cx="265" cy="245" rx="240" ry="75" fill="none"
              stroke="url(#d-orbit-2)" stroke-width="2.8" stroke-linecap="round"/>
   </g>
 
-  <!-- Orbit 3 - steepest tilt -->
   <g transform="rotate(60, 265, 245)">
     <ellipse cx="265" cy="245" rx="230" ry="60" fill="none"
              stroke="url(#d-orbit-3)" stroke-width="2.2" stroke-linecap="round"/>
   </g>
 
-  <!-- 3D Chevrons (on top of orbits) -->
   <path d="M280 56 L456 232 L280 320 L368 232 L280 144 Z" fill="url(#d4-light)"/>
   <path d="M280 320 L456 232 L280 408 Z" fill="url(#d4-dark)"/>
   <path d="M216 88 L392 264 L216 352 L304 264 L216 176 Z" fill="url(#d3-light)"/>
