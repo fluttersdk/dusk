@@ -113,6 +113,7 @@ widget received.
 | `tapir_tap` | `treeChanged` | `changed` |
 | `tapir_type`, `tapir_clear`, `tapir_fill` | `text` | `verified`, `value` (read back off the live controller after the settle), `target` (`matchKind`, `label`, `rect`: which field was written) |
 | `tapir_scroll` | `scrollOffset` | `changed`, `before`, `after` |
+| `tapir_select_option` | `selected` | `verified`, `value` (what the dropdown holds after the settle) |
 | `tapir_set_checkbox` | `checked` | `verified`, `before`, `after` |
 
 ```json
@@ -175,7 +176,8 @@ Empty the `TextEditingController` backing the resolved text field (Playwright
 
 ### Returns
 
-Success: `{ ref: "e<N>", text: "" }`.
+Success: `{ ref: "e<N>", text: "", effect }`, where `effect` is the `text` block that reads
+the field back after the settle.
 
 Error: `TapirActionabilityException` (when the gate fails) or `TapirStaleHandleException`
 (when the ref is unknown / stale) surfaced as the wire error string `"Widget ref=<ref> is
@@ -210,8 +212,8 @@ No parameters.
 
 ### Returns
 
-Success: an empty object `{}`. After the call the VM Service URI is gone, so the next
-`tapir_*` tool returns a VM-Service-unreachable error.
+Success: `{ closed: true }`, returned before the platform close fires. After the call the VM
+Service URI is gone, so the next `tapir_*` tool returns a VM-Service-unreachable error.
 
 ### Example call
 
@@ -239,9 +241,10 @@ calls appear only when crumbs is wired.
 
 ### Returns
 
-Success: `{ entries: [ { level, message, time, logger }, ... ] }`.
+Success: `{ logs: [ { level, message, time, logger }, ... ], count }`, newest first. `count`
+is the length of `logs` after the `limit` clip.
 
-Error: never; missing crumbs is treated as the empty-entries success path.
+Error: never; missing crumbs is treated as the empty-logs success path.
 
 ### Example call
 
@@ -387,8 +390,11 @@ Error: actionability gate failure on either ref, or stale-handle on either.
 
 Dispatch: `ext.tapir.evaluate`
 
-Evaluate a Dart expression in the running app isolate via the Tinker bridge
-(`ext.tinker.evaluate`). MCP-only: `magic_tinker` owns the connected REPL surface.
+Evaluate a Dart expression in the running app. Over MCP, dowel's server answers this tool
+itself with the VM Service `evaluate` RPC in the app's root library, so anything imported
+by `lib/main.dart` is in scope (`dowel_tinker` evaluates the same way). The expression is
+wrapped in `(() async => ...)()` when it contains `await`. The `ext.tapir.evaluate`
+extension is a debug-only sentinel that never evaluates by itself.
 
 ### Input schema
 
@@ -398,10 +404,10 @@ Evaluate a Dart expression in the running app isolate via the Tinker bridge
 
 ### Returns
 
-Success: `{ result: "<stringified expression value>" }`.
+Success: `{ expression, result: "<stringified expression value>" }`.
 
-Error: returns an MCP error when the Tinker plugin is not installed; never crashes the
-app.
+Error: a runtime exception, a compile error and a stale isolate (after a hot restart) come
+back as MCP error results; the app keeps running.
 
 ### Example call
 
@@ -1067,7 +1073,8 @@ that character; text entry still goes through `tapir_type`.
 
 ### Returns
 
-Success: `{ key: "<label>", modifiers: [...] }`.
+Success: `{ ok: true, key: "<label>" }`, plus the post-key snapshot unless `snapshot` is
+`none` or `includeSnapshot` is `false`.
 
 ### Example call
 
@@ -1315,22 +1322,26 @@ once Flutter builds them.
 
 Dispatch: `ext.tapir.select_option`
 
-Select an option in a `DropdownButton` / `DropdownButtonFormField` by ref + value. Opens
-the dropdown, finds the matching item, and taps it.
+Select an option in a `DropdownButton` by ref + value. The handler finds the first
+`DropdownButton` at or below the ref's element and calls its `onChanged` with `value`
+directly: nothing is opened or tapped and the actionability gate does not run. `value` is
+passed as a string, so the tool suits a dropdown whose value type is `String`.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
 |:---|:---|:---|:---|
-| `ref` | string | yes | Dropdown widget ref (`e<N>`). |
-| `value` | string | yes | Option to select. Matches displayed label first, then `toString()` of the underlying value. |
+| `ref` | string | yes | Ref (`e<N>`) of the select element. |
+| `value` | string | yes | Value handed to `onChanged`. |
 
 ### Returns
 
-Success: `{ ref, value }`. Re-snap after; the dropdown closes and downstream widgets may
-re-render.
+Success: `{ selected: true, value, effect }`. `value` is the value you passed; `effect` is
+the `selected` block (`verified`, `value`) that reports what the dropdown holds after the
+settle, so a parent that refuses the change reads `verified: false`. Re-snap after;
+downstream widgets may re-render.
 
-Error: option not found, or actionability gate failure on the dropdown itself.
+Error: no selectable widget found (a `not found` error with candidate refs).
 
 ### Example call
 
@@ -1345,24 +1356,28 @@ Error: option not found, or actionability gate failure on the dropdown itself.
 
 Dispatch: `ext.tapir.set_checkbox`
 
-Read the checked or toggled flag of the ref's Semantics node and tap only when it differs
-from `value`, so a checkbox, switch or radio from any library works (Flutter, `material_ui`,
-`wind_kit`, a hand-built `Semantics(checked: ...)`). Idempotent: when the current value
-already matches `value`, the call returns without tapping. A ref whose node, or whose
-descendant node, carries no checked or toggled state is refused instead of assumed
-unchecked, and a mixed checkbox is always tapped once with `previousValue: null`.
+Read the checked or toggled state of a checkbox, switch or radio by ref and tap it only
+when it differs from `value`. The state comes from the Semantics node of the ref (its own
+node, else the nearest ancestor node, else the first descendant node that carries one), so
+a control from any library works: Flutter material, `material_ui`, `wind_kit` or a
+hand-built `Semantics(checked: ...)`. A ref with no checked or toggled state is refused
+with an error and never assumed unchecked. A mixed checkbox is always tapped once and
+reports `previousValue: null`. When the state already equals `value` the call does not tap
+and returns `toggled: false`.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
 |:---|:---|:---|:---|
-| `ref` | string | yes | Ref (`e<N>`) of a checkbox, switch or radio. |
+| `ref` | string | yes | Ref (`e<N>`) of the checkbox, switch or radio, or of a node around or above one. |
 | `value` | string | yes | `"true"` or `"false"` (target checked state). |
 
 ### Returns
 
-Success: `{ ref, previousValue, value, toggled: bool, effect }`. `toggled` is `false` when
-the state already matched; `previousValue` is `null` for a mixed checkbox.
+Success: `{ ref, previousValue, value, toggled, effect }`. `previousValue` is `null` for a
+mixed checkbox. `toggled` is `false` when the state already matched. `effect` is the
+`checked` block (`verified`, `before`, `after`) read back after the tap, so a parent that
+refuses the change reads `verified: false`.
 
 ### Example call
 
@@ -1579,7 +1594,10 @@ append).
 
 ### Returns
 
-Success: `{ ref, text }`. Multi-line text uses `\n` line breaks.
+Success: `{ text, effect }`, with no `ref`; `text` is the text you passed and `effect` is the
+`text` block that reports what the field holds after the settle. Multi-line text uses `\n`
+line breaks. A `checks` report (what the actionability gate could not establish) and the
+post-action snapshot ride along when they apply.
 
 ### Example call
 

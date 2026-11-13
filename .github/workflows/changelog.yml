@@ -22,7 +22,7 @@ jobs:
       # A change to the shipped code needs a CHANGELOG.md entry in the same pull
       # request. Dependabot, release pull requests and the `skip-changelog`
       # label are exempt. README, llms.txt, doc/ and the agent skill stay a
-      # review rule (CLAUDE.md, Golden rules).
+      # review rule (CLAUDE.md, Post-Change Checklist).
       - name: Require a changelog entry for code changes
         env:
           BASE_REF: ${{ github.base_ref }}

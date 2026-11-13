@@ -217,9 +217,9 @@ are deliberate and listed here so contributors do not add the gate "for symmetry
 - **`scroll`**; operates on the parent `Scrollable` rather than the ref
   target. Gating the ref would refuse scrolls against widgets that are
   off-viewport, which is exactly the scenario `tapir_scroll` is meant to fix.
-- **`select_option`**; dispatches through Material / Cupertino popup machinery
-  that owns its own enabled check. Adding the gate would double-check enabled
-  state and miss the popup-specific failure modes.
+- **`select_option`**; calls the dropdown's `onChanged` callback directly
+  instead of tapping, so no pointer event leaves the VM and there is nothing
+  for the gate to check.
 - **`press_key`**; targets the currently focused widget, not a ref. The gate
   contract requires a `RefEntry`; the focused widget may not have a token.
 

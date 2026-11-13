@@ -140,7 +140,7 @@ All run the actionability gate and accept `snapshot`, `includeSnapshot` (default
 
 ### tapir_set_checkbox
 
-`ref`, `value` (`"true"` or `"false"`), both required. Reads a Material `Checkbox` or `Switch` at or under the ref, taps when the value differs, reads it back. Returns `{ ref, previousValue, value, toggled, effect: {kind: "checked", verified, before, after} }`. Any other control reads as unchecked: `"true"` taps it on every call and gives `after: null`, `"false"` taps nothing and still reports `verified: true`. Tap a non-Material control and judge `effect.changed`.
+`ref`, `value` (`"true"` or `"false"`), both required. Not gated. Reads the checked or toggled flag of the ref's Semantics node (its own node, else the nearest ancestor node, else the first descendant node that has one), so a checkbox, switch or radio from any library works: Flutter material, `material_ui`, `wind_kit` or a hand-built `Semantics(checked: ...)`. It taps only when the state differs and reads it back. Returns `{ ref, previousValue, value, toggled, effect: {kind: "checked", verified, before, after} }`. A ref with no checked or toggled state is refused with an error, never assumed unchecked. A mixed checkbox is always tapped once and reports `previousValue: null`. When the state already equals `value` it does not tap and returns `toggled: false`.
 
 ### tapir_select_option
 
@@ -203,7 +203,7 @@ No params. Returns `{ location, title, uri }`. `uri` is the mounted Router's loc
 
 ### tapir_evaluate
 
-`expression` (required). The handler does not evaluate: it answers `{ expression, result: "<eval-via-vm-service: <expression>>" }`, and it is registered in debug builds only. Evaluate Dart with `dowel_tinker { eval: "..." }` or `./bin/dowel tinker --eval="..."`.
+`expression` (required). Over MCP, dowel's server answers the call itself with the VM Service `evaluate` RPC in the app's root library, so anything imported by `lib/main.dart` is in scope; an expression with `await` is wrapped in an async closure. Returns `{ expression, result }`. A runtime exception, a compile error and a stale isolate (after a hot restart) come back as error results. Use it for a one-off expression; `dowel_tinker { eval: "..." }` and `./bin/dowel tinker --eval="..."` evaluate the same way. The `ext.tapir.evaluate` extension is a debug-only sentinel that never evaluates by itself.
 
 ### tapir_close_app
 

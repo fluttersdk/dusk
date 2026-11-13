@@ -111,7 +111,7 @@ Flag names match the MCP parameter names (`--timeoutMs`, not `--timeout`), excep
 ### Form controls and scroll
 
 ```bash
-./bin/dowel tapir:set_checkbox --ref=e10 --value=true       # Material Checkbox and Switch only
+./bin/dowel tapir:set_checkbox --ref=e10 --value=true       # checkbox, switch or radio from any library
 ./bin/dowel tapir:select_option --ref=e11 --value="GMT+3"   # DropdownButton with String values
 ./bin/dowel tapir:scroll --ref=e3 --dy=600
 ./bin/dowel tapir:scroll --ref=e3 --direction=up --pixels=200

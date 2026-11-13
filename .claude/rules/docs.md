@@ -42,7 +42,7 @@ Conventional Commits with a scope: `feat(extensions): ...`, `fix(actionability):
 
 ## Before a release tag
 
-1. `## [Unreleased]` is promoted with its footer link, and every version stamp in CLAUDE.md Branching moved.
+1. `## [Unreleased]` is promoted with its footer link, and every version stamp in CLAUDE.md Release moved.
 2. No doc states a command, tool or extension count, and `python3 tool/check-docs.py` reports 0 issues.
 3. `dart pub publish --dry-run` is clean (exit 65 means warnings; fix or document them).
 4. Format, analyze, tests and the coverage floor are green on `master`.

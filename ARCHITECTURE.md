@@ -65,7 +65,7 @@ Each command file declares `name`, `description`, `boot` (`none` or `connected`)
 
 The `McpToolDescriptor` entries in `TapirDowelProvider.mcpTools()`. Most route through an `ext.tapir.*` VM Service extension; some route through `dowel:tapir:*` substrate prefixes: `tapir_hot_reload_and_snap`, `tapir_resize_viewport` and `tapir_device_profile` need out-of-isolate execution (in-isolate hot reload would deadlock; CDP needs a non-Flutter Dart context), and `tapir_perf_run`, `tapir_perf_compare`, `tapir_perf_trace` and `tapir_run` need the MCP dispatch to write a host file or run CLI commands rather than call the isolate directly.
 
-`tapir_evaluate` is MCP-only (no CLI mirror): `magic_tinker` owns the connected REPL surface.
+`tapir_evaluate` is MCP-only (no CLI mirror) and dowel's server answers it: it runs the expression through the VM Service `evaluate` RPC in the app's root library. `ext.tapir.evaluate` (`ext_evaluate.dart`) is a debug-only sentinel that never evaluates by itself; `dowel_tinker` and `dowel tinker` evaluate the same way.
 
 ## VM Service extension surface
 
@@ -91,7 +91,7 @@ Web recovery is CLI-side, because the in-isolate wake cannot take on a hidden ta
 
 Every handler returns through `tapirResult(payload)` in `lib/src/utils/tapir_response.dart` rather than constructing `ServiceExtensionResponse.result(jsonEncode(...))` itself. One seam means a diagnostic that belongs on every reply is added once and the next handler cannot forget it.
 
-Alongside it, five verbs carry an `effect` block built from `lib/src/utils/effect_report.dart`: `tap`, the three text verbs (`type` / `clear` / `fill`), `scroll` and `set_checkbox`. A tapir action confirms that it DISPATCHED; the block is what confirms the widget received. `tap` compares a target-scoped semantics-subtree signal, the text verbs read the live `TextEditingController` back after the two-frame settle (so a formatter or echo that reverts the write reports `verified: false`) instead of echoing the request, and say which field they wrote in `effect.target` (`matchKind` `overlap`, `nearest` or `element`; a ref that is an interactive non-text control is refused by `refuseNonTextRef` in `ext_text_input.dart`), `scroll` reports the offset on both sides, and `set_checkbox` re-reads the control. Each of those was a measured false success: a fill onto a field covered by a pinned footer, a fill against a number field that kept nothing, a scroll against a ref that was not a scrollable.
+Alongside it, these verbs carry an `effect` block built from `lib/src/utils/effect_report.dart`: `tap`, the text verbs (`type` / `clear` / `fill`), `scroll`, `select_option` and `set_checkbox`. A tapir action confirms that it DISPATCHED; the block is what confirms the widget received. `tap` compares a target-scoped semantics-subtree signal, the text verbs read the live `TextEditingController` back after the two-frame settle (so a formatter or echo that reverts the write reports `verified: false`) instead of echoing the request, and say which field they wrote in `effect.target` (`matchKind` `overlap`, `nearest` or `element`; a ref that is an interactive non-text control is refused by `refuseNonTextRef` in `ext_text_input.dart`), `scroll` reports the offset on both sides, and `select_option` and `set_checkbox` re-read the control. Each of those was a measured false success: a fill onto a field covered by a pinned footer, a fill against a number field that kept nothing, a scroll against a ref that was not a scrollable.
 
 The response-level diagnostics are `framesForced` and `reresolved` (both set per call through `tapir_register.dart`) and `frameProductionWarning()`: a `warnings` block, carrying `platform` and a platform-aware `hint`, appears only while frame production is off and tapir could not force it back on, which is the state in which a snapshot returns a screen with no text and an action reports a dispatch that could not have landed. CLI-side, `reportFrameWarning` in `lib/src/commands/frame_warning_output.dart` prints the matching stderr banner, because the commands that summarise (`tapir:snap` prints only the tree, `tapir:tap` prints `✓ Tapped e7`) would otherwise drop the block. See `doc/reference/frame-production.md`.
 
@@ -178,13 +178,13 @@ The steps for adding a verb are in `.claude/rules/extensions.md` and `commands.m
 | A key every success response should carry | `utils/tapir_response.dart` (`tapirResult`) | Per-call state travels in a zone value set by `tapir_register.dart`, not a parameter. |
 | Perf report shape | `ext_perf.dart`, `utils/perf_readers.dart`, `lib/tapir.dart` | `magic_devtools` assigns the pointers from another repository; a changed key set fails silently there. |
 | Frame wake, web visibility | `utils/frame_sync.dart`, `utils/tapir_register.dart`, `commands/web_visibility.dart` | `doc/reference/frame-production.md` documents the observable behaviour and its side effects. |
-| Release | version stamps listed in CLAUDE.md Branching | `test/server_json_version_test.dart` guards `server.json` only. |
+| Release | version stamps listed in CLAUDE.md Release | `test/server_json_version_test.dart` guards `server.json` only. |
 
 ## Traps
 
 - The snapshot baseline is module state in `ext_snapshot.dart`, not part of `RefRegistry`: a hot restart clears it, and a test that builds a snapshot calls `resetSnapshotBaselineForTesting`.
 - `SchedulerBinding.framesEnabled` can read `true` on a hidden Chrome page that is not producing frames; `framePerfReader`'s `livenessCounter` is the authority.
-- `tapir_evaluate` has an MCP tool and no CLI command on purpose (`magic_tinker` owns the connected REPL); do not mirror it under `tapir:`.
+- `tapir_evaluate` has an MCP tool and no CLI command on purpose (evaluation is dowel's: its MCP server and `dowel tinker`); do not mirror it under `tapir:`.
 - A web tap or fill can throw a DWDS timeout instead of returning a `warnings` block when the tab is hidden; `callExtensionVisible` recovers both shapes.
 - `tapir:device` overrides belong to its own DevTools session and Chrome drops them when the command exits; only the window bounds persist. A lasting viewport is `tapir:resize --hold`.
 
