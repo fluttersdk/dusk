@@ -226,8 +226,9 @@ Success: an empty object `{}`. After the call the VM Service URI is gone, so the
 
 Dispatch: `ext.tapir.console`
 
-Read recent log entries from the running app's crumbs store. Missing-crumbs graceful:
-returns an empty list when the host has not set crumbs up.
+Read recent log entries from the running app. Without crumbs it returns the entries
+captured from `debugPrint` (level `INFO`, logger `debugPrint`); direct `developer.log()`
+calls appear only when crumbs is wired.
 
 ### Input schema
 

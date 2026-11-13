@@ -88,6 +88,7 @@ The full sub-step list (from the source docblock):
 ```bash
 flutter create my_app
 cd my_app
+flutter pub add tapir
 dart run tapir tapir:install
 ```
 
