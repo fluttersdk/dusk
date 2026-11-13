@@ -4,29 +4,29 @@ import 'package:flutter/foundation.dart' show FlutterTimeline;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_perf.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
-import 'package:fluttersdk_dusk/src/utils/perf_insights.dart';
-import 'package:fluttersdk_dusk/src/utils/perf_interaction.dart';
-import 'package:fluttersdk_dusk/src/utils/perf_readers.dart';
+import 'package:tapir/src/extensions/ext_perf.dart';
+import 'package:tapir/src/extensions/ext_pointer.dart';
+import 'package:tapir/src/ref_registry.dart';
+import 'package:tapir/src/utils/perf_insights.dart';
+import 'package:tapir/src/utils/perf_interaction.dart';
+import 'package:tapir/src/utils/perf_readers.dart';
 
 /// What the zone carries at the moment of the call, read the way a host in
-/// another package reads it: through the public symbol, not through dusk.
+/// another package reads it: through the public symbol, not through tapir.
 PerfInteraction? _zoneHandle() =>
-    Zone.current[#fluttersdk_interaction] as PerfInteraction?;
+    Zone.current[#tapir_interaction] as PerfInteraction?;
 
 /// Opens a timing session: it flips no debug flag, which `testWidgets`
 /// would otherwise report as a leaked debug variable.
 Future<void> _openSession() async {
-  await duskPerfBeginHandler(
-    'ext.dusk.perf_begin',
+  await tapirPerfBeginHandler(
+    'ext.tapir.perf_begin',
     <String, String>{'mode': 'timing'},
   );
   expect(perfSessionOpen, isTrue, reason: 'the session must open');
 }
 
-/// Taps [finder] through `ext.dusk.tap`, pumping the harness the way the
+/// Taps [finder] through `ext.tapir.tap`, pumping the harness the way the
 /// handler's 50 ms hold and two frame awaits need.
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   final String ref = RefRegistry.registerForTesting(
@@ -36,7 +36,7 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
     isTextField: false,
   );
   final Future<Object?> response = aiTestTapHandler(
-    'ext.dusk.tap',
+    'ext.tapir.tap',
     <String, String>{
       'ref': ref,
       'checkStable': 'false',
@@ -133,7 +133,7 @@ void main() {
           home: Center(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => seen = Zone.current[#fluttersdk_interaction],
+              onTap: () => seen = Zone.current[#tapir_interaction],
               child: const SizedBox(width: 100, height: 100),
             ),
           ),
@@ -181,7 +181,7 @@ void main() {
       await runPerfInteraction<void>('tap', 'e1', () async {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           seenInFrame = activeInteraction();
-          zoneInFrame = Zone.current[#fluttersdk_interaction];
+          zoneInFrame = Zone.current[#tapir_interaction];
         });
         WidgetsBinding.instance.scheduleFrame();
       });
@@ -298,8 +298,8 @@ void main() {
 
     test('the zone key is the public symbol a host in another library reads',
         () {
-      expect(PerfInteraction.zoneKey, #fluttersdk_interaction);
-      expect(PerfInteraction.zoneKey, const Symbol('fluttersdk_interaction'));
+      expect(PerfInteraction.zoneKey, #tapir_interaction);
+      expect(PerfInteraction.zoneKey, const Symbol('tapir_interaction'));
     });
   });
 }

@@ -5,14 +5,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
+import 'package:wind_kit_diagnostics_contracts/wind_kit_diagnostics_contracts.dart';
 
-import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_perf.dart';
-import 'package:fluttersdk_dusk/src/utils/perf_insights.dart';
-import 'package:fluttersdk_dusk/src/utils/perf_readers.dart';
+import 'package:tapir/src/tapir_plugin.dart';
+import 'package:tapir/src/extensions/ext_perf.dart';
+import 'package:tapir/src/utils/perf_insights.dart';
+import 'package:tapir/src/utils/perf_readers.dart';
 
-/// Wind is not a dependency of dusk, so the wind section is read through the
+/// Wind is not a dependency of tapir, so the wind section is read through the
 /// neutral contracts package. Faking the contract is the only way to prove
 /// the read happens.
 final class _FakeWindPerfResolver implements WindPerfResolver {
@@ -27,7 +27,7 @@ final class _FakeWindPerfResolver implements WindPerfResolver {
       };
 }
 
-/// One frame shaped exactly like telescope's `FramePerfRecord.toJson()`.
+/// One frame shaped exactly like crumbs's `FramePerfRecord.toJson()`.
 Map<String, Object?> _frame({
   required int frameNumber,
   required int buildMicros,
@@ -137,11 +137,11 @@ void main() {
     });
   });
 
-  group('ext.dusk.perf_begin', () {
+  group('ext.tapir.perf_begin', () {
     test('opens a session, returns a token, and defaults phases to false',
         () async {
       final Map<String, dynamic> payload = _decode(
-        await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{}),
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{}),
       );
 
       expect(payload['sessionToken'], isA<String>());
@@ -152,7 +152,7 @@ void main() {
 
     test('enables collection and the build flags, leaving the phase flags off',
         () async {
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
 
       expect(FlutterTimeline.debugCollectionEnabled, isTrue);
       expect(debugProfileBuildsEnabled, isTrue);
@@ -163,8 +163,8 @@ void main() {
 
     test('phases=true also enables the layout and paint flags', () async {
       final Map<String, dynamic> payload = _decode(
-        await duskPerfBeginHandler(
-          'ext.dusk.perf_begin',
+        await tapirPerfBeginHandler(
+          'ext.tapir.perf_begin',
           <String, String>{'phases': 'true'},
         ),
       );
@@ -176,7 +176,7 @@ void main() {
 
     test('mode defaults to attribution and is echoed back', () async {
       final Map<String, dynamic> payload = _decode(
-        await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{}),
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{}),
       );
 
       expect(payload['mode'], 'attribution');
@@ -185,8 +185,8 @@ void main() {
     test('mode=timing flips no debugProfile flag and no collection flag',
         () async {
       final Map<String, dynamic> payload = _decode(
-        await duskPerfBeginHandler(
-          'ext.dusk.perf_begin',
+        await tapirPerfBeginHandler(
+          'ext.tapir.perf_begin',
           <String, String>{'mode': 'timing'},
         ),
       );
@@ -202,8 +202,8 @@ void main() {
     test('an unknown mode is rejected as invalid params, opening nothing',
         () async {
       final developer.ServiceExtensionResponse response =
-          await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+          await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'mode': 'fast'},
       );
 
@@ -211,14 +211,14 @@ void main() {
       expect(response.errorDetail, contains('attribution'));
       expect(debugProfileBuildsEnabled, isFalse);
       final developer.ServiceExtensionResponse end =
-          await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
       expect(end.result, isNull, reason: 'no session may have opened');
     });
 
     test('phases with timing is a contradiction and is rejected', () async {
       final developer.ServiceExtensionResponse response =
-          await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+          await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'mode': 'timing', 'phases': 'true'},
       );
 
@@ -237,7 +237,7 @@ void main() {
           };
 
       final Map<String, dynamic> payload = _decode(
-        await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{}),
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{}),
       );
 
       expect(beginCalls, 1);
@@ -251,11 +251,11 @@ void main() {
       final List<PerfMode> seen = <PerfMode>[];
       perfSessionBeginHook = seen.add;
 
-      await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+      await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'mode': 'timing'},
       );
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
 
       expect(seen, <PerfMode>[PerfMode.timing, PerfMode.attribution]);
     });
@@ -263,13 +263,13 @@ void main() {
     test(
         'a second begin restores the first session flags before saving new '
         'ones, so perf_end cannot leave profiling on', () async {
-      await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+      await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'phases': 'true'},
       );
 
       final Map<String, dynamic> second = _decode(
-        await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{}),
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{}),
       );
       expect(second['restartedPreviousSession'], isTrue);
 
@@ -277,7 +277,7 @@ void main() {
             'frames': _fixtureFrames,
             'livenessCounter': 9,
           };
-      await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
       expect(debugProfileBuildsEnabled, isFalse);
       expect(debugProfileLayoutsEnabled, isFalse);
@@ -285,11 +285,11 @@ void main() {
     });
   });
 
-  group('ext.dusk.perf_end', () {
+  group('ext.tapir.perf_end', () {
     test('without a prior perf_begin returns a typed error, does not throw',
         () async {
       final developer.ServiceExtensionResponse response =
-          await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('perf_begin'));
@@ -301,25 +301,25 @@ void main() {
     test('restores every flag to its PRIOR value, not to false', () async {
       // A host with build profiling already on (a DevTools user, a nested
       // harness) must get it back; forcing false would silently turn off
-      // something dusk never owned.
+      // something tapir never owned.
       debugProfileBuildsEnabled = true;
       debugProfileLayoutsEnabled = true;
       FlutterTimeline.debugCollectionEnabled = true;
 
-      await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+      await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'phases': 'true'},
       );
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
             'livenessCounter': 5,
           };
-      await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
       expect(debugProfileBuildsEnabled, isTrue);
       expect(debugProfileLayoutsEnabled, isTrue);
       expect(FlutterTimeline.debugCollectionEnabled, isTrue);
-      // The two dusk did own on this run go back off.
+      // The two tapir did own on this run go back off.
       expect(debugProfileBuildsEnabledUserWidgets, isFalse);
       expect(debugProfilePaintsEnabled, isFalse);
     });
@@ -329,12 +329,12 @@ void main() {
       int endCalls = 0;
       perfSessionEndHook = () => endCalls++;
 
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
             'livenessCounter': 3,
           };
-      await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
       expect(endCalls, 1);
     });
@@ -349,9 +349,9 @@ void main() {
             'livenessCounter': 7,
           };
 
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       expect(payload['refused'], isTrue);
@@ -387,7 +387,8 @@ void main() {
           (PerfMode mode) => throw StateError('host wiring is broken');
 
       final developer.ServiceExtensionResponse begin =
-          await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+          await tapirPerfBeginHandler(
+              'ext.tapir.perf_begin', <String, String>{});
 
       expect(begin.result, isNull, reason: 'the failure must surface');
       expect(FlutterTimeline.debugCollectionEnabled, isFalse);
@@ -415,9 +416,9 @@ void main() {
       perfSessionBeginHook =
           (PerfMode mode) => throw StateError('host wiring is broken');
 
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       final developer.ServiceExtensionResponse end =
-          await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
       expect(end.result, isNull, reason: 'no session is open to report on');
       expect(end.errorDetail, contains('perf_begin'));
@@ -450,9 +451,9 @@ void main() {
             'livenessCounter': 40 + (reads++ > 0 ? 1 : 0),
           };
 
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       expect(payload['refused'], isTrue);
@@ -465,7 +466,7 @@ void main() {
 
     test('the refusal is its own field, independent of the warnings block',
         () async {
-      // `duskResult` stamps `warnings` from SchedulerBinding.framesEnabled,
+      // `tapirResult` stamps `warnings` from SchedulerBinding.framesEnabled,
       // which was measured reporting true on a hidden Chrome page. A reader
       // must be able to tell the two signals apart, so `refused` has to move
       // while the warnings key does not.
@@ -473,18 +474,18 @@ void main() {
             'frames': <Map<String, Object?>>[],
             'livenessCounter': 7,
           };
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       final Map<String, dynamic> refusal = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
             'livenessCounter': 99,
           };
       final Map<String, dynamic> report = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       expect(refusal['refused'], isTrue);
@@ -504,11 +505,11 @@ void main() {
             'livenessCounter': 7,
           };
 
-      await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+      await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'phases': 'true'},
       );
-      await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
       expect(debugProfileBuildsEnabled, isFalse);
       expect(debugProfilePaintsEnabled, isFalse);
@@ -516,7 +517,7 @@ void main() {
 
       // Session closed: a second end has nothing to close.
       final developer.ServiceExtensionResponse second =
-          await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
       expect(second.result, isNull);
     });
 
@@ -530,13 +531,13 @@ void main() {
             ],
           };
 
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
             'livenessCounter': 44,
           };
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       expect(payload['refused'], isFalse);
@@ -603,13 +604,13 @@ void main() {
               'frames': <Map<String, Object?>>[],
               'livenessCounter': 0,
             };
-        await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
         framePerfReader = () => <String, Object?>{
               'frames': _fixtureFrames,
               'livenessCounter': 44,
             };
         return _decode(
-          await duskPerfEndHandler('ext.dusk.perf_end', params),
+          await tapirPerfEndHandler('ext.tapir.perf_end', params),
         );
       }
 
@@ -636,8 +637,8 @@ void main() {
 
     test('timing mode reports frame timings only', () async {
       WindDebugRegistry.registerPerf(_FakeWindPerfResolver());
-      await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+      await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'mode': 'timing'},
       );
       framePerfReader = () => <String, Object?>{
@@ -645,7 +646,7 @@ void main() {
             'livenessCounter': 2,
           };
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       expect(payload['mode'], 'timing');
@@ -665,13 +666,13 @@ void main() {
       // never reported. Both numbers were already in this payload and nothing
       // compared them, which is the whole defect: an honest subset that does
       // not say it is a subset is indistinguishable from a complete answer.
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames, // two frames
             'livenessCounter': 44, // forty-four drawn
           };
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       final Map<String, dynamic> coverage =
@@ -690,8 +691,8 @@ void main() {
           );
       expect(gap['title'], contains('2 of 44'));
       final Map<String, dynamic> drill = _decode(
-        await duskPerfInsightHandler(
-          'ext.dusk.perf_insight',
+        await tapirPerfInsightHandler(
+          'ext.tapir.perf_insight',
           <String, String>{'id': gap['id'] as String},
         ),
       );
@@ -710,7 +711,7 @@ void main() {
       // arrive after the buffer was cleared, and the idle frame perf_end
       // draws to flush the tail is a frame of its own. Neither belongs to the
       // window the report describes.
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       final int now = FlutterTimeline.now;
       Map<String, Object?> at(int frameNumber, int vsyncStartUs) =>
           <String, Object?>{
@@ -734,7 +735,7 @@ void main() {
           };
 
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       final Map<String, dynamic> frameSummary = (payload['summary']
@@ -755,7 +756,7 @@ void main() {
       // clock. A session that drew frames but places none of them is a clock
       // mismatch, not an empty session; cutting everything would report a
       // blank summary for a session that drew.
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       final int now = FlutterTimeline.now;
       Map<String, Object?> at(int frameNumber, int vsyncStartUs) =>
           <String, Object?>{
@@ -772,7 +773,7 @@ void main() {
           };
 
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       final Map<String, dynamic> frameSummary = (payload['summary']
@@ -799,14 +800,14 @@ void main() {
 
     test('keeps a frame that carries no vsync timestamp: nothing places it',
         () async {
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
             'livenessCounter': 2,
           };
 
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       final Map<String, dynamic> coverage =
@@ -817,14 +818,14 @@ void main() {
 
     test('env.renderer is what rendererReader answers', () async {
       rendererReader = () => 'skwasm';
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
             'livenessCounter': 2,
           };
 
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       expect((payload['env'] as Map<String, dynamic>)['renderer'], 'skwasm');
@@ -832,14 +833,14 @@ void main() {
 
     test('says unknown for the renderer until a host or the web says more',
         () async {
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
             'livenessCounter': 2,
           };
 
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       expect((payload['env'] as Map<String, dynamic>)['renderer'], 'unknown');
@@ -850,13 +851,13 @@ void main() {
       // The other half of the contract: a session that DID report every frame
       // must say so, or `complete: false` degrades into background noise that
       // a reader learns to ignore.
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames, // two frames
             'livenessCounter': 2, // two drawn
           };
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       final Map<String, dynamic> coverage =
@@ -885,9 +886,9 @@ void main() {
             'livenessCounter': 7,
           };
 
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       final String reason = payload['reason'] as String;
@@ -901,13 +902,13 @@ void main() {
     });
 
     test('ranks blocks across the whole session by self time', () async {
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
             'livenessCounter': 2,
           };
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       final List<dynamic> blocks = (payload['summary']
@@ -924,13 +925,13 @@ void main() {
 
     test('reports a null wind section when no perf resolver is registered',
         () async {
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
             'livenessCounter': 2,
           };
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       // Null rather than a map of zeros: "wind never registered" and "wind
@@ -946,15 +947,15 @@ void main() {
     });
   });
 
-  group('ext.dusk.perf_insight', () {
+  group('ext.tapir.perf_insight', () {
     Future<Map<String, dynamic>> closeReport() async {
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
             'livenessCounter': 2,
           };
       return _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
     }
 
@@ -964,8 +965,8 @@ void main() {
           (report['insights'] as List<dynamic>).first as Map<String, dynamic>;
 
       final Map<String, dynamic> drill = _decode(
-        await duskPerfInsightHandler(
-          'ext.dusk.perf_insight',
+        await tapirPerfInsightHandler(
+          'ext.tapir.perf_insight',
           <String, String>{
             'token': report['sessionToken'] as String,
             'id': first['id'] as String,
@@ -993,8 +994,8 @@ void main() {
           as Map<String, dynamic>)['id'] as String;
 
       final developer.ServiceExtensionResponse response =
-          await duskPerfInsightHandler(
-        'ext.dusk.perf_insight',
+          await tapirPerfInsightHandler(
+        'ext.tapir.perf_insight',
         <String, String>{'id': id},
       );
 
@@ -1005,8 +1006,8 @@ void main() {
       await closeReport();
 
       final developer.ServiceExtensionResponse response =
-          await duskPerfInsightHandler(
-        'ext.dusk.perf_insight',
+          await tapirPerfInsightHandler(
+        'ext.tapir.perf_insight',
         <String, String>{'id': 'I999'},
       );
 
@@ -1019,8 +1020,8 @@ void main() {
       final Map<String, dynamic> report = await closeReport();
 
       final developer.ServiceExtensionResponse response =
-          await duskPerfInsightHandler(
-        'ext.dusk.perf_insight',
+          await tapirPerfInsightHandler(
+        'ext.tapir.perf_insight',
         <String, String>{'token': 'perf-0', 'id': 'I1'},
       );
 
@@ -1030,8 +1031,8 @@ void main() {
 
     test('before any session closed it is an error naming perf_end', () async {
       final developer.ServiceExtensionResponse response =
-          await duskPerfInsightHandler(
-        'ext.dusk.perf_insight',
+          await tapirPerfInsightHandler(
+        'ext.tapir.perf_insight',
         <String, String>{'id': 'I1'},
       );
 
@@ -1043,8 +1044,8 @@ void main() {
       await closeReport();
 
       final developer.ServiceExtensionResponse response =
-          await duskPerfInsightHandler(
-        'ext.dusk.perf_insight',
+          await tapirPerfInsightHandler(
+        'ext.tapir.perf_insight',
         <String, String>{},
       );
 
@@ -1058,12 +1059,12 @@ void main() {
             'frames': <Map<String, Object?>>[],
             'livenessCounter': 7,
           };
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
-      await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
       final developer.ServiceExtensionResponse response =
-          await duskPerfInsightHandler(
-        'ext.dusk.perf_insight',
+          await tapirPerfInsightHandler(
+        'ext.tapir.perf_insight',
         <String, String>{'id': 'I1'},
       );
 
@@ -1087,9 +1088,9 @@ void main() {
         };
       };
 
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       final Map<String, dynamic> payload = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       final Map<String, dynamic> frames = (payload['summary']
@@ -1100,17 +1101,17 @@ void main() {
   });
 
   group('semantics receipt', () {
-    tearDown(DuskPlugin.resetSemanticsForTesting);
+    tearDown(TapirPlugin.resetSemanticsForTesting);
 
     test('perf_end re-acquires a semantics handle a dead driver left released',
         () async {
-      DuskPlugin.acquireSemantics();
-      await duskPerfBeginHandler('ext.dusk.perf_begin', <String, String>{});
-      expect(DuskPlugin.releaseSemantics(), isTrue);
+      TapirPlugin.acquireSemantics();
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+      expect(TapirPlugin.releaseSemantics(), isTrue);
 
-      await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
-      expect(DuskPlugin.semanticsReleased, isFalse);
+      expect(TapirPlugin.semanticsReleased, isFalse);
       expect(RendererBinding.instance.semanticsEnabled, isTrue);
     });
   });

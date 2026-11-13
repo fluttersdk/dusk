@@ -19,7 +19,7 @@ const Duration kPerfRouterBudget = Duration(seconds: 10);
 /// How often a `when` guard looks at the screen while it waits.
 const Duration _kWhenPollInterval = Duration(milliseconds: 250);
 
-/// How many `ext.dusk.exceptions` entries a setup failure quotes.
+/// How many `ext.tapir.exceptions` entries a setup failure quotes.
 const int _kDiagnosticExceptions = 3;
 
 /// The longest exception message a setup failure quotes, in characters.
@@ -54,7 +54,7 @@ final class PerfSetupRunner {
   /// failure (a scenario's name), each entry after it by its origin:
   /// `list-scroll setup[2] (navigate)`.
   ///
-  /// Answers whether a navigate landed only after `ext.dusk.navigate`
+  /// Answers whether a navigate landed only after `ext.tapir.navigate`
   /// answered false, which the unit's repeat records as `setupLandedLate`.
   /// Throws [PerfRunException].
   ///
@@ -133,7 +133,7 @@ final class PerfSetupRunner {
     return true;
   }
 
-  /// Polls `ext.dusk.find --text` every [_kWhenPollInterval] for up to
+  /// Polls `ext.tapir.find --text` every [_kWhenPollInterval] for up to
   /// [PerfSetupGuard.timeoutMs]: true once [PerfSetupGuard.text] shows,
   /// false once [PerfSetupGuard.unlessText] shows (checked first, so it wins
   /// when both do), and false on timeout when there is no `unless_text`.
@@ -162,10 +162,10 @@ final class PerfSetupRunner {
     );
   }
 
-  /// Whether `ext.dusk.find --text` matches [text] on the screen right now.
+  /// Whether `ext.tapir.find --text` matches [text] on the screen right now.
   Future<bool> _shows(String text, String where) async =>
       (await actions.call(
-        'ext.dusk.find',
+        'ext.tapir.find',
         <String, String>{'text': text},
         where,
       ))['ref'] !=
@@ -198,7 +198,7 @@ final class PerfSetupRunner {
         for (int left = budget; left > 0 && !matched;) {
           final int slice = left < _kWaitSliceMs ? left : _kWaitSliceMs;
           final Map<String, dynamic> result = await actions.call(
-            'ext.dusk.wait_for',
+            'ext.tapir.wait_for',
             <String, String>{
               'text': step.argument!,
               'timeoutMs': '$slice',
@@ -216,7 +216,7 @@ final class PerfSetupRunner {
         }
       case PerfSetupVerb.waitForNetworkIdle:
         await actions.call(
-          'ext.dusk.wait_for_network_idle',
+          'ext.tapir.wait_for_network_idle',
           const <String, String>{},
           where,
         );
@@ -225,7 +225,7 @@ final class PerfSetupRunner {
   }
 
   /// Navigates to [route] and holds the app to it; answers whether it
-  /// landed only after `ext.dusk.navigate` answered false.
+  /// landed only after `ext.tapir.navigate` answered false.
   ///
   /// The app has to be routable first ([awaitRouter]). A `navigated: false`
   /// then fails with the payload unless the route lands within
@@ -245,7 +245,7 @@ final class PerfSetupRunner {
     //    own two-frame read then shortly after it.
     bool landedLate = false;
     Map<String, dynamic> payload = await actions.call(
-      'ext.dusk.navigate',
+      'ext.tapir.navigate',
       <String, String>{
         'route': route,
         'includeSnapshot': 'false',
@@ -255,7 +255,7 @@ final class PerfSetupRunner {
     if (payload['navigated'] != true) {
       if (!await _awaitLanding(route, where)) {
         throw PerfRunException(
-          '$where: the router did not honor "$route"; ext.dusk.navigate '
+          '$where: the router did not honor "$route"; ext.tapir.navigate '
           'answered ${jsonEncode(payload)}.',
         );
       }
@@ -266,17 +266,17 @@ final class PerfSetupRunner {
 
     // 3. And the app has to stay there once its first fetches are done.
     final Object? landed = (await actions.call(
-      'ext.dusk.get_routes',
+      'ext.tapir.get_routes',
       const <String, String>{},
       where,
     ))['uri'];
     await actions.call(
-      'ext.dusk.wait_for_network_idle',
+      'ext.tapir.wait_for_network_idle',
       const <String, String>{},
       where,
     );
     final Object? settled = (await actions.call(
-      'ext.dusk.get_routes',
+      'ext.tapir.get_routes',
       const <String, String>{},
       where,
     ))['uri'];
@@ -294,12 +294,12 @@ final class PerfSetupRunner {
   /// within [kPerfResolveBudget], read every [kPerfResolvePollInterval] and at
   /// most [kPerfResolveMaxPolls] times.
   ///
-  /// Exact, unlike the prefix match `ext.dusk.navigate` makes: a web hot
+  /// Exact, unlike the prefix match `ext.tapir.navigate` makes: a web hot
   /// restart keeps the URL, so an app left on `/monitors/7` would pass a
   /// prefix check for a dropped navigate to `/monitors`. A setup navigate
   /// names its screen.
   ///
-  /// `ext.dusk.navigate` reads the Router two frames after dispatching. A
+  /// `ext.tapir.navigate` reads the Router two frames after dispatching. A
   /// Router that mounted a moment earlier is still applying its first
   /// location then and reports a transient one, so the navigate answers
   /// false for a route that lands right after: measured on a web hot
@@ -310,7 +310,7 @@ final class PerfSetupRunner {
     final Stopwatch clock = Stopwatch()..start();
     for (int poll = 1;; poll++) {
       final Object? uri = (await actions.call(
-        'ext.dusk.get_routes',
+        'ext.tapir.get_routes',
         const <String, String>{},
         where,
       ))['uri'];
@@ -324,13 +324,13 @@ final class PerfSetupRunner {
     }
   }
 
-  /// Waits until `ext.dusk.get_routes` reports a mounted Router's `uri`,
+  /// Waits until `ext.tapir.get_routes` reports a mounted Router's `uri`,
   /// read every [kPerfResolvePollInterval] for up to [budget] (and at most
   /// one read per interval of it, so the budget holds on a driver whose
   /// pause returns at once): 10 s and 100 reads by default.
   ///
-  /// `ext.dusk.boot_id` answers once `DuskPlugin.install()` has run, and a
-  /// host that installs dusk before its own boot (magic_devtools' documented
+  /// `ext.tapir.boot_id` answers once `TapirPlugin.install()` has run, and a
+  /// host that installs tapir before its own boot (magic_devtools' documented
   /// order) or shows a loading screen first has no Router yet. A setup
   /// navigate waits here rather than the restart, which keeps a scenario that
   /// never navigates, or an app with no Router at all, free of it.
@@ -340,7 +340,7 @@ final class PerfSetupRunner {
   /// login guard is written to wait that long.
   ///
   /// Throws [PerfRunException] prefixed with [where] when the budget runs out,
-  /// or at once when the answer has no `uri` key: the app runs a dusk older
+  /// or at once when the answer has no `uri` key: the app runs a tapir older
   /// than this CLI.
   Future<void> awaitRouter(
     String where, {
@@ -351,14 +351,14 @@ final class PerfSetupRunner {
     final Stopwatch clock = Stopwatch()..start();
     for (int poll = 1;; poll++) {
       final Map<String, dynamic> routes = await actions.call(
-        'ext.dusk.get_routes',
+        'ext.tapir.get_routes',
         const <String, String>{},
         where,
       );
       if (!routes.containsKey('uri')) {
         throw PerfRunException(
-          '$where: ext.dusk.get_routes answered no "uri", so the app runs a '
-          'dusk older than this CLI. Relaunch the app so it runs the dusk '
+          '$where: ext.tapir.get_routes answered no "uri", so the app runs a '
+          'tapir older than this CLI. Relaunch the app so it runs the tapir '
           'this CLI ships with.',
         );
       }
@@ -366,7 +366,7 @@ final class PerfSetupRunner {
       if (poll >= maxPolls || clock.elapsed >= budget) {
         throw PerfRunException(
           '$where: no Router was mounted within ${budget.inSeconds} s '
-          '($poll reads of ext.dusk.get_routes), and a navigate is verified '
+          '($poll reads of ext.tapir.get_routes), and a navigate is verified '
           'against the Router\'s location.',
         );
       }
@@ -379,7 +379,7 @@ final class PerfSetupRunner {
   /// named in place of its answer: the failure it explains stands either way.
   Future<String> diagnose() async {
     final String route = await _describe(
-      'ext.dusk.get_routes',
+      'ext.tapir.get_routes',
       const <String, String>{},
       (Map<String, dynamic> r) {
         final Object? uri = r['uri'];
@@ -395,7 +395,7 @@ final class PerfSetupRunner {
         ? 'no setup navigate ran'
         : 'last setup navigate answered ${jsonEncode(payload)}';
     final String exceptions = await _describe(
-      'ext.dusk.exceptions',
+      'ext.tapir.exceptions',
       const <String, String>{'limit': '$_kDiagnosticExceptions'},
       (Map<String, dynamic> r) {
         final List<dynamic> entries = perfList(r['exceptions']);
@@ -406,7 +406,7 @@ final class PerfSetupRunner {
     return 'Diagnostics: $route; $navigate; $exceptions.';
   }
 
-  /// One `ext.dusk.exceptions` entry as a setup failure quotes it: the type,
+  /// One `ext.tapir.exceptions` entry as a setup failure quotes it: the type,
   /// the first line of the message, masked and then cut to
   /// [_kDiagnosticMessageChars], and when it happened.
   String _exceptionLine(Object? entry) {

@@ -43,7 +43,7 @@ void main() {
     });
 
     test('name is the registry namespace for this package', () {
-      expect(manifest['name'], 'io.github.fluttersdk/dusk');
+      expect(manifest['name'], 'io.github.anilcancakir/tapir');
     });
   });
 }

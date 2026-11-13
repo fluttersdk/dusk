@@ -1,4 +1,4 @@
-/// The campaign `dusk:perf_campaign` runs: a YAML file naming the scenarios,
+/// The campaign `tapir:perf_campaign` runs: a YAML file naming the scenarios,
 /// two shell hooks, the Android preparation, the setup to run after each cold
 /// start and how many times a failed scenario is retried, validated whole
 /// before anything runs.
@@ -56,11 +56,11 @@ final class PerfHooks {
   /// Runs once, before `flutter pub get` and the first scenario.
   final String? beforeCampaign;
 
-  /// Runs before every attempt of every scenario, with `DUSK_PERF_SCENARIO`.
+  /// Runs before every attempt of every scenario, with `TAPIR_PERF_SCENARIO`.
   final String? beforeScenario;
 
   /// Runs once, after the app is stopped at the end, however the campaign
-  /// ended (a failed `before_campaign` included), with `DUSK_PERF_STATUS`
+  /// ended (a failed `before_campaign` included), with `TAPIR_PERF_STATUS`
   /// `ok` or `failed`: the teardown of what [beforeCampaign] started.
   final String? afterCampaign;
 }
@@ -88,13 +88,13 @@ final class PerfAndroid {
 final class PerfCampaignScenario {
   const PerfCampaignScenario({required this.path, required this.scenario});
 
-  /// The absolute path of the file to hand `dusk:perf_run`.
+  /// The absolute path of the file to hand `tapir:perf_run`.
   final String path;
 
   final PerfScenario scenario;
 
   /// The `variants:` key of [path] this scenario came from, for
-  /// `dusk:perf_run --variant`; null when the file has none.
+  /// `tapir:perf_run --variant`; null when the file has none.
   String? get variant => scenario.variant;
 
   Set<PerfPlatform> get platforms => scenario.platforms;

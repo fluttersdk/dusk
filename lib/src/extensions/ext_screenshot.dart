@@ -7,15 +7,15 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:image/image.dart' as img_lib;
 
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
 import '../ref_registry.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
 
-/// Registers the `ext.dusk.screenshot` VM Service extension.
+/// Registers the `ext.tapir.screenshot` VM Service extension.
 ///
 /// The extension captures the current app frame as a JPEG (default, q70) or
 /// PNG image and returns a base64-encoded payload with size metadata. The
@@ -26,13 +26,13 @@ import 'ext_pointer.dart' show resolveRefForAction;
 /// is a no-op per extension name on repeated calls via
 /// [registerExtensionIdempotent].
 void registerScreenshotExtension() {
-  registerDuskExtension(
-    'ext.dusk.screenshot',
+  registerTapirExtension(
+    'ext.tapir.screenshot',
     screenshotHandler,
   );
 }
 
-/// Handler for `ext.dusk.screenshot`.
+/// Handler for `ext.tapir.screenshot`.
 ///
 /// Accepted parameters:
 ///
@@ -63,7 +63,7 @@ void registerScreenshotExtension() {
 /// ```
 ///
 /// That mode exists for the web capture path. `OffsetLayer.toImage` hangs
-/// under CanvasKit + DWDS, so `dusk:screenshot` captures through Chrome
+/// under CanvasKit + DWDS, so `tapir:screenshot` captures through Chrome
 /// DevTools Protocol there and needs the region in CSS pixels to build a
 /// `Page.captureScreenshot` clip. Flutter logical pixels map 1:1 onto CDP
 /// CSS pixels, so the rect crosses over unscaled.
@@ -85,9 +85,9 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.screenshot: malformed rect "$rectParam". '
+          'ext.tapir.screenshot: malformed rect "$rectParam". '
           'Expected "x,y,w,h" with four non-negative numbers.',
-          DuskErrorEnvelope.missingParam('rect'),
+          TapirErrorEnvelope.missingParam('rect'),
         ),
       );
     }
@@ -97,7 +97,7 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
     //    them through CDP instead. Answering here rather than in a separate
     //    extension keeps one resolution path for `ref` + `rect`.
     if (params['geometry'] == 'true') {
-      return duskResult(_resolveViewportGeometry(
+      return tapirResult(_resolveViewportGeometry(
         ref: (ref != null && ref.isNotEmpty) ? ref : null,
         subRect: subRect,
       ));
@@ -136,7 +136,7 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
             developer.ServiceExtensionResponse.extensionError,
             wrapErrorDetail(
               'toByteData returned null for PNG format',
-              DuskErrorEnvelope.unexpected(),
+              TapirErrorEnvelope.unexpected(),
             ),
           );
         }
@@ -154,7 +154,7 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
             developer.ServiceExtensionResponse.extensionError,
             wrapErrorDetail(
               'toByteData returned null for intermediate PNG (JPEG path)',
-              DuskErrorEnvelope.unexpected(),
+              TapirErrorEnvelope.unexpected(),
             ),
           );
         }
@@ -168,7 +168,7 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
     }
 
     // 6. Return the payload with format, encoded bytes, and dimensions.
-    return duskResult(<String, dynamic>{
+    return tapirResult(<String, dynamic>{
       'format': format == 'png' ? 'png' : 'jpeg',
       'base64': base64Payload,
       'width': width,
@@ -176,12 +176,12 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
     });
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.screenshot error: $e\n$stackTrace',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.screenshot error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -221,7 +221,7 @@ Map<String, dynamic> _resolveViewportGeometry({
         WidgetsBinding.instance.platformDispatcher.implicitView;
     if (view == null) {
       throw StateError(
-        'ext.dusk.screenshot: no implicit view, so the viewport has no '
+        'ext.tapir.screenshot: no implicit view, so the viewport has no '
         'geometry to report.',
       );
     }
@@ -233,7 +233,7 @@ Map<String, dynamic> _resolveViewportGeometry({
         !renderObject.attached ||
         !renderObject.hasSize) {
       throw StateError(
-        'ext.dusk.screenshot: ref "$ref" has no live rect (its render object '
+        'ext.tapir.screenshot: ref "$ref" has no live rect (its render object '
         'is detached, unsized, or not a RenderBox). Re-snapshot and retry.',
       );
     }
@@ -333,7 +333,7 @@ _CaptureTarget _resolveCaptureTarget({
   final Layer? boundaryLayer = boundaryRO.debugLayer;
   if (boundaryLayer is! OffsetLayer) {
     throw StateError(
-      'ext.dusk.screenshot: repaint-boundary ancestor has no OffsetLayer '
+      'ext.tapir.screenshot: repaint-boundary ancestor has no OffsetLayer '
       '(layer runtime type: ${boundaryLayer?.runtimeType}). The frame may '
       'not have composited yet — re-pump and retry.',
     );
@@ -370,7 +370,7 @@ RenderObject _findRepaintBoundaryAncestor(RenderObject start) {
     cursor = cursor.parent;
   }
   throw StateError(
-    'ext.dusk.screenshot: no repaint-boundary ancestor reachable from '
+    'ext.tapir.screenshot: no repaint-boundary ancestor reachable from '
     '$start. The render tree is detached or has not composited yet.',
   );
 }
@@ -391,14 +391,14 @@ RenderObject _resolveRootRenderObject() {
   final Element? rootEl = WidgetsBinding.instance.rootElement;
   if (rootEl == null) {
     throw StateError(
-      'ext.dusk.screenshot: no root element — was DuskPlugin.install '
+      'ext.tapir.screenshot: no root element — was TapirPlugin.install '
       'called after runApp()?',
     );
   }
   final RenderObject? rootRO = rootEl.renderObject;
   if (rootRO == null) {
     throw StateError(
-      'ext.dusk.screenshot: root element has no render object attached. '
+      'ext.tapir.screenshot: root element has no render object attached. '
       'The first frame has not painted yet.',
     );
   }
@@ -416,8 +416,8 @@ RenderObject _resolveRefRenderObject(String ref) {
   final RefEntry? entry = resolveRefForAction(ref);
   if (entry == null) {
     throw StateError(
-      'ext.dusk.screenshot: ref "$ref" not found. Take an e<N> token from '
-      'ext.dusk.snap or a q<N> handle from ext.dusk.find, or omit ref to '
+      'ext.tapir.screenshot: ref "$ref" not found. Take an e<N> token from '
+      'ext.tapir.snap or a q<N> handle from ext.tapir.find, or omit ref to '
       'capture the root viewport.',
     );
   }
@@ -429,7 +429,7 @@ RenderObject _resolveRefRenderObject(String ref) {
       entry.renderObject ?? entry.element.findRenderObject();
   if (ro == null) {
     throw StateError(
-      'ext.dusk.screenshot: ref "$ref" resolved to an entry with no live '
+      'ext.tapir.screenshot: ref "$ref" resolved to an entry with no live '
       'render object. The widget may have unmounted between snapshot and '
       'screenshot — re-snapshot and retry.',
     );

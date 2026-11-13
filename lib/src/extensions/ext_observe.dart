@@ -4,27 +4,27 @@ import 'dart:ui' show CheckedState, FlutterView, Tristate;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
-import 'package:fluttersdk_artisan/artisan.dart';
-import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
+import 'package:dowel/dowel.dart';
+import 'package:wind_kit_diagnostics_contracts/wind_kit_diagnostics_contracts.dart';
 
-import '../dusk_plugin.dart';
-import '../dusk_snapshot_enricher.dart';
+import '../tapir_plugin.dart';
+import '../tapir_snapshot_enricher.dart';
 import '../ref_registry.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/tap_owner.dart';
 import '../utils/viewport_visibility.dart';
 
 // ---------------------------------------------------------------------------
-// MCP descriptor constants — consumed by DuskArtisanProvider.mcpTools()
+// MCP descriptor constants — consumed by TapirDowelProvider.mcpTools()
 // ---------------------------------------------------------------------------
 
 /// MCP tool name for the structured candidate-list observer.
-const String kDuskObserveMcpName = 'dusk_observe';
+const String kTapirObserveMcpName = 'tapir_observe';
 
 /// VM Service extension method name for the observer.
-const String kDuskObserveMcpExtension = 'ext.dusk.observe';
+const String kTapirObserveMcpExtension = 'ext.tapir.observe';
 
 // ---------------------------------------------------------------------------
 // Enricher field-filter sets — used to project per-candidate enricher output.
@@ -36,7 +36,7 @@ const String kDuskObserveMcpExtension = 'ext.dusk.observe';
 ///
 /// * `magicFormField` — the field name the agent should type into.
 /// * `magicRoute` — current screen path; lets the agent skip a redundant
-///   `dusk_get_routes` round-trip.
+///   `tapir_get_routes` round-trip.
 /// * `magicGateResult` — whether the user is allowed to act on the candidate.
 /// * `wind` — visual context, but filtered to the cheap fields only (see
 ///   [_kDefaultWindKeys]).
@@ -48,7 +48,7 @@ const Set<String> _kDefaultEnricherKeys = <String>{
 };
 
 /// Default-subset wind sub-fields (the `includeEnrichers='true'` projection).
-/// The full Wind diagnostics block (sourced via `fluttersdk_wind_diagnostics_contracts`)
+/// The full Wind diagnostics block (sourced via `wind_kit_diagnostics_contracts`)
 /// exposes the 6 core fields including hex colours and per-state breakdowns;
 /// the default subset keeps only the two that drive agent decisions
 /// (breakpoint + active state).
@@ -61,22 +61,22 @@ const Set<String> _kDefaultWindKeys = <String>{
 // Aggregator
 // ---------------------------------------------------------------------------
 
-/// Registers the `ext.dusk.observe` VM Service extension.
+/// Registers the `ext.tapir.observe` VM Service extension.
 ///
 /// Idempotent via [registerExtensionIdempotent]. Call from
-/// `registerAllDuskExtensions` once during `DuskPlugin.install`.
+/// `registerAllTapirExtensions` once during `TapirPlugin.install`.
 void registerObserveExtensions() {
-  registerDuskExtension(kDuskObserveMcpExtension, extDuskObserveHandler);
+  registerTapirExtension(kTapirObserveMcpExtension, extTapirObserveHandler);
 }
 
 // ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
 
-/// Handler for the `ext.dusk.observe` VM Service extension.
+/// Handler for the `ext.tapir.observe` VM Service extension.
 ///
 /// Walks the live Semantics + Element tree once, finds every interactive node
-/// (same role detection as `ext.dusk.snap` + `ext.dusk.find`; a node merged
+/// (same role detection as `ext.tapir.snap` + `ext.tapir.find`; a node merged
 /// into a `MergeSemantics` boundary is listed once, as the boundary), mints a `q<N>`
 /// query handle for each via [RefRegistry.registerQuery], and returns a
 /// structured JSON list. Stagehand's "observe-once-act-many" pattern WITHOUT
@@ -89,7 +89,7 @@ void registerObserveExtensions() {
 ///   so callers can record their intent alongside the request.
 /// * `limit` (optional, default 50): maximum number of candidates to return.
 /// * `roles` (optional): comma-separated list of roles to filter (e.g.
-///   `'button,textbox'`). Each role matches the same vocabulary `ext.dusk.snap`
+///   `'button,textbox'`). Each role matches the same vocabulary `ext.tapir.snap`
 ///   emits (`button`, `textbox`, `link`, `checkbox`, `heading`, `image`).
 /// * `includeEnrichers` (optional, default `'true'`): one of `'true'`,
 ///   `'false'`, `'full'`. `'true'` projects the default subset
@@ -121,7 +121,7 @@ void registerObserveExtensions() {
 ///   "count": 1
 /// }
 /// ```
-Future<developer.ServiceExtensionResponse> extDuskObserveHandler(
+Future<developer.ServiceExtensionResponse> extTapirObserveHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -143,7 +143,7 @@ Future<developer.ServiceExtensionResponse> extDuskObserveHandler(
       final List<Map<String, dynamic>> candidates = <Map<String, dynamic>>[];
 
       // How many nodes carrying each label the walk has passed so far, which
-      // is the [DuskQuery.matchIndex] the next one gets.
+      // is the [TapirQuery.matchIndex] the next one gets.
       //
       // Counted BEFORE the role filter and before the interactive check, and
       // that placement is the whole reason it is correct. The resolver counts
@@ -244,7 +244,7 @@ Future<developer.ServiceExtensionResponse> extDuskObserveHandler(
 
       visitOwner(RendererBinding.instance.rootPipelineOwner);
 
-      return duskResult(<String, dynamic>{
+      return tapirResult(<String, dynamic>{
         'candidates': candidates,
         'count': candidates.length,
       });
@@ -253,14 +253,14 @@ Future<developer.ServiceExtensionResponse> extDuskObserveHandler(
     }
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.observe: unexpected error: $e\n$st',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.observe: unexpected error: $e\n$st',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.observe: $e',
-        DuskErrorEnvelope.unexpected(),
+        'ext.tapir.observe: $e',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }
@@ -314,13 +314,13 @@ Map<String, dynamic>? _buildCandidate({
   // behaviour (the candidate had no stable identity to begin with).
   //
   // [matchIndex] is what separates this candidate from its namesakes, and it
-  // is not optional here the way it is on a hand-written `ext.dusk.find`
+  // is not optional here the way it is on a hand-written `ext.tapir.find`
   // query. The predicate is DERIVED from a node the walk already holds rather
   // than chosen by a caller who could refine it, so without the index every
   // candidate sharing a label re-resolves to the first and the one-candidate-
   // per-node contract above is false: an agent acting on the third row of a
   // list moves the first, and both calls report success.
-  final DuskQuery query = DuskQuery(
+  final TapirQuery query = TapirQuery(
     semanticsLabel: data.label.isNotEmpty ? data.label : null,
     text: data.label.isEmpty && data.value.isNotEmpty ? data.value : null,
     matchIndex: matchIndex,
@@ -384,7 +384,7 @@ _EnricherMode _parseEnricherMode(String? raw) {
 /// Runs every registered enricher against [element], parses each fragment
 /// into key/value pairs, and merges them into [candidate].
 ///
-/// Fragment shapes follow the YAML conventions used by `ext.dusk.snap`:
+/// Fragment shapes follow the YAML conventions used by `ext.tapir.snap`:
 ///
 /// * Single-line: `"key: value"` — top-level scalar field.
 /// * Multi-line: first line is `"key:"`, every subsequent indented line is
@@ -397,7 +397,7 @@ void _mergeEnricherFields(
   Element element,
   _EnricherMode mode,
 ) {
-  // Wind diagnostics via fluttersdk_wind_diagnostics_contracts neutral bridge.
+  // Wind diagnostics via wind_kit_diagnostics_contracts neutral bridge.
   // Wind registers a WindDebugResolver at app boot (Wind.installDebugResolver);
   // observe reads it here without ever importing wind types. Mirrors the
   // additive walk in ext_snapshot.dart so the `wind:` block survives in
@@ -423,7 +423,7 @@ void _mergeEnricherFields(
     }
   }
   // Existing enricher loop UNCHANGED (Magic still uses this path).
-  for (final DuskSnapshotEnricher enricher in DuskPlugin.enrichers) {
+  for (final TapirSnapshotEnricher enricher in TapirPlugin.enrichers) {
     final String? fragment = enricher(element, RefRegistry.instance);
     if (fragment == null || fragment.isEmpty) continue;
 
@@ -526,7 +526,7 @@ _ParsedFragment _parseFragment(List<String> lines) {
 
 // ---------------------------------------------------------------------------
 // Tree-walk helpers — duplicated locally instead of importing private
-// helpers from ext_snapshot.dart / ext_find.dart, per the dusk module
+// helpers from ext_snapshot.dart / ext_find.dart, per the tapir module
 // convention (each extension is self-contained; helpers are intentionally
 // not exposed across files).
 // ---------------------------------------------------------------------------

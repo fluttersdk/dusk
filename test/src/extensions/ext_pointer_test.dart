@@ -5,14 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_observe.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
-import 'package:fluttersdk_dusk/src/utils/actionability_gate.dart';
-import 'package:fluttersdk_dusk/src/utils/dusk_register.dart';
-import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
+import 'package:tapir/src/tapir_plugin.dart';
+import 'package:tapir/src/extensions/ext_observe.dart';
+import 'package:tapir/src/extensions/ext_pointer.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/ref_registry.dart';
+import 'package:tapir/src/utils/actionability_gate.dart';
+import 'package:tapir/src/utils/tapir_register.dart';
+import 'package:tapir/src/utils/error_envelope.dart';
 
 import '../../_support/merged_stage.dart';
 
@@ -137,8 +137,8 @@ Future<ServiceExtensionResponse> _pumpTap(
   Map<String, String> extra = const <String, String>{},
 }) async {
   final Future<ServiceExtensionResponse> future =
-      wrapDuskHandler(aiTestTapHandler)(
-    'ext.dusk.tap',
+      wrapTapirHandler(aiTestTapHandler)(
+    'ext.tapir.tap',
     <String, String>{
       'ref': ref,
       'includeSnapshot': 'false',
@@ -203,7 +203,7 @@ void main() {
         // geometry (Step 3.1 introduced the 4-gate; Step 3.2 made the gates
         // opt-out via params).
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -244,7 +244,7 @@ void main() {
         );
 
         final response = await aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{'ref': ref},
         );
 
@@ -294,7 +294,7 @@ void main() {
         );
 
         final response = await aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{'ref': ref},
         );
 
@@ -319,7 +319,7 @@ void main() {
         );
 
         final response = await aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{'ref': ref},
         );
 
@@ -339,7 +339,7 @@ void main() {
       '(c) missing ref param still returns the original missing-param error',
       () async {
         final response =
-            await aiTestTapHandler('ext.dusk.tap', <String, String>{});
+            await aiTestTapHandler('ext.tapir.tap', <String, String>{});
         expect(response.result, isNull);
         expect(response.errorDetail ?? '', contains('missing required param'));
       },
@@ -349,7 +349,7 @@ void main() {
       '(c) unknown ref still returns the original not-found error',
       () async {
         final response = await aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{'ref': 'e9999'},
         );
         expect(response.result, isNull);
@@ -384,7 +384,7 @@ void main() {
         );
 
         final future = aiTestHoverHandler(
-          'ext.dusk.hover',
+          'ext.tapir.hover',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -417,7 +417,7 @@ void main() {
         );
 
         final response = await aiTestHoverHandler(
-          'ext.dusk.hover',
+          'ext.tapir.hover',
           <String, String>{'ref': ref},
         );
 
@@ -472,7 +472,7 @@ void main() {
         // Stable + receives-events gates opt-out: synthetic test rects do
         // not align with the live Center widget geometry.
         final future = aiTestDragHandler(
-          'ext.dusk.drag',
+          'ext.tapir.drag',
           <String, String>{
             'startRef': startRef,
             'endRef': endRef,
@@ -523,7 +523,7 @@ void main() {
         );
 
         final response = await aiTestDragHandler(
-          'ext.dusk.drag',
+          'ext.tapir.drag',
           <String, String>{'startRef': startRef, 'endRef': endRef},
         );
 
@@ -569,7 +569,7 @@ void main() {
         // receives-events so startRef passes through to the off-viewport
         // check on endRef.
         final response = await aiTestDragHandler(
-          'ext.dusk.drag',
+          'ext.tapir.drag',
           <String, String>{
             'startRef': startRef,
             'endRef': endRef,
@@ -597,7 +597,7 @@ void main() {
       '(d) missing startRef still returns the original missing-param error',
       () async {
         final response = await aiTestDragHandler(
-          'ext.dusk.drag',
+          'ext.tapir.drag',
           <String, String>{'endRef': 'e1'},
         );
         expect(response.result, isNull);
@@ -612,7 +612,7 @@ void main() {
       '(d) missing endRef returns the original missing-param error',
       () async {
         final response = await aiTestDragHandler(
-          'ext.dusk.drag',
+          'ext.tapir.drag',
           <String, String>{'startRef': 'e1'},
         );
         expect(response.result, isNull);
@@ -627,7 +627,7 @@ void main() {
       '(d) unknown startRef returns "not found in registry" error',
       () async {
         final response = await aiTestDragHandler(
-          'ext.dusk.drag',
+          'ext.tapir.drag',
           <String, String>{'startRef': 'e9999', 'endRef': 'e8888'},
         );
         expect(response.result, isNull);
@@ -651,7 +651,7 @@ void main() {
         );
 
         final response = await aiTestDragHandler(
-          'ext.dusk.drag',
+          'ext.tapir.drag',
           <String, String>{'startRef': startRef, 'endRef': 'e9999'},
         );
         expect(response.result, isNull);
@@ -668,7 +668,7 @@ void main() {
 
     test('missing ref returns missing-param error', () async {
       final response = await aiTestHoverHandler(
-        'ext.dusk.hover',
+        'ext.tapir.hover',
         const <String, String>{},
       );
       expect(response.result, isNull);
@@ -677,7 +677,7 @@ void main() {
 
     test('unknown ref returns not-found error', () async {
       final response = await aiTestHoverHandler(
-        'ext.dusk.hover',
+        'ext.tapir.hover',
         const <String, String>{'ref': 'e9999'},
       );
       expect(response.result, isNull);
@@ -717,7 +717,7 @@ void main() {
           }),
         );
         final String ref = _refsFor(
-          (await duskSnapBuild())['snapshot'] as String,
+          (await tapirSnapBuild())['snapshot'] as String,
           'Save',
         ).single;
 
@@ -753,7 +753,7 @@ void main() {
           }),
         );
         final String ref = _refsFor(
-          (await duskSnapBuild())['snapshot'] as String,
+          (await tapirSnapBuild())['snapshot'] as String,
           'Save',
         ).first;
 
@@ -793,7 +793,7 @@ void main() {
           ),
         );
         final String ref = _refsFor(
-          (await duskSnapBuild())['snapshot'] as String,
+          (await tapirSnapBuild())['snapshot'] as String,
           'Save',
         ).single;
 
@@ -836,7 +836,7 @@ void main() {
           ),
         );
         final String ref = _refsFor(
-          (await duskSnapBuild())['snapshot'] as String,
+          (await tapirSnapBuild())['snapshot'] as String,
           'Save',
         ).single;
         expect(RefRegistry.lookupBinding(ref)!.route, isNull);
@@ -871,7 +871,7 @@ void main() {
           }),
         );
         final String ref = _refsFor(
-          (await duskSnapBuild())['snapshot'] as String,
+          (await tapirSnapBuild())['snapshot'] as String,
           'Save',
         ).single;
         final RefEntry before = RefRegistry.lookup(ref)!;
@@ -927,7 +927,7 @@ void main() {
         );
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -987,7 +987,7 @@ void main() {
         );
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -1031,7 +1031,7 @@ void main() {
         );
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -1082,7 +1082,7 @@ void main() {
         );
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -1128,7 +1128,7 @@ void main() {
         );
 
         final future = aiTestHoverHandler(
-          'ext.dusk.hover',
+          'ext.tapir.hover',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -1168,7 +1168,7 @@ void main() {
         );
 
         final future = aiTestHoverHandler(
-          'ext.dusk.hover',
+          'ext.tapir.hover',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -1216,7 +1216,7 @@ void main() {
         );
 
         final future = aiTestHoverHandler(
-          'ext.dusk.hover',
+          'ext.tapir.hover',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -1266,7 +1266,7 @@ void main() {
         );
 
         final future = aiTestDragHandler(
-          'ext.dusk.drag',
+          'ext.tapir.drag',
           <String, String>{
             'startRef': startRef,
             'endRef': endRef,
@@ -1318,7 +1318,7 @@ void main() {
         );
 
         final future = aiTestDragHandler(
-          'ext.dusk.drag',
+          'ext.tapir.drag',
           <String, String>{
             'startRef': startRef,
             'endRef': endRef,
@@ -1376,7 +1376,7 @@ void main() {
         );
 
         final future = aiTestDragHandler(
-          'ext.dusk.drag',
+          'ext.tapir.drag',
           <String, String>{
             'startRef': startRef,
             'endRef': endRef,
@@ -1438,7 +1438,7 @@ void main() {
         );
 
         final future = aiTestDoubleClickHandler(
-          'ext.dusk.dblclick',
+          'ext.tapir.dblclick',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -1482,7 +1482,7 @@ void main() {
         );
 
         final response = await aiTestDoubleClickHandler(
-          'ext.dusk.dblclick',
+          'ext.tapir.dblclick',
           <String, String>{'ref': ref},
         );
 
@@ -1505,7 +1505,7 @@ void main() {
       '(c) missing ref param returns missing_param error envelope',
       () async {
         final response = await aiTestDoubleClickHandler(
-          'ext.dusk.dblclick',
+          'ext.tapir.dblclick',
           <String, String>{},
         );
 
@@ -1541,7 +1541,7 @@ void main() {
         );
 
         final future = aiTestDoubleClickHandler(
-          'ext.dusk.dblclick',
+          'ext.tapir.dblclick',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -1724,7 +1724,7 @@ void main() {
         expect(liveRect.center, isNot(equals(cachedRect.center)));
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -1791,7 +1791,7 @@ void main() {
         );
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'includeSnapshot': 'false',
@@ -1857,7 +1857,7 @@ void main() {
         );
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'includeSnapshot': 'false',
@@ -1911,7 +1911,7 @@ void main() {
         );
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -1975,7 +1975,7 @@ void main() {
         );
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -2029,7 +2029,7 @@ void main() {
         );
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -2083,7 +2083,7 @@ void main() {
         );
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -2121,7 +2121,8 @@ void main() {
         final SemanticsHandle handle = tester.ensureSemantics();
         try {
           await tester.pumpWidget(_mergedBoundaryScreen());
-          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+          final String snapshot =
+              (await tapirSnapBuild())['snapshot'] as String;
           final String ref = _refsFor(snapshot, 'Skip intro').single;
 
           final ServiceExtensionResponse response = await _pumpTap(tester, ref);
@@ -2172,7 +2173,8 @@ void main() {
               <Key, VoidCallback>{const ValueKey<String>('a'): () {}},
             ),
           );
-          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+          final String snapshot =
+              (await tapirSnapBuild())['snapshot'] as String;
           final String ref = _refsFor(snapshot, 'Save').single;
 
           final ServiceExtensionResponse response = await _pumpTap(tester, ref);
@@ -2210,7 +2212,8 @@ void main() {
               onSkip: () => skips++,
             ),
           );
-          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+          final String snapshot =
+              (await tapirSnapBuild())['snapshot'] as String;
           final String ref = _refsFor(snapshot, 'Skip intro').single;
 
           final ServiceExtensionResponse response = await _pumpTap(tester, ref);
@@ -2249,7 +2252,8 @@ void main() {
               onSkip: () => skips++,
             ),
           );
-          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+          final String snapshot =
+              (await tapirSnapBuild())['snapshot'] as String;
           final String ref = _refsFor(snapshot, 'Skip intro').single;
 
           final ServiceExtensionResponse response = await _pumpTap(
@@ -2285,8 +2289,9 @@ void main() {
               onSkip: () => skips++,
             ),
           );
-          final ServiceExtensionResponse observed = await extDuskObserveHandler(
-            'ext.dusk.observe',
+          final ServiceExtensionResponse observed =
+              await extTapirObserveHandler(
+            'ext.tapir.observe',
             <String, String>{},
           );
           final Map<String, dynamic> candidate = (jsonDecode(observed.result!)
@@ -2329,7 +2334,8 @@ void main() {
               onNo: () => no++,
             ),
           );
-          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+          final String snapshot =
+              (await tapirSnapBuild())['snapshot'] as String;
           final String ref =
               RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
 
@@ -2387,7 +2393,7 @@ void main() {
         final ServiceExtensionResponse? response =
             await tester.runAsync<ServiceExtensionResponse?>(
           () => aiTestTapHandler(
-            'ext.dusk.tap',
+            'ext.tapir.tap',
             <String, String>{
               'ref': ref,
               'checkStable': 'false',
@@ -2420,7 +2426,7 @@ void main() {
   // ---------------------------------------------------------------------------
   // Right-click and triple-click: the two verbs whose handlers had no test.
   // Both settle through the bounded frame awaits, so a starved engine returns
-  // instead of hanging, and both stamp the response through duskResult.
+  // instead of hanging, and both stamp the response through tapirResult.
   // ---------------------------------------------------------------------------
 
   group('aiTestRightClickHandler', () {
@@ -2449,7 +2455,7 @@ void main() {
       );
 
       final Future<ServiceExtensionResponse> future = aiTestRightClickHandler(
-        'ext.dusk.right_click',
+        'ext.tapir.right_click',
         <String, String>{
           'ref': ref,
           'checkStable': 'false',
@@ -2474,7 +2480,7 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
 
       final ServiceExtensionResponse response = await aiTestRightClickHandler(
-        'ext.dusk.right_click',
+        'ext.tapir.right_click',
         const <String, String>{'ref': 'e999'},
       );
 
@@ -2509,7 +2515,7 @@ void main() {
       );
 
       final Future<ServiceExtensionResponse> future = aiTestTripleClickHandler(
-        'ext.dusk.triple_click',
+        'ext.tapir.triple_click',
         <String, String>{
           'ref': ref,
           'checkStable': 'false',
@@ -2566,7 +2572,7 @@ void main() {
       final String ref = await unprovableRef(tester);
       final Map<String, dynamic> decoded = await drive(
         tester,
-        () => aiTestHoverHandler('ext.dusk.hover', <String, String>{
+        () => aiTestHoverHandler('ext.tapir.hover', <String, String>{
           'ref': ref,
           'checkStable': 'false',
           'includeSnapshot': 'false',
@@ -2583,7 +2589,7 @@ void main() {
       final String ref = await unprovableRef(tester);
       final Map<String, dynamic> decoded = await drive(
         tester,
-        () => aiTestDoubleClickHandler('ext.dusk.dblclick', <String, String>{
+        () => aiTestDoubleClickHandler('ext.tapir.dblclick', <String, String>{
           'ref': ref,
           'checkStable': 'false',
           'includeSnapshot': 'false',
@@ -2600,7 +2606,7 @@ void main() {
       final String ref = await unprovableRef(tester);
       final Map<String, dynamic> decoded = await drive(
         tester,
-        () => aiTestRightClickHandler('ext.dusk.right_click', <String, String>{
+        () => aiTestRightClickHandler('ext.tapir.right_click', <String, String>{
           'ref': ref,
           'checkStable': 'false',
           'includeSnapshot': 'false',
@@ -2618,7 +2624,7 @@ void main() {
       final Map<String, dynamic> decoded = await drive(
         tester,
         () =>
-            aiTestTripleClickHandler('ext.dusk.triple_click', <String, String>{
+            aiTestTripleClickHandler('ext.tapir.triple_click', <String, String>{
           'ref': ref,
           'checkStable': 'false',
           'includeSnapshot': 'false',
@@ -2635,7 +2641,7 @@ void main() {
       final String ref = await unprovableRef(tester);
       final Map<String, dynamic> decoded = await drive(
         tester,
-        () => aiTestDragHandler('ext.dusk.drag', <String, String>{
+        () => aiTestDragHandler('ext.tapir.drag', <String, String>{
           'startRef': ref,
           'endRef': ref,
           'checkStable': 'false',
@@ -2697,7 +2703,7 @@ void main() {
       );
 
       final ServiceExtensionResponse response = await aiTestTripleClickHandler(
-        'ext.dusk.triple_click',
+        'ext.tapir.triple_click',
         <String, String>{'ref': ref},
       );
 
@@ -2707,13 +2713,13 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // Coordinate dispatch and reported points: what dusk:perf_run's semantics
+  // Coordinate dispatch and reported points: what tapir:perf_run's semantics
   // pass records with the tree on and replays with it released.
   // ---------------------------------------------------------------------------
 
   group('coordinate dispatch', () {
     setUp(RefRegistry.resetForTesting);
-    tearDown(DuskPlugin.resetSemanticsForTesting);
+    tearDown(TapirPlugin.resetSemanticsForTesting);
 
     Future<ServiceExtensionResponse> settle(
       WidgetTester tester,
@@ -2754,7 +2760,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestTapHandler('ext.dusk.tap', <String, String>{
+        aiTestTapHandler('ext.tapir.tap', <String, String>{
           'x': '100',
           'y': '100',
         }),
@@ -2774,12 +2780,12 @@ void main() {
     testWidgets('the checks block says released while the handle is held off',
         (WidgetTester tester) async {
       await host(tester, () {});
-      DuskPlugin.acquireSemantics();
-      DuskPlugin.releaseSemantics();
+      TapirPlugin.acquireSemantics();
+      TapirPlugin.releaseSemantics();
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestTapHandler('ext.dusk.tap', <String, String>{
+        aiTestTapHandler('ext.tapir.tap', <String, String>{
           'x': '10',
           'y': '10',
         }),
@@ -2802,7 +2808,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestTapHandler('ext.dusk.tap', <String, String>{
+        aiTestTapHandler('ext.tapir.tap', <String, String>{
           'ref': ref,
           'reportPoint': 'true',
           'includeSnapshot': 'false',
@@ -2829,7 +2835,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestTapHandler('ext.dusk.tap', <String, String>{
+        aiTestTapHandler('ext.tapir.tap', <String, String>{
           'ref': ref,
           'includeSnapshot': 'false',
           'checkStable': 'false',
@@ -2856,7 +2862,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestHoverHandler('ext.dusk.hover', <String, String>{
+        aiTestHoverHandler('ext.tapir.hover', <String, String>{
           'ref': ref,
           'reportPoint': 'true',
           'includeSnapshot': 'false',
@@ -2883,7 +2889,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestDragHandler('ext.dusk.drag', <String, String>{
+        aiTestDragHandler('ext.tapir.drag', <String, String>{
           'startRef': ref,
           'dx': '0',
           'dy': '-50',
@@ -2908,7 +2914,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestDragHandler('ext.dusk.drag', <String, String>{
+        aiTestDragHandler('ext.tapir.drag', <String, String>{
           'x': '100',
           'y': '150',
           'toX': '100',
@@ -2926,7 +2932,7 @@ void main() {
     testWidgets('a tap with neither ref nor coordinates keeps the ref error',
         (WidgetTester tester) async {
       final ServiceExtensionResponse response = await aiTestTapHandler(
-        'ext.dusk.tap',
+        'ext.tapir.tap',
         <String, String>{'x': '10'},
       );
 
@@ -2951,7 +2957,7 @@ void main() {
       Map<String, String> extra,
     ) async {
       final Future<ServiceExtensionResponse> future = aiTestTapHandler(
-        'ext.dusk.tap',
+        'ext.tapir.tap',
         <String, String>{
           'ref': ref,
           'checkStable': 'false',
@@ -2969,7 +2975,7 @@ void main() {
     Future<String> counterRef(WidgetTester tester) async {
       _useSmallView(tester);
       await tester.pumpWidget(MaterialApp(home: _Counter()));
-      final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+      final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
       return _refsFor(snapshot, 'Counter: 0').single;
     }
 
@@ -3046,7 +3052,7 @@ void main() {
 
       final Map<String, dynamic> decoded =
           await tapCounter(tester, ref, const <String, String>{});
-      final String fresh = (await duskSnapBuild())['snapshot'] as String;
+      final String fresh = (await tapirSnapBuild())['snapshot'] as String;
 
       expect(decoded['snapshot'], fresh);
       expect(decoded.containsKey('snapshotMode'), isFalse);

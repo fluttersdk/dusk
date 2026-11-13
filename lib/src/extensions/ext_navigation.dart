@@ -4,46 +4,46 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
-import '../dusk_plugin.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../tapir_plugin.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import '../utils/perf_interaction.dart';
 import 'ext_modal_router.dart';
 import 'ext_snapshot.dart' show snapshotForAction;
 
-/// Registers the navigation VM Service extensions for fluttersdk_dusk.
+/// Registers the navigation VM Service extensions for tapir.
 ///
 /// Three extensions are registered:
 ///
 /// | Extension                 | Description                                       |
 /// |---------------------------|---------------------------------------------------|
-/// | `ext.dusk.navigate`       | Navigate to a route by pushing onto the stack.    |
-/// | `ext.dusk.navigate_back`  | Pop the current route off the navigation stack.   |
-/// | `ext.dusk.get_routes`     | Return the page name, a title and the router URI. |
+/// | `ext.tapir.navigate`       | Navigate to a route by pushing onto the stack.    |
+/// | `ext.tapir.navigate_back`  | Pop the current route off the navigation stack.   |
+/// | `ext.tapir.get_routes`     | Return the page name, a title and the router URI. |
 ///
 /// Each registration goes through [registerExtensionIdempotent] so hot-restart
 /// duplicate-registration [ArgumentError]s are swallowed safely.
 ///
 /// This function is intentionally self-contained: it wires its own handlers
 /// via [registerExtensionIdempotent] and does NOT touch
-/// `register_dusk_extensions.dart` — Step 13 owns the aggregator wire-up.
+/// `register_tapir_extensions.dart` — Step 13 owns the aggregator wire-up.
 ///
 /// Framework-agnostic: no hard dependency on `magic`. Router resolution falls
 /// back to the [NavigatorState] found via a depth-first walk of the element
 /// tree using [WidgetsBinding.instance.rootElement].
 void registerNavigationExtensions() {
-  registerDuskExtension('ext.dusk.navigate', extDuskNavigateHandler);
-  registerDuskExtension(
-    'ext.dusk.navigate_back',
-    extDuskNavigateBackHandler,
+  registerTapirExtension('ext.tapir.navigate', extTapirNavigateHandler);
+  registerTapirExtension(
+    'ext.tapir.navigate_back',
+    extTapirNavigateBackHandler,
   );
-  registerDuskExtension(
-    'ext.dusk.get_routes',
-    extDuskGetRoutesHandler,
+  registerTapirExtension(
+    'ext.tapir.get_routes',
+    extTapirGetRoutesHandler,
   );
 }
 
@@ -111,7 +111,7 @@ String? _readActiveRouterUri() {
   return found;
 }
 
-/// Builds the success payload for `ext.dusk.navigate`.
+/// Builds the success payload for `ext.tapir.navigate`.
 ///
 /// Returns a map with:
 /// - `navigated`: always `true`
@@ -129,7 +129,7 @@ Map<String, dynamic> buildNavigateResponse(
       'exactPath': exactPath,
     };
 
-/// Builds the success payload for `ext.dusk.navigate_back`.
+/// Builds the success payload for `ext.tapir.navigate_back`.
 ///
 /// Returns a map with:
 /// - `navigatedBack`: equals `popped`, so a no-op at the root route never reads
@@ -140,7 +140,7 @@ Map<String, dynamic> buildNavigateResponse(
 Map<String, dynamic> buildNavigateBackResponse({bool popped = true}) =>
     <String, dynamic>{'navigatedBack': popped, 'popped': popped};
 
-/// Builds the success payload for `ext.dusk.get_routes`.
+/// Builds the success payload for `ext.tapir.get_routes`.
 ///
 /// Returns a map with:
 /// - `location`: the name of the root Navigator's top page, empty when no
@@ -150,7 +150,7 @@ Map<String, dynamic> buildNavigateBackResponse({bool popped = true}) =>
 /// - `title`: a location hint from the platform dispatcher's default route
 ///   name, empty when there is none.
 /// - `uri`: the location the first mounted [Router] reports, the same read
-///   `ext.dusk.navigate` verifies against; null while no Router is mounted,
+///   `ext.tapir.navigate` verifies against; null while no Router is mounted,
 ///   which after a restart means the app cannot be navigated yet.
 @visibleForTesting
 Map<String, dynamic> buildGetRoutesResponse() => <String, dynamic>{
@@ -163,7 +163,7 @@ Map<String, dynamic> buildGetRoutesResponse() => <String, dynamic>{
 // VM Service extension handlers
 // ---------------------------------------------------------------------------
 
-/// Handler for `ext.dusk.navigate`.
+/// Handler for `ext.tapir.navigate`.
 ///
 /// Params:
 /// - `route` (required): path to navigate to (e.g. `/dashboard`).
@@ -186,7 +186,7 @@ Map<String, dynamic> buildGetRoutesResponse() => <String, dynamic>{
 /// 3. Push the route via the framework Navigator located by tree-walk.
 /// 4. Wait for two endOfFrame ticks so the post-navigation tree settles.
 /// 5. Return the confirmation envelope.
-Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
+Future<developer.ServiceExtensionResponse> extTapirNavigateHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -197,8 +197,8 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.navigate: missing required param "route"',
-          DuskErrorEnvelope.missingParam('route'),
+          'ext.tapir.navigate: missing required param "route"',
+          TapirErrorEnvelope.missingParam('route'),
         ),
       );
     }
@@ -215,20 +215,20 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
       //    `Navigator.pushNamed` raises on a Router-only stack (its
       //    `onGenerateRoute` is null there, and the failure is asynchronous so a
       //    try/catch around the call cannot suppress it; it lands in the
-      //    FlutterError buffer and pollutes ext.dusk.snap / ext.dusk.exceptions).
+      //    FlutterError buffer and pollutes ext.tapir.snap / ext.tapir.exceptions).
       //    `pushed = true` means dispatch attempted, NOT that the route was
       //    honored; the URL verify below is the source of truth.
       bool pushed = false;
-      final adapter = DuskPlugin.navigateAdapter;
+      final adapter = TapirPlugin.navigateAdapter;
       if (adapter != null) {
         try {
           pushed = await adapter(route);
         } catch (e) {
           developer.log(
-            '[fluttersdk_dusk] extDuskNavigateHandler: navigateAdapter '
+            '[tapir] extTapirNavigateHandler: navigateAdapter '
             'threw for "$route" ($e); falling back to Navigator / '
             'SystemNavigator.routeInformationUpdated.',
-            name: 'dusk',
+            name: 'tapir',
           );
         }
       }
@@ -251,10 +251,10 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
               pushed = true;
             } catch (e) {
               developer.log(
-                '[fluttersdk_dusk] extDuskNavigateHandler: Navigator.pushNamed '
+                '[tapir] extTapirNavigateHandler: Navigator.pushNamed '
                 'failed for "$route" ($e); falling back to '
                 'SystemNavigator.routeInformationUpdated.',
-                name: 'dusk',
+                name: 'tapir',
               );
             }
           }
@@ -305,25 +305,25 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
       payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
-        '[fluttersdk_dusk] extDuskNavigateHandler: post-dispatch snapshot '
+        '[tapir] extTapirNavigateHandler: post-dispatch snapshot '
         'build swallowed for route "$route": $e',
-        name: 'dusk',
+        name: 'tapir',
       );
     }
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] extDuskNavigateHandler error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] extTapirNavigateHandler error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
 
-/// Handler for `ext.dusk.navigate_back`.
+/// Handler for `ext.tapir.navigate_back`.
 ///
 /// Params:
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
@@ -346,7 +346,7 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateHandler(
 /// 2. Pop it; when none can pop, silently no-op (bottom of stack).
 /// 3. Wait for two endOfFrame ticks so the post-pop tree settles.
 /// 4. Return the confirmation envelope.
-Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
+Future<developer.ServiceExtensionResponse> extTapirNavigateBackHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -380,44 +380,44 @@ Future<developer.ServiceExtensionResponse> extDuskNavigateBackHandler(
       payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
-        '[fluttersdk_dusk] extDuskNavigateBackHandler: post-dispatch '
+        '[tapir] extTapirNavigateBackHandler: post-dispatch '
         'snapshot build swallowed: $e',
-        name: 'dusk',
+        name: 'tapir',
       );
     }
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] extDuskNavigateBackHandler error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] extTapirNavigateBackHandler error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
 
-/// Handler for `ext.dusk.get_routes`.
+/// Handler for `ext.tapir.get_routes`.
 ///
 /// Params: none.
 ///
 /// On success: `{ "location": "", "title": "", "uri": "/monitors" }`; see
 /// [buildGetRoutesResponse] for what each field reads.
-Future<developer.ServiceExtensionResponse> extDuskGetRoutesHandler(
+Future<developer.ServiceExtensionResponse> extTapirGetRoutesHandler(
   String method,
   Map<String, String> params,
 ) async {
   try {
-    return duskResult(buildGetRoutesResponse());
+    return tapirResult(buildGetRoutesResponse());
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] extDuskGetRoutesHandler error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] extTapirGetRoutesHandler error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }

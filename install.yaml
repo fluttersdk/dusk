@@ -1,67 +1,67 @@
-# fluttersdk_dusk install manifest (PluginInstaller DSL schema v1).
+# tapir install manifest (PluginInstaller DSL schema v1).
 #
-# Dusk is an E2E driver plugin. Install registers DuskArtisanProvider into the
-# consumer's lib/app/_plugins.g.dart codegen barrel (via the artisan manifest
-# installer's _registerArtisanProvider step) so the 40 dusk CLI commands + 39
-# dusk_* MCP tools (33 ext.dusk.* + 6 artisan:dusk:* substrate-routed) surface
-# in the consumer's `dart run artisan` and `dart run fluttersdk_dusk mcp:serve`
+# Tapir is an E2E driver plugin. Install registers TapirDowelProvider into the
+# consumer's lib/app/_plugins.g.dart codegen barrel (via the dowel manifest
+# installer's _registerDowelProvider step) so the 40 tapir CLI commands + 39
+# tapir_* MCP tools (33 ext.tapir.* + 6 dowel:tapir:* substrate-routed) surface
+# in the consumer's `dart run dowel` and `dart run tapir mcp:serve`
 # outputs.
 #
-# No stub files are published: dusk captures via VM Service extensions
-# (ext.dusk.*) + snapshot enrichers, not scaffolded code. The consumer wires
+# No stub files are published: tapir captures via VM Service extensions
+# (ext.tapir.*) + snapshot enrichers, not scaffolded code. The consumer wires
 # the runtime install in their lib/main.dart manually (see post_install message).
 #
-# See doc/install_yaml_schema.md (in fluttersdk_artisan) for the full schema.
+# See doc/install_yaml_schema.md (in dowel) for the full schema.
 
-plugin_name: fluttersdk_dusk
+plugin_name: tapir
 
 publish: {}
 
 magic:
-  provider: null   # dusk is artisan-only; no magic provider class to inject.
+  provider: null   # tapir is dowel-only; no magic provider class to inject.
 
 post_install:
   message: |
-    fluttersdk_dusk plugin:installed. Bootstrap workflow:
+    tapir plugin:installed. Bootstrap workflow:
 
-    0. Recommended path — `dart run fluttersdk_dusk dusk:install` handles every
+    0. Recommended path — `dart run tapir tapir:install` handles every
        step below automatically (Phase 1 patches lib/main.dart, Phase 2 chains
-       artisan install + plugin:install when needed). If you arrived here by
+       dowel install + plugin:install when needed). If you arrived here by
        running `plugin:install` directly, skip ahead to step 1 and patch
        main.dart by hand.
 
     1. In your consumer's lib/main.dart, gated under `if (!kReleaseMode)` (debug and profile
-       builds carry dusk; release tree-shakes it):
+       builds carry tapir; release tree-shakes it):
 
-         DuskPlugin.install();                         // before runApp() (or before Magic.init() for the Magic stack)
+         TapirPlugin.install();                         // before runApp() (or before Magic.init() for the Magic stack)
 
-    2. If you use Magic, ALSO call MagicDuskIntegration.install()
+    2. If you use Magic, ALSO call MagicTapirIntegration.install()
        AFTER Magic.init() to wire the 5 Magic-side enrichers
        (magicControllerEnricher, magicFormErrorsEnricher, magicGateResultEnricher,
         magicMiddlewareEnricher, magicAuthUserEnricher).
 
     3. If you use Wind, call `Wind.installDebugResolver()` inside `!kReleaseMode` (main barrel import).
-       Wind alpha-10 no longer ships a `WindDuskIntegration`; dusk reads wind state through the
-       neutral `fluttersdk_wind_diagnostics_contracts.WindDebugRegistry` bridge inside
+       Wind alpha-10 no longer ships a `WindTapirIntegration`; tapir reads wind state through the
+       neutral `wind_kit_diagnostics_contracts.WindDebugRegistry` bridge inside
        `ext_snapshot.dart` and `ext_observe.dart` ahead of the enricher loop. The 6 core fields
        (breakpoint, brightness, platform, states, bgColor, textColor) still surface without any
        enricher registration.
 
     4. Verify the CLI:
 
-         ./bin/fsa list                    # fastcli wrapper (~110ms warm AOT; scaffolded by dusk:install)
-         dart run fluttersdk_dusk list     # dusk's Flutter-free wrapper: same surface, ~3s startup
+         ./bin/dowel list                    # fastcli wrapper (~110ms warm AOT; scaffolded by tapir:install)
+         dart run tapir list     # tapir's Flutter-free wrapper: same surface, ~3s startup
 
     5. Verify the MCP surface:
 
-         dart run fluttersdk_dusk mcp:install    # add fluttersdk MCP server entry to .mcp.json
-         # then restart Claude Code; /mcp will list 31 dusk_* tools
-         # (dusk_blur, dusk_clear, dusk_close_app, dusk_console, dusk_dblclick,
-         #  dusk_device_profile, dusk_dismiss_modals, dusk_drag, dusk_evaluate,
-         #  dusk_exceptions, dusk_find, dusk_focus, dusk_get_routes,
-         #  dusk_hot_reload_and_snap, dusk_hover, dusk_navigate,
-         #  dusk_navigate_back, dusk_observe, dusk_press_key,
-         #  dusk_resize_viewport, dusk_right_click, dusk_screenshot, dusk_scroll,
-         #  dusk_select_option, dusk_set_checkbox, dusk_snap, dusk_tap,
-         #  dusk_triple_click, dusk_type, dusk_wait_for,
-         #  dusk_wait_for_network_idle).
+         dart run tapir mcp:install    # add dowel MCP server entry to .mcp.json
+         # then restart Claude Code; /mcp will list 31 tapir_* tools
+         # (tapir_blur, tapir_clear, tapir_close_app, tapir_console, tapir_dblclick,
+         #  tapir_device_profile, tapir_dismiss_modals, tapir_drag, tapir_evaluate,
+         #  tapir_exceptions, tapir_find, tapir_focus, tapir_get_routes,
+         #  tapir_hot_reload_and_snap, tapir_hover, tapir_navigate,
+         #  tapir_navigate_back, tapir_observe, tapir_press_key,
+         #  tapir_resize_viewport, tapir_right_click, tapir_screenshot, tapir_scroll,
+         #  tapir_select_option, tapir_set_checkbox, tapir_snap, tapir_tap,
+         #  tapir_triple_click, tapir_type, tapir_wait_for,
+         #  tapir_wait_for_network_idle).

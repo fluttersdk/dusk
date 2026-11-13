@@ -1,6 +1,6 @@
 /// The `effect` block the five verbs that can observe a result return.
 ///
-/// A dusk action reports that it DISPATCHED, not that the widget received.
+/// A tapir action reports that it DISPATCHED, not that the widget received.
 /// That distinction has cost real debugging time more than once: a fill
 /// printed a green tick four times onto a field covered by a pinned footer,
 /// and a fill against an `InputType.number` field reported the text it had

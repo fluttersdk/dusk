@@ -10,7 +10,7 @@ library;
 final RegExp _refLine =
     RegExp(r'\[ref=(\w+)\](?: \[(?:offscreen|occluded)\])*$');
 
-/// Diffs [current] against [previous], both in the `ext.dusk.snap` text
+/// Diffs [current] against [previous], both in the `ext.tapir.snap` text
 /// format.
 ///
 /// A null [previous] means no baseline exists yet, so the full [current] text

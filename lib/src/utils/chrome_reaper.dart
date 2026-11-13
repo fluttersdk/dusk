@@ -73,7 +73,7 @@ Duration chromeReaperGrace = const Duration(seconds: 2);
 
 /// Hook for tests to capture the single Windows-fallback warning emitted per
 /// session. Defaults to null, in which case the warning routes through
-/// [developer.log] under the `fluttersdk_dusk.chrome_reaper` logger name.
+/// [developer.log] under the `tapir.chrome_reaper` logger name.
 @visibleForTesting
 void Function(String message)? chromeReaperLogger;
 
@@ -107,14 +107,14 @@ bool _windowsSkip() {
   if (!_windowsWarningEmitted) {
     _windowsWarningEmitted = true;
     const String message =
-        'fluttersdk_dusk.chrome_reaper: POSIX-only utility; Windows skipped. '
+        'tapir.chrome_reaper: POSIX-only utility; Windows skipped. '
         'Clean orphan Chrome instances manually with '
         '`taskkill /T /F /IM chrome.exe` after a failed session.';
     final void Function(String message)? logger = chromeReaperLogger;
     if (logger != null) {
       logger(message);
     } else {
-      developer.log(message, name: 'fluttersdk_dusk.chrome_reaper');
+      developer.log(message, name: 'tapir.chrome_reaper');
     }
   }
   return true;

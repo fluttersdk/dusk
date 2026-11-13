@@ -11,13 +11,13 @@ paths:
 
 ## Registration
 
-Register every `ext.dusk.<verb>` (snake_case, terminal segment only) with `registerDuskExtension(method, handler, {ensureFrames: true})` from `lib/src/utils/dusk_register.dart`, never with `developer.registerExtension` or `registerExtensionIdempotent` directly. It is idempotent across hot restart and, per call, wakes an app whose window is hidden or minimised (`ensureFramesProduced`), so a tap lands and a snapshot is fresh. Pass `ensureFrames: false` for a verb that must see the engine as it is (perf, `boot_id`, `close_app`, `console`, `exceptions`, `semantics_hold`, `evaluate`). The wake never runs on web: a hidden tab withholds frames, so the CLI recovers it over CDP (`commands/web_visibility.dart`).
+Register every `ext.tapir.<verb>` (snake_case, terminal segment only) with `registerTapirExtension(method, handler, {ensureFrames: true})` from `lib/src/utils/tapir_register.dart`, never with `developer.registerExtension` or `registerExtensionIdempotent` directly. It is idempotent across hot restart and, per call, wakes an app whose window is hidden or minimised (`ensureFramesProduced`), so a tap lands and a snapshot is fresh. Pass `ensureFrames: false` for a verb that must see the engine as it is (perf, `boot_id`, `close_app`, `console`, `exceptions`, `semantics_hold`, `evaluate`). The wake never runs on web: a hidden tab withholds frames, so the CLI recovers it over CDP (`commands/web_visibility.dart`).
 
-Each `ext_<name>.dart` exposes a `registerXExtensions()` that `register_dusk_extensions.dart` calls once from `DuskPlugin.install()`.
+Each `ext_<name>.dart` exposes a `registerXExtensions()` that `register_tapir_extensions.dart` calls once from `TapirPlugin.install()`.
 
 ## Handlers
 
-Signature: `Future<ServiceExtensionResponse> Function(String method, Map<String, String> params)`. Every param is a string: parse with `int.tryParse(params['k'] ?? '')`; a list arrives as JSON text. Return the success payload through `duskResult(payload)`, which adds `framesForced`, `warnings` and `reresolved` when they apply. Errors use `ServiceExtensionResponse.error`: `extensionError` for runtime failures, `invalidParams` for bad input, a JSON `errorDetail` with at least `message`, built with `wrapErrorDetail` and `DuskErrorEnvelope`.
+Signature: `Future<ServiceExtensionResponse> Function(String method, Map<String, String> params)`. Every param is a string: parse with `int.tryParse(params['k'] ?? '')`; a list arrives as JSON text. Return the success payload through `tapirResult(payload)`, which adds `framesForced`, `warnings` and `reresolved` when they apply. Errors use `ServiceExtensionResponse.error`: `extensionError` for runtime failures, `invalidParams` for bad input, a JSON `errorDetail` with at least `message`, built with `wrapErrorDetail` and `TapirErrorEnvelope`.
 
 A verb that embeds a snapshot calls `snapshotForAction(params)` (`ext_snapshot.dart`) after acting: `snapshot` (`full|diff|none`) overrides `includeSnapshot`, and a failed snapshot never turns a successful action into an error. A verb that writes text resolves its field once (`resolveTextFieldTarget`) and refuses a ref that is an interactive non-text control.
 
@@ -27,11 +27,11 @@ A verb that embeds a snapshot calls `snapshotForAction(params)` (`ext_snapshot.d
 
 ## Refs
 
-`RefRegistry.register` mints `e<N>` and dedupes by `SemanticsNode.id`; `registerQuery` mints `q<N>`, which re-walks the live tree on every action. Resolve with `resolveRefForAction`. An unmounted `e<N>` is relocated only through its `RefBinding` (label, index, namesake count, route) and only when all of them still match; otherwise the `defunct` error stands. A stale `q<N>` throws `DuskStaleHandleException`.
+`RefRegistry.register` mints `e<N>` and dedupes by `SemanticsNode.id`; `registerQuery` mints `q<N>`, which re-walks the live tree on every action. Resolve with `resolveRefForAction`. An unmounted `e<N>` is relocated only through its `RefBinding` (label, index, namesake count, route) and only when all of them still match; otherwise the `defunct` error stands. A stale `q<N>` throws `TapirStaleHandleException`.
 
 ## Enrichers
 
-A `DuskSnapshotEnricher` returns a YAML fragment for the node or null, synchronously and statelessly. Wind data arrives through `WindDebugRegistry.current?.resolve(element)` from `fluttersdk_wind_diagnostics_contracts` before the enricher loop; never import `fluttersdk_wind`.
+A `TapirSnapshotEnricher` returns a YAML fragment for the node or null, synchronously and statelessly. Wind data arrives through `WindDebugRegistry.current?.resolve(element)` from `wind_kit_diagnostics_contracts` before the enricher loop; never import `wind_kit`.
 
 ## Adding an extension
 

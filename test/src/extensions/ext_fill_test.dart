@@ -5,10 +5,10 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_fill.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
-import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
+import 'package:tapir/src/extensions/ext_fill.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/ref_registry.dart';
+import 'package:tapir/src/utils/error_envelope.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -50,7 +50,7 @@ void main() {
         // checkStable / checkReceivesEvents opt-out: the synthetic rect does
         // not align with the live TextField geometry.
         final future = aiTestFillHandler(
-          'ext.dusk.fill',
+          'ext.tapir.fill',
           <String, String>{
             'ref': ref,
             'text': 'fresh text',
@@ -79,7 +79,7 @@ void main() {
       (WidgetTester tester) async {
         await tester.pumpWidget(const MaterialApp(home: Scaffold()));
         final response = await aiTestFillHandler(
-          'ext.dusk.fill',
+          'ext.tapir.fill',
           const <String, String>{'text': 'hello'},
         );
         expect(response.result, isNull);
@@ -92,7 +92,7 @@ void main() {
       (WidgetTester tester) async {
         await tester.pumpWidget(const MaterialApp(home: Scaffold()));
         final response = await aiTestFillHandler(
-          'ext.dusk.fill',
+          'ext.tapir.fill',
           const <String, String>{'ref': 'e999', 'text': 'hello'},
         );
         expect(response.result, isNull);
@@ -125,11 +125,11 @@ void main() {
         );
 
         final String ref = RefRegistry.registerQuery(
-          const DuskQuery(keyValue: 'fill-field'),
+          const TapirQuery(keyValue: 'fill-field'),
         );
 
         final future = aiTestFillHandler(
-          'ext.dusk.fill',
+          'ext.tapir.fill',
           <String, String>{
             'ref': ref,
             'text': 'retry value',
@@ -168,11 +168,11 @@ void main() {
         // No matching widget exists, so both the first attempt and the retry
         // fail to resolve the handle.
         final String ref = RefRegistry.registerQuery(
-          const DuskQuery(keyValue: 'never-matches'),
+          const TapirQuery(keyValue: 'never-matches'),
         );
 
         final response = await aiTestFillHandler(
-          'ext.dusk.fill',
+          'ext.tapir.fill',
           <String, String>{
             'ref': ref,
             'text': 'whatever',
@@ -206,7 +206,7 @@ void main() {
             ),
           ),
         );
-        await duskSnapBuild();
+        await tapirSnapBuild();
 
         final Element element = tester.element(find.byType(TextField));
         final String ref = RefRegistry.registerForTesting(
@@ -217,7 +217,7 @@ void main() {
         );
 
         final future = aiTestFillHandler(
-          'ext.dusk.fill',
+          'ext.tapir.fill',
           <String, String>{
             'ref': ref,
             'text': 'after',
@@ -271,7 +271,7 @@ void main() {
         );
 
         final future = aiTestFillHandler(
-          'ext.dusk.fill',
+          'ext.tapir.fill',
           <String, String>{
             'ref': ref,
             'text': 'x',
@@ -311,7 +311,7 @@ void main() {
         );
         final response = await _drive(
           tester,
-          aiTestFillHandler('ext.dusk.fill', _quietParams(ref, 'Bob')),
+          aiTestFillHandler('ext.tapir.fill', _quietParams(ref, 'Bob')),
         );
 
         expect(response.result, isNull);
@@ -335,7 +335,7 @@ void main() {
         final String ref = _registerNodeRef(tester, find.text('Full name'));
         final response = await _drive(
           tester,
-          aiTestFillHandler('ext.dusk.fill', _quietParams(ref, 'Ada')),
+          aiTestFillHandler('ext.tapir.fill', _quietParams(ref, 'Ada')),
         );
 
         expect(response.result, isNotNull, reason: response.errorDetail);
@@ -380,7 +380,7 @@ void main() {
         );
         final response = await _drive(
           tester,
-          aiTestFillHandler('ext.dusk.fill', _quietParams(ref, 'fresh')),
+          aiTestFillHandler('ext.tapir.fill', _quietParams(ref, 'fresh')),
         );
 
         expect(response.result, isNotNull, reason: response.errorDetail);

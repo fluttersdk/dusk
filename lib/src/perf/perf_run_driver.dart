@@ -2,14 +2,14 @@
 /// environment it was measured on, the exception a run stops with, and the
 /// wait for the app's boot id that a restart and a cold start share.
 ///
-/// Here rather than in `dusk_perf_run_command.dart` so the perf library
+/// Here rather than in `tapir_perf_run_command.dart` so the perf library
 /// (`perf_actions.dart`, `perf_setup_runner.dart`) depends on no command.
 library;
 
 import 'dart:async';
 
 // `hide Error`: the installer's `Error` result would shadow dart:core's.
-import 'package:fluttersdk_artisan/artisan.dart' hide Error;
+import 'package:dowel/dowel.dart' hide Error;
 
 import 'scenario.dart';
 
@@ -26,9 +26,9 @@ final class PerfRunException implements Exception {
   String toString() => message;
 }
 
-/// Everything `dusk:perf_run` needs from outside the command: the app's
-/// `ext.dusk.*` extensions, Chrome's DevTools, the runner's restart and the
-/// clock. The production driver talks to artisan; a test drives a fake.
+/// Everything `tapir:perf_run` needs from outside the command: the app's
+/// `ext.tapir.*` extensions, Chrome's DevTools, the runner's restart and the
+/// clock. The production driver talks to dowel; a test drives a fake.
 abstract interface class PerfRunDriver {
   /// Calls [method] on the running app. Throws on an extension error.
   Future<Map<String, dynamic>> call(
@@ -43,7 +43,7 @@ abstract interface class PerfRunDriver {
   ]);
 
   /// Restarts the app from scratch, a hot restart or a full relaunch as the
-  /// build allows, and returns once `ext.dusk.*` answers again.
+  /// build allows, and returns once `ext.tapir.*` answers again.
   Future<void> restart();
 
   Future<void> pause(Duration duration);
@@ -82,26 +82,26 @@ final class PerfRunEnvironment {
   final String renderer;
 }
 
-/// The boot id the running app's `DuskPlugin.install()` minted, read from
-/// `ext.dusk.boot_id` on the main isolate.
+/// The boot id the running app's `TapirPlugin.install()` minted, read from
+/// `ext.tapir.boot_id` on the main isolate.
 ///
 /// Throws whatever the VM Service throws when the extension does not answer:
-/// an RPC error while the app restarts, or on an app built with a dusk older
-/// than this one. `dusk:perf_campaign` polls it after each cold start.
-Future<String> readDuskBootId(VmServiceClient client) async {
+/// an RPC error while the app restarts, or on an app built with a tapir older
+/// than this one. `tapir:perf_campaign` polls it after each cold start.
+Future<String> readTapirBootId(VmServiceClient client) async {
   final String isolateId = await client.getMainIsolateId();
   final Map<String, dynamic> result =
       await client.callServiceExtension<Map<String, dynamic>>(
-    'ext.dusk.boot_id',
+    'ext.tapir.boot_id',
     isolateId: isolateId,
   );
   return result['bootId'] as String;
 }
 
-/// Polls until `ext.dusk.boot_id` answers with an id other than [replacing]
+/// Polls until `ext.tapir.boot_id` answers with an id other than [replacing]
 /// (any id when [replacing] is null, after a relaunch), which is when
-/// `main()` has run `DuskPlugin.install()` again. The boot id registers last,
-/// so every other `ext.dusk.*` answers by then.
+/// `main()` has run `TapirPlugin.install()` again. The boot id registers last,
+/// so every other `ext.tapir.*` answers by then.
 ///
 /// The isolate id proves nothing: DWDS keeps `"1"` across a web hot restart.
 /// While the app restarts the extension answers with errors (DWDS -32603 for
@@ -109,14 +109,14 @@ Future<String> readDuskBootId(VmServiceClient client) async {
 /// state being waited out, retried every [pollInterval] until [timeout], and
 /// the last one is named when it runs out. A read that hangs is cut at the
 /// time left, so [timeout] holds.
-Future<void> awaitDuskBoot(
+Future<void> awaitTapirBoot(
   VmServiceClient client, {
   required String? replacing,
   required Duration timeout,
   Duration pollInterval = kPerfBootPollInterval,
 }) =>
-    pollDuskBoot(
-      () => readDuskBootId(client),
+    pollTapirBoot(
+      () => readTapirBootId(client),
       replacing: replacing,
       timeout: timeout,
       pollInterval: pollInterval,
@@ -124,7 +124,7 @@ Future<void> awaitDuskBoot(
           'the restart',
     );
 
-/// The loop behind [awaitDuskBoot], over any boot id reader: [read] is asked
+/// The loop behind [awaitTapirBoot], over any boot id reader: [read] is asked
 /// every [pollInterval], waited out through [pause], until it answers an id
 /// other than [replacing] or [timeout] runs out. The poll count is capped
 /// too, so the budget holds on a [pause] that returns at once.
@@ -132,7 +132,7 @@ Future<void> awaitDuskBoot(
 /// Throws [PerfRunException] with [failure], then the last error when there
 /// was one, once the budget is spent. No read starts once it is: the last
 /// answer named is the app's.
-Future<void> pollDuskBoot(
+Future<void> pollTapirBoot(
   Future<String> Function() read, {
   required String? replacing,
   required Duration timeout,

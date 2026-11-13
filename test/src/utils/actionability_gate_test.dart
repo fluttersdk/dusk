@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
-import 'package:fluttersdk_dusk/src/utils/actionability_gate.dart';
-import 'package:fluttersdk_dusk/src/utils/dusk_exceptions.dart';
+import 'package:tapir/src/ref_registry.dart';
+import 'package:tapir/src/utils/actionability_gate.dart';
+import 'package:tapir/src/utils/tapir_exceptions.dart';
 
 /// Helper: build a [RefEntry] with the supplied [rect] and [node].
 ///
@@ -28,14 +28,14 @@ RefEntry _buildEntry({
 }
 
 void main() {
-  group('DuskActionabilityException', () {
-    test('extends DuskException and exposes ref + reason + message', () {
-      const DuskActionabilityException exception = DuskActionabilityException(
+  group('TapirActionabilityException', () {
+    test('extends TapirException and exposes ref + reason + message', () {
+      const TapirActionabilityException exception = TapirActionabilityException(
         ref: 'e1',
         reason: 'not enabled',
       );
 
-      expect(exception, isA<DuskException>());
+      expect(exception, isA<TapirException>());
       expect(exception, isA<Exception>());
       expect(exception.ref, equals('e1'));
       expect(exception.reason, equals('not enabled'));
@@ -101,7 +101,7 @@ void main() {
     // -------------------------------------------------------------------------
 
     testWidgets(
-      'throws DuskActionabilityException with reason "not enabled" when the'
+      'throws TapirActionabilityException with reason "not enabled" when the'
       ' underlying SemanticsNode is disabled',
       (WidgetTester tester) async {
         await tester.pumpWidget(
@@ -136,15 +136,15 @@ void main() {
             checkReceivesEvents: false,
           ),
           throwsA(
-            isA<DuskActionabilityException>()
-                .having((DuskActionabilityException e) => e.ref, 'ref', 'e7')
+            isA<TapirActionabilityException>()
+                .having((TapirActionabilityException e) => e.ref, 'ref', 'e7')
                 .having(
-                  (DuskActionabilityException e) => e.reason,
+                  (TapirActionabilityException e) => e.reason,
                   'reason',
                   'not enabled',
                 )
                 .having(
-                  (DuskActionabilityException e) => e.message,
+                  (TapirActionabilityException e) => e.message,
                   'message',
                   contains('not actionable: not enabled'),
                 ),
@@ -210,14 +210,14 @@ void main() {
             checkReceivesEvents: false,
           ),
           throwsA(
-            isA<DuskActionabilityException>()
+            isA<TapirActionabilityException>()
                 .having(
-                  (DuskActionabilityException e) => e.reason,
+                  (TapirActionabilityException e) => e.reason,
                   'reason',
                   'zero rect',
                 )
                 .having(
-                  (DuskActionabilityException e) => e.message,
+                  (TapirActionabilityException e) => e.message,
                   'message',
                   contains('Widget ref=e3 is not actionable: zero rect'),
                 ),
@@ -244,8 +244,8 @@ void main() {
             checkReceivesEvents: false,
           ),
           throwsA(
-            isA<DuskActionabilityException>().having(
-              (DuskActionabilityException e) => e.reason,
+            isA<TapirActionabilityException>().having(
+              (TapirActionabilityException e) => e.reason,
               'reason',
               'zero rect',
             ),
@@ -283,14 +283,14 @@ void main() {
             checkReceivesEvents: false,
           ),
           throwsA(
-            isA<DuskActionabilityException>()
+            isA<TapirActionabilityException>()
                 .having(
-                  (DuskActionabilityException e) => e.reason,
+                  (TapirActionabilityException e) => e.reason,
                   'reason',
                   startsWith('off-viewport'),
                 )
                 .having(
-                  (DuskActionabilityException e) => e.message,
+                  (TapirActionabilityException e) => e.message,
                   'message',
                   allOf(
                     contains('Widget ref=e5 is not actionable: off-viewport'),
@@ -345,8 +345,8 @@ void main() {
             checkReceivesEvents: false,
           ),
           throwsA(
-            isA<DuskActionabilityException>().having(
-              (DuskActionabilityException e) => e.reason,
+            isA<TapirActionabilityException>().having(
+              (TapirActionabilityException e) => e.reason,
               'reason',
               startsWith('off-viewport'),
             ),
@@ -427,8 +427,8 @@ void main() {
             checkReceivesEvents: false,
           ),
           throwsA(
-            isA<DuskActionabilityException>().having(
-              (DuskActionabilityException e) => e.reason,
+            isA<TapirActionabilityException>().having(
+              (TapirActionabilityException e) => e.reason,
               'reason',
               'not enabled',
             ),
@@ -544,14 +544,14 @@ void main() {
         final Future<void> expectation = expectLater(
           future,
           throwsA(
-            isA<DuskActionabilityException>()
+            isA<TapirActionabilityException>()
                 .having(
-                  (DuskActionabilityException e) => e.reason,
+                  (TapirActionabilityException e) => e.reason,
                   'reason',
                   startsWith('not stable'),
                 )
                 .having(
-                  (DuskActionabilityException e) => e.message,
+                  (TapirActionabilityException e) => e.message,
                   'message',
                   contains('not actionable: not stable'),
                 ),
@@ -729,14 +729,14 @@ void main() {
             checkStable: false,
           ),
           throwsA(
-            isA<DuskActionabilityException>()
+            isA<TapirActionabilityException>()
                 .having(
-                  (DuskActionabilityException e) => e.reason,
+                  (TapirActionabilityException e) => e.reason,
                   'reason',
                   startsWith('obscured by other widget'),
                 )
                 .having(
-                  (DuskActionabilityException e) => e.message,
+                  (TapirActionabilityException e) => e.message,
                   'message',
                   contains('obscured by other widget (top='),
                 ),
@@ -788,8 +788,8 @@ void main() {
             checkStable: false,
           ),
           throwsA(
-            isA<DuskActionabilityException>().having(
-              (DuskActionabilityException e) => e.reason,
+            isA<TapirActionabilityException>().having(
+              (TapirActionabilityException e) => e.reason,
               'reason',
               equals('obscured by other widget (top=RenderPointerListener)'),
             ),
@@ -882,8 +882,8 @@ void main() {
         await expectLater(
           ensureActionable(entry, ref: 'e16'),
           throwsA(
-            isA<DuskActionabilityException>().having(
-              (DuskActionabilityException e) => e.reason,
+            isA<TapirActionabilityException>().having(
+              (TapirActionabilityException e) => e.reason,
               'reason',
               startsWith('off-viewport'),
             ),
@@ -938,7 +938,7 @@ void main() {
             checkReceivesEvents: false,
           );
           fail('expected "not enabled" throw');
-        } on DuskActionabilityException catch (e) {
+        } on TapirActionabilityException catch (e) {
           expect(e.reason, contains('not enabled'));
         }
 
@@ -954,7 +954,7 @@ void main() {
             checkReceivesEvents: false,
           );
           fail('expected "zero rect" throw');
-        } on DuskActionabilityException catch (e) {
+        } on TapirActionabilityException catch (e) {
           expect(e.reason, contains('zero rect'));
         }
 
@@ -970,7 +970,7 @@ void main() {
             checkReceivesEvents: false,
           );
           fail('expected "off-viewport" throw');
-        } on DuskActionabilityException catch (e) {
+        } on TapirActionabilityException catch (e) {
           expect(e.reason, contains('off-viewport'));
         }
       },
@@ -1187,8 +1187,8 @@ void main() {
             checkStable: false,
           ),
           throwsA(
-            isA<DuskActionabilityException>().having(
-              (DuskActionabilityException e) => e.reason,
+            isA<TapirActionabilityException>().having(
+              (TapirActionabilityException e) => e.reason,
               'reason',
               startsWith('off-viewport'),
             ),

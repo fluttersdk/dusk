@@ -58,7 +58,7 @@ void deliverKeyPress({
 
   if (deliver == null) {
     throw StateError(
-      '[fluttersdk_dusk] the binding has no key data handler to deliver '
+      '[tapir] the binding has no key data handler to deliver '
       '${logical.debugName ?? logical.keyLabel} to',
     );
   }

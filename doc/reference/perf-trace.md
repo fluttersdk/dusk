@@ -1,6 +1,6 @@
 # Interactions and the perf trace
 
-Inside a perf session, every gesture dusk dispatches opens an **interaction**: a handle that says which verb caused the work that follows. `ext.dusk.perf_trace` exports the closed session's interactions, frames and the host's timeline rows as Chrome Trace Event JSON, which opens as is in [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing`.
+Inside a perf session, every gesture tapir dispatches opens an **interaction**: a handle that says which verb caused the work that follows. `ext.tapir.perf_trace` exports the closed session's interactions, frames and the host's timeline rows as Chrome Trace Event JSON, which opens as is in [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing`.
 
 ---
 
@@ -8,7 +8,7 @@ Inside a perf session, every gesture dusk dispatches opens an **interaction**: a
 
 - [Interactions](#interactions)
 - [Reaching an interaction from app code](#reaching-an-interaction-from-app-code)
-- [ext.dusk.perf_trace](#ext-dusk-perf-trace)
+- [ext.tapir.perf_trace](#ext-tapir-perf-trace)
 - [Host timeline rows](#host-timeline-rows)
 - [See also](#see-also)
 
@@ -24,7 +24,7 @@ A `PerfInteraction` carries:
 | Field | Meaning |
 |---|---|
 | `id` | `i<N>`, unique for the isolate's lifetime. |
-| `verb` | The `ext.dusk.*` verb without its prefix. |
+| `verb` | The `ext.tapir.*` verb without its prefix. |
 | `target` | The ref, route or key the verb acted on; `null` for `blur`, `navigate_back`, `dismiss_modals`, `reset_overlays`. |
 | `startUs` | `FlutterTimeline.now` at dispatch. |
 | `closedAtUs` | `FlutterTimeline.now` at settle; `null` while open. |
@@ -40,15 +40,15 @@ Interactions may overlap: an agent can tap again before the last tap settles.
 
 Two routes, because Dart zones reach some of a gesture's consequences and not others.
 
-**The zone.** dusk dispatches the gesture inside `runZoned(zoneValues: {#fluttersdk_interaction: handle})`. Gesture callbacks run synchronously inside that dispatch, and Timers, microtasks, Futures and stream subscriptions created there keep the zone they were created in, so an `onTap` that starts a request hands it the interaction:
+**The zone.** tapir dispatches the gesture inside `runZoned(zoneValues: {#tapir_interaction: handle})`. Gesture callbacks run synchronously inside that dispatch, and Timers, microtasks, Futures and stream subscriptions created there keep the zone they were created in, so an `onTap` that starts a request hands it the interaction:
 
 ```dart
-final Object? value = Zone.current[#fluttersdk_interaction];
+final Object? value = Zone.current[#tapir_interaction];
 final PerfInteraction? interaction =
     value is PerfInteraction && value.closedAtUs == null ? value : null;
 ```
 
-`#fluttersdk_interaction` is a public symbol and equal across libraries, so a package reads it without importing dusk; `PerfInteraction.zoneKey` names the same symbol.
+`#tapir_interaction` is a public symbol and equal across libraries, so a package reads it without importing tapir; `PerfInteraction.zoneKey` names the same symbol.
 
 **Treat a closed handle as absent.** A Timer or a subscription keeps its zone forever: a Reverb socket opened during a login tap would otherwise attribute every later message to that tap. The close is what bounds the attribution.
 
@@ -56,8 +56,8 @@ final PerfInteraction? interaction =
 
 ---
 
-<a name="ext-dusk-perf-trace"></a>
-## ext.dusk.perf_trace
+<a name="ext-tapir-perf-trace"></a>
+## ext.tapir.perf_trace
 
 | Param | Meaning |
 |---|---|
@@ -67,7 +67,7 @@ final PerfInteraction? interaction =
 {
   "sessionToken": "perf-1",
   "traceEvents": [
-    {"ph": "M", "name": "process_name", "pid": 1, "args": {"name": "fluttersdk_dusk perf-1"}},
+    {"ph": "M", "name": "process_name", "pid": 1, "args": {"name": "tapir perf-1"}},
     {"ph": "M", "name": "thread_name", "pid": 1, "tid": 1, "args": {"name": "interactions"}},
     {"ph": "X", "cat": "interaction", "name": "tap", "ts": 812345, "dur": 412000, "pid": 1, "tid": 1,
      "args": {"id": "i1", "target": "e3"}},
@@ -105,14 +105,14 @@ The host (magic_devtools) fills the `perfTimelineReader` pointer. One row per ma
  linkedBy: String?, value: num?, args: Map?}
 ```
 
-Times are `FlutterTimeline.now` microseconds, the clock dusk stamps interactions and the session window with. A span with no `endUs` is still running and ends at the session's end. Return the whole buffer; dusk keeps the rows inside the window. A row missing `kind`, `track`, `name` or an int `startUs`, a kind outside the three above, or a counter without a numeric `value` is skipped and counted in `otherData.skippedRows`, never a failed export.
+Times are `FlutterTimeline.now` microseconds, the clock tapir stamps interactions and the session window with. A span with no `endUs` is still running and ends at the session's end. Return the whole buffer; tapir keeps the rows inside the window. A row missing `kind`, `track`, `name` or an int `startUs`, a kind outside the three above, or a counter without a numeric `value` is skipped and counted in `otherData.skippedRows`, never a failed export.
 
 ---
 
 <a name="see-also"></a>
 ## See also
 
-- [dusk:perf_begin](../commands/dusk-perf-begin.md): opens the session interactions are recorded in.
-- [dusk:perf_end](../commands/dusk-perf-end.md): closes it; the trace exports that session.
-- [dusk:perf_trace](../commands/dusk-perf-trace.md): writes this export to a file and prints its path.
+- [tapir:perf_begin](../commands/tapir-perf-begin.md): opens the session interactions are recorded in.
+- [tapir:perf_end](../commands/tapir-perf-end.md): closes it; the trace exports that session.
+- [tapir:perf_trace](../commands/tapir-perf-trace.md): writes this export to a file and prints its path.
 - [Perfetto: other formats](https://perfetto.dev/docs/getting-started/other-formats): the Chrome JSON rules the trace follows.

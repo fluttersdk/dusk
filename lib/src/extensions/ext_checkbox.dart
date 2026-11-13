@@ -3,13 +3,13 @@ import 'dart:developer' as developer;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' show Checkbox, Switch;
 import 'package:flutter/widgets.dart';
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart' show resolveViewFor;
-import '../utils/dusk_exceptions.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_exceptions.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
@@ -17,26 +17,26 @@ import '../utils/perf_interaction.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
 
 // ---------------------------------------------------------------------------
-// MCP descriptor constants — consumed by DuskArtisanProvider.mcpTools()
+// MCP descriptor constants — consumed by TapirDowelProvider.mcpTools()
 // ---------------------------------------------------------------------------
 
 /// MCP tool name for the checkbox setter.
-const String kDuskSetCheckboxMcpName = 'dusk_set_checkbox';
+const String kTapirSetCheckboxMcpName = 'tapir_set_checkbox';
 
 /// VM Service extension method name for the checkbox setter.
-const String kDuskSetCheckboxMcpExtension = 'ext.dusk.set_checkbox';
+const String kTapirSetCheckboxMcpExtension = 'ext.tapir.set_checkbox';
 
 // ---------------------------------------------------------------------------
 // Aggregator
 // ---------------------------------------------------------------------------
 
-/// Registers the `ext.dusk.set_checkbox` VM Service extension.
+/// Registers the `ext.tapir.set_checkbox` VM Service extension.
 ///
 /// Idempotent via [registerExtensionIdempotent]. Call from
-/// [registerAllDuskExtensions] once during [DuskPlugin.install].
+/// [registerAllTapirExtensions] once during [TapirPlugin.install].
 void registerCheckboxExtensions() {
-  registerDuskExtension(
-    kDuskSetCheckboxMcpExtension,
+  registerTapirExtension(
+    kTapirSetCheckboxMcpExtension,
     aiTestSetCheckboxHandler,
   );
 }
@@ -45,7 +45,7 @@ void registerCheckboxExtensions() {
 // Handler
 // ---------------------------------------------------------------------------
 
-/// Handler for the `ext.dusk.set_checkbox` VM Service extension.
+/// Handler for the `ext.tapir.set_checkbox` VM Service extension.
 ///
 /// Reads the current checked state of the [Checkbox] (or [Switch]) widget
 /// identified by `ref` via a Semantics-node walk. When the current value
@@ -54,10 +54,10 @@ void registerCheckboxExtensions() {
 /// widget.
 ///
 /// Params (all string-valued):
-/// - `ref` (required): opaque ref string from a prior `ext.dusk.snapshot` call.
+/// - `ref` (required): opaque ref string from a prior `ext.tapir.snapshot` call.
 /// - `value` (required): target value — `'true'` or `'false'`.
 /// - `includeSnapshot`: accepted and ignored. The response never embeds a
-///   snapshot; run `ext.dusk.snap` afterwards to see the post-toggle tree.
+///   snapshot; run `ext.tapir.snap` afterwards to see the post-toggle tree.
 ///
 /// Response JSON (default):
 /// ```json
@@ -78,8 +78,8 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.set_checkbox: missing required param "ref"',
-        DuskErrorEnvelope.missingParam('ref'),
+        'ext.tapir.set_checkbox: missing required param "ref"',
+        TapirErrorEnvelope.missingParam('ref'),
       ),
     );
   }
@@ -89,8 +89,8 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.set_checkbox: missing required param "value"',
-        DuskErrorEnvelope.missingParam('value'),
+        'ext.tapir.set_checkbox: missing required param "value"',
+        TapirErrorEnvelope.missingParam('value'),
       ),
     );
   }
@@ -101,18 +101,18 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
   final RefEntry? entry;
   try {
     entry = resolveRefForAction(ref);
-  } on DuskStaleHandleException catch (e) {
+  } on TapirStaleHandleException catch (e) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+      wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
     );
   }
   if (entry == null) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.set_checkbox: ref "$ref" not found in registry',
-        DuskErrorEnvelope.notFound(
+        'ext.tapir.set_checkbox: ref "$ref" not found in registry',
+        TapirErrorEnvelope.notFound(
           ref: ref,
           candidates: collectSnapshotCandidates(),
         ),
@@ -132,7 +132,7 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
 
   // 4. Idempotent: no-op when the current value already matches the target.
   if (effectiveCurrent == targetValue) {
-    return duskResult(<String, dynamic>{
+    return tapirResult(<String, dynamic>{
       'ref': ref,
       'previousValue': effectiveCurrent,
       'value': effectiveCurrent,
@@ -159,15 +159,15 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
     );
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.set_checkbox: injectTap failed for ref '
+      '[tapir] ext.tapir.set_checkbox: injectTap failed for ref '
       '"$ref": $e\n$st',
-      name: 'fluttersdk_dusk',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.set_checkbox: injectTap failed: $e',
-        DuskErrorEnvelope.unexpected(widgetPath: ref),
+        'ext.tapir.set_checkbox: injectTap failed: $e',
+        TapirErrorEnvelope.unexpected(widgetPath: ref),
       ),
     );
   }
@@ -178,7 +178,7 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
   //    that a success.
   final bool? settledValue = _readCheckboxValue(entry.element);
 
-  return duskResult(<String, dynamic>{
+  return tapirResult(<String, dynamic>{
     'ref': ref,
     'previousValue': effectiveCurrent,
     'value': targetValue,

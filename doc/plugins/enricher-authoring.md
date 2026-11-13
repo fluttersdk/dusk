@@ -1,7 +1,7 @@
 # Authoring a snapshot enricher
 
-`DuskSnapshotEnricher` is the extension point that lets an external package
-(or a host app) append custom YAML lines to every `dusk:snap` output. The
+`TapirSnapshotEnricher` is the extension point that lets an external package
+(or a host app) append custom YAML lines to every `tapir:snap` output. The
 `magic` and `wind` integrations ship enrichers out of the box, but anyone
 can register one. This guide walks through the typedef, the four-clause
 contract, the registration surface, and a ~30-line worked example.
@@ -9,7 +9,7 @@ contract, the registration surface, and a ~30-line worked example.
 ## The typedef
 
 ```dart
-typedef DuskSnapshotEnricher =
+typedef TapirSnapshotEnricher =
     String? Function(Element element, RefRegistry refs);
 ```
 
@@ -21,8 +21,8 @@ that element.
 **The typedef is frozen for the alpha-2 cycle.** The signature `String?
 Function(Element element, RefRegistry refs)` MUST NOT change in any
 alpha-2 patch release. Any change requires a coordinated bump across
-`fluttersdk_dusk`, `magic` (which ships fourteen enrichers via
-`MagicDuskIntegration`), and `wind` (which ships the six-core-field
+`tapir`, `magic` (which ships fourteen enrichers via
+`MagicTapirIntegration`), and `wind` (which ships the six-core-field
 `windClassNameEnricher`). Treat it as a load-bearing cross-repo contract.
 
 ## The four-clause contract
@@ -33,7 +33,7 @@ Every enricher implementation MUST honour these clauses:
    the enricher chain on a single render-tree pass; an async enricher
    would deadlock the dispatcher.
 2. **Stateless WRT call ordering.** The dispatcher iterates
-   `DuskPlugin.enrichers` in insertion order; later-registered enrichers
+   `TapirPlugin.enrichers` in insertion order; later-registered enrichers
    see the same `Element` as earlier ones. An enricher must not mutate
    shared state in a way that affects siblings later in the chain.
 3. **First-write-wins on output keys.** When two enrichers emit
@@ -51,29 +51,29 @@ gate's view of the live tree on the next snap.
 
 ## Registration
 
-Enrichers register against the `DuskPlugin.enrichers` list, mutated in
+Enrichers register against the `TapirPlugin.enrichers` list, mutated in
 place. The list is read live on every snapshot call, so mid-session
 registrations are picked up immediately.
 
 ```dart
-import 'package:fluttersdk_dusk/dusk.dart';
+import 'package:tapir/tapir.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   if (!kReleaseMode) {
-    DuskPlugin.install();
-    DuskPlugin.enrichers.add(myCustomEnricher);
+    TapirPlugin.install();
+    TapirPlugin.enrichers.add(myCustomEnricher);
   }
   runApp(app);
 }
 ```
 
 When you ship a reusable integration (rather than a one-off in `main`),
-follow the `MagicDuskIntegration` pattern: a private constructor, an
+follow the `MagicTapirIntegration` pattern: a private constructor, an
 `install()` static that guards against duplicate adds with a static bool,
 and a `resetForTesting()` static that removes the enricher and clears the
 guard. Wind alpha-10 takes a different path (the neutral `WindDebugRegistry`
-bridge, read by dusk at snap time without an enricher); pick the enricher
+bridge, read by tapir at snap time without an enricher); pick the enricher
 pattern when your data is per-element and the bridge pattern when your
 data is a global registry the consumer installs once.
 
@@ -86,14 +86,14 @@ emits a `riverpodCounter:` line.
 
 ```dart
 import 'package:flutter/widgets.dart';
-import 'package:fluttersdk_dusk/dusk.dart';
+import 'package:tapir/tapir.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Host-owned counter provider. Real apps would define this elsewhere.
 final counterProvider = StateProvider<int>((ref) => 0);
 
-class RiverpodDuskIntegration {
-  RiverpodDuskIntegration._();
+class RiverpodTapirIntegration {
+  RiverpodTapirIntegration._();
 
   static bool _installed = false;
   static ProviderContainer? _container;
@@ -104,12 +104,12 @@ class RiverpodDuskIntegration {
     if (_installed) return;
     _installed = true;
     _container = container;
-    DuskPlugin.enrichers.add(riverpodCounterEnricher);
+    TapirPlugin.enrichers.add(riverpodCounterEnricher);
   }
 
   @visibleForTesting
   static void resetForTesting() {
-    DuskPlugin.enrichers.remove(riverpodCounterEnricher);
+    TapirPlugin.enrichers.remove(riverpodCounterEnricher);
     _container = null;
     _installed = false;
   }
@@ -120,7 +120,7 @@ class RiverpodDuskIntegration {
 /// per-element enricher so the YAML emitter consistently surfaces it
 /// next to each ref. Returns null when no container has been installed.
 String? riverpodCounterEnricher(Element element, RefRegistry refs) {
-  final container = RiverpodDuskIntegration._container;
+  final container = RiverpodTapirIntegration._container;
   if (container == null) return null;
   final int value = container.read(counterProvider);
   return 'riverpodCounter: $value';
@@ -151,8 +151,8 @@ testWidgets('riverpodCounterEnricher surfaces the current value',
     (tester) async {
   final container = ProviderContainer();
   addTearDown(container.dispose);
-  RiverpodDuskIntegration.install(container);
-  addTearDown(RiverpodDuskIntegration.resetForTesting);
+  RiverpodTapirIntegration.install(container);
+  addTearDown(RiverpodTapirIntegration.resetForTesting);
 
   await tester.pumpWidget(const SizedBox.shrink());
   final element = tester.element(find.byType(SizedBox));
@@ -167,14 +167,14 @@ testWidgets('riverpodCounterEnricher surfaces the current value',
 ```
 
 For tests that exercise the enricher inside the full snapshot pipeline,
-trigger a real `dusk:snap` via the VM Service extension (see the dusk
+trigger a real `tapir:snap` via the VM Service extension (see the tapir
 extension tests under `test/extensions/` for the pattern).
 
 ## Further reading
 
 - [Magic integration](magic-integration): the canonical multi-enricher
   reference (fourteen enrichers covering form fields, controllers, gates,
-  middleware, auth, broadcast state, and telescope ring buffers).
+  middleware, auth, broadcast state, and crumbs ring buffers).
 - [Wind integration](wind-integration): a single enricher with a rich
   flat YAML block, demonstrating breakpoint / brightness / platform /
   pseudo-class state resolution at snap time.

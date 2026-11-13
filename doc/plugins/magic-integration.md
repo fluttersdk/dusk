@@ -1,13 +1,13 @@
 # Magic integration
 
-`MagicDuskIntegration` is the glue layer between the `magic` Flutter framework
+`MagicTapirIntegration` is the glue layer between the `magic` Flutter framework
 (Laravel-inspired primitives like `MagicForm`, `MagicRouter`, `Gate`, `Auth`,
-`Echo`) and the `fluttersdk_dusk` snapshot pipeline. It registers a fixed set
-of `DuskSnapshotEnricher` callbacks against `DuskPlugin.enrichers`, so every
-`dusk:snap` (or `dusk_snap` MCP) output carries Magic-aware annotations
+`Echo`) and the `tapir` snapshot pipeline. It registers a fixed set
+of `TapirSnapshotEnricher` callbacks against `TapirPlugin.enrichers`, so every
+`tapir:snap` (or `tapir_snap` MCP) output carries Magic-aware annotations
 alongside the standard Semantics tree.
 
-`MagicDuskIntegration` ships in the **`magic_devtools`** package, not in magic
+`MagicTapirIntegration` ships in the **`magic_devtools`** package, not in magic
 core. Add it as a dev_dependency (it is debug-only; release builds tree-shake
 the `!kReleaseMode` branch that calls `install()`):
 
@@ -24,37 +24,37 @@ nine not covered here (`magicFormEnricher`, `magicNavigationEnricher`,
 `magicRecentHttpEnricher`, `magicRecentLogsEnricher`,
 `magicRecentExceptionsEnricher`) surface form fields, the active route,
 controller flags, route parameters, broadcast connection state, recent
-gate results, and the telescope HTTP / log / exception ring buffers; read
-the dartdoc on `MagicDuskIntegration` for those.
+gate results, and the crumbs HTTP / log / exception ring buffers; read
+the dartdoc on `MagicTapirIntegration` for those.
 
 ## When to call install
 
-`MagicDuskIntegration.install()` must run **after** `Magic.init()` has
+`MagicTapirIntegration.install()` must run **after** `Magic.init()` has
 booted the container (the enrichers read from `Magic.controllers`,
 `MagicRouter.instance`, `Gate.manager`, and `Auth.user()`, all of which
 require the service providers to be live). It must also run **after**
-`DuskPlugin.install()`, because the `DuskPlugin.enrichers` list is the
+`TapirPlugin.install()`, because the `TapirPlugin.enrichers` list is the
 target the integration mutates.
 
-The canonical debug-only host integration (`MagicDuskIntegration` comes from
+The canonical debug-only host integration (`MagicTapirIntegration` comes from
 the `magic_devtools` dev_dependency):
 
 ```dart
-import 'package:magic_devtools/dusk.dart'; // from magic_devtools dev_dependency
+import 'package:magic_devtools/tapir.dart'; // from magic_devtools dev_dependency
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Magic.init();
   if (!kReleaseMode) {
-    DuskPlugin.install();
-    MagicDuskIntegration.install();
+    TapirPlugin.install();
+    MagicTapirIntegration.install();
   }
   runApp(MagicApplication());
 }
 ```
 
 `install()` is idempotent; calling it twice in the same isolate is a no-op
-after the first call, matching `DuskPlugin.install()` semantics. Release
+after the first call, matching `TapirPlugin.install()` semantics. Release
 builds tree-shake the entire `!kReleaseMode` branch.
 
 ## The five core enrichers
@@ -127,22 +127,22 @@ ability:
 ```
 
 The five core enrichers populate the lines under each ref in the order
-they were registered. The dispatcher iterates `DuskPlugin.enrichers` in
+they were registered. The dispatcher iterates `TapirPlugin.enrichers` in
 insertion order and concatenates non-null returns; if two enrichers ever
 emit the same key, the **first** insertion wins (per the
-`DuskSnapshotEnricher` first-write-wins contract).
+`TapirSnapshotEnricher` first-write-wins contract).
 
 ## Test-only reset
 
-`MagicDuskIntegration.resetForTesting()` removes every enricher from
-`DuskPlugin.enrichers`, cancels the internal Echo connection-state
+`MagicTapirIntegration.resetForTesting()` removes every enricher from
+`TapirPlugin.enrichers`, cancels the internal Echo connection-state
 subscription, and clears the idempotency guard. Pair it with
-`DuskPlugin`'s reset hook in `tearDown` so consecutive widget tests start
+`TapirPlugin`'s reset hook in `tearDown` so consecutive widget tests start
 with a clean enricher chain.
 
 ## Frozen contract
 
-Every Magic enricher honours the `DuskSnapshotEnricher` typedef contract:
+Every Magic enricher honours the `TapirSnapshotEnricher` typedef contract:
 synchronous, stateless, never retains the `Element` across calls, returns
 null when the element is not relevant. The contract is frozen for the
 alpha-2 cycle; see [enricher-authoring](enricher-authoring) for the full

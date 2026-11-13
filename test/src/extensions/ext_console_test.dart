@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/dusk_log_capture.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_console.dart';
+import 'package:tapir/src/tapir_log_capture.dart';
+import 'package:tapir/src/extensions/ext_console.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -20,14 +20,14 @@ void main() {
     tearDown(resetCapturedLogsForTesting);
 
     // -------------------------------------------------------------------------
-    // (a) Default reader returns empty list — missing-telescope graceful path.
+    // (a) Default reader returns empty list — missing-crumbs graceful path.
     // -------------------------------------------------------------------------
 
     test(
       '(a) default reader returns empty list and count 0',
       () async {
         final response = await aiTestConsoleHandler(
-          'ext.dusk.console',
+          'ext.tapir.console',
           <String, String>{},
         );
 
@@ -55,7 +55,7 @@ void main() {
           return const [];
         };
 
-        await aiTestConsoleHandler('ext.dusk.console', <String, String>{});
+        await aiTestConsoleHandler('ext.tapir.console', <String, String>{});
 
         expect(capturedLimit, equals(50));
         expect(capturedMinLevel, isNull);
@@ -76,7 +76,7 @@ void main() {
         };
 
         await aiTestConsoleHandler(
-          'ext.dusk.console',
+          'ext.tapir.console',
           <String, String>{'limit': '10'},
         );
 
@@ -98,7 +98,7 @@ void main() {
         };
 
         await aiTestConsoleHandler(
-          'ext.dusk.console',
+          'ext.tapir.console',
           <String, String>{'minLevel': 'WARNING'},
         );
 
@@ -129,7 +129,7 @@ void main() {
             ];
 
         final response = await aiTestConsoleHandler(
-          'ext.dusk.console',
+          'ext.tapir.console',
           <String, String>{},
         );
 
@@ -149,12 +149,12 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // In-package buffer — telescope ABSENT path (the D5 core scenario)
+  // In-package buffer — crumbs ABSENT path (the D5 core scenario)
   // ---------------------------------------------------------------------------
 
-  group('ext_console — in-package capture (telescope absent)', () {
+  group('ext_console — in-package capture (crumbs absent)', () {
     setUp(() {
-      // Keep telescope reader empty so it cannot pollute assertions.
+      // Keep crumbs reader empty so it cannot pollute assertions.
       recentLogsReader = ({int limit = 50, String? minLevel}) => const [];
       resetCapturedLogsForTesting();
     });
@@ -170,10 +170,10 @@ void main() {
         installLogCapture();
         addTearDown(uninstallLogCapture);
 
-        debugPrint('captured without telescope');
+        debugPrint('captured without crumbs');
 
         final response = await aiTestConsoleHandler(
-          'ext.dusk.console',
+          'ext.tapir.console',
           <String, String>{},
         );
 
@@ -184,7 +184,7 @@ void main() {
         expect(logs, isNotEmpty);
         expect(
           (logs.first as Map<String, dynamic>)['message'],
-          equals('captured without telescope'),
+          equals('captured without crumbs'),
         );
         expect(decoded['count'], greaterThan(0));
       },
@@ -202,7 +202,7 @@ void main() {
         debugPrint('info level message');
 
         final response = await aiTestConsoleHandler(
-          'ext.dusk.console',
+          'ext.tapir.console',
           <String, String>{'minLevel': 'WARNING'},
         );
 
@@ -216,10 +216,10 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // Merge + dedup — telescope PRESENT path
+  // Merge + dedup — crumbs PRESENT path
   // ---------------------------------------------------------------------------
 
-  group('ext_console — merge+dedup (telescope present)', () {
+  group('ext_console — merge+dedup (crumbs present)', () {
     setUp(() {
       resetCapturedLogsForTesting();
     });
@@ -227,7 +227,7 @@ void main() {
     tearDown(resetCapturedLogsForTesting);
 
     test(
-      '(h) dedupes entries present in both in-package buffer and telescope reader',
+      '(h) dedupes entries present in both in-package buffer and crumbs reader',
       () async {
         final DebugPrintCallback prior = debugPrint;
         addTearDown(() => debugPrint = prior);
@@ -238,7 +238,7 @@ void main() {
         // Record the same message via debugPrint (goes into in-package buffer).
         debugPrint('shared message');
 
-        // Telescope reader returns the same entry (same level+message+logger).
+        // Crumbs reader returns the same entry (same level+message+logger).
         recentLogsReader = ({int limit = 50, String? minLevel}) => [
               <String, dynamic>{
                 'level': 'INFO',
@@ -249,7 +249,7 @@ void main() {
             ];
 
         final response = await aiTestConsoleHandler(
-          'ext.dusk.console',
+          'ext.tapir.console',
           <String, String>{},
         );
 
@@ -266,7 +266,7 @@ void main() {
     );
 
     test(
-      '(i) non-duplicate telescope entries are included in the response',
+      '(i) non-duplicate crumbs entries are included in the response',
       () async {
         final DebugPrintCallback prior = debugPrint;
         addTearDown(() => debugPrint = prior);
@@ -276,18 +276,18 @@ void main() {
 
         debugPrint('from debugPrint');
 
-        // Telescope contributes a distinct entry.
+        // Crumbs contributes a distinct entry.
         recentLogsReader = ({int limit = 50, String? minLevel}) => [
               <String, dynamic>{
                 'level': 'WARNING',
-                'message': 'from telescope',
+                'message': 'from crumbs',
                 'logger': 'my.logger',
                 'time': '2024-01-01T00:00:00.000Z',
               },
             ];
 
         final response = await aiTestConsoleHandler(
-          'ext.dusk.console',
+          'ext.tapir.console',
           <String, String>{},
         );
 
@@ -295,26 +295,27 @@ void main() {
             jsonDecode(response.result!) as Map<String, dynamic>;
         final List<dynamic> logs = decoded['logs'] as List<dynamic>;
         expect(logs, hasLength(2));
-        // In-package entry comes first (newest-first, buffered before telescope).
+        // In-package entry comes first (newest-first, buffered before crumbs).
         expect(
           (logs.first as Map<String, dynamic>)['message'],
           equals('from debugPrint'),
         );
         expect(
           (logs.last as Map<String, dynamic>)['message'],
-          equals('from telescope'),
+          equals('from crumbs'),
         );
       },
     );
   });
 
   group('ext_console — MCP descriptor presence', () {
-    test('dusk_console MCP descriptor name is "dusk_console"', () {
-      expect(kDuskConsoleMcpName, equals('dusk_console'));
+    test('tapir_console MCP descriptor name is "tapir_console"', () {
+      expect(kTapirConsoleMcpName, equals('tapir_console'));
     });
 
-    test('dusk_console MCP descriptor extensionMethod is ext.dusk.console', () {
-      expect(kDuskConsoleMcpExtension, equals('ext.dusk.console'));
+    test('tapir_console MCP descriptor extensionMethod is ext.tapir.console',
+        () {
+      expect(kTapirConsoleMcpExtension, equals('ext.tapir.console'));
     });
   });
 }

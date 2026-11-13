@@ -17,24 +17,24 @@ Docs change in the same change as the code. CI does not check it, so the author 
 
 | Code surface | Update |
 |---|---|
-| New or changed `ext.dusk.*` extension | `doc/commands/dusk-<verb>.md`, `doc/mcp/tool-reference.md`, `ARCHITECTURE.md` extension surface, `llms.txt`, README feature table, CHANGELOG |
-| New `ArtisanCommand` or `McpToolDescriptor` | the same, plus every count (below) |
+| New or changed `ext.tapir.*` extension | `doc/commands/tapir-<verb>.md`, `doc/mcp/tool-reference.md`, `ARCHITECTURE.md` extension surface, `llms.txt`, README feature table, CHANGELOG |
+| New `DowelCommand` or `McpToolDescriptor` | the same, plus every count (below) |
 | Behaviour of an existing verb (flag, payload key, exit code, summary line) | its `doc/commands` page, its `tool-reference.md` section, the skill, CHANGELOG |
 | Actionability gate (new check, reason text) | `doc/reference/actionability-gate.md`, `ARCHITECTURE.md` gate table, README gate row, CHANGELOG `Changed` with a migration note, CLAUDE.md Off-limits 5 and 6 |
 | FROZEN contract (CLAUDE.md Off-limits, or a perf pointer) | CHANGELOG `Changed` flagged breaking, CLAUDE.md Off-limits, `ARCHITECTURE.md` Frozen contracts (perf pointers and the verify table) |
 | Magic or wind integration | `doc/plugins/magic-integration.md` or `wind-integration.md` |
 | Frame production, CDP or device presets | `doc/reference/frame-production.md`, `ARCHITECTURE.md` CDP paragraph, README device row |
-| New export from `lib/dusk.dart` | `ARCHITECTURE.md` Frozen contracts, CHANGELOG `Added` |
+| New export from `lib/tapir.dart` | `ARCHITECTURE.md` Frozen contracts, CHANGELOG `Added` |
 
-Counts (commands, MCP tools, `artisan:dusk:*` tools, registered extensions) live in README, `ARCHITECTURE.md`, `llms.txt`, CLAUDE.md, `doc/**` and `skills/**`. After a count moves, grep the old number across them; the provider test holds the truth.
+Counts (commands, MCP tools, `dowel:tapir:*` tools, registered extensions) live in README, `ARCHITECTURE.md`, `llms.txt`, CLAUDE.md, `doc/**` and `skills/**`. After a count moves, grep the old number across them; the provider test holds the truth.
 
 ## Formats
 
 - `CHANGELOG.md`: Keep a Changelog 1.1.0. New bullets go under `## [Unreleased]` in `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed` or `Security`, with a bold lead sentence, then the why. A release promotes it to `## [X.Y.Z] - YYYY-MM-DD` with a footer compare link.
 - `README.md`: front page, feature table, quick start; under 200 lines. `ARCHITECTURE.md`: the contributor reference, not marketing prose.
-- `llms.txt`: the `llmstxt.org` shape (H1 `# fluttersdk_dusk`, one blockquote sentence, then H2 lists of `[label](url): note`, URLs under `https://fluttersdk.com/dusk/`). Add a line for every new doc page.
-- `doc/`: command pages are `commands/dusk-<verb>.md`; `doc/api/` is dartdoc output and stays ignored.
-- `skills/fluttersdk-dusk/`: `SKILL.md` (frontmatter `name`, `description`, `version`; keep it short) plus `references/` for the long tables. Update both on a surface change; the version stamp moves only at a release.
+- `llms.txt`: the `llmstxt.org` shape (H1 `# tapir`, one blockquote sentence, then H2 lists of `[label](url): note`, URLs under `https://anilcancakir.com/tapir/docs/`). Add a line for every new doc page.
+- `doc/`: command pages are `commands/tapir-<verb>.md`; `doc/api/` is dartdoc output and stays ignored.
+- `skills/tapir/`: `SKILL.md` (frontmatter `name`, `description`, `version`; keep it short) plus `references/` for the long tables. Update both on a surface change; the version stamp moves only at a release.
 
 ## Commits
 

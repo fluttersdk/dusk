@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/perf/perf_support.dart';
+import 'package:tapir/src/perf/perf_support.dart';
 
 void main() {
   group('perfMap() and perfList()', () {

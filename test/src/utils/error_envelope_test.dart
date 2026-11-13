@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
+import 'package:tapir/src/utils/error_envelope.dart';
 
 void main() {
-  group('DuskErrorEnvelope.toJson', () {
+  group('TapirErrorEnvelope.toJson', () {
     test('(a) emits type + widgetPath + suggestions verbatim', () {
-      const DuskErrorEnvelope envelope = DuskErrorEnvelope(
+      const TapirErrorEnvelope envelope = TapirErrorEnvelope(
         type: 'not_found',
         widgetPath: 'e7',
         suggestions: <String>['Submit', 'Submitted', 'Submission'],
@@ -23,7 +23,7 @@ void main() {
 
     test('(b) omits widgetPath when null but always emits empty suggestions',
         () {
-      const DuskErrorEnvelope envelope = DuskErrorEnvelope(
+      const TapirErrorEnvelope envelope = TapirErrorEnvelope(
         type: 'unexpected',
         widgetPath: null,
         suggestions: <String>[],
@@ -110,9 +110,9 @@ void main() {
     });
   });
 
-  group('DuskErrorEnvelope.notFound factory', () {
+  group('TapirErrorEnvelope.notFound factory', () {
     test('(a) carries type=not_found and widgetPath + fuzzy suggestions', () {
-      final DuskErrorEnvelope envelope = DuskErrorEnvelope.notFound(
+      final TapirErrorEnvelope envelope = TapirErrorEnvelope.notFound(
         ref: 'Submi',
         candidates: <String>['Submit', 'Submitted', 'Submission', 'Cancel'],
       );
@@ -126,7 +126,7 @@ void main() {
     });
 
     test('(b) empty candidates yields empty suggestions list', () {
-      final DuskErrorEnvelope envelope = DuskErrorEnvelope.notFound(
+      final TapirErrorEnvelope envelope = TapirErrorEnvelope.notFound(
         ref: 'e9999',
         candidates: const <String>[],
       );
@@ -136,23 +136,23 @@ void main() {
     });
   });
 
-  group('DuskErrorEnvelope.fromActionabilityReason factory', () {
+  group('TapirErrorEnvelope.fromActionabilityReason factory', () {
     test('(a) "not enabled" → disabled', () {
-      final DuskErrorEnvelope envelope =
-          DuskErrorEnvelope.fromActionabilityReason('e3', 'not enabled');
+      final TapirErrorEnvelope envelope =
+          TapirErrorEnvelope.fromActionabilityReason('e3', 'not enabled');
       expect(envelope.type, equals('disabled'));
       expect(envelope.widgetPath, equals('e3'));
     });
 
     test('(b) "zero rect" → zero_rect', () {
-      final DuskErrorEnvelope envelope =
-          DuskErrorEnvelope.fromActionabilityReason('e1', 'zero rect');
+      final TapirErrorEnvelope envelope =
+          TapirErrorEnvelope.fromActionabilityReason('e1', 'zero rect');
       expect(envelope.type, equals('zero_rect'));
     });
 
     test('(c) "off-viewport (rect=..., viewport=...)" → off_viewport', () {
-      final DuskErrorEnvelope envelope =
-          DuskErrorEnvelope.fromActionabilityReason(
+      final TapirErrorEnvelope envelope =
+          TapirErrorEnvelope.fromActionabilityReason(
         'e2',
         'off-viewport (rect=Rect.fromLTRB(5000.0, 5000.0, 5050.0, 5050.0), '
             'viewport=Rect.fromLTRB(0.0, 0.0, 800.0, 600.0))',
@@ -161,8 +161,8 @@ void main() {
     });
 
     test('(d) "not stable (rect changed by 2.0px)" → not_stable', () {
-      final DuskErrorEnvelope envelope =
-          DuskErrorEnvelope.fromActionabilityReason(
+      final TapirErrorEnvelope envelope =
+          TapirErrorEnvelope.fromActionabilityReason(
         'e4',
         'not stable (rect changed by 2.0px)',
       );
@@ -170,8 +170,8 @@ void main() {
     });
 
     test('(e) "obscured by other widget (top=...)" → obscured', () {
-      final DuskErrorEnvelope envelope =
-          DuskErrorEnvelope.fromActionabilityReason(
+      final TapirErrorEnvelope envelope =
+          TapirErrorEnvelope.fromActionabilityReason(
         'e5',
         'obscured by other widget (top=ModalBarrier)',
       );
@@ -179,53 +179,54 @@ void main() {
     });
 
     test('(f) unknown reason → unexpected', () {
-      final DuskErrorEnvelope envelope =
-          DuskErrorEnvelope.fromActionabilityReason('e6', 'whatever new gate');
+      final TapirErrorEnvelope envelope =
+          TapirErrorEnvelope.fromActionabilityReason('e6', 'whatever new gate');
       expect(envelope.type, equals('unexpected'));
     });
   });
 
   group('Other envelope factories', () {
     test('stale ref → stale type with widgetPath', () {
-      final DuskErrorEnvelope envelope = DuskErrorEnvelope.stale('q3');
+      final TapirErrorEnvelope envelope = TapirErrorEnvelope.stale('q3');
       expect(envelope.type, equals('stale'));
       expect(envelope.widgetPath, equals('q3'));
     });
 
     test('missing param → missing_param', () {
-      final DuskErrorEnvelope envelope = DuskErrorEnvelope.missingParam('ref');
+      final TapirErrorEnvelope envelope =
+          TapirErrorEnvelope.missingParam('ref');
       expect(envelope.type, equals('missing_param'));
       expect(envelope.widgetPath, isNull);
     });
 
     test('timeout factory', () {
-      final DuskErrorEnvelope envelope = DuskErrorEnvelope.timeout();
+      final TapirErrorEnvelope envelope = TapirErrorEnvelope.timeout();
       expect(envelope.type, equals('timeout'));
     });
 
     test('unexpected factory', () {
-      final DuskErrorEnvelope envelope = DuskErrorEnvelope.unexpected();
+      final TapirErrorEnvelope envelope = TapirErrorEnvelope.unexpected();
       expect(envelope.type, equals('unexpected'));
     });
   });
 
   group('wrapErrorDetail', () {
     test('(a) produces JSON carrying both message and envelope', () {
-      const DuskErrorEnvelope envelope = DuskErrorEnvelope(
+      const TapirErrorEnvelope envelope = TapirErrorEnvelope(
         type: 'not_found',
         widgetPath: 'e9999',
         suggestions: <String>[],
       );
 
       final String wire = wrapErrorDetail(
-        'ext.dusk.tap: ref "e9999" not found in registry',
+        'ext.tapir.tap: ref "e9999" not found in registry',
         envelope,
       );
 
       // Legacy substring contract — agents grep these substrings. JSON
       // escapes interior quotes, so unquoted phrases pass through verbatim.
       expect(wire, contains('not found in registry'));
-      expect(wire, contains('ext.dusk.tap'));
+      expect(wire, contains('ext.tapir.tap'));
 
       // Structured access — parseEnvelopeFromErrorDetail decodes envelope.
       final Map<String, dynamic>? decoded = parseEnvelopeFromErrorDetail(wire);
@@ -236,7 +237,7 @@ void main() {
       // Original message is recoverable verbatim (with literal quotes).
       expect(
         parseMessageFromErrorDetail(wire),
-        equals('ext.dusk.tap: ref "e9999" not found in registry'),
+        equals('ext.tapir.tap: ref "e9999" not found in registry'),
       );
     });
 
@@ -249,8 +250,8 @@ void main() {
         'obscured by',
       ]) {
         final String message = 'Widget ref=e1 is not actionable: $reason';
-        final DuskErrorEnvelope envelope =
-            DuskErrorEnvelope.fromActionabilityReason('e1', reason);
+        final TapirErrorEnvelope envelope =
+            TapirErrorEnvelope.fromActionabilityReason('e1', reason);
         final String wire = wrapErrorDetail(message, envelope);
         expect(wire, contains(reason));
         expect(wire, contains('Widget ref=e1 is not actionable'));

@@ -1,0 +1,113 @@
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:tapir/src/extensions/register_tapir_extensions.dart';
+
+/// Asserts that `registerAllTapirExtensions()` wires the three alpha-2
+/// aggregator entries added in Wave 2 (Steps 6 / 9 / 10) — navigation,
+/// evaluate, close_app — alongside the alpha-1 entries. Steps 7 (press_key)
+/// and 8 (select_option) register inside the pre-existing
+/// `registerTextInputExtensions()` / `registerScrollExtensions()` so they do
+/// NOT surface as new aggregator calls.
+///
+/// Implemented as a grep-the-source test because the alternative (symbol
+/// resolution) would re-register the VM Service extensions inside the test
+/// isolate and trip the idempotency guard's "registered after first
+/// reload" warning. Source-level verification is sufficient: the file is
+/// load-bearing for the plugin's install path; either the call site is
+/// present in source, or it is not.
+void main() {
+  group('registerAllTapirExtensions() aggregator wiring', () {
+    late String source;
+
+    setUpAll(() {
+      final file = File(
+        'lib/src/extensions/register_tapir_extensions.dart',
+      );
+      expect(
+        file.existsSync(),
+        isTrue,
+        reason: 'aggregator source file missing at ${file.path}',
+      );
+      source = file.readAsStringSync();
+    });
+
+    test('calls registerNavigationExtensions() (Step 6)', () {
+      expect(
+        source,
+        contains('registerNavigationExtensions();'),
+        reason: 'aggregator must call registerNavigationExtensions() so the '
+            'ext.tapir.navigate / navigate_back / get_routes extensions '
+            'register on TapirPlugin.install()',
+      );
+    });
+
+    test('calls registerEvaluateExtension() (Step 9)', () {
+      expect(
+        source,
+        contains('registerEvaluateExtension();'),
+        reason: 'aggregator must call registerEvaluateExtension() so the '
+            'ext.tapir.evaluate extension registers on TapirPlugin.install()',
+      );
+    });
+
+    test('calls registerCloseAppExtension() (Step 10)', () {
+      expect(
+        source,
+        contains('registerCloseAppExtension();'),
+        reason: 'aggregator must call registerCloseAppExtension() so the '
+            'ext.tapir.close_app extension registers on TapirPlugin.install()',
+      );
+    });
+
+    test('imports ext_navigation.dart, ext_evaluate.dart, ext_close_app.dart',
+        () {
+      expect(source, contains("import 'ext_navigation.dart';"));
+      expect(source, contains("import 'ext_evaluate.dart';"));
+      expect(source, contains("import 'ext_close_app.dart';"));
+    });
+
+    test('calls registerPerfTraceExtension() beside the perf session', () {
+      expect(source, contains("import 'ext_perf_trace.dart';"));
+      expect(source, contains('registerPerfTraceExtension();'));
+    });
+
+    test('calls registerSemanticsHoldExtension() for the semantics pass', () {
+      expect(source, contains("import 'ext_semantics_hold.dart';"));
+      expect(source, contains('registerSemanticsHoldExtension();'));
+    });
+
+    test('registers ext.tapir.boot_id last, so it answers only after the rest',
+        () {
+      expect(source, contains("import 'ext_boot.dart';"));
+      final String body = source.substring(
+        source.indexOf('void registerAllTapirExtensions() {'),
+      );
+      expect(
+        body.trim(),
+        endsWith('registerBootExtension();\n}'),
+        reason: 'tapir:perf_run reads the boot id as proof that install() '
+            'finished; an extension registered after it could still be '
+            'missing when the id answers',
+      );
+    });
+
+    test('preserves the pre-existing alpha-1 aggregator calls', () {
+      expect(source, contains('registerSnapExtension();'));
+      expect(source, contains('registerPointerExtensions();'));
+      expect(source, contains('registerTextInputExtensions();'));
+      expect(source, contains('registerScrollExtensions();'));
+      expect(source, contains('registerScreenshotExtension();'));
+      expect(source, contains('registerWaitFindExtensions();'));
+      expect(source, contains('registerModalRouterExtension();'));
+    });
+  });
+
+  group('registerAllTapirExtensions execution', () {
+    test('invokes every sub-register without throwing (hot-restart safe)', () {
+      registerAllTapirExtensions();
+      registerAllTapirExtensions();
+    });
+  });
+}

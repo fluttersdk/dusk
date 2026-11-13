@@ -1,10 +1,10 @@
 # Quickstart
 
 A 3-step walkthrough from zero to driving the bundled `example/` Flutter app with a
-snap, a tap, and a screenshot via the dusk CLI.
+snap, a tap, and a screenshot via the tapir CLI.
 
-Prerequisites: Flutter `>= 3.22.0` SDK installed, `fluttersdk_dusk` added to your
-project (see [Installation](installation)), and `DuskPlugin.install()` wired inside
+Prerequisites: Flutter `>= 3.22.0` SDK installed, `tapir` added to your
+project (see [Installation](installation)), and `TapirPlugin.install()` wired inside
 `!kReleaseMode` in your `main.dart`.
 
 ---
@@ -20,10 +20,10 @@ flutter run -d chrome
 ```
 
 Leave the browser window open and open a second terminal in the same directory. Run
-`dusk:snap` to walk the live Semantics tree and emit a YAML snapshot:
+`tapir:snap` to walk the live Semantics tree and emit a YAML snapshot:
 
 ```bash
-dart run fluttersdk_dusk dusk:snap
+dart run tapir tapir:snap
 ```
 
 The command connects to the running app via the VM Service, walks every visible
@@ -53,10 +53,10 @@ lifetime of the snapshot and are what you pass to action commands in the next st
 ### 2. Tap a widget using its ref token
 
 Locate the ref token for the target widget in the snapshot output above. The counter
-increment button is `e1`. Pass that token to `dusk:tap`:
+increment button is `e1`. Pass that token to `tapir:tap`:
 
 ```bash
-dart run fluttersdk_dusk dusk:tap --ref=e1
+dart run tapir tapir:tap --ref=e1
 ```
 
 The extension looks up `e1` in the frozen snapshot registry, checks the actionability
@@ -76,7 +76,7 @@ If the widget fails the actionability gate, the command exits with an error mess
 Widget ref=e1 is not actionable: not enabled
 ```
 
-Re-snap (`dusk:snap`) after a tap to confirm the UI updated. In this example the
+Re-snap (`tapir:snap`) after a tap to confirm the UI updated. In this example the
 counter label `e3` should now show `"1"` in the refreshed snapshot.
 
 ---
@@ -87,11 +87,11 @@ Capture a PNG of the current viewport to verify the app state visually or to sav
 baseline image:
 
 ```bash
-dart run fluttersdk_dusk dusk:screenshot --output=counter_after_tap.png
+dart run tapir tapir:screenshot --output=counter_after_tap.png
 ```
 
 The extension walks the render tree to find the `RepaintBoundary` that
-`DuskPlugin.install()` wraps around the app root, captures a raster frame, and writes
+`TapirPlugin.install()` wraps around the app root, captures a raster frame, and writes
 the PNG to the path you specify. The file lands relative to your current working
 directory.
 
@@ -108,18 +108,18 @@ the full snap-tap-screenshot loop working end-to-end.
 
 ## What's next?
 
-- Read the [commands catalog](../commands/) to see all 32 dusk CLI commands and their
+- Read the [commands catalog](../commands/) to see all 32 tapir CLI commands and their
   flags.
-- Set up the [MCP server](../mcp/setup) so Claude Code or Cursor can call dusk tools
+- Set up the [MCP server](../mcp/setup) so Claude Code or Cursor can call tapir tools
   directly during a conversation.
-- Add [MagicDuskIntegration](../plugins/magic-integration.md) (Magic stack) or call
+- Add [MagicTapirIntegration](../plugins/magic-integration.md) (Magic stack) or call
   `Wind.installDebugResolver()` (Wind alpha-10+; see [Wind integration](../plugins/wind-integration.md))
   to enrich snapshots with framework-specific metadata.
 - Explore the [actionability gate reference](../reference/actionability-gate) to
-  understand how dusk decides whether a widget is safe to interact with.
+  understand how tapir decides whether a widget is safe to interact with.
 
 ---
 
-All three commands shown above are part of the `fluttersdk_dusk` built-in surface.
-No additional packages are needed beyond `fluttersdk_artisan` (MCP server and CLI
-host) and `fluttersdk_dusk` (VM Service extensions) installed in step 1.
+All three commands shown above are part of the `tapir` built-in surface.
+No additional packages are needed beyond `dowel` (MCP server and CLI
+host) and `tapir` (VM Service extensions) installed in step 1.

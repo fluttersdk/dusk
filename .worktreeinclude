@@ -16,12 +16,12 @@
 # the first path dependency.
 #
 # One thing this layout costs, which no file here can fix because the rule lives
-# upstream in artisan: `sessionOwnershipError` treats a working directory INSIDE
+# upstream in dowel: `sessionOwnershipError` treats a working directory INSIDE
 # `projectRoot` as owning the session (`state_file.dart:262`, `_isWithin` at `:282`),
-# and a worktree now sits under the main checkout. So a `dusk:*` call from a worktree
+# and a worktree now sits under the main checkout. So a `tapir:*` call from a worktree
 # that has no session of its own falls back to the main checkout's app, drives THAT,
 # and reports success. The old sibling layout tripped the guard instead. Run
-# `artisan start` in the worktree, or pass `--state=<path>`, before any dusk command
+# `dowel start` in the worktree, or pass `--state=<path>`, before any tapir command
 # there.
 #
 # NOT processed when a WorktreeCreate hook replaces the default git logic; such a

@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/dusk_error_capture.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_exceptions.dart';
+import 'package:tapir/src/tapir_error_capture.dart';
+import 'package:tapir/src/extensions/ext_exceptions.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -17,14 +17,14 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // (a) Default reader returns empty list — missing-telescope graceful path.
+    // (a) Default reader returns empty list — missing-crumbs graceful path.
     // -------------------------------------------------------------------------
 
     test(
       '(a) default reader returns empty list and count 0',
       () async {
         final response = await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{},
         );
 
@@ -51,7 +51,7 @@ void main() {
         };
 
         await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{'limit': '5'},
         );
 
@@ -60,15 +60,15 @@ void main() {
     );
 
     // -------------------------------------------------------------------------
-    // (c) Missing-telescope graceful — null reader pointer stays as default.
+    // (c) Missing-crumbs graceful — null reader pointer stays as default.
     // -------------------------------------------------------------------------
 
     test(
-      '(c) missing-telescope graceful: default reader returns empty list',
+      '(c) missing-crumbs graceful: default reader returns empty list',
       () async {
         // Default state: recentExceptionsReader = () => const []
         final response = await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{'limit': '10'},
         );
 
@@ -96,7 +96,7 @@ void main() {
             ];
 
         final response = await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{},
         );
 
@@ -132,11 +132,11 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // (e) In-package buffer populated, telescope reader empty — entry surfaces.
+    // (e) In-package buffer populated, crumbs reader empty — entry surfaces.
     // -------------------------------------------------------------------------
 
     test(
-      '(e) in-package buffer entry surfaces when telescope reader is empty',
+      '(e) in-package buffer entry surfaces when crumbs reader is empty',
       () async {
         // Seed the buffer directly via installErrorCapture + synthetic error.
         installErrorCapture();
@@ -149,7 +149,7 @@ void main() {
         );
 
         final response = await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{},
         );
 
@@ -173,11 +173,11 @@ void main() {
     test(
       '(f) both sources populated: merged union is returned',
       () async {
-        // Telescope reader returns one entry.
+        // Crumbs reader returns one entry.
         recentExceptionsReader = ({int limit = 20}) => [
               {
                 'type': 'ArgumentError',
-                'message': 'telescope error',
+                'message': 'crumbs error',
                 'stackHead': 'at x()',
                 'library': null,
                 'fatal': false,
@@ -196,7 +196,7 @@ void main() {
         );
 
         final response = await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{},
         );
 
@@ -209,7 +209,7 @@ void main() {
             .map(
                 (dynamic e) => (e as Map<String, dynamic>)['message'] as String)
             .toList();
-        expect(messages, contains('telescope error'));
+        expect(messages, contains('crumbs error'));
         expect(
             messages.any((String m) => m.contains('captured error')), isTrue);
       },
@@ -232,14 +232,14 @@ void main() {
           ),
         );
 
-        // 2. Read back exactly what the buffer captured so the telescope entry
+        // 2. Read back exactly what the buffer captured so the crumbs entry
         //    can be constructed with identical (type, message, stackHead).
         final List<Map<String, dynamic>> buffered =
             recentCapturedExceptions(limit: 1);
         expect(buffered, hasLength(1));
         final Map<String, dynamic> captured = buffered.first;
 
-        // 3. Wire the telescope reader to return the same entry shape.
+        // 3. Wire the crumbs reader to return the same entry shape.
         recentExceptionsReader = ({int limit = 20}) => [
               {
                 'type': captured['type'],
@@ -252,7 +252,7 @@ void main() {
             ];
 
         final response = await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{},
         );
 
@@ -270,13 +270,13 @@ void main() {
     test(
       '(h) limit applied to merged union, not per-source',
       () async {
-        // Telescope reader returns 3 entries.
+        // Crumbs reader returns 3 entries.
         recentExceptionsReader =
             ({int limit = 20}) => List<Map<String, dynamic>>.generate(
                   3,
                   (int i) => <String, dynamic>{
                     'type': 'Error',
-                    'message': 'telescope-$i',
+                    'message': 'crumbs-$i',
                     'stackHead': 'at t$i()',
                     'library': null,
                     'fatal': false,
@@ -298,7 +298,7 @@ void main() {
 
         // Request only 4 from the merged set of 6.
         final response = await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{'limit': '4'},
         );
 
@@ -312,16 +312,16 @@ void main() {
   });
 
   group('ext_exceptions — MCP descriptor presence', () {
-    test('dusk_exceptions MCP descriptor name is "dusk_exceptions"', () {
-      expect(kDuskExceptionsMcpName, equals('dusk_exceptions'));
+    test('tapir_exceptions MCP descriptor name is "tapir_exceptions"', () {
+      expect(kTapirExceptionsMcpName, equals('tapir_exceptions'));
     });
 
     test(
-      'dusk_exceptions MCP descriptor extensionMethod is ext.dusk.exceptions',
+      'tapir_exceptions MCP descriptor extensionMethod is ext.tapir.exceptions',
       () {
         expect(
-          kDuskExceptionsMcpExtension,
-          equals('ext.dusk.exceptions'),
+          kTapirExceptionsMcpExtension,
+          equals('ext.tapir.exceptions'),
         );
       },
     );
@@ -345,7 +345,7 @@ void main() {
     test(
       '(i) since filter: only exceptions strictly after since are returned',
       () async {
-        // Seed two entries with distinct timestamps via the telescope reader.
+        // Seed two entries with distinct timestamps via the crumbs reader.
         recentExceptionsReader = ({int limit = 20}) => [
               {
                 'type': 'StateError',
@@ -367,7 +367,7 @@ void main() {
 
         // since = 11:00 — only 'late error' (12:00) is strictly after.
         final response = await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{'since': '2024-01-01T11:00:00.000Z'},
         );
 
@@ -411,7 +411,7 @@ void main() {
             ];
 
         final response = await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{},
         );
 
@@ -455,7 +455,7 @@ void main() {
             ];
 
         final response = await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{'since': ts},
         );
 
@@ -487,7 +487,7 @@ void main() {
             ];
 
         final response = await aiTestExceptionsHandler(
-          'ext.dusk.exceptions',
+          'ext.tapir.exceptions',
           <String, String>{'since': 'not-a-date'},
         );
 
@@ -514,7 +514,7 @@ void main() {
 
     Future<List<dynamic>> callHandler(Map<String, String> params) async {
       final response = await aiTestExceptionsHandler(
-        'ext.dusk.exceptions',
+        'ext.tapir.exceptions',
         params,
       );
       final Map<String, dynamic> decoded =

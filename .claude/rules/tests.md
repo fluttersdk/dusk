@@ -8,9 +8,9 @@ paths:
 
 ## Layout and fakes
 
-Mirror `lib/src/` exactly: `lib/src/extensions/ext_pointer.dart` is tested in `test/src/extensions/ext_pointer_test.dart`, one test file per production file. The provider test sits at `test/dusk_artisan_provider_mcp_tools_test.dart`; the CDP smoke at `test/integration/cdp_smoke_test.dart` carries the `integration` tag and the default run excludes it.
+Mirror `lib/src/` exactly: `lib/src/extensions/ext_pointer.dart` is tested in `test/src/extensions/ext_pointer_test.dart`, one test file per production file. The provider test sits at `test/tapir_dowel_provider_mcp_tools_test.dart`; the CDP smoke at `test/integration/cdp_smoke_test.dart` carries the `integration` tag and the default run excludes it.
 
-`flutter_test` only, no mockito. Stub by contract inheritance with private fakes inside the test file (`_FakeNavigateAdapter`, a recording `ArtisanContext`); move a fake to `test/_support/` only at its third user. No handler test opens a real VM Service connection: call the handler function directly and read `jsonDecode(response.result!) as Map<String, dynamic>`. A CLI test passes a fake context and a `BufferedOutput`. CDP tests use `test/src/cdp/fake_cdp_server.dart`, which has no frame log, so record frames inside the handlers you give it; never reach a live Chrome from a unit test.
+`flutter_test` only, no mockito. Stub by contract inheritance with private fakes inside the test file (`_FakeNavigateAdapter`, a recording `DowelContext`); move a fake to `test/_support/` only at its third user. No handler test opens a real VM Service connection: call the handler function directly and read `jsonDecode(response.result!) as Map<String, dynamic>`. A CLI test passes a fake context and a `BufferedOutput`. CDP tests use `test/src/cdp/fake_cdp_server.dart`, which has no frame log, so record frames inside the handlers you give it; never reach a live Chrome from a unit test.
 
 ## State isolation
 
@@ -18,7 +18,7 @@ Restore every global the test touches, in `setUp` / `tearDown` or `addTearDown`:
 
 - `RefRegistry.resetForTesting` (otherwise `e<N>` / `q<N>` numbers leak between tests) and `resetSnapshotBaselineForTesting` in any test that builds a snapshot.
 - `FlutterError.onError` and other replaced handlers.
-- App lifecycle: drive it through the `flutter/lifecycle` channel (see `test/src/utils/dusk_response_test.dart`) and restore `resumed`.
+- App lifecycle: drive it through the `flutter/lifecycle` channel (see `test/src/utils/tapir_response_test.dart`) and restore `resumed`.
 - `StateFile.debugHomeOverride` / `pathOverride` for a command that reads the session state, and a temp directory that carries its own `pubspec.yaml` so an ancestor's project root cannot leak in.
 
 Use `TestWidgetsFlutterBinding.ensureInitialized()` at the top of `main()` for non-widget tests. Pump with `tester.pump(Duration)` loops, never `pumpAndSettle` on an animation that does not end; use `tester.runAsync` only for a real-time wait.

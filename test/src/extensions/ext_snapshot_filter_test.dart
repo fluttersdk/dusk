@@ -4,8 +4,8 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 /// Verifies the three ways a snapshot can be narrowed.
 ///
@@ -92,7 +92,7 @@ String _refFor(String snapshot, String label) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('duskSnapBuild filters', () {
+  group('tapirSnapBuild filters', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -102,7 +102,7 @@ void main() {
       await tester.pumpWidget(_shell());
 
       final Map<String, dynamic> payload =
-          await duskSnapBuild(interactiveOnly: true);
+          await tapirSnapBuild(interactiveOnly: true);
       final String snapshot = payload['snapshot'] as String;
 
       expect(snapshot, contains('Create monitor'));
@@ -115,7 +115,7 @@ void main() {
     ) async {
       await tester.pumpWidget(_shell());
 
-      final Map<String, dynamic> payload = await duskSnapBuild(grep: 'Create');
+      final Map<String, dynamic> payload = await tapirSnapBuild(grep: 'Create');
       final String snapshot = payload['snapshot'] as String;
 
       expect(snapshot, contains('Create monitor'));
@@ -131,11 +131,11 @@ void main() {
     ) async {
       await tester.pumpWidget(_shell());
 
-      final String full = (await duskSnapBuild())['snapshot'] as String;
+      final String full = (await tapirSnapBuild())['snapshot'] as String;
       final String contentRef = _refFor(full, 'content');
 
       final Map<String, dynamic> payload =
-          await duskSnapBuild(within: contentRef);
+          await tapirSnapBuild(within: contentRef);
       final String snapshot = payload['snapshot'] as String;
 
       // "Monitors" exists in BOTH regions. Unscoped, an exact-label lookup
@@ -151,7 +151,7 @@ void main() {
       await tester.pumpWidget(_shell());
 
       await expectLater(
-        duskSnapBuild(within: 'e999'),
+        tapirSnapBuild(within: 'e999'),
         throwsA(isA<StateError>()),
       );
     });
@@ -161,7 +161,7 @@ void main() {
     ) async {
       await tester.pumpWidget(_shell());
 
-      final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+      final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
 
       expect(snapshot, contains('sidebar'));
       expect(snapshot, contains('No monitors yet'));
@@ -171,12 +171,13 @@ void main() {
       WidgetTester tester,
     ) async {
       // Params arrive over the VM Service as strings, and the handler is the
-      // only place that turns them into the typed arguments duskSnapBuild
+      // only place that turns them into the typed arguments tapirSnapBuild
       // takes. A build tested directly proves nothing about that hop.
       await tester.pumpWidget(_shell());
 
-      final developer.ServiceExtensionResponse response = await duskSnapHandler(
-        'ext.dusk.snap',
+      final developer.ServiceExtensionResponse response =
+          await tapirSnapHandler(
+        'ext.tapir.snap',
         const <String, String>{'interactiveOnly': 'true', 'grep': 'Create'},
       );
 
@@ -194,8 +195,9 @@ void main() {
       // into a RegExp matches every line, which looks like it worked.
       await tester.pumpWidget(_shell());
 
-      final developer.ServiceExtensionResponse response = await duskSnapHandler(
-        'ext.dusk.snap',
+      final developer.ServiceExtensionResponse response =
+          await tapirSnapHandler(
+        'ext.tapir.snap',
         const <String, String>{'grep': '', 'within': ''},
       );
 
@@ -219,8 +221,9 @@ void main() {
         isTextField: false,
       );
 
-      final developer.ServiceExtensionResponse response = await duskSnapHandler(
-        'ext.dusk.snap',
+      final developer.ServiceExtensionResponse response =
+          await tapirSnapHandler(
+        'ext.tapir.snap',
         <String, String>{'within': ref},
       );
 
@@ -232,8 +235,9 @@ void main() {
     ) async {
       await tester.pumpWidget(_shell());
 
-      final developer.ServiceExtensionResponse response = await duskSnapHandler(
-        'ext.dusk.snap',
+      final developer.ServiceExtensionResponse response =
+          await tapirSnapHandler(
+        'ext.tapir.snap',
         const <String, String>{'within': 'e999'},
       );
 

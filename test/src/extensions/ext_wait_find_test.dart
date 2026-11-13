@@ -4,8 +4,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_wait_find.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/extensions/ext_wait_find.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 Widget _wrap(Widget child) => MediaQuery(
       data: const MediaQueryData(),
@@ -29,14 +29,14 @@ void main() {
   // wait_for's polling loop uses real Future.delayed which hangs under the
   // flutter_test fake-clock harness, so we only exercise the missing-param
   // gate here. Live drive coverage is captured by the example/ playground
-  // E2E (dusk:wait against Forms screen) — see CHANGELOG.
+  // E2E (tapir:wait against Forms screen) — see CHANGELOG.
 
   group('aiTestWaitForHandler', () {
     testWidgets('returns extensionError when no condition is supplied',
         (tester) async {
       await tester.pumpWidget(_wrap(const SizedBox()));
       final response = await aiTestWaitForHandler(
-        'ext.dusk.wait_for',
+        'ext.tapir.wait_for',
         const <String, String>{},
       );
       expect(_isError(response), isTrue);
@@ -48,7 +48,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(_wrap(const SizedBox()));
       final response = await aiTestFindByTextHandler(
-        'ext.dusk.find_by_text',
+        'ext.tapir.find_by_text',
         const <String, String>{},
       );
       expect(_isError(response), isTrue);
@@ -56,10 +56,10 @@ void main() {
 
     testWidgets('finds a single matching Text widget by exact text',
         (tester) async {
-      await tester.pumpWidget(_wrap(const Text('Hello dusk')));
+      await tester.pumpWidget(_wrap(const Text('Hello tapir')));
       final response = await aiTestFindByTextHandler(
-        'ext.dusk.find_by_text',
-        const {'text': 'Hello dusk'},
+        'ext.tapir.find_by_text',
+        const {'text': 'Hello tapir'},
       );
       expect(_isSuccess(response), isTrue);
     });
@@ -67,26 +67,26 @@ void main() {
     testWidgets('returns empty refs when no Text matches', (tester) async {
       await tester.pumpWidget(_wrap(const Text('Other content')));
       final response = await aiTestFindByTextHandler(
-        'ext.dusk.find_by_text',
+        'ext.tapir.find_by_text',
         const {'text': 'Will not match'},
       );
       expect(_isSuccess(response), isTrue);
     });
 
     testWidgets('substring match when exact=false', (tester) async {
-      await tester.pumpWidget(_wrap(const Text('Welcome to dusk testing')));
+      await tester.pumpWidget(_wrap(const Text('Welcome to tapir testing')));
       final response = await aiTestFindByTextHandler(
-        'ext.dusk.find_by_text',
-        const {'text': 'dusk', 'exact': 'false'},
+        'ext.tapir.find_by_text',
+        const {'text': 'tapir', 'exact': 'false'},
       );
       expect(_isSuccess(response), isTrue);
     });
 
     testWidgets('exact=true requires full string match', (tester) async {
-      await tester.pumpWidget(_wrap(const Text('Welcome to dusk testing')));
+      await tester.pumpWidget(_wrap(const Text('Welcome to tapir testing')));
       final response = await aiTestFindByTextHandler(
-        'ext.dusk.find_by_text',
-        const {'text': 'dusk', 'exact': 'true'},
+        'ext.tapir.find_by_text',
+        const {'text': 'tapir', 'exact': 'true'},
       );
       expect(_isSuccess(response), isTrue);
     });
@@ -97,7 +97,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(_wrap(const SizedBox()));
       final response = await aiTestFindByLabelHandler(
-        'ext.dusk.find_by_label',
+        'ext.tapir.find_by_label',
         const <String, String>{},
       );
       expect(_isError(response), isTrue);
@@ -115,7 +115,7 @@ void main() {
         ),
       );
       final response = await aiTestFindByLabelHandler(
-        'ext.dusk.find_by_label',
+        'ext.tapir.find_by_label',
         const {'label': 'Submit form'},
       );
       expect(_isSuccess(response), isTrue);
@@ -124,7 +124,7 @@ void main() {
     testWidgets('returns empty refs when no Semantics matches', (tester) async {
       await tester.pumpWidget(_wrap(const SizedBox()));
       final response = await aiTestFindByLabelHandler(
-        'ext.dusk.find_by_label',
+        'ext.tapir.find_by_label',
         const {'label': 'No widget here'},
       );
       expect(_isSuccess(response), isTrue);
@@ -142,7 +142,7 @@ void main() {
         ),
       );
       final response = await aiTestFindByLabelHandler(
-        'ext.dusk.find_by_label',
+        'ext.tapir.find_by_label',
         const {'label': 'Confirm', 'role': 'button'},
       );
       expect(_isSuccess(response), isTrue);
@@ -159,9 +159,9 @@ void main() {
   group('findByTextWaitLoop fast path', () {
     testWidgets('returns matched immediately when text is already present',
         (tester) async {
-      await tester.pumpWidget(_wrap(const Text('hello dusk')));
+      await tester.pumpWidget(_wrap(const Text('hello tapir')));
       final result = await findByTextWaitLoop(
-        text: 'hello dusk',
+        text: 'hello tapir',
         timeoutMs: 1000,
         pollIntervalMs: 200,
       );
@@ -213,7 +213,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(_wrap(const Text('absent')));
       final response = await aiTestWaitForHandler(
-        'ext.dusk.wait_for',
+        'ext.tapir.wait_for',
         const {'text': 'never appears', 'timeoutMs': '0'},
       );
       expect(_isSuccess(response), isTrue);
@@ -225,7 +225,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(_wrap(const Text('hello')));
       final response = await aiTestWaitForHandler(
-        'ext.dusk.wait_for',
+        'ext.tapir.wait_for',
         const {'text': 'hello'},
       );
       expect(_isSuccess(response), isTrue);
@@ -236,7 +236,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(_wrap(const Text('other')));
       final response = await aiTestWaitForHandler(
-        'ext.dusk.wait_for',
+        'ext.tapir.wait_for',
         const {'textGone': 'gone-already'},
       );
       expect(_isSuccess(response), isTrue);
@@ -244,10 +244,10 @@ void main() {
 
     testWidgets('expression param: routed through text-presence loop',
         (tester) async {
-      await tester.pumpWidget(_wrap(const Text('hello dusk')));
+      await tester.pumpWidget(_wrap(const Text('hello tapir')));
       final response = await aiTestWaitForHandler(
-        'ext.dusk.wait_for',
-        const {'expression': 'hello dusk'},
+        'ext.tapir.wait_for',
+        const {'expression': 'hello tapir'},
       );
       expect(_isSuccess(response), isTrue);
     });
@@ -281,11 +281,11 @@ void main() {
 
     testWidgets('returns substring matches when exact=false', (tester) async {
       await tester.pumpWidget(
-        _wrap(const Text('welcome to dusk testing')),
+        _wrap(const Text('welcome to tapir testing')),
       );
 
       final refs = findByTextInTree(
-        text: 'dusk',
+        text: 'tapir',
         exact: false,
         groupId: 'g-find-substr',
       );
@@ -513,7 +513,7 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // ext.dusk.wait_for_network_idle (Step 3.4)
+  // ext.tapir.wait_for_network_idle (Step 3.4)
   // ---------------------------------------------------------------------------
 
   group('aiTestWaitForNetworkIdleHandler', () {
@@ -523,7 +523,7 @@ void main() {
     setUp(() {
       counterValue = 0;
       // Save the existing reader so we can restore between tests and
-      // simulate the "missing telescope" graceful path on demand.
+      // simulate the "missing crumbs" graceful path on demand.
       originalReader = pendingHttpCountReader;
       pendingHttpCountReader = () => counterValue;
     });
@@ -542,7 +542,7 @@ void main() {
       // tests elsewhere in this file.
       counterValue = 0;
       final response = await aiTestWaitForNetworkIdleHandler(
-        'ext.dusk.wait_for_network_idle',
+        'ext.tapir.wait_for_network_idle',
         const <String, String>{
           'timeoutMs': '2000',
           'idleMs': '100',
@@ -553,13 +553,13 @@ void main() {
     });
 
     testWidgets(
-        'missing-telescope graceful: default reader (returns 0) is treated '
+        'missing-crumbs graceful: default reader (returns 0) is treated '
         'the same as idle from the start', (tester) async {
       // Restore the default reader (which always returns 0) to simulate a
-      // host that never wired telescope -> pendingCount stays 0 forever.
+      // host that never wired crumbs -> pendingCount stays 0 forever.
       pendingHttpCountReader = () => 0;
       final response = await aiTestWaitForNetworkIdleHandler(
-        'ext.dusk.wait_for_network_idle',
+        'ext.tapir.wait_for_network_idle',
         const <String, String>{
           'timeoutMs': '500',
           'idleMs': '100',
@@ -578,7 +578,7 @@ void main() {
       // this case complete deterministically.
       counterValue = 4;
       final response = await aiTestWaitForNetworkIdleHandler(
-        'ext.dusk.wait_for_network_idle',
+        'ext.tapir.wait_for_network_idle',
         const <String, String>{
           'timeoutMs': '0',
           'idleMs': '200',
@@ -603,7 +603,7 @@ void main() {
 
       final response = await tester.runAsync(() async {
         return aiTestWaitForNetworkIdleHandler(
-          'ext.dusk.wait_for_network_idle',
+          'ext.tapir.wait_for_network_idle',
           const <String, String>{
             'timeoutMs': '5000',
             'idleMs': '200',
@@ -628,7 +628,7 @@ void main() {
 
       final response = await tester.runAsync(() async {
         return aiTestWaitForNetworkIdleHandler(
-          'ext.dusk.wait_for_network_idle',
+          'ext.tapir.wait_for_network_idle',
           const <String, String>{
             'timeoutMs': '5000',
             'idleMs': '200',

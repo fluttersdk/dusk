@@ -5,11 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_perf.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_perf_trace.dart';
-import 'package:fluttersdk_dusk/src/utils/perf_insights.dart';
-import 'package:fluttersdk_dusk/src/utils/perf_interaction.dart';
-import 'package:fluttersdk_dusk/src/utils/perf_readers.dart';
+import 'package:tapir/src/extensions/ext_perf.dart';
+import 'package:tapir/src/extensions/ext_perf_trace.dart';
+import 'package:tapir/src/utils/perf_insights.dart';
+import 'package:tapir/src/utils/perf_interaction.dart';
+import 'package:tapir/src/utils/perf_readers.dart';
 
 const int _start = 1000;
 const int _end = 100000;
@@ -433,7 +433,7 @@ void main() {
     });
   });
 
-  group('ext.dusk.perf_trace', () {
+  group('ext.tapir.perf_trace', () {
     setUp(() {
       resetPerfSessionForTesting();
       resetClosedPerfSessionForTesting();
@@ -455,24 +455,25 @@ void main() {
 
     test('before any session closed it is an error naming perf_end', () async {
       final developer.ServiceExtensionResponse response =
-          await duskPerfTraceHandler('ext.dusk.perf_trace', <String, String>{});
+          await tapirPerfTraceHandler(
+              'ext.tapir.perf_trace', <String, String>{});
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('perf_end'));
     });
 
     test('a stale token is an error naming the session that is held', () async {
-      await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+      await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'mode': 'timing'},
       );
       final Map<String, dynamic> end = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       final developer.ServiceExtensionResponse response =
-          await duskPerfTraceHandler(
-        'ext.dusk.perf_trace',
+          await tapirPerfTraceHandler(
+        'ext.tapir.perf_trace',
         <String, String>{'token': 'perf-0'},
       );
 
@@ -482,18 +483,19 @@ void main() {
 
     test('an open session is an error: its perf_begin cleared the buffers',
         () async {
-      await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+      await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'mode': 'timing'},
       );
-      await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
-      await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
+      await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'mode': 'timing'},
       );
 
       final developer.ServiceExtensionResponse response =
-          await duskPerfTraceHandler('ext.dusk.perf_trace', <String, String>{});
+          await tapirPerfTraceHandler(
+              'ext.tapir.perf_trace', <String, String>{});
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('perf_end'));
@@ -501,15 +503,16 @@ void main() {
 
     test('a throwing host reader is an error envelope, never a throw',
         () async {
-      await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+      await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'mode': 'timing'},
       );
-      await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{});
+      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
       perfTimelineReader = () => throw StateError('host wiring is broken');
 
       final developer.ServiceExtensionResponse response =
-          await duskPerfTraceHandler('ext.dusk.perf_trace', <String, String>{});
+          await tapirPerfTraceHandler(
+              'ext.tapir.perf_trace', <String, String>{});
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('host wiring is broken'));
@@ -519,8 +522,8 @@ void main() {
         "exports the closed session's interactions, frames and host rows",
         (WidgetTester tester) async {
       await tester.pumpWidget(const SizedBox.shrink());
-      await duskPerfBeginHandler(
-        'ext.dusk.perf_begin',
+      await tapirPerfBeginHandler(
+        'ext.tapir.perf_begin',
         <String, String>{'mode': 'timing'},
       );
       await runPerfInteraction<void>('tap', 'e7', () async {});
@@ -549,12 +552,12 @@ void main() {
             },
           ];
       final Map<String, dynamic> end = _decode(
-        await duskPerfEndHandler('ext.dusk.perf_end', <String, String>{}),
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       final Map<String, dynamic> trace = _decode(
-        await duskPerfTraceHandler(
-          'ext.dusk.perf_trace',
+        await tapirPerfTraceHandler(
+          'ext.tapir.perf_trace',
           <String, String>{'token': end['sessionToken'] as String},
         ),
       );

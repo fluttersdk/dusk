@@ -1,23 +1,23 @@
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 
 /// Signature for the injectable evaluate function.
 ///
 /// Accepts a Dart [expression] string and returns its string representation.
 /// Implementations perform the actual VM Service `evaluate` RPC call; the
-/// default production implementation is wired by the CLI-side artisan consumer
+/// default production implementation is wired by the CLI-side dowel consumer
 /// (TinkerCommand / MCP `flutter_evaluate` tool) directly against the VM
 /// Service. The host-side extension is a slim dispatch shim that validates the
 /// param and formats the response envelope.
-typedef DuskEvaluator = Future<String> Function(String expression);
+typedef TapirEvaluator = Future<String> Function(String expression);
 
-/// `ext.dusk.evaluate` handler.
+/// `ext.tapir.evaluate` handler.
 ///
 /// Dispatches [expression] through [evaluator] and wraps the result in the
 /// standard V3 response envelope:
@@ -27,10 +27,10 @@ typedef DuskEvaluator = Future<String> Function(String expression);
 /// ```
 ///
 /// When [evaluator] is `null`, the handler falls back to a no-op sentinel
-/// that returns the expression echoed back. In production the artisan CLI
+/// that returns the expression echoed back. In production the dowel CLI
 /// or MCP layer injects the real VM Service evaluate RPC. For host-side
 /// extension registration, the sentinel signals to the CLI that
-/// `ext.dusk.evaluate` is available so the consumer can detect and call the
+/// `ext.tapir.evaluate` is available so the consumer can detect and call the
 /// VM evaluate RPC from the CLI side without a second round-trip.
 ///
 /// Params:
@@ -42,10 +42,10 @@ typedef DuskEvaluator = Future<String> Function(String expression);
 ///   with `{"error": "expression param is required"}`.
 /// - Evaluator throws: [developer.ServiceExtensionResponse.extensionError]
 ///   with `{"error": "<message>", "stackTrace": "<trace>"}`.
-Future<developer.ServiceExtensionResponse> extDuskEvaluateHandler(
+Future<developer.ServiceExtensionResponse> extTapirEvaluateHandler(
   String method,
   Map<String, String> params, {
-  @visibleForTesting DuskEvaluator? evaluator,
+  @visibleForTesting TapirEvaluator? evaluator,
 }) async {
   final String? expression = params['expression'];
 
@@ -54,38 +54,38 @@ Future<developer.ServiceExtensionResponse> extDuskEvaluateHandler(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
         'expression param is required',
-        DuskErrorEnvelope.missingParam('expression'),
+        TapirErrorEnvelope.missingParam('expression'),
       ),
     );
   }
 
   // 1. Resolve the evaluator: injected stub in tests, sentinel no-op otherwise.
-  final DuskEvaluator resolve = evaluator ?? _sentinelEvaluator;
+  final TapirEvaluator resolve = evaluator ?? _sentinelEvaluator;
 
   try {
     // 2. Delegate evaluation.
     final String result = await resolve(expression);
 
     // 3. Return the standard V3 envelope.
-    return duskResult(<String, dynamic>{
+    return tapirResult(<String, dynamic>{
       'expression': expression,
       'result': result,
     });
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.evaluate error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] ext.tapir.evaluate error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
 
 /// Sentinel evaluator used when no real VM Service evaluator is injected.
 ///
-/// The host-side `ext.dusk.evaluate` extension is a discovery signal for the
+/// The host-side `ext.tapir.evaluate` extension is a discovery signal for the
 /// CLI layer (mirrors the `ext.tinker.evaluate` sentinel in magic_tinker).
 /// Actual Dart expression evaluation is performed CLI-side via the VM Service
 /// `evaluate` RPC, which has access to the isolate's lexical scope. Returning
@@ -95,11 +95,11 @@ Future<String> _sentinelEvaluator(String expression) async {
   return '<eval-via-vm-service: $expression>';
 }
 
-/// Registers the `ext.dusk.evaluate` VM Service extension.
+/// Registers the `ext.tapir.evaluate` VM Service extension.
 ///
 /// Guards behind [kDebugMode] so release builds tree-shake this branch on
 /// every platform (dart2js for web, dart2native for AOT). Call this from the
-/// `registerAllDuskExtensions` aggregator once Step 13 consolidates the
+/// `registerAllTapirExtensions` aggregator once Step 13 consolidates the
 /// wire-up.
 ///
 /// Idempotent: [registerExtensionIdempotent] swallows the [ArgumentError]
@@ -107,10 +107,10 @@ Future<String> _sentinelEvaluator(String expression) async {
 /// registration.
 void registerEvaluateExtension() {
   if (!kDebugMode) return;
-  registerDuskExtension(
-    'ext.dusk.evaluate',
+  registerTapirExtension(
+    'ext.tapir.evaluate',
     (String method, Map<String, String> params) =>
-        extDuskEvaluateHandler(method, params),
+        extTapirEvaluateHandler(method, params),
     ensureFrames: false,
   );
 }

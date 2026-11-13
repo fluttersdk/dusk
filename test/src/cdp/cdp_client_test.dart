@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/cdp/cdp_client.dart';
+import 'package:tapir/src/cdp/cdp_client.dart';
 
 import 'fake_cdp_server.dart';
 
@@ -37,15 +37,15 @@ void main() {
     );
 
     // ---------------------------------------------------------------
-    // (b) HTTP /json/version unreachable → DuskCdpException with
+    // (b) HTTP /json/version unreachable → TapirCdpException with
     //     "port unreachable" message.
     // ---------------------------------------------------------------
     test(
-      'connect() throws DuskCdpException with "port unreachable" when /json/version fails',
+      'connect() throws TapirCdpException with "port unreachable" when /json/version fails',
       () async {
         // Stub cdpHttpGet to throw a SocketException-flavoured failure that
         // models a closed port. CdpClient should surface this as a typed
-        // DuskCdpException containing the literal "port unreachable" phrase.
+        // TapirCdpException containing the literal "port unreachable" phrase.
         CdpClient.cdpHttpGet = (Uri uri) async {
           throw const SocketException('Connection refused');
         };
@@ -53,8 +53,8 @@ void main() {
         await expectLater(
           () => CdpClient.connect(port: 65432),
           throwsA(
-            isA<DuskCdpException>().having(
-              (DuskCdpException e) => e.message,
+            isA<TapirCdpException>().having(
+              (TapirCdpException e) => e.message,
               'message',
               contains('port unreachable'),
             ),
@@ -64,14 +64,14 @@ void main() {
     );
 
     // ---------------------------------------------------------------
-    // (c) WebSocket connect refused → DuskCdpException.
+    // (c) WebSocket connect refused → TapirCdpException.
     // ---------------------------------------------------------------
     test(
-      'connect() throws DuskCdpException when the WebSocket handshake is refused',
+      'connect() throws TapirCdpException when the WebSocket handshake is refused',
       () async {
         // The HTTP /json/version step succeeds (handshake URL parsed) but
         // the WebSocket connect throws. CdpClient must rethrow as a typed
-        // DuskCdpException so callers (DuskResizeCommand, etc.) can branch
+        // TapirCdpException so callers (TapirResizeCommand, etc.) can branch
         // on a single exception type.
         final FakeCdpServer server = await FakeCdpServer.start();
         addTearDown(server.stop);
@@ -83,8 +83,8 @@ void main() {
         await expectLater(
           () => CdpClient.connect(port: server.port),
           throwsA(
-            isA<DuskCdpException>().having(
-              (DuskCdpException e) => e.message,
+            isA<TapirCdpException>().having(
+              (TapirCdpException e) => e.message,
               'message',
               contains('WebSocket'),
             ),
@@ -167,8 +167,8 @@ void main() {
         await expectLater(
           () => client.send('Emulation.fakeMethodThatDoesNotExist'),
           throwsA(
-            isA<DuskCdpException>().having(
-              (DuskCdpException e) => e.message,
+            isA<TapirCdpException>().having(
+              (TapirCdpException e) => e.message,
               'message',
               contains('-32601'),
             ),
@@ -218,7 +218,7 @@ void main() {
         // The pending send must complete (with an error) so callers do not
         // leak Completers across a tear-down.
         await pendingObserved.timeout(const Duration(seconds: 2));
-        expect(pendingError, isA<DuskCdpException>());
+        expect(pendingError, isA<TapirCdpException>());
 
         expect(client.isConnected, isFalse);
       },
@@ -254,8 +254,8 @@ void main() {
       await expectLater(
         CdpClient.connect(port: server.port, matchUrlSubstring: ':65535'),
         throwsA(
-          isA<DuskCdpException>().having(
-            (DuskCdpException e) => e.toString(),
+          isA<TapirCdpException>().having(
+            (TapirCdpException e) => e.toString(),
             'message',
             allOf(contains(':65535'), contains('different browser')),
           ),

@@ -78,12 +78,12 @@ class RefEntry {
 /// snapshot-group disposal.
 ///
 /// At least one of [text], [semanticsLabel], or [keyValue] must be non-null
-/// at construction time; the [extDuskFindHandler] gate enforces this.
+/// at construction time; the [extTapirFindHandler] gate enforces this.
 @immutable
-class DuskQuery {
-  /// Creates a [DuskQuery] from the supplied predicates. Callers must pass
+class TapirQuery {
+  /// Creates a [TapirQuery] from the supplied predicates. Callers must pass
   /// at least one non-null field.
-  const DuskQuery({
+  const TapirQuery({
     this.text,
     this.containsText,
     this.semanticsLabel,
@@ -123,12 +123,12 @@ class DuskQuery {
   /// Which of the nodes matching the label predicate this handle names,
   /// counting from zero in Semantics walk order.
   ///
-  /// Null on a handle minted from a predicate the caller wrote: `ext.dusk.find`
+  /// Null on a handle minted from a predicate the caller wrote: `ext.tapir.find`
   /// answers the first match, reports the total, and tells the caller to refine
   /// the query, which is the right shape when a human or an agent chose the
   /// predicate.
   ///
-  /// Set on every handle `ext.dusk.observe` mints, because there the predicate
+  /// Set on every handle `ext.tapir.observe` mints, because there the predicate
   /// is DERIVED from a node the walk already has in hand rather than chosen.
   /// Without it, N candidates sharing a label get N handles that all resolve to
   /// the first, which contradicts the one-candidate-per-node contract observe
@@ -152,7 +152,7 @@ class DuskQuery {
 /// How an `eN` ref finds its control again once the element it was minted
 /// from has left the tree.
 ///
-/// [query] carries the node's own label and its [DuskQuery.matchIndex] among
+/// [query] carries the node's own label and its [TapirQuery.matchIndex] among
 /// every node sharing that label; [matchCount] is how many such nodes the
 /// minting snapshot saw. The pair is only trusted while the live tree still
 /// has exactly [matchCount] namesakes: a different count means the index may
@@ -171,7 +171,7 @@ final class RefBinding {
   });
 
   /// The label predicate plus index that re-finds the node.
-  final DuskQuery query;
+  final TapirQuery query;
 
   /// Nodes carrying the bound label when the ref was minted.
   final int matchCount;
@@ -216,7 +216,7 @@ class RefRegistry {
 
   /// Sentinel instance for enricher contracts.
   ///
-  /// [DuskSnapshotEnricher] takes a `RefRegistry` parameter for forward
+  /// [TapirSnapshotEnricher] takes a `RefRegistry` parameter for forward
   /// compatibility, but all current registry operations are static. Snap
   /// passes this singleton so enrichers conform to the typedef without
   /// constructing throw-away instances per call.
@@ -248,7 +248,7 @@ class RefRegistry {
 
   /// Token → query predicates. Lookup table for action tools that detect
   /// the `q` prefix and re-execute the Semantics tree walk on every call.
-  static final Map<String, DuskQuery> _queries = <String, DuskQuery>{};
+  static final Map<String, TapirQuery> _queries = <String, TapirQuery>{};
 
   /// `e<N>` token → how it re-finds its control. Lives and dies with the
   /// token's entry.
@@ -339,24 +339,24 @@ class RefRegistry {
   /// stores it for subsequent action-tool re-resolution.
   ///
   /// Unlike [register], query handles are NEVER deduped: each call mints a
-  /// fresh token. The caller (the `ext.dusk.find` handler) verifies that at
+  /// fresh token. The caller (the `ext.tapir.find` handler) verifies that at
   /// least one predicate is non-null before invoking this method.
   ///
   /// Query handles are NOT scoped to a `groupId`: they survive snapshot
   /// disposal because the predicates are re-executed against the live
   /// Semantics tree on every action call. Use [disposeAll] /
   /// [resetForTesting] to clear them in tests.
-  static String registerQuery(DuskQuery query) {
+  static String registerQuery(TapirQuery query) {
     _queryCounter += 1;
     final String token = 'q$_queryCounter';
     _queries[token] = query;
     return token;
   }
 
-  /// Looks up the stored [DuskQuery] for a `q<N>` token. Returns `null`
+  /// Looks up the stored [TapirQuery] for a `q<N>` token. Returns `null`
   /// when the token is unknown (e.g. after [disposeAll], or for `e<N>`
   /// tokens which live in the [_entries] map instead).
-  static DuskQuery? lookupQuery(String ref) => _queries[ref];
+  static TapirQuery? lookupQuery(String ref) => _queries[ref];
 
   /// Stores how [ref] re-finds its control after a rebuild, replacing any
   /// earlier binding. A null [binding] clears it: a node that lost its label

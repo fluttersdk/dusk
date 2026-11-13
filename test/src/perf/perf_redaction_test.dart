@@ -1,9 +1,9 @@
 import 'dart:convert';
 
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/perf/perf_redaction.dart';
+import 'package:tapir/src/perf/perf_redaction.dart';
 
 /// A secret with both characters that change under `jsonEncode` or a shell.
 const String _kSecret = r'hun"ter$2';

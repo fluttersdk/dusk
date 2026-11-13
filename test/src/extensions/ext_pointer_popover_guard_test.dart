@@ -2,8 +2,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/extensions/ext_pointer.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 const Key _triggerKey = Key('trigger');
 const Key _panelKey = Key('panel');
@@ -132,11 +132,11 @@ Widget _screen(List<String> events) {
   );
 }
 
-/// Taps [key] with `ext.dusk.tap`, pumping frames across the 50 ms hold.
+/// Taps [key] with `ext.tapir.tap`, pumping frames across the 50 ms hold.
 ///
 /// Gates are opted out because the ref is minted by `registerForTesting`,
 /// whose rect is the widget's own but whose semantics node is synthetic.
-Future<void> _duskTap(WidgetTester tester, Key key) async {
+Future<void> _tapirTap(WidgetTester tester, Key key) async {
   final String ref = RefRegistry.registerForTesting(
     rect: tester.getRect(find.byKey(key)),
     element: tester.element(find.byKey(key)),
@@ -145,7 +145,7 @@ Future<void> _duskTap(WidgetTester tester, Key key) async {
   );
 
   final Future<void> done = aiTestTapHandler(
-    'ext.dusk.tap',
+    'ext.tapir.tap',
     <String, String>{
       'ref': ref,
       'checkStable': 'false',
@@ -177,7 +177,7 @@ void main() {
         final List<String> events = <String>[];
         await tester.pumpWidget(_screen(events));
 
-        await _duskTap(tester, _triggerKey);
+        await _tapirTap(tester, _triggerKey);
 
         // The guard is disarmed by a frame that ran inside the hold, i.e.
         // BEFORE the pointer-up: the hypothesis premise holds.
@@ -205,7 +205,7 @@ void main() {
         final List<String> events = <String>[];
         await tester.pumpWidget(_screen(events));
 
-        await _duskTap(tester, _triggerKey);
+        await _tapirTap(tester, _triggerKey);
 
         // The trigger shares the overlay's groupId, so its own up is inside
         // the group: not even onTapUpOutside fires for the opening gesture.
@@ -224,10 +224,10 @@ void main() {
 
         final List<String> events = <String>[];
         await tester.pumpWidget(_screen(events));
-        await _duskTap(tester, _triggerKey);
+        await _tapirTap(tester, _triggerKey);
         events.clear();
 
-        await _duskTap(tester, _outsideKey);
+        await _tapirTap(tester, _outsideKey);
         await tester.pump();
 
         expect(

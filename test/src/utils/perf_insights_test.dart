@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/utils/frame_summary.dart';
-import 'package:fluttersdk_dusk/src/utils/perf_insights.dart';
-import 'package:fluttersdk_dusk/src/utils/perf_readers.dart';
+import 'package:tapir/src/utils/frame_summary.dart';
+import 'package:tapir/src/utils/perf_insights.dart';
+import 'package:tapir/src/utils/perf_readers.dart';
 
 const Map<String, Object?> _env = <String, Object?>{
   'platform': 'macOS',
@@ -14,7 +14,7 @@ const Map<String, Object?> _env = <String, Object?>{
   'phases': false,
 };
 
-/// One frame shaped like telescope's `FramePerfRecord.toJson()`.
+/// One frame shaped like crumbs's `FramePerfRecord.toJson()`.
 Map<String, Object?> _frame({
   required int frameNumber,
   int buildMicros = 4000,

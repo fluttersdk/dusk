@@ -1,43 +1,43 @@
 import 'dart:developer' as developer;
 
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
-import '../dusk_error_capture.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../tapir_error_capture.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
-// MCP descriptor constants -- consumed by DuskArtisanProvider.mcpTools()
+// MCP descriptor constants -- consumed by TapirDowelProvider.mcpTools()
 // ---------------------------------------------------------------------------
 
 /// MCP tool name for the exception reader.
-const String kDuskExceptionsMcpName = 'dusk_exceptions';
+const String kTapirExceptionsMcpName = 'tapir_exceptions';
 
 /// VM Service extension method name for the exception reader.
-const String kDuskExceptionsMcpExtension = 'ext.dusk.exceptions';
+const String kTapirExceptionsMcpExtension = 'ext.tapir.exceptions';
 
 // ---------------------------------------------------------------------------
 // Function-pointer indirection -- mirrors pendingHttpCountReader + recentLogsReader
 // ---------------------------------------------------------------------------
 
-/// Reader for recent exception entries from TelescopeStore.
+/// Reader for recent exception entries from CrumbsStore.
 ///
-/// Defaults to a function that returns an empty list so dusk compiles and
-/// runs without telescope present (missing-telescope graceful path).
+/// Defaults to a function that returns an empty list so tapir compiles and
+/// runs without crumbs present (missing-crumbs graceful path).
 ///
-/// Hosts that ship `fluttersdk_telescope` wire the real source by assigning:
+/// Hosts that ship `crumbs` wire the real source by assigning:
 ///
 /// ```dart
 /// recentExceptionsReader = ({int limit = 20}) =>
-///     TelescopeStore.recentExceptions(limit: limit);
+///     CrumbsStore.recentExceptions(limit: limit);
 /// ```
 ///
-/// The indirection keeps dusk's pubspec free of a telescope dependency.
+/// The indirection keeps tapir's pubspec free of a crumbs dependency.
 ///
-/// **Contract**: set-once-per-isolate from `MagicTelescopeIntegration.install()`.
-/// Reset to the empty-list default by `MagicTelescopeIntegration.resetForTesting()`
-/// so downstream tests asserting the missing-telescope default do not see leaked
+/// **Contract**: set-once-per-isolate from `MagicCrumbsIntegration.install()`.
+/// Reset to the empty-list default by `MagicCrumbsIntegration.resetForTesting()`
+/// so downstream tests asserting the missing-crumbs default do not see leaked
 /// bindings.
 List<Map<String, dynamic>> Function({int limit}) recentExceptionsReader =
     ({int limit = 20}) => const [];
@@ -46,13 +46,13 @@ List<Map<String, dynamic>> Function({int limit}) recentExceptionsReader =
 // Aggregator
 // ---------------------------------------------------------------------------
 
-/// Registers the `ext.dusk.exceptions` VM Service extension.
+/// Registers the `ext.tapir.exceptions` VM Service extension.
 ///
 /// Idempotent via [registerExtensionIdempotent]. Call from
-/// [registerAllDuskExtensions] once during [DuskPlugin.install].
+/// [registerAllTapirExtensions] once during [TapirPlugin.install].
 void registerExceptionsExtensions() {
-  registerDuskExtension(
-    kDuskExceptionsMcpExtension,
+  registerTapirExtension(
+    kTapirExceptionsMcpExtension,
     aiTestExceptionsHandler,
     ensureFrames: false,
   );
@@ -62,15 +62,15 @@ void registerExceptionsExtensions() {
 // Handler
 // ---------------------------------------------------------------------------
 
-/// Handler for the `ext.dusk.exceptions` VM Service extension.
+/// Handler for the `ext.tapir.exceptions` VM Service extension.
 ///
 /// Merges entries from two sources, newest-first, deduped by
 /// `(type, message, stackHead)`, then clips to `limit`:
 ///
 /// 1. [recentCapturedExceptions]: in-package ring buffer of non-fatal
-///    [FlutterError]s (incl. overflow). Present without telescope.
+///    [FlutterError]s (incl. overflow). Present without crumbs.
 /// 2. [recentExceptionsReader]: function-pointer indirection wired by
-///    `MagicTelescopeIntegration`. Defaults to an empty list when telescope
+///    `MagicCrumbsIntegration`. Defaults to an empty list when crumbs
 ///    is absent (graceful no-op).
 ///
 /// Params (all string-valued):
@@ -101,22 +101,22 @@ Future<developer.ServiceExtensionResponse> aiTestExceptionsHandler(
     final DateTime? since = _parseIso8601(params['since']);
 
     // 2. Collect from both sources: in-package buffer (non-fatal FlutterErrors)
-    //    and the telescope reader (when wired). Use a generous fetch so the
+    //    and the crumbs reader (when wired). Use a generous fetch so the
     //    merge has enough candidates before the final limit clip.
     final List<Map<String, dynamic>> buffered = recentCapturedExceptions(
       limit: limit,
     );
-    final List<Map<String, dynamic>> telescope = recentExceptionsReader(
+    final List<Map<String, dynamic>> crumbs = recentExceptionsReader(
       limit: limit,
     );
 
     // 3. Merge, dedup by (type, message, stackHead), keep newest-first, then
-    //    clip to limit. The in-package buffer is already newest-first; telescope
+    //    clip to limit. The in-package buffer is already newest-first; crumbs
     //    entries follow it so buffered entries win on dedup conflicts.
     final Set<String> seen = <String>{};
     final List<Map<String, dynamic>> merged = <Map<String, dynamic>>[];
 
-    for (final Map<String, dynamic> entry in [...buffered, ...telescope]) {
+    for (final Map<String, dynamic> entry in [...buffered, ...crumbs]) {
       final String key =
           '${entry['type']} ${entry['message']} ${entry['stackHead']}';
       if (seen.add(key)) {
@@ -144,26 +144,26 @@ Future<developer.ServiceExtensionResponse> aiTestExceptionsHandler(
     // 5. Optional clear, AFTER the read: the caller gets everything so far
     //    and a clean slate for the next route, which is the primitive a
     //    before/after sweep needs. Only the in-package buffer is ours to
-    //    empty; a wired telescope owns its own store.
+    //    empty; a wired crumbs owns its own store.
     if (params['clear'] == 'true') {
       clearCapturedExceptions();
     }
 
     // 6. Return the structured envelope.
-    return duskResult(<String, dynamic>{
+    return tapirResult(<String, dynamic>{
       'exceptions': exceptions,
       'count': exceptions.length,
     });
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.exceptions: unexpected error: $e\n$st',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.exceptions: unexpected error: $e\n$st',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.exceptions: $e',
-        DuskErrorEnvelope.unexpected(),
+        'ext.tapir.exceptions: $e',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }

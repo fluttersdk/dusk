@@ -5,24 +5,24 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/tapir_plugin.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 /// Regression tests for the enricher-dispatcher loop inside `ext_snapshot.dart`.
 ///
 /// The dispatcher (lines 158-167 of ext_snapshot.dart) iterates
-/// [DuskPlugin.enrichers] in insertion order and appends each non-null,
+/// [TapirPlugin.enrichers] in insertion order and appends each non-null,
 /// non-empty fragment's lines (split via [LineSplitter]) beneath the
 /// matching ref entry. These tests lock that contract so Magic + Wind
 /// integrations cannot be broken silently by future plan revisions.
 ///
 /// ## Test strategy
 ///
-/// `duskSnapBuild` walks `RendererBinding.instance.rootPipelineOwner`, but
+/// `tapirSnapBuild` walks `RendererBinding.instance.rootPipelineOwner`, but
 /// in the Flutter test harness the widget tree lives under a CHILD pipeline
 /// owner (the one with the real view). The root pipeline owner's semantics
-/// node is always null, so `duskSnapBuild` returns an empty snapshot string.
+/// node is always null, so `tapirSnapBuild` returns an empty snapshot string.
 ///
 /// Instead of fighting the test harness, the dispatcher CONTRACT is verified
 /// in two tiers:
@@ -33,8 +33,8 @@ import 'package:fluttersdk_dusk/src/ref_registry.dart';
 ///    guard, `LineSplitter().convert(fragment.trimRight())` split, and
 ///    concatenation order that the production loop uses.
 ///
-/// 2. **DuskPlugin.enrichers wiring tier**: verify that `DuskPlugin.enrichers`
-///    is a mutable list that accumulates registrations and that `duskSnapBuild`
+/// 2. **TapirPlugin.enrichers wiring tier**: verify that `TapirPlugin.enrichers`
+///    is a mutable list that accumulates registrations and that `tapirSnapBuild`
 ///    returns the expected envelope shape (groupId + snapshot keys), so callers
 ///    see the correct response regardless of tree content.
 ///
@@ -87,14 +87,14 @@ String? _fakeEnricher3(
 // contract tests are deterministic without a real Semantics tree.
 // ---------------------------------------------------------------------------
 
-/// Runs every enricher in [DuskPlugin.enrichers] against [element] and
+/// Runs every enricher in [TapirPlugin.enrichers] against [element] and
 /// [refs], applies the same null / empty guard and [LineSplitter] split
 /// used by the production dispatcher, and returns the concatenated output.
 ///
 /// Mirrors ext_snapshot.dart lines 160-167 exactly.
 String _runDispatcher(Element element) {
   final StringBuffer buffer = StringBuffer();
-  for (final enricher in DuskPlugin.enrichers) {
+  for (final enricher in TapirPlugin.enrichers) {
     final String? fragment = enricher(element, RefRegistry.instance);
     if (fragment == null || fragment.isEmpty) continue;
     for (final line in const LineSplitter().convert(fragment.trimRight())) {
@@ -107,12 +107,12 @@ String _runDispatcher(Element element) {
 
 void main() {
   setUp(() {
-    DuskPlugin.enrichers.clear();
+    TapirPlugin.enrichers.clear();
     RefRegistry.resetForTesting();
   });
 
   tearDown(() {
-    DuskPlugin.enrichers.clear();
+    TapirPlugin.enrichers.clear();
     RefRegistry.resetForTesting();
   });
 
@@ -129,7 +129,7 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
 
         // 1. Register enrichers in order: 1 then 2.
-        DuskPlugin.enrichers
+        TapirPlugin.enrichers
           ..add(_fakeEnricher1)
           ..add(_fakeEnricher2);
 
@@ -187,7 +187,7 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
 
         // 1. Register only the null enricher.
-        DuskPlugin.enrichers.add(_fakeEnricher3);
+        TapirPlugin.enrichers.add(_fakeEnricher3);
 
         // 2. Mount widget and obtain a live element.
         await tester.pumpWidget(
@@ -223,7 +223,7 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
 
         // 1. Register: non-null, null, non-null.
-        DuskPlugin.enrichers
+        TapirPlugin.enrichers
           ..add(_fakeEnricher1)
           ..add(_fakeEnricher3)
           ..add(_fakeEnricher2);
@@ -273,7 +273,7 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
 
         // 1. Register only the multi-line enricher.
-        DuskPlugin.enrichers.add(_fakeEnricher2);
+        TapirPlugin.enrichers.add(_fakeEnricher2);
 
         // 2. Mount widget and obtain a live element.
         await tester.pumpWidget(
@@ -348,7 +348,7 @@ void main() {
         String? secondEnricher(Element element, RefRegistry refs) =>
             'magicX: valueFromSecond';
 
-        DuskPlugin.enrichers
+        TapirPlugin.enrichers
           ..add(firstEnricher)
           ..add(secondEnricher);
 
@@ -383,7 +383,7 @@ void main() {
 
         // 5. The first-registered enricher's line appears before the second
         //    (insertion-order concatenation; per the typedef contract at
-        //    dusk_snapshot_enricher.dart:16, first-write-wins is a SEMANTIC
+        //    tapir_snapshot_enricher.dart:16, first-write-wins is a SEMANTIC
         //    convention: YAML readers that take the first occurrence of a
         //    duplicate key see the first enricher's value).
         final int posFirst = output.indexOf('magicX: valueFromFirst');
@@ -399,25 +399,25 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // DuskPlugin.enrichers wiring + duskSnapBuild envelope shape
+  // TapirPlugin.enrichers wiring + tapirSnapBuild envelope shape
   // -------------------------------------------------------------------------
 
-  group('DuskPlugin.enrichers list and duskSnapBuild envelope', () {
+  group('TapirPlugin.enrichers list and tapirSnapBuild envelope', () {
     test('enrichers list accepts registrations and retains insertion order',
         () {
-      DuskPlugin.enrichers
+      TapirPlugin.enrichers
         ..add(_fakeEnricher1)
         ..add(_fakeEnricher2)
         ..add(_fakeEnricher3);
 
-      expect(DuskPlugin.enrichers, hasLength(3));
-      expect(DuskPlugin.enrichers[0], equals(_fakeEnricher1));
-      expect(DuskPlugin.enrichers[1], equals(_fakeEnricher2));
-      expect(DuskPlugin.enrichers[2], equals(_fakeEnricher3));
+      expect(TapirPlugin.enrichers, hasLength(3));
+      expect(TapirPlugin.enrichers[0], equals(_fakeEnricher1));
+      expect(TapirPlugin.enrichers[1], equals(_fakeEnricher2));
+      expect(TapirPlugin.enrichers[2], equals(_fakeEnricher3));
     });
 
     testWidgets(
-      'duskSnapBuild returns snapshot and groupId keys',
+      'tapirSnapBuild returns snapshot and groupId keys',
       (WidgetTester tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -430,18 +430,19 @@ void main() {
           ),
         );
 
-        final Map<String, dynamic> payload = await duskSnapBuild();
+        final Map<String, dynamic> payload = await tapirSnapBuild();
 
         expect(
           payload,
           containsPair('snapshot', isA<String>()),
           reason:
-              'duskSnapBuild must return a snapshot key with a String value',
+              'tapirSnapBuild must return a snapshot key with a String value',
         );
         expect(
           payload,
           containsPair('groupId', isA<String>()),
-          reason: 'duskSnapBuild must return a groupId key with a String value',
+          reason:
+              'tapirSnapBuild must return a groupId key with a String value',
         );
         expect(
           (payload['groupId'] as String).startsWith('snapshot-'),
@@ -462,7 +463,7 @@ void main() {
   // -------------------------------------------------------------------------
   // (e) Live per-ref overflow annotation — ext_snapshot.dart Step 4
   //
-  // duskSnapBuild walks rootPipelineOwner + child owners, so in the test
+  // tapirSnapBuild walks rootPipelineOwner + child owners, so in the test
   // harness the widget tree IS visible (the child-owner walk fix is already
   // in place). We narrow the viewport so a Row with an oversized child
   // overflows, which causes RenderFlex.toStringShort() to append
@@ -518,7 +519,7 @@ void main() {
         // 4. Capture snapshot — overflow annotation must appear regardless of
         //    includeEnrichers because it is a live-state check, not an enricher.
         final Map<String, dynamic> payload = await tester.runAsync(
-          () => duskSnapBuild(),
+          () => tapirSnapBuild(),
         ) as Map<String, dynamic>;
 
         final String snapshot = payload['snapshot'] as String;
@@ -558,7 +559,7 @@ void main() {
         await tester.pump();
 
         final Map<String, dynamic> payload = await tester.runAsync(
-          () => duskSnapBuild(),
+          () => tapirSnapBuild(),
         ) as Map<String, dynamic>;
 
         final String snapshot = payload['snapshot'] as String;

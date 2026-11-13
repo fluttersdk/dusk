@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_observe.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
-import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
+import 'package:tapir/src/tapir_plugin.dart';
+import 'package:tapir/src/extensions/ext_find.dart';
+import 'package:tapir/src/extensions/ext_observe.dart';
+import 'package:tapir/src/ref_registry.dart';
+import 'package:wind_kit_diagnostics_contracts/wind_kit_diagnostics_contracts.dart';
 
 import '../../_support/merged_stage.dart';
 
@@ -28,7 +28,7 @@ class _FakeWindResolver implements WindDebugResolver {
   }
 }
 
-/// Tests for `ext.dusk.observe` (Stagehand observe-once-act-many).
+/// Tests for `ext.tapir.observe` (Stagehand observe-once-act-many).
 ///
 /// Contract:
 ///
@@ -51,15 +51,15 @@ class _FakeWindResolver implements WindDebugResolver {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('extDuskObserveHandler — basic candidate enumeration', () {
+  group('extTapirObserveHandler — basic candidate enumeration', () {
     setUp(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     tearDown(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     testWidgets(
@@ -91,8 +91,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
 
@@ -126,8 +126,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final Map<String, dynamic> decoded =
@@ -165,8 +165,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final Map<String, dynamic> decoded =
@@ -190,15 +190,15 @@ void main() {
     );
   });
 
-  group('extDuskObserveHandler — roles filter', () {
+  group('extTapirObserveHandler — roles filter', () {
     setUp(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     tearDown(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     testWidgets(
@@ -228,8 +228,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{'roles': 'button'},
         );
         final Map<String, dynamic> decoded =
@@ -268,8 +268,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{'roles': 'button,textbox'},
         );
         final Map<String, dynamic> decoded =
@@ -286,15 +286,15 @@ void main() {
     );
   });
 
-  group('extDuskObserveHandler — limit param', () {
+  group('extTapirObserveHandler — limit param', () {
     setUp(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     tearDown(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     testWidgets(
@@ -321,8 +321,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{'limit': '3'},
         );
         final Map<String, dynamic> decoded =
@@ -335,15 +335,15 @@ void main() {
     );
   });
 
-  group('extDuskObserveHandler — q-ref re-resolves on subsequent lookup', () {
+  group('extTapirObserveHandler — q-ref re-resolves on subsequent lookup', () {
     setUp(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     tearDown(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     testWidgets(
@@ -366,8 +366,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final Map<String, dynamic> decoded =
@@ -379,7 +379,7 @@ void main() {
 
         // The q-ref must round-trip through lookupQuery — proves the predicate
         // set was stored and can be re-executed by a follow-up action call.
-        final DuskQuery? stored = RefRegistry.lookupQuery(ref);
+        final TapirQuery? stored = RefRegistry.lookupQuery(ref);
         expect(stored, isNotNull);
         // At least one of text/semanticsLabel/key is non-null so the predicate
         // can drive a fresh tree walk on follow-up actions.
@@ -393,15 +393,15 @@ void main() {
     );
   });
 
-  group('extDuskObserveHandler — candidates sharing one label', () {
+  group('extTapirObserveHandler — candidates sharing one label', () {
     setUp(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     tearDown(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     testWidgets(
@@ -435,8 +435,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final List<dynamic> candidates = (jsonDecode(response.result!)
@@ -506,8 +506,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final List<dynamic> candidates = (jsonDecode(response.result!)
@@ -557,8 +557,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final List<dynamic> candidates = (jsonDecode(response.result!)
@@ -582,15 +582,15 @@ void main() {
     );
   });
 
-  group('extDuskObserveHandler — merged semantics', () {
+  group('extTapirObserveHandler — merged semantics', () {
     setUp(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     tearDown(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     testWidgets(
@@ -650,8 +650,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final List<Map<String, dynamic>> candidates = <Map<String, dynamic>>[
@@ -699,15 +699,15 @@ void main() {
     );
   });
 
-  group('extDuskObserveHandler — empty tree', () {
+  group('extTapirObserveHandler — empty tree', () {
     setUp(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     tearDown(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     testWidgets(
@@ -724,8 +724,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final Map<String, dynamic> decoded =
@@ -737,15 +737,15 @@ void main() {
     );
   });
 
-  group('extDuskObserveHandler — enricher fields', () {
+  group('extTapirObserveHandler — enricher fields', () {
     setUp(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     tearDown(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     testWidgets(
@@ -757,10 +757,10 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
 
         // Register fake enrichers that mimic Magic + Wind output shapes.
-        DuskPlugin.enrichers.add(
+        TapirPlugin.enrichers.add(
           (Element element, RefRegistry refs) => 'magicFormField: email',
         );
-        DuskPlugin.enrichers.add(
+        TapirPlugin.enrichers.add(
           (Element element, RefRegistry refs) =>
               'wind:\n  breakpoint: lg\n  brightness: light\n  '
               'platform: web\n  states: [hover]\n  bgColor: \'#3B82F6\'',
@@ -778,8 +778,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final Map<String, dynamic> decoded =
@@ -812,14 +812,14 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.resetPhysicalSize);
 
-        DuskPlugin.enrichers.add(
+        TapirPlugin.enrichers.add(
           (Element element, RefRegistry refs) => 'magicFormField: email',
         );
-        DuskPlugin.enrichers.add(
+        TapirPlugin.enrichers.add(
           (Element element, RefRegistry refs) => 'magicRouteParams: id=7,'
               'page=2',
         );
-        DuskPlugin.enrichers.add(
+        TapirPlugin.enrichers.add(
           (Element element, RefRegistry refs) =>
               'wind:\n  breakpoint: lg\n  brightness: dark\n  '
               'bgColor: \'#3B82F6\'',
@@ -837,8 +837,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{'includeEnrichers': 'full'},
         );
         final Map<String, dynamic> decoded =
@@ -864,10 +864,10 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.resetPhysicalSize);
 
-        DuskPlugin.enrichers.add(
+        TapirPlugin.enrichers.add(
           (Element element, RefRegistry refs) => 'magicFormField: email',
         );
-        DuskPlugin.enrichers.add(
+        TapirPlugin.enrichers.add(
           (Element element, RefRegistry refs) => 'wind:\n  breakpoint: lg',
         );
 
@@ -883,8 +883,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{'includeEnrichers': 'false'},
         );
         final Map<String, dynamic> decoded =
@@ -899,18 +899,16 @@ void main() {
     );
   });
 
-  group(
-      'extDuskObserveHandler — fluttersdk_wind_diagnostics_contracts registry',
-      () {
+  group('extTapirObserveHandler — wind_kit_diagnostics_contracts registry', () {
     setUp(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
       WindDebugRegistry.resetForTesting();
     });
 
     tearDown(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
       WindDebugRegistry.resetForTesting();
     });
 
@@ -936,8 +934,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final Map<String, dynamic> decoded =
@@ -982,8 +980,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{'includeEnrichers': 'full'},
         );
         final Map<String, dynamic> decoded =
@@ -1026,8 +1024,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{'includeEnrichers': 'false'},
         );
         final Map<String, dynamic> decoded =
@@ -1041,15 +1039,15 @@ void main() {
     );
   });
 
-  group('extDuskObserveHandler — inViewport / occluded', () {
+  group('extTapirObserveHandler — inViewport / occluded', () {
     setUp(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     tearDown(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     Widget button(String label) {
@@ -1105,8 +1103,8 @@ void main() {
           ),
         );
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final Map<String, dynamic> decoded =
@@ -1158,8 +1156,8 @@ void main() {
           ),
         );
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
         final Map<String, dynamic> decoded =
@@ -1175,7 +1173,7 @@ void main() {
     );
   });
 
-  group('extDuskObserveHandler — merged boundary tapOwner (#60)', () {
+  group('extTapirObserveHandler — merged boundary tapOwner (#60)', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -1190,8 +1188,8 @@ void main() {
           mergedStageApp(onStageTap: () {}, onSkip: () {}),
         );
 
-        final response = await extDuskObserveHandler(
-          'ext.dusk.observe',
+        final response = await extTapirObserveHandler(
+          'ext.tapir.observe',
           <String, String>{},
         );
 
@@ -1227,8 +1225,8 @@ void main() {
         ),
       );
 
-      final response = await extDuskObserveHandler(
-        'ext.dusk.observe',
+      final response = await extTapirObserveHandler(
+        'ext.tapir.observe',
         <String, String>{},
       );
 
@@ -1241,13 +1239,14 @@ void main() {
     });
   });
 
-  group('extDuskObserveHandler — MCP descriptor constants', () {
-    test('dusk_observe MCP descriptor name is "dusk_observe"', () {
-      expect(kDuskObserveMcpName, equals('dusk_observe'));
+  group('extTapirObserveHandler — MCP descriptor constants', () {
+    test('tapir_observe MCP descriptor name is "tapir_observe"', () {
+      expect(kTapirObserveMcpName, equals('tapir_observe'));
     });
 
-    test('dusk_observe MCP descriptor extensionMethod is ext.dusk.observe', () {
-      expect(kDuskObserveMcpExtension, equals('ext.dusk.observe'));
+    test('tapir_observe MCP descriptor extensionMethod is ext.tapir.observe',
+        () {
+      expect(kTapirObserveMcpExtension, equals('ext.tapir.observe'));
     });
   });
 }

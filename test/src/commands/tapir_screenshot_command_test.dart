@@ -1,0 +1,738 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:dowel/dowel.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:tapir/src/cdp/cdp_client.dart';
+import 'package:tapir/src/commands/tapir_screenshot_command.dart';
+
+import '../cdp/fake_cdp_server.dart';
+
+// ---------------------------------------------------------------------------
+// Shared context stub: records last callExtension invocation for assertions.
+// ---------------------------------------------------------------------------
+
+class _StubContext extends DowelContext {
+  _StubContext({
+    required DowelInput input,
+    required DowelOutput output,
+    Map<String, dynamic> response = const {},
+  })  : _response = response,
+        super.bare(input, output);
+
+  final Map<String, dynamic> _response;
+  String? lastMethod;
+  Map<String, dynamic>? lastParams;
+
+  @override
+  Future<T> callExtension<T>(String method,
+      [Map<String, dynamic>? params]) async {
+    lastMethod = method;
+    lastParams = params;
+    return _response as T;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// StateFile helper: writes a minimal state.json under a temp dir and wires
+// StateFile.debugHomeOverride so TapirScreenshotCommand.handle() reads it.
+// ---------------------------------------------------------------------------
+
+Future<void> _writeState(
+  Directory tempDir,
+  Map<String, dynamic> data,
+) async {
+  final stateDir = Directory('${tempDir.path}/.dowel');
+  await stateDir.create(recursive: true);
+  final stateFile = File('${stateDir.path}/state.json');
+  await stateFile.writeAsString(jsonEncode(data));
+}
+
+void main() {
+  group('TapirScreenshotCommand', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('tapir_screenshot_test_');
+      CdpClient.cdpHttpGet = CdpClient.defaultHttpGet;
+      CdpClient.cdpWsConnect = CdpClient.defaultWsConnect;
+    });
+
+    tearDown(() async {
+      StateFile.debugHomeOverride = null;
+      CdpClient.cdpHttpGet = CdpClient.defaultHttpGet;
+      CdpClient.cdpWsConnect = CdpClient.defaultWsConnect;
+      try {
+        await tempDir.delete(recursive: true);
+      } catch (_) {
+        // Already removed; harmless.
+      }
+    });
+
+    group('metadata', () {
+      test('name is tapir:screenshot', () {
+        expect(TapirScreenshotCommand().name, equals('tapir:screenshot'));
+      });
+
+      test('boot is CommandBoot.connected', () {
+        expect(TapirScreenshotCommand().boot, equals(CommandBoot.connected));
+      });
+
+      test('configure declares --output / --format / --quality', () {
+        final parser = ArgParser();
+        TapirScreenshotCommand().configure(parser);
+        expect(
+          parser.options.keys,
+          containsAll(<String>['output', 'format', 'quality']),
+        );
+      });
+    });
+
+    group('handle() — native (ext.tapir.screenshot) path', () {
+      test('writes the decoded base64 payload to --output path', () async {
+        const fakeBase64 = 'aGVsbG8td29ybGQ='; // "hello-world"
+        final outPath = '${tempDir.path}/snap.png';
+
+        // No cdpPort in state: native path.
+        await _writeState(tempDir, {
+          'pid': 1234,
+          'vmServiceUri': 'ws://localhost:8181/ws',
+        });
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input:
+              MapInput({'output': outPath, 'format': 'png', 'quality': '90'}),
+          output: BufferedOutput(),
+          response: const {'base64': fakeBase64},
+        );
+
+        final exit = await TapirScreenshotCommand().handle(ctx);
+        expect(exit, equals(0));
+        expect(ctx.lastMethod, equals('ext.tapir.screenshot'));
+        expect(
+          ctx.lastParams,
+          allOf(containsPair('format', 'png'), containsPair('quality', 90)),
+        );
+        expect(File(outPath).existsSync(), isTrue);
+        expect(
+          File(outPath).readAsBytesSync(),
+          equals(base64Decode(fakeBase64)),
+        );
+      });
+
+      test('defaults format to jpeg + quality to 70 when omitted', () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({'output': '${tempDir.path}/snap.jpg'}),
+          output: BufferedOutput(),
+          response: const {'base64': 'aGVsbG8='},
+        );
+        await TapirScreenshotCommand().handle(ctx);
+        expect(
+          ctx.lastParams,
+          allOf(containsPair('format', 'jpeg'), containsPair('quality', 70)),
+        );
+      });
+
+      test('infers png from a .png --output when --format is absent', () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({'output': '${tempDir.path}/snap.png'}),
+          output: output,
+          response: const {'base64': 'aGVsbG8='},
+        );
+        await TapirScreenshotCommand().handle(ctx);
+
+        expect(ctx.lastParams, containsPair('format', 'png'));
+        expect(output.content, isNot(contains('[ERROR]')));
+      });
+
+      test('infers jpeg from .jpg and .jpeg --output extensions', () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        for (final name in <String>['snap.jpg', 'snap.JPEG']) {
+          final ctx = _StubContext(
+            input: MapInput({'output': '${tempDir.path}/$name'}),
+            output: BufferedOutput(),
+            response: const {'base64': 'aGVsbG8='},
+          );
+          await TapirScreenshotCommand().handle(ctx);
+
+          expect(ctx.lastParams, containsPair('format', 'jpeg'), reason: name);
+        }
+      });
+
+      test('keeps the jpeg default for an unrecognised extension', () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({'output': '${tempDir.path}/snap.bin'}),
+          output: BufferedOutput(),
+          response: const {'base64': 'aGVsbG8='},
+        );
+        await TapirScreenshotCommand().handle(ctx);
+
+        expect(ctx.lastParams, containsPair('format', 'jpeg'));
+      });
+
+      test('an explicit --format wins and warns when the extension disagrees',
+          () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/snap.png',
+            'format': 'jpeg',
+          }),
+          output: output,
+          response: const {'base64': 'aGVsbG8='},
+        );
+        final exit = await TapirScreenshotCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        expect(ctx.lastParams, containsPair('format', 'jpeg'));
+        expect(output.content, contains('[ERROR]'));
+        expect(output.content, contains('--format=jpeg'));
+        expect(output.content, contains('.png'));
+      });
+
+      test('an explicit --format that matches the extension stays quiet',
+          () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/snap.png',
+            'format': 'png',
+          }),
+          output: output,
+          response: const {'base64': 'aGVsbG8='},
+        );
+        await TapirScreenshotCommand().handle(ctx);
+
+        expect(output.content, isNot(contains('[ERROR]')));
+      });
+
+      test('returns 1 when --output is missing', () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput(const {}),
+          output: BufferedOutput(),
+        );
+        final exit = await TapirScreenshotCommand().handle(ctx);
+        expect(exit, equals(1));
+        expect(ctx.lastMethod, isNull);
+      });
+
+      test('returns 1 when extension response carries no base64', () async {
+        await _writeState(tempDir, {'pid': 1234});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({'output': '${tempDir.path}/snap.png'}),
+          output: BufferedOutput(),
+          response: const {'error': 'no base64'},
+        );
+        final exit = await TapirScreenshotCommand().handle(ctx);
+        expect(exit, equals(1));
+      });
+    });
+
+    group('handle() — CDP (Page.captureScreenshot) path', () {
+      // Minimal 1x1 white PNG in base64 (real parseable PNG bytes).
+      const fakePngBase64 =
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+      // -----------------------------------------------------------------------
+      // (a) With cdpPort set: sends Page.enable then Page.captureScreenshot and
+      //     writes decoded bytes to --output.
+      // -----------------------------------------------------------------------
+      test(
+        'sends Page.enable then Page.captureScreenshot and writes file',
+        () async {
+          final List<String> callOrder = <String>[];
+          Map<String, dynamic>? capturedScreenshotParams;
+
+          final server = await FakeCdpServer.start(
+            handlers: {
+              'Page.enable': (Map<String, dynamic> _) async {
+                callOrder.add('Page.enable');
+                return <String, dynamic>{};
+              },
+              'Page.captureScreenshot': (Map<String, dynamic> params) async {
+                callOrder.add('Page.captureScreenshot');
+                capturedScreenshotParams = params;
+                return <String, dynamic>{'data': fakePngBase64};
+              },
+            },
+          );
+          addTearDown(server.stop);
+
+          await _writeState(tempDir, {'cdpPort': server.port});
+          StateFile.debugHomeOverride = tempDir.path;
+
+          final outPath = '${tempDir.path}/web_shot.png';
+          final output = BufferedOutput();
+          final ctx = _StubContext(
+            input: MapInput({
+              'output': outPath,
+              'format': 'png',
+              'quality': '90',
+            }),
+            output: output,
+          );
+
+          final exit = await TapirScreenshotCommand().handle(ctx);
+
+          // 1. Command exited successfully.
+          expect(exit, equals(0));
+
+          // 2. CDP calls were made in the correct order.
+          expect(callOrder,
+              equals(<String>['Page.enable', 'Page.captureScreenshot']));
+
+          // 3. captureScreenshot received the expected params.
+          expect(capturedScreenshotParams, isNotNull);
+          expect(capturedScreenshotParams!['format'], equals('png'));
+          expect(capturedScreenshotParams!['fromSurface'], equals(true));
+          expect(capturedScreenshotParams!.containsKey('captureBeyondViewport'),
+              isFalse);
+
+          // 4. The file on disk contains the decoded PNG bytes.
+          expect(File(outPath).existsSync(), isTrue);
+          expect(
+            File(outPath).readAsBytesSync(),
+            equals(base64Decode(fakePngBase64)),
+          );
+
+          // 5. The native ext.tapir.screenshot extension was NOT called.
+          expect(ctx.lastMethod, isNull);
+        },
+      );
+
+      // -----------------------------------------------------------------------
+      // (b) JPEG with quality: quality param is forwarded in captureScreenshot.
+      // -----------------------------------------------------------------------
+      test(
+        'forwards quality param for jpeg format',
+        () async {
+          Map<String, dynamic>? capturedParams;
+
+          final server = await FakeCdpServer.start(
+            handlers: {
+              'Page.enable': (Map<String, dynamic> _) async =>
+                  <String, dynamic>{},
+              'Page.captureScreenshot': (Map<String, dynamic> params) async {
+                capturedParams = params;
+                return <String, dynamic>{'data': fakePngBase64};
+              },
+            },
+          );
+          addTearDown(server.stop);
+
+          await _writeState(tempDir, {'cdpPort': server.port});
+          StateFile.debugHomeOverride = tempDir.path;
+
+          final ctx = _StubContext(
+            input: MapInput({
+              'output': '${tempDir.path}/shot.jpg',
+              'format': 'jpeg',
+              'quality': '80',
+            }),
+            output: BufferedOutput(),
+          );
+
+          await TapirScreenshotCommand().handle(ctx);
+
+          expect(capturedParams!['format'], equals('jpeg'));
+          expect(capturedParams!['quality'], equals(80));
+        },
+      );
+
+      // -----------------------------------------------------------------------
+      // (c) PNG format: quality param is NOT forwarded.
+      // -----------------------------------------------------------------------
+      test(
+        'does not forward quality for png format',
+        () async {
+          Map<String, dynamic>? capturedParams;
+
+          final server = await FakeCdpServer.start(
+            handlers: {
+              'Page.enable': (Map<String, dynamic> _) async =>
+                  <String, dynamic>{},
+              'Page.captureScreenshot': (Map<String, dynamic> params) async {
+                capturedParams = params;
+                return <String, dynamic>{'data': fakePngBase64};
+              },
+            },
+          );
+          addTearDown(server.stop);
+
+          await _writeState(tempDir, {'cdpPort': server.port});
+          StateFile.debugHomeOverride = tempDir.path;
+
+          final ctx = _StubContext(
+            input: MapInput({
+              'output': '${tempDir.path}/shot.png',
+              'format': 'png',
+              'quality': '90',
+            }),
+            output: BufferedOutput(),
+          );
+
+          await TapirScreenshotCommand().handle(ctx);
+
+          expect(capturedParams!.containsKey('quality'), isFalse);
+        },
+      );
+
+      // -----------------------------------------------------------------------
+      // (d) CDP connect failure → exit 1 + error message.
+      // -----------------------------------------------------------------------
+      test(
+        'exits 1 with error message when CDP connect fails',
+        () async {
+          final server = await FakeCdpServer.start();
+          final int closedPort = server.port;
+          await server.stop();
+
+          await _writeState(tempDir, {'cdpPort': closedPort});
+          StateFile.debugHomeOverride = tempDir.path;
+
+          final output = BufferedOutput();
+          final ctx = _StubContext(
+            input: MapInput({
+              'output': '${tempDir.path}/shot.png',
+              'format': 'png',
+              'quality': '90',
+            }),
+            output: output,
+          );
+
+          final exit = await TapirScreenshotCommand().handle(ctx);
+
+          expect(exit, equals(1));
+          expect(output.content, contains('Failed to connect to Chrome CDP'));
+        },
+      );
+
+      // -----------------------------------------------------------------------
+      // (e) Non-numeric cdpPort (corrupt / cross-version state) → native path,
+      //     not a force-cast crash.
+      // -----------------------------------------------------------------------
+      test(
+        'falls through to ext.tapir.screenshot when cdpPort is not numeric',
+        () async {
+          await _writeState(tempDir, {'cdpPort': 'not-a-port'});
+          StateFile.debugHomeOverride = tempDir.path;
+
+          const fakeBase64 = 'aGVsbG8=';
+          final ctx = _StubContext(
+            input: MapInput({
+              'output': '${tempDir.path}/shot.png',
+              'format': 'png',
+              'quality': '90',
+            }),
+            output: BufferedOutput(),
+            response: const {'base64': fakeBase64},
+          );
+
+          final exit = await TapirScreenshotCommand().handle(ctx);
+
+          expect(exit, equals(0));
+          expect(ctx.lastMethod, equals('ext.tapir.screenshot'));
+        },
+      );
+
+      // -----------------------------------------------------------------------
+      // (f) CDP response missing `data` → exit 1 with a clear error, not an
+      //     uncaught cast exception.
+      // -----------------------------------------------------------------------
+      test(
+        'exits 1 with error message when CDP returns no data',
+        () async {
+          final server = await FakeCdpServer.start(
+            handlers: {
+              'Page.enable': (Map<String, dynamic> _) async =>
+                  <String, dynamic>{},
+              'Page.captureScreenshot': (Map<String, dynamic> _) async =>
+                  <String, dynamic>{},
+            },
+          );
+          addTearDown(server.stop);
+
+          await _writeState(tempDir, {'cdpPort': server.port});
+          StateFile.debugHomeOverride = tempDir.path;
+
+          final output = BufferedOutput();
+          final ctx = _StubContext(
+            input: MapInput({
+              'output': '${tempDir.path}/shot.png',
+              'format': 'png',
+              'quality': '90',
+            }),
+            output: output,
+          );
+
+          final exit = await TapirScreenshotCommand().handle(ctx);
+
+          expect(exit, equals(1));
+          expect(output.content, contains('no image data'));
+        },
+      );
+    });
+
+    // -------------------------------------------------------------------------
+    // Region capture: --ref / --rect
+    // -------------------------------------------------------------------------
+
+    group('region capture', () {
+      test('configure declares --ref and --rect', () {
+        final parser = ArgParser();
+        TapirScreenshotCommand().configure(parser);
+
+        expect(parser.options.keys, contains('ref'));
+        expect(parser.options.keys, contains('rect'));
+      });
+
+      test('native path forwards ref and rect to the extension', () async {
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/region.jpg',
+            'format': 'jpeg',
+            'quality': '70',
+            'ref': 'e5',
+            'rect': '10,20,30,40',
+          }),
+          output: BufferedOutput(),
+          response: const {
+            'format': 'jpeg',
+            'base64': 'AA==',
+            'width': 60,
+            'height': 80,
+          },
+        );
+
+        final exit = await TapirScreenshotCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        expect(ctx.lastMethod, equals('ext.tapir.screenshot'));
+        expect(ctx.lastParams, containsPair('ref', 'e5'));
+        expect(ctx.lastParams, containsPair('rect', '10,20,30,40'));
+      });
+
+      test('native path omits ref and rect when not supplied', () async {
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({'output': '${tempDir.path}/full.jpg'}),
+          output: BufferedOutput(),
+          response: const {'base64': 'AA=='},
+        );
+
+        await TapirScreenshotCommand().handle(ctx);
+
+        expect(ctx.lastParams!.containsKey('ref'), isFalse);
+        expect(ctx.lastParams!.containsKey('rect'), isFalse);
+      });
+
+      test('CDP path clips the capture to the ref rect', () async {
+        const fakePngBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk'
+            '+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        Map<String, dynamic>? capturedParams;
+
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Page.enable': (Map<String, dynamic> _) async =>
+                <String, dynamic>{},
+            'Page.captureScreenshot': (Map<String, dynamic> params) async {
+              capturedParams = params;
+              return <String, dynamic>{'data': fakePngBase64};
+            },
+          },
+        );
+        addTearDown(server.stop);
+
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        // The geometry probe skips rasterising, so it is safe on the web
+        // target whose in-isolate toImage() is the reason this path exists.
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/region.png',
+            'format': 'png',
+            'ref': 'e5',
+          }),
+          output: BufferedOutput(),
+          response: const {
+            'rect': {'x': 12.0, 'y': 34.0, 'width': 100.0, 'height': 50.0},
+          },
+        );
+
+        final exit = await TapirScreenshotCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        expect(ctx.lastMethod, equals('ext.tapir.screenshot'));
+        expect(ctx.lastParams, containsPair('geometry', 'true'));
+        expect(ctx.lastParams, containsPair('ref', 'e5'));
+
+        // Flutter logical px map 1:1 onto CDP CSS px, so the rect crosses
+        // over unscaled.
+        final clip = capturedParams!['clip'] as Map<String, dynamic>;
+        expect(clip['x'], equals(12.0));
+        expect(clip['y'], equals(34.0));
+        expect(clip['width'], equals(100.0));
+        expect(clip['height'], equals(50.0));
+        expect(clip['scale'], equals(1));
+      });
+
+      test('a sub-rect rides along to the geometry probe', () async {
+        // `--rect` is ref-local, so the extension is the only place that can
+        // turn it into page coordinates. A command that resolved the ref's
+        // own bounds and cropped afterwards would clip the wrong region.
+        const fakePngBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk'
+            '+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        Map<String, dynamic>? capturedParams;
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Page.enable': (params) async => <String, dynamic>{},
+            'Page.bringToFront': (params) async => <String, dynamic>{},
+            'Page.captureScreenshot': (params) async {
+              capturedParams = params;
+              return <String, dynamic>{'data': fakePngBase64};
+            },
+          },
+        );
+        addTearDown(server.stop);
+
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/sub.png',
+            'format': 'png',
+            'ref': 'e5',
+            'rect': '5,5,10,10',
+          }),
+          output: BufferedOutput(),
+          response: const {
+            'rect': {'x': 17.0, 'y': 39.0, 'width': 10.0, 'height': 10.0},
+          },
+        );
+
+        final exit = await TapirScreenshotCommand().handle(ctx);
+
+        expect(exit, equals(0));
+        expect(ctx.lastParams, containsPair('rect', '5,5,10,10'));
+        final clip = capturedParams!['clip'] as Map<String, dynamic>;
+        expect(clip['x'], equals(17.0));
+        expect(clip['width'], equals(10.0));
+      });
+
+      test('CDP path sends no clip without a ref', () async {
+        const fakePngBase64 =
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk'
+            '+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        Map<String, dynamic>? capturedParams;
+
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Page.enable': (Map<String, dynamic> _) async =>
+                <String, dynamic>{},
+            'Page.captureScreenshot': (Map<String, dynamic> params) async {
+              capturedParams = params;
+              return <String, dynamic>{'data': fakePngBase64};
+            },
+          },
+        );
+        addTearDown(server.stop);
+
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/full.png',
+            'format': 'png',
+          }),
+          output: BufferedOutput(),
+        );
+
+        await TapirScreenshotCommand().handle(ctx);
+
+        expect(capturedParams!.containsKey('clip'), isFalse);
+      });
+
+      test('CDP path fails loudly when the ref has no live rect', () async {
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Page.enable': (Map<String, dynamic> _) async =>
+                <String, dynamic>{},
+            'Page.captureScreenshot': (Map<String, dynamic> _) async =>
+                <String, dynamic>{'data': ''},
+          },
+        );
+        addTearDown(server.stop);
+
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/region.png',
+            'ref': 'e5',
+          }),
+          output: output,
+          response: const {},
+        );
+
+        final exit = await TapirScreenshotCommand().handle(ctx);
+
+        // Silently falling back to a full-viewport capture would hand the
+        // caller a wrong image that looks right, which is the failure mode
+        // this whole flag exists to remove.
+        expect(exit, equals(1));
+        expect(output.content, contains('no rect'));
+      });
+    });
+  });
+
+  test('--rect without --ref is refused', () async {
+    // A rect is ref-local, so without a ref it has no origin to be
+    // relative to. Cropping the viewport at those coordinates instead
+    // would return a plausible image of the wrong region.
+    final output = BufferedOutput();
+    final exit = await TapirScreenshotCommand().handle(
+      DowelContext.bare(
+        MapInput(const {'output': '/tmp/x.png', 'rect': '10,20,30,40'}),
+        output,
+      ),
+    );
+
+    expect(exit, equals(1));
+    expect(output.content, contains('needs --ref'));
+  });
+}

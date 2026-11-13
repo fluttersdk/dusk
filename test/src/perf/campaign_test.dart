@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/perf/campaign.dart';
-import 'package:fluttersdk_dusk/src/perf/scenario.dart';
+import 'package:tapir/src/perf/campaign.dart';
+import 'package:tapir/src/perf/scenario.dart';
 
 /// A secret with both a quote and a dollar sign, so a redaction that masks
 /// only the raw form (or only the JSON form) is caught.
@@ -42,7 +42,7 @@ steps:
 void main() {
   late Directory dir;
 
-  setUp(() => dir = Directory.systemTemp.createTempSync('dusk_campaign_'));
+  setUp(() => dir = Directory.systemTemp.createTempSync('tapir_campaign_'));
   tearDown(() => dir.deleteSync(recursive: true));
 
   /// Writes [content] under the temp dir and returns its absolute path.
@@ -380,15 +380,15 @@ android:
 scenarios: [scenarios/a.yaml]
 hooks:
   before_campaign: ./services.sh up
-  before_scenario: echo "$DUSK_PERF_SCENARIO"
-  after_campaign: ./services.sh down "$DUSK_PERF_STATUS"
+  before_scenario: echo "$TAPIR_PERF_SCENARIO"
+  after_campaign: ./services.sh down "$TAPIR_PERF_STATUS"
 '''));
 
         expect(campaign.hooks.beforeCampaign, './services.sh up');
-        expect(campaign.hooks.beforeScenario, r'echo "$DUSK_PERF_SCENARIO"');
+        expect(campaign.hooks.beforeScenario, r'echo "$TAPIR_PERF_SCENARIO"');
         expect(
           campaign.hooks.afterCampaign,
-          r'./services.sh down "$DUSK_PERF_STATUS"',
+          r'./services.sh down "$TAPIR_PERF_STATUS"',
         );
       });
 
@@ -400,7 +400,7 @@ hooks:
 scenarios: [scenarios/a.yaml]
 hooks:
   before_campaign: "login --password ${env.PASSWORD}"
-  before_scenario: "echo ${DUSK_PERF_SCENARIO}"
+  before_scenario: "echo ${TAPIR_PERF_SCENARIO}"
 '''),
           env: <String, String>{'PASSWORD': _secret},
         );
@@ -431,7 +431,7 @@ hooks: {before_campaign: [up], before_scenario: "", after_campaign: 1}
         write('scenarios/a.yaml', _tap);
         final String problems = await problemsOf(write('c.yaml', r'''
 scenarios: [scenarios/a.yaml]
-hooks: {after_campaign: "down ${DUSK_PERF_STATUS}"}
+hooks: {after_campaign: "down ${TAPIR_PERF_STATUS}"}
 '''));
 
         expect(problems, contains(r'hooks.after_campaign holds a "${"'));

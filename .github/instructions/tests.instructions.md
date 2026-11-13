@@ -5,13 +5,13 @@ applyTo: '**'
 
 ## Layout
 
-Mirror the `lib/src/` tree exactly: `lib/src/extensions/ext_pointer.dart` maps to `test/src/extensions/ext_pointer_test.dart`. One production file, one test file. The provider test lives at `test/dusk_artisan_provider_mcp_tools_test.dart` (direct child of `test/`, mirrors the artisan peer). The CDP smoke lives at `test/integration/cdp_smoke_test.dart` and is tagged `integration` so the default runner excludes it.
+Mirror the `lib/src/` tree exactly: `lib/src/extensions/ext_pointer.dart` maps to `test/src/extensions/ext_pointer_test.dart`. One production file, one test file. The provider test lives at `test/tapir_dowel_provider_mcp_tools_test.dart` (direct child of `test/`, mirrors the dowel peer). The CDP smoke lives at `test/integration/cdp_smoke_test.dart` and is tagged `integration` so the default runner excludes it.
 
-Subtree counts (current baseline): `test/src/commands/` 31 files, `test/src/extensions/` 17 files, `test/src/utils/` 3, `test/src/cdp/` 4, `test/src/` 2 (`dusk_plugin_test.dart`, `ref_registry_test.dart`).
+Subtree counts (current baseline): `test/src/commands/` 31 files, `test/src/extensions/` 17 files, `test/src/utils/` 3, `test/src/cdp/` 4, `test/src/` 2 (`tapir_plugin_test.dart`, `ref_registry_test.dart`).
 
 ## Framework and fakes
 
-`flutter_test` only. No mockito. Stub via contract inheritance: write a private `_FakeNavigateAdapter`, `_FakeEnricher`, `_RecordingArtisanCtx` class inside the test file. Apply the extract-when-third-caller rule before moving a fake to a shared file under `test/_support/`.
+`flutter_test` only. No mockito. Stub via contract inheritance: write a private `_FakeNavigateAdapter`, `_FakeEnricher`, `_RecordingDowelCtx` class inside the test file. Apply the extract-when-third-caller rule before moving a fake to a shared file under `test/_support/`.
 
 No real VM Service connection in any handler test. Handler tests (`test/src/extensions/`) call the handler functions directly (they are `@visibleForTesting` or exported through the file's public surface) and assert on the returned `ServiceExtensionResponse` JSON via `jsonDecode(response.result!) as Map<String, dynamic>`.
 
@@ -45,7 +45,7 @@ group('ClassName', () {
 });
 ```
 
-Top-level `group` names the class or extension under test. Nested `group` names the method or `ext.dusk.X` extension (prefix `.` for instance methods). Test description is a plain-English sentence starting with the condition or outcome.
+Top-level `group` names the class or extension under test. Nested `group` names the method or `ext.tapir.X` extension (prefix `.` for instance methods). Test description is a plain-English sentence starting with the condition or outcome.
 
 ## TDD discipline
 
@@ -53,13 +53,13 @@ Red-green-refactor for every behavioral change. The new test must fail for the r
 
 For actionability-gate changes: add a dedicated test per precondition (`enabled`, `zero rect`, `off-viewport`, `not stable`, `obscured`, `defunct`) that asserts on the exact reason substring (`expect(error.reason, contains('off-viewport'))`); agents parse these substrings, so they are load-bearing.
 
-For new MCP tool descriptors: extend `test/dusk_artisan_provider_mcp_tools_test.dart` to assert the tool count (`mcpTools().length`), the new tool's `name`, and its `extensionMethod` route prefix (`ext.dusk.*` versus `artisan:dusk:*`).
+For new MCP tool descriptors: extend `test/tapir_dowel_provider_mcp_tools_test.dart` to assert the tool count (`mcpTools().length`), the new tool's `name`, and its `extensionMethod` route prefix (`ext.tapir.*` versus `dowel:tapir:*`).
 
 ## Assertion targets
 
 - **RefRegistry tests**: assert on `RefRegistry.lookup(ref)`, `RefRegistry.lookupQuery(ref)`, `RefRegistry.refsForGroup(groupId).length`. Never reach into private `_entries` / `_queries` maps.
-- **Handler tests**: call the handler function directly (`aiTestTapHandler('ext.dusk.tap', params)`), decode the response, assert on the decoded map keys.
-- **Provider tests**: instantiate `DuskArtisanProvider()`, assert `commands().length == 32`, `mcpTools().length == 31`, then assert specific descriptor `name` + `extensionMethod` per index range.
+- **Handler tests**: call the handler function directly (`aiTestTapHandler('ext.tapir.tap', params)`), decode the response, assert on the decoded map keys.
+- **Provider tests**: instantiate `TapirDowelProvider()`, assert `commands().length == 32`, `mcpTools().length == 31`, then assert specific descriptor `name` + `extensionMethod` per index range.
 - **CDP tests**: spin up `FakeCdpServer`, assert on the recorded JSON-RPC frames (method name + params shape) rather than network bytes.
 
 ## Baseline and coverage gate

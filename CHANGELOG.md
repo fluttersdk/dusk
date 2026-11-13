@@ -8,6 +8,16 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed from `fluttersdk_dusk` to `tapir`.** The package, the repository (`anilcancakir/tapir`), the barrels (`package:tapir/tapir.dart` and `package:tapir/cli.dart`), every `Dusk*` class (now `Tapir*`, and `DuskArtisanProvider` is `TapirDowelProvider`), the executable and the file names carry the new name. Also renamed: the `ext.dusk.*` VM Service extensions (now `ext.tapir.*`), the MCP tools (`dusk_*` is `tapir_*`), the CLI commands (`dusk:*` is `tapir:*`, and the substrate commands `artisan:dusk:*` are `dowel:tapir:*`), the environment variables (`DUSK_*` is `TAPIR_*`), the perf zone key (`#fluttersdk_interaction` is `#tapir_interaction`) and the docs URLs (`https://anilcancakir.com/tapir`).
+- **Built on `dowel` and `wind_kit_diagnostics_contracts`.** `fluttersdk_artisan` is now `dowel ^0.0.21` and `fluttersdk_wind_diagnostics_contracts` is `wind_kit_diagnostics_contracts ^1.3.0`. The `.mcp.json` server key written by `mcp:install` is `dowel`.
+- **Breaking, nothing is migrated automatically.** In a consumer project: (1) swap the dependencies with `dart pub remove fluttersdk_dusk fluttersdk_artisan && dart pub add tapir dowel` and rename the imports and the `Dusk*` identifiers; (2) follow the dowel 0.0.21 migration (move `.artisan/` to `.dowel/`, delete `.dowel/plugins.json`) and run `dart run tapir tapir:install` again; (3) rename `dusk_*` to `tapir_*` in any saved MCP allow list, prompt or script.
+
+### Removed
+
+- **The `FluttersdkDuskArtisanProvider` alias in `package:tapir/cli.dart`.** The class dowel's `plugins:refresh` generates for this package, `TapirDowelProvider`, is the provider itself, so the alias is gone.
+
 ---
 
 ## [0.0.23] - 2026-11-07

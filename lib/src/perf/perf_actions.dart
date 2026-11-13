@@ -16,7 +16,7 @@ const Duration kPerfResolvePollInterval = Duration(milliseconds: 100);
 /// pause returns at once.
 const int kPerfResolveMaxPolls = 30;
 
-/// How many candidates a role target asks `ext.dusk.observe` for: every
+/// How many candidates a role target asks `ext.tapir.observe` for: every
 /// interactive node on a screen, so an index deep in a list still resolves.
 const int _kObserveLimit = 5000;
 
@@ -104,7 +104,7 @@ final class PerfActions {
     switch (step.verb) {
       case PerfStepVerb.tap:
         final Map<String, dynamic> result = await driver.call(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': await target(),
             ...quiet,
@@ -119,7 +119,7 @@ final class PerfActions {
         return record ? <String, dynamic>{'point': point} : null;
       case PerfStepVerb.drag:
         final Map<String, dynamic> result = await driver.call(
-          'ext.dusk.drag',
+          'ext.tapir.drag',
           <String, String>{
             'startRef': await target(),
             'dx': '${step.dx}',
@@ -134,7 +134,7 @@ final class PerfActions {
       case PerfStepVerb.fill:
       case PerfStepVerb.type:
         await driver.call(
-          'ext.dusk.${step.verb.wire}',
+          'ext.tapir.${step.verb.wire}',
           <String, String>{
             'ref': await target(),
             'text': step.text!,
@@ -143,7 +143,7 @@ final class PerfActions {
         );
       case PerfStepVerb.scroll:
         await driver.call(
-          'ext.dusk.scroll',
+          'ext.tapir.scroll',
           <String, String>{
             'ref': await target(),
             'dx': '${step.dx}',
@@ -166,12 +166,12 @@ final class PerfActions {
     switch (step.verb) {
       case PerfStepVerb.pressKey:
         await driver.call(
-          'ext.dusk.press_key',
+          'ext.tapir.press_key',
           <String, String>{'key': step.key!, 'includeSnapshot': 'false'},
         );
       case PerfStepVerb.navigate:
         await driver.call(
-          'ext.dusk.navigate',
+          'ext.tapir.navigate',
           <String, String>{'route': step.route!, 'includeSnapshot': 'false'},
         );
       case PerfStepVerb.resize:
@@ -192,7 +192,7 @@ final class PerfActions {
   /// it wheels, and where the wheel then goes.
   Future<Map<String, dynamic>> hover(String ref) async => perfMap(
         (await driver.call(
-          'ext.dusk.hover',
+          'ext.tapir.hover',
           <String, String>{
             'ref': ref,
             'reportPoint': 'true',
@@ -244,29 +244,29 @@ final class PerfActions {
 
   /// One lookup of [target]; null when nothing matches.
   ///
-  /// Text, label and key go through `ext.dusk.find`, the re-resolvable
-  /// handle; a text index through the list `ext.dusk.find_by_text` returns.
-  /// A role goes through `ext.dusk.observe`, which lists every interactive
-  /// node with the role and the merged label `dusk:snap` prints, each behind
+  /// Text, label and key go through `ext.tapir.find`, the re-resolvable
+  /// handle; a text index through the list `ext.tapir.find_by_text` returns.
+  /// A role goes through `ext.tapir.observe`, which lists every interactive
+  /// node with the role and the merged label `tapir:snap` prints, each behind
   /// a `q<N>` handle already pinned to its own node. Scenario validation
   /// refuses an index on a label, since nothing can serve one.
   Future<String?> lookup(PerfTarget target) async =>
       switch ((target.kind, target.index)) {
         (PerfTargetKind.text, 0) => (await driver.call(
-            'ext.dusk.find',
+            'ext.tapir.find',
             <String, String>{'text': target.value},
           ))['ref'] as String?,
         (PerfTargetKind.label, 0) => (await driver.call(
-            'ext.dusk.find',
+            'ext.tapir.find',
             <String, String>{'semanticsLabel': target.value},
           ))['ref'] as String?,
         (PerfTargetKind.key, _) => (await driver.call(
-            'ext.dusk.find',
+            'ext.tapir.find',
             <String, String>{'key': target.value},
           ))['ref'] as String?,
         (PerfTargetKind.text, final int index) => _at(
             await driver.call(
-              'ext.dusk.find_by_text',
+              'ext.tapir.find_by_text',
               <String, String>{'text': target.value},
             ),
             index,
@@ -276,7 +276,7 @@ final class PerfActions {
           ),
         (PerfTargetKind.role, final int index) => _named(
             await driver.call(
-              'ext.dusk.observe',
+              'ext.tapir.observe',
               <String, String>{
                 'roles': target.role!,
                 'includeEnrichers': 'false',
@@ -294,7 +294,7 @@ String? _at(Map<String, dynamic> result, int index) {
   return index < refs.length ? refs[index] as String? : null;
 }
 
-/// The ref of the [index]th `ext.dusk.observe` candidate labelled [name],
+/// The ref of the [index]th `ext.tapir.observe` candidate labelled [name],
 /// in walk order; null when there are not that many.
 String? _named(Map<String, dynamic> result, String name, int index) {
   final List<String?> refs = <String?>[

@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/commands/dusk_perf_campaign_command.dart';
+import 'package:tapir/src/commands/tapir_perf_campaign_command.dart';
 
 void main() {
   group('drainProcessOutput()', () {

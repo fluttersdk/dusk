@@ -3,7 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/utils/frame_sync.dart';
+import 'package:tapir/src/utils/frame_sync.dart';
 
 /// Drives the app lifecycle through the platform channel, the path the
 /// engine itself uses, so `framesEnabled` flips for real.

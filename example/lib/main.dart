@@ -1,33 +1,33 @@
-// Dusk showroom: exercises every public dusk command surface. Each
-// interactive widget on `/` is reachable via `dusk:snap` and acts as a
+// Tapir showroom: exercises every public tapir command surface. Each
+// interactive widget on `/` is reachable via `tapir:snap` and acts as a
 // target for the gesture and input handlers. Three named routes cover
-// `dusk:navigate` and `dusk:navigate_back`; a dialog and bottom sheet
-// cover `dusk:modal`; a network simulator covers
-// `dusk:wait_for_network_idle`; a log+throw button covers
-// `dusk:console` and `dusk:exceptions`.
+// `tapir:navigate` and `tapir:navigate_back`; a dialog and bottom sheet
+// cover `tapir:modal`; a network simulator covers
+// `tapir:wait_for_network_idle`; a log+throw button covers
+// `tapir:console` and `tapir:exceptions`.
 
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttersdk_dusk/dusk.dart';
+import 'package:tapir/tapir.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   if (!kReleaseMode) {
-    DuskPlugin.install();
+    TapirPlugin.install();
   }
-  runApp(const DuskShowroomApp());
+  runApp(const TapirShowroomApp());
 }
 
-class DuskShowroomApp extends StatelessWidget {
-  const DuskShowroomApp({super.key});
+class TapirShowroomApp extends StatelessWidget {
+  const TapirShowroomApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Dusk Showroom',
+      title: 'Tapir Showroom',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.teal),
       initialRoute: '/',
@@ -144,7 +144,7 @@ class _ShowroomHomeState extends State<ShowroomHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dusk Showroom'),
+        title: const Text('Tapir Showroom'),
         actions: [
           IconButton(
             key: const Key('open-settings'),

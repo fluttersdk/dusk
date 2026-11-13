@@ -2,7 +2,7 @@
 
 A long real-app E2E session surfaces a recurring set of traps that every agent
 re-discovers the hard way. This page collects them, with the workaround each one
-now has built into `fluttersdk_dusk`. Read it once before driving a non-trivial
+now has built into `tapir`. Read it once before driving a non-trivial
 app; it will save you a dozen dead-end round trips.
 
 ---
@@ -11,8 +11,8 @@ app; it will save you a dozen dead-end round trips.
 
 - [1. Refs go stale on rebuild](#1-refs-go-stale-on-rebuild)
 - [2. Text fields may snapshot nested](#2-text-fields-may-snapshot-nested)
-- [3. dusk:console needs (less than) you think](#3-duskconsole)
-- [4. dusk:exceptions is cumulative](#4-duskexceptions-is-cumulative)
+- [3. tapir:console needs (less than) you think](#3-tapirconsole)
+- [4. tapir:exceptions is cumulative](#4-tapirexceptions-is-cumulative)
 - [5. restart preserves the CDP port](#5-restart-preserves-the-cdp-port)
 - [6. Overlays get stuck](#6-overlays-get-stuck)
 - [7. A green tick is dispatch, not effect](#7-a-green-tick-is-dispatch-not-effect)
@@ -23,20 +23,20 @@ app; it will save you a dozen dead-end round trips.
 <a name="1-refs-go-stale-on-rebuild"></a>
 ## 1. Refs go stale on rebuild
 
-`e<N>` refs from `dusk:snap` freeze the widget at snapshot time. A navigation,
+`e<N>` refs from `tapir:snap` freeze the widget at snapshot time. A navigation,
 a modal open/close, a `setState`, or any significant rebuild invalidates them:
 the next action on a stale `e<N>` fails with a not-found or stale envelope.
 
 **Workaround:**
 
-- Re-snap (`dusk:snap`) after any action that changes the screen, and use the
+- Re-snap (`tapir:snap`) after any action that changes the screen, and use the
   fresh refs.
 - For a target that survives re-renders (a stable `Text`, accessibility label,
-  or `Key`), prefer `dusk:find` / `dusk:observe`, which mint a re-resolvable
+  or `Key`), prefer `tapir:find` / `tapir:observe`, which mint a re-resolvable
   `q<N>` handle that re-walks the live tree on every action call. `q<N>`
   handles survive rebuild, route push, and snapshot disposal as long as the
   predicates still match.
-- Pointer verbs (`dusk:tap`, `dusk:hover`, `dusk:drag`, ...) now dispatch at the
+- Pointer verbs (`tapir:tap`, `tapir:hover`, `tapir:drag`, ...) now dispatch at the
   element's LIVE rect, not the cached snapshot rect, so a target that merely
   shifted slots (same `Element`/`RenderObject`) is still hit correctly. The
   false-success class (gate passes, pointer lands on the stale position,
@@ -55,50 +55,50 @@ the next action on a stale `e<N>` fails with a not-found or stale envelope.
 A wind `WInput` (and any `TextField` wrapped in `Semantics(textField: true)`)
 historically snapshotted as TWO nested `textbox` nodes, because `RenderEditable`
 unconditionally owns its own `textField` Semantics node and `MergeSemantics`
-cannot absorb it. Agents naturally targeted the inner leaf, where `dusk:type`
+cannot absorb it. Agents naturally targeted the inner leaf, where `tapir:type`
 threw a `-32000`.
 
 **Workaround:**
 
-- `dusk:snap` now collapses the nested pair (by render-object containment, never
+- `tapir:snap` now collapses the nested pair (by render-object containment, never
   label/value equality, so two sibling fields sharing a label stay distinct) and
   emits a single ref for the outer node, marked `typeable: true`. Target the
   node carrying `typeable: true`.
-- Better: use `dusk:fill --ref=<ref> --text=<value>`, which focuses, clears,
+- Better: use `tapir:fill --ref=<ref> --text=<value>`, which focuses, clears,
   types, and settles in one call (and retries once on a stale handle). It
   resolves the right editable for you and composes the gated focus/clear/type
   handlers, so you do not re-build the focus + clear + type + settle dance.
 
 ---
 
-<a name="3-duskconsole"></a>
-## 3. dusk:console captures debugPrint in-package now
+<a name="3-tapirconsole"></a>
+## 3. tapir:console captures debugPrint in-package now
 
-`dusk:console` historically surfaced full structured logs only when
-`fluttersdk_telescope` was installed and wired.
+`tapir:console` historically surfaced full structured logs only when
+`crumbs` was installed and wired.
 
 **Workaround:**
 
-- `DuskPlugin.install()` now chains a `debugPrint` override that records every
+- `TapirPlugin.install()` now chains a `debugPrint` override that records every
   `debugPrint(...)` / `print(...)` call into a bounded in-package ring buffer,
-  so those entries appear in `dusk:console` even without telescope.
-- When telescope IS installed it enriches the output with `Logger.root.onRecord`
+  so those entries appear in `tapir:console` even without crumbs.
+- When crumbs IS installed it enriches the output with `Logger.root.onRecord`
   entries and its other watchers. Direct `dart:developer log()` calls that
-  bypass `debugPrint` still require telescope's `LogWatcher`.
+  bypass `debugPrint` still require crumbs's `LogWatcher`.
 
 ---
 
-<a name="4-duskexceptions-is-cumulative"></a>
-## 4. dusk:exceptions is cumulative
+<a name="4-tapirexceptions-is-cumulative"></a>
+## 4. tapir:exceptions is cumulative
 
-`dusk:exceptions` returns the full exception history by default, so a single
+`tapir:exceptions` returns the full exception history by default, so a single
 pre-existing error keeps re-appearing after every action and produces false
 positives when you are checking whether YOUR action raised something new.
 
 **Workaround:**
 
 - Record the current time before the action, then pass
-  `dusk:exceptions --since=<iso8601>` afterwards to get only exceptions raised
+  `tapir:exceptions --since=<iso8601>` afterwards to get only exceptions raised
   strictly after that timestamp. Unparseable `since` values are treated as
   absent (full list).
 
@@ -107,15 +107,15 @@ positives when you are checking whether YOUR action raised something new.
 <a name="5-restart-preserves-the-cdp-port"></a>
 ## 5. restart preserves the CDP port
 
-When artisan was started with `--cdp-port` (the web path that backs
-`dusk:screenshot` CDP fallback, `dusk:resize`, `dusk:device`), a naive restart
+When dowel was started with `--cdp-port` (the web path that backs
+`tapir:screenshot` CDP fallback, `tapir:resize`, `tapir:device`), a naive restart
 used to drop the port, breaking those CDP-routed tools until you restarted with
 the flag again.
 
 **Workaround:**
 
-- `artisan restart` (and bare `start`) now re-read the prior `cdpPort` from
-  `~/.artisan/state.json` and reuse it as the default, so CDP stays wired across
+- `dowel restart` (and bare `start`) now re-read the prior `cdpPort` from
+  `~/.dowel/state.json` and reuse it as the default, so CDP stays wired across
   restarts. An explicit `--cdp-port` still wins.
 
 ---
@@ -124,12 +124,12 @@ the flag again.
 ## 6. Overlays get stuck
 
 A left-over dialog, bottom sheet, dropdown menu, or barrier modal blocks the
-next screen from rendering, and a single `dusk:modal` (dismiss-modals) does not
+next screen from rendering, and a single `tapir:modal` (dismiss-modals) does not
 clear overlays that are not `PopupRoute`s.
 
 **Workaround:**
 
-- Use `dusk:reset_overlays`, which runs three idempotent layers: dismiss every
+- Use `tapir:reset_overlays`, which runs three idempotent layers: dismiss every
   `PopupRoute`, press `Escape` (for shortcut-driven overlays), then tap a
   Cancel/Dismiss/Close/OK/Done affordance as a last resort. Safe to call
   speculatively between flows; the response (`popped`, `escaped`,
@@ -140,7 +140,7 @@ clear overlays that are not `PopupRoute`s.
 <a name="7-a-green-tick-is-dispatch-not-effect"></a>
 ## 7. A green tick is dispatch, not effect
 
-`✓ Tapped e7` and `✓ Filled e5` say the event left dusk, not that the widget
+`✓ Tapped e7` and `✓ Filled e5` say the event left tapir, not that the widget
 took it. A number field can swallow a fill and keep nothing; a button the gate
 accepted can have an `onTap` that never fires.
 
@@ -148,8 +148,8 @@ accepted can have an `onTap` that never fires.
 
 - Read the `effect` block on the response: `effect.changed` for `tap` and
   `scroll`, `effect.verified` and `effect.value` for `type`, `fill` and `clear`.
-- In summary mode `dusk:fill` and `dusk:type` exit `1` when `effect.verified` is
-  false, and `dusk:navigate`, `dusk:navigate_back` and `dusk:scroll` say so when
+- In summary mode `tapir:fill` and `tapir:type` exit `1` when `effect.verified` is
+  false, and `tapir:navigate`, `tapir:navigate_back` and `tapir:scroll` say so when
   nothing happened. With `--json` or `--includeSnapshot` you get the raw
   envelope and read the field yourself.
 
@@ -165,22 +165,22 @@ not specific to a browser tab.
 
 **Workaround:**
 
-- Nothing, by default: dusk delivers `resumed` and forces a frame at the start of
+- Nothing, by default: tapir delivers `resumed` and forces a frame at the start of
   each verb, and a response that did so carries `framesForced: true`. Verified on
   macOS with the window hidden. The app's own lifecycle observers see `resumed`.
-- If a response still carries a `warnings` block, dusk could not force frames
-  (`--dart-define=DUSK_FORCE_FRAMES=false`, a `detached` app, a wake that
+- If a response still carries a `warnings` block, tapir could not force frames
+  (`--dart-define=TAPIR_FORCE_FRAMES=false`, a `detached` app, a wake that
   produced no frame, or any hidden web tab). Bring the
   window to front and retry.
 - An asleep macOS display can still starve frames; `caffeinate -u -t 3` wakes it
-  (unverified for dusk). See [Frame production](../reference/frame-production.md).
+  (unverified for tapir). See [Frame production](../reference/frame-production.md).
 
 ---
 
 ## See also
 
-- [dusk:fill](../commands/dusk-fill.md), [dusk:reset_overlays](../commands/dusk-reset-overlays.md)
-- [dusk:tap](../commands/dusk-tap.md) (`effect`, `--until`)
-- [dusk:exceptions](../commands/index.md), [dusk:find](../commands/dusk-find.md)
+- [tapir:fill](../commands/tapir-fill.md), [tapir:reset_overlays](../commands/tapir-reset-overlays.md)
+- [tapir:tap](../commands/tapir-tap.md) (`effect`, `--until`)
+- [tapir:exceptions](../commands/index.md), [tapir:find](../commands/tapir-find.md)
 - [Reference: Actionability gate](../reference/actionability-gate.md)
 - [Reference: Frame production](../reference/frame-production.md)

@@ -1,4 +1,4 @@
-/// Args massagers for the dusk CLI wrapper.
+/// Args massagers for the tapir CLI wrapper.
 ///
 /// Pure functions (no IO, no Flutter dependencies) so the bin entrypoint
 /// stays Flutter-free and the logic is unit-testable.

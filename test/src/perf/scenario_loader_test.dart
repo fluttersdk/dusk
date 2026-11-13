@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/perf/scenario.dart';
+import 'package:tapir/src/perf/scenario.dart';
 
 /// A copy of uptizm's `tool/perf/scenarios/dashboard-load-390.yaml`: a file
 /// written before fragments and variants existed must load to the same
@@ -42,7 +42,7 @@ const String _secret = r'ab"c$d';
 void main() {
   late Directory dir;
 
-  setUp(() => dir = Directory.systemTemp.createTempSync('dusk_scenario_'));
+  setUp(() => dir = Directory.systemTemp.createTempSync('tapir_scenario_'));
   tearDown(() => dir.deleteSync(recursive: true));
 
   /// Writes [content] under the temp dir and returns its absolute path.

@@ -1,12 +1,12 @@
 {
     "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-    "name": "io.github.fluttersdk/dusk",
-    "title": "FlutterSDK Dusk",
+    "name": "io.github.anilcancakir/tapir",
+    "title": "Tapir",
     "description": "Drive live Flutter apps: snapshot the Semantics tree, tap, type, scroll and screenshot.",
     "version": "0.0.23",
     "repository": {
-        "url": "https://github.com/fluttersdk/dusk",
+        "url": "https://github.com/anilcancakir/tapir",
         "source": "github"
     },
-    "websiteUrl": "https://fluttersdk.com/dusk"
+    "websiteUrl": "https://anilcancakir.com/tapir"
 }

@@ -1,4 +1,4 @@
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
 import 'perf_support.dart';
 
@@ -44,13 +44,13 @@ final class PerfRedactor {
       };
 }
 
-/// An [ArtisanOutput] that [PerfRedactor.redact]s every line before the
+/// An [DowelOutput] that [PerfRedactor.redact]s every line before the
 /// output it wraps sees it, so an error, a diagnostic, a success line or a
 /// `--json` envelope cannot print a secret.
-final class RedactingOutput implements ArtisanOutput {
+final class RedactingOutput implements DowelOutput {
   RedactingOutput(this._inner, this._redactor);
 
-  final ArtisanOutput _inner;
+  final DowelOutput _inner;
   final PerfRedactor _redactor;
 
   @override

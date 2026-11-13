@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// The widget tree of fluttersdk/dusk#60: a `MergeSemantics` stage whose own
+/// The widget tree of anilcancakir/tapir#60: a `MergeSemantics` stage whose own
 /// tap handler fills the frame, with a small labelled `Skip intro` button in
 /// the bottom-right corner. The merged node's centre belongs to the stage, not
 /// to the button.

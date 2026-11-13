@@ -5,11 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
 import '../utils/actionability_gate.dart' show resolveViewFor;
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/key_press.dart';
 import '../utils/perf_interaction.dart';
@@ -18,7 +18,7 @@ import '../utils/perf_interaction.dart';
 // Self-registration entry point
 // ---------------------------------------------------------------------------
 
-/// Registers the `ext.dusk.dismiss_modals` VM Service extension.
+/// Registers the `ext.tapir.dismiss_modals` VM Service extension.
 ///
 /// This extension pops any modal routes (bottom sheets, dialogs, popups) that
 /// are sitting above the current page route without disturbing the underlying
@@ -29,12 +29,12 @@ import '../utils/perf_interaction.dart';
 ///
 /// Call this once from [registerAllAiTestExtensions] in `extensions.dart`.
 void registerModalRouterExtension() {
-  registerDuskExtension(
-    'ext.dusk.dismiss_modals',
+  registerTapirExtension(
+    'ext.tapir.dismiss_modals',
     aiTestDismissModalsHandler,
   );
-  registerDuskExtension(
-    'ext.dusk.reset_overlays',
+  registerTapirExtension(
+    'ext.tapir.reset_overlays',
     aiTestResetOverlaysHandler,
   );
 }
@@ -137,7 +137,7 @@ Future<int> dismissAllModals() async {
 // VM Service extension handler
 // ---------------------------------------------------------------------------
 
-/// Handler for `ext.dusk.dismiss_modals`.
+/// Handler for `ext.tapir.dismiss_modals`.
 ///
 /// Params: none.
 ///
@@ -157,21 +157,21 @@ Future<developer.ServiceExtensionResponse> aiTestDismissModalsHandler(
       dismissAllModals,
     );
 
-    return duskResult(<String, dynamic>{'popped': popped});
+    return tapirResult(<String, dynamic>{'popped': popped});
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] aiTestDismissModalsHandler error: $e\n$st',
-      name: 'fluttersdk_dusk',
+      '[tapir] aiTestDismissModalsHandler error: $e\n$st',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// ext.dusk.reset_overlays
+// ext.tapir.reset_overlays
 // ---------------------------------------------------------------------------
 
 /// Common Cancel / Dismiss button labels tried (in order) by the
@@ -185,7 +185,7 @@ const List<String> _kDismissLabels = <String>[
   'Done',
 ];
 
-/// Handler for `ext.dusk.reset_overlays` — the one-call "get back to a known
+/// Handler for `ext.tapir.reset_overlays` — the one-call "get back to a known
 /// clean screen" composition that promotes the manual dismiss + Escape +
 /// Cancel-tap dance into a first-class command.
 ///
@@ -241,19 +241,19 @@ Future<developer.ServiceExtensionResponse> aiTestResetOverlaysHandler(
       return (popped, escaped, dismissTapped);
     });
 
-    return duskResult(<String, dynamic>{
+    return tapirResult(<String, dynamic>{
       'popped': popped,
       'escaped': escaped,
       'dismissTapped': dismissTapped,
     });
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] aiTestResetOverlaysHandler error: $e\n$st',
-      name: 'fluttersdk_dusk',
+      '[tapir] aiTestResetOverlaysHandler error: $e\n$st',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -292,8 +292,8 @@ bool _pressEscape() {
 /// Logs why [_pressEscape] could not press, and reports it as not pressed.
 bool _escapeNotDelivered(Object reason) {
   developer.log(
-    '[fluttersdk_dusk] reset_overlays: Escape press not delivered: $reason',
-    name: 'fluttersdk_dusk',
+    '[tapir] reset_overlays: Escape press not delivered: $reason',
+    name: 'tapir',
   );
   return false;
 }

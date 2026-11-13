@@ -5,14 +5,14 @@ body:
   - type: markdown
     attributes:
       value: |
-        Help us improve the fluttersdk_dusk documentation.
+        Help us improve the tapir documentation.
 
   - type: input
     id: page
     attributes:
       label: Documentation Page
       description: Which doc page has the issue? Use the deployed URL or the repo path.
-      placeholder: "https://fluttersdk.com/dusk/commands/snap OR doc/commands/snap.md"
+      placeholder: "https://anilcancakir.com/tapir/docs/commands/snap OR doc/commands/snap.md"
     validations:
       required: true
 
