@@ -41,7 +41,9 @@ jobs:
             *,skip-changelog,*) echo "skip-changelog label: exempt."; exit 0 ;;
           esac
 
-          changed="$(git diff --name-only "origin/$BASE_REF"...HEAD)"
+          # --no-renames: a file moved out of a shipped directory then shows up
+          # under its old path too, so removing shipped code still needs an entry.
+          changed="$(git diff --no-renames --name-only "origin/$BASE_REF"...HEAD)"
 
           if ! printf '%s\n' "$changed" | grep -Eq "$CODE_PATHS"; then
             echo "No shipped code changed: nothing to record."

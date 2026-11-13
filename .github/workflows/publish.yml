@@ -88,7 +88,7 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           notes="$(awk -v ver="$VERSION" '
-            $0 ~ "^## \\[" ver "\\]" { flag = 1; next }
+            index($0, "## [" ver "]") == 1 { flag = 1; next }
             flag && /^## / { exit }
             flag { print }
           ' CHANGELOG.md)"
