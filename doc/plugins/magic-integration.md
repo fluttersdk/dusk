@@ -1,10 +1,11 @@
 # Magic integration
 
-`MagicTapirIntegration` is the glue layer between the `magic` Flutter framework
-(Laravel-inspired primitives like `MagicForm`, `MagicRouter`, `Gate`, `Auth`,
-`Echo`) and the `tapir` snapshot pipeline. It registers a fixed set
-of `TapirSnapshotEnricher` callbacks against `TapirPlugin.enrichers`, so every
-`tapir:snap` (or `tapir_snap` MCP) output carries Magic-aware annotations
+`MagicTapirIntegration` is the glue layer that registers Magic-aware snapshot enrichers with `tapir`.
+
+It sits between the `magic` Flutter framework (Laravel-inspired primitives like `MagicForm`,
+`MagicRouter`, `Gate`, `Auth`, `Echo`) and the `tapir` snapshot pipeline. It registers a fixed
+set of `TapirSnapshotEnricher` callbacks against `TapirPlugin.enrichers`, so a `tapir:snap`
+(or `tapir_snap` MCP) taken with `includeEnrichers` carries Magic-aware annotations
 alongside the standard Semantics tree.
 
 `MagicTapirIntegration` ships in the **`magic_devtools`** package, not in magic
@@ -16,9 +17,8 @@ dev_dependencies:
   magic_devtools: ^<version>
 ```
 
-This document covers the five behavioural enrichers most likely to drive an
-agent's reasoning loop. The full integration ships fourteen enrichers; the
-nine not covered here (`magicFormEnricher`, `magicNavigationEnricher`,
+This document covers the behavioural enrichers most likely to drive an
+agent's reasoning loop. The others (`magicFormEnricher`, `magicNavigationEnricher`,
 `magicControllerFlagsEnricher`, `magicRouteParamsEnricher`,
 `magicEchoConnectionEnricher`, `magicGateResultsAllEnricher`,
 `magicRecentHttpEnricher`, `magicRecentLogsEnricher`,
@@ -27,6 +27,14 @@ controller flags, route parameters, broadcast connection state, recent
 gate results, and the crumbs HTTP / log / exception ring buffers; read
 the dartdoc on `MagicTapirIntegration` for those.
 
+- [When to call install](#when-to-call-install)
+- [The core enrichers](#the-core-enrichers)
+- [Example snapshot output](#example-snapshot-output)
+- [Test-only reset](#test-only-reset)
+- [Frozen contract](#frozen-contract)
+- [Related Documentation](#related-documentation)
+
+<a name="when-to-call-install"></a>
 ## When to call install
 
 `MagicTapirIntegration.install()` must run **after** `Magic.init()` has
@@ -40,24 +48,28 @@ The canonical debug-only host integration (`MagicTapirIntegration` comes from
 the `magic_devtools` dev_dependency):
 
 ```dart
-import 'package:magic_devtools/tapir.dart'; // from magic_devtools dev_dependency
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:magic/magic.dart';
+import 'package:magic_devtools/tapir.dart'; // from the magic_devtools dev_dependency
+import 'package:tapir/tapir.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kReleaseMode) TapirPlugin.install();
   await Magic.init();
-  if (!kReleaseMode) {
-    TapirPlugin.install();
-    MagicTapirIntegration.install();
-  }
-  runApp(MagicApplication());
+  if (!kReleaseMode) MagicTapirIntegration.install();
+  runApp(const MagicApplication());
 }
 ```
 
 `install()` is idempotent; calling it twice in the same isolate is a no-op
 after the first call, matching `TapirPlugin.install()` semantics. Release
-builds tree-shake the entire `!kReleaseMode` branch.
+builds tree-shake both `!kReleaseMode` branches. Installing tapir before `Magic.init()` keeps
+the driver live while Magic boots.
 
-## The five core enrichers
+<a name="the-core-enrichers"></a>
+## The core enrichers
 
 ### magicControllerEnricher
 
@@ -102,6 +114,7 @@ surfaced by `Auth.user()`. Falls back to `magicAuthUser: <id>` (no trailing
 colon) when `display_name` is null, missing, or empty. Returns null when
 the session is a guest.
 
+<a name="example-snapshot-output"></a>
 ## Example snapshot output
 
 A typical snapshot fragment for a `MonitorListView` rendered inside a
@@ -126,24 +139,30 @@ ability:
   magicFormErrors: name="The name field is required."
 ```
 
-The five core enrichers populate the lines under each ref in the order
+The enrichers populate the lines under each ref in the order
 they were registered. The dispatcher iterates `TapirPlugin.enrichers` in
-insertion order and concatenates non-null returns; if two enrichers ever
-emit the same key, the **first** insertion wins (per the
-`TapirSnapshotEnricher` first-write-wins contract).
+insertion order and writes every non-null fragment under the ref. Nothing
+deduplicates keys: if two enrichers emit the same key, the snapshot carries
+both lines, so keep enricher keys distinct.
 
+<a name="test-only-reset"></a>
 ## Test-only reset
 
 `MagicTapirIntegration.resetForTesting()` removes every enricher from
 `TapirPlugin.enrichers`, cancels the internal Echo connection-state
-subscription, and clears the idempotency guard. Pair it with
-`TapirPlugin`'s reset hook in `tearDown` so consecutive widget tests start
-with a clean enricher chain.
+subscription, and clears the idempotency guard. Call it in `tearDown` so
+consecutive widget tests start with a clean enricher chain.
 
+<a name="frozen-contract"></a>
 ## Frozen contract
 
 Every Magic enricher honours the `TapirSnapshotEnricher` typedef contract:
 synchronous, stateless, never retains the `Element` across calls, returns
-null when the element is not relevant. The contract is frozen for the
-alpha-2 cycle; see [enricher-authoring](enricher-authoring) for the full
-typedef and authoring guide.
+null when the element is not relevant. The typedef is frozen; see
+[enricher-authoring.md](enricher-authoring.md) for the full typedef and authoring guide.
+
+<a name="related-documentation"></a>
+## Related Documentation
+
+- [enricher-authoring.md](enricher-authoring.md): the typedef, the four-clause contract and how to write your own enricher.
+- [wind-integration.md](wind-integration.md): the `wind:` block that tapir emits ahead of these enrichers.

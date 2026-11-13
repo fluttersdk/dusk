@@ -1,10 +1,8 @@
 # tapir:perf_campaign
 
-Run every scenario of a perf campaign on one platform, each from a cold start of the app, and summarise which passed. One command replaces the shell harness that used to boot services, start the app, log in and loop over `tapir:perf_run`: the app declares that work in a campaign YAML, and tapir runs it.
+Run every scenario of a perf campaign on one platform, each from a cold start of the app, and summarise which passed.
 
----
-
-## Table of contents
+One command replaces the shell harness that used to boot services, start the app, log in and loop over `tapir:perf_run`: the app declares that work in a campaign YAML, and tapir runs it.
 
 - [Synopsis](#synopsis)
 - [The campaign file](#the-campaign-file)
@@ -12,9 +10,7 @@ Run every scenario of a perf campaign on one platform, each from a cold start of
 - [Files and output](#files-and-output)
 - [Secrets](#secrets)
 - [Exit codes](#exit-codes)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -159,8 +155,8 @@ A value read through `${env.*}` or a `secret: true` param, in `after_start` or a
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:perf_run](tapir-perf-run.md): the scenario file, fragments and the run file.
 - [tapir:perf_compare](tapir-perf-compare.md): judge one campaign's run files against another's.

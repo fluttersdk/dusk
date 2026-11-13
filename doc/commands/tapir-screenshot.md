@@ -1,14 +1,12 @@
 # tapir:screenshot
 
-Capture a screenshot of the running Flutter app to a file. On web targets where dowel was started with `--cdp-port`, the command routes through Chrome DevTools Protocol `Page.captureScreenshot` for a full-viewport capture (bypassing the in-isolate `ext.tapir.screenshot` extension, which hangs under CanvasKit+DWDS, issue #13). On native targets the VM Service handler walks the render tree to find the `RepaintBoundary` that `TapirPlugin.install()` wrapped around the app root, calls `toImage`, and returns a base64-encoded PNG or JPEG. The CLI decodes the payload and writes the bytes to the path supplied by `--output`.
+Capture a screenshot of the running Flutter app to a file.
+
+On web targets where dowel was started with `--cdp-port`, the command routes through Chrome DevTools Protocol `Page.captureScreenshot` for a full-viewport capture (bypassing the in-isolate `ext.tapir.screenshot` extension, which hangs under CanvasKit+DWDS, issue #13). On native targets the VM Service handler walks the render tree to find the `RepaintBoundary` that `TapirPlugin.install()` wrapped around the app root, calls `toImage`, and returns a base64-encoded PNG or JPEG. The CLI decodes the payload and writes the bytes to the path supplied by `--output`.
 
 JPEG is the default for size: a typical Flutter web screen renders in ~30 KB at quality 70. Switch to PNG when the agent needs lossless pixels for a diff comparison.
 
-> **Scope:** `tapir:screenshot` captures the full app frame. Region (`ref` / `rect`) capture is not exposed by this command; it is deferred. The CDP fallback applies to the CLI command only; the `tapir_screenshot` MCP tool dispatches `ext.tapir.screenshot` in-isolate and can still time out on web, so prefer the CLI for web screenshots.
-
----
-
-## Table of contents
+> **Scope:** `tapir:screenshot` captures the whole viewport, or one widget with `--ref` (and `--rect`). The CDP fallback applies to the CLI command only; the `tapir_screenshot` MCP tool dispatches `ext.tapir.screenshot` in-isolate and can still time out on web, so prefer the CLI for web screenshots.
 
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
@@ -16,9 +14,7 @@ JPEG is the default for size: a typical Flutter web screen renders in ~30 KB at 
 - [Format and quality](#format-and-quality)
 - [CDP path vs. in-isolate path](#cdp-vs-extension)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -57,13 +53,13 @@ The `--output` guard fires before the VM Service call; an empty or missing path 
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | Screenshot captured and written. The handler emits `Wrote <N> base64 chars to <path>` where `<N>` is the length of the base64 string before decoding (useful for spotting empty buffers without inspecting the file). |
-| `1` | `--output` was missing or empty (CLI-side guard); OR the VM Service handler returned a response without a `base64` field. |
+| `0` | Screenshot captured and written. The command prints `Wrote <N> bytes (<K> KB, <format>) to <path>` where `<N>` is the size of the decoded image (useful for spotting empty buffers without inspecting the file). |
+| `1` | `--output` was missing or empty, or `--rect` was given without `--ref` (CLI-side guards); OR the VM Service handler returned a response without a `base64` field. |
 
-**Success envelope (CLI side):**
+**Success line (CLI side):**
 
 ```
-[ok]      Wrote 41268 base64 chars to /tmp/dashboard.jpeg
+✓ Wrote 30912 bytes (30.2 KB, jpeg) to /tmp/dashboard.jpeg
 ```
 
 **VM Service envelope (handler side):**
@@ -84,7 +80,7 @@ When `--format` is not given, the format follows the `--output` extension: `.png
 - **jpeg** (default): on native targets the VM Service handler encodes via the `image` package's JPEG encoder at the supplied quality; on web (CDP path) the `format` + `quality` params are forwarded directly to `Page.captureScreenshot`. Quality 70 is a Playwright-aligned default; bump to 90 for visual-regression diffs, drop to 40 for quick sanity checks.
 - **png**: lossless, larger files (typically 5x JPEG at quality 70). The `--quality` value is ignored.
 
-On a hidden or minimised desktop window the in-isolate path used to return the last cached frame. Tapir now wakes the app before capturing (the response carries `framesForced: true`), so the image is fresh. The CDP path on web is unaffected by the lifecycle. See [Frame production](../reference/frame-production.md).
+On a hidden or minimised desktop window tapir wakes the app before the in-isolate capture (the response carries `framesForced: true`), so the image is a fresh frame rather than the last cached one. The CDP path on web is unaffected by the lifecycle. See [Frame production](../reference/frame-production.md).
 
 The handler never resizes the screenshot; the captured image matches the running viewport's pixel dimensions (logical size times DPR). To capture at a controlled viewport, run `tapir:resize` or `tapir:device` first.
 
@@ -118,7 +114,7 @@ dart run tapir tapir:screenshot --output=/tmp/screen.jpeg
 Expected output (illustrative):
 
 ```
-[ok]      Wrote 41268 base64 chars to /tmp/screen.jpeg
+✓ Wrote 30912 bytes (30.2 KB, jpeg) to /tmp/screen.jpeg
 ```
 
 ### 2. Capture losslessly for a visual diff
@@ -162,8 +158,8 @@ dart run tapir tapir:screenshot --output=/tmp/card-header.png --ref=e42 --rect=0
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:snap](tapir-snap.md): the structured-text counterpart; agents typically pair `tapir:snap` and `tapir:screenshot` to read both the Semantics tree and the pixels in a single round.
 - [tapir:hot_reload_and_snap](index.md#hot-reload-and-snap): captures snapshot + screenshot + recent exceptions in one round trip.

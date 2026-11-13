@@ -1,21 +1,15 @@
 # tapir:tap
 
-Synthesise a tap at the widget identified by a snapshot ref token. `tapir:tap` is the primary action command: every interactive flow in an agent-driven test starts with a `tapir:snap` (to obtain `eN` refs) followed by one or more `tapir:tap --ref=<eN>` calls.
+Synthesise a tap at the widget identified by a snapshot ref token.
 
-The handler routes through the actionability gate (enabled, zero-rect, off-viewport) before the pointer event leaves the VM. A gate failure throws `TapirActionabilityException` and surfaces as a structured error; the agent re-snaps or re-finds rather than silently retrying.
-
----
-
-## Table of contents
+`tapir:tap` is the primary action command: every interactive flow in an agent-driven test starts with a `tapir:snap` (to obtain `eN` refs) followed by one or more `tapir:tap --ref=<eN>` calls. The handler routes through the actionability gate (defunct, enabled, zero rect, off-viewport, stable, receives events) before the pointer event leaves the VM. A gate failure throws `TapirActionabilityException` and surfaces as a structured error; the agent re-snaps or re-finds rather than silently retrying.
 
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [Actionability gate](#actionability-gate)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -33,7 +27,7 @@ dart run tapir tapir:tap --ref=<eN|qN>
 
 `tapir:tap` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI, calls `ext.tapir.tap`, and prints either a one-line success or the post-tap JSON depending on `--includeSnapshot` / `--until`.
 
-The pointer is dispatched at the target's LIVE center: the handler re-resolves the element's current bounding rect immediately after the actionability gate passes (falling back to the cached snapshot rect only for slivers / detached render objects), so a tap still lands on a button whose host rebuilt it into a shifted slot between `tapir:snap` and `tapir:tap`.
+The pointer is dispatched at the target's LIVE centre: the handler re-resolves the element's current bounding rect immediately after the actionability gate passes (falling back to the cached snapshot rect only for slivers / detached render objects), so a tap still lands on a button whose host rebuilt it into a shifted slot between `tapir:snap` and `tapir:tap`.
 
 ---
 
@@ -69,21 +63,21 @@ The two `check*` flags default to `true`. Disable them with the inverted form (`
 **Success envelope (default, `--includeSnapshot` off):**
 
 ```
-[ok]      Tapped e2
+✓ Tapped e2
 ```
 
 When the `effect` block reports no change, the one-line form says so rather than
 claiming a plain success:
 
 ```
-[ok]      Tapped e2 (no observable change)
+✓ Tapped e2 (no observable change)
 ```
 
 **Success envelope (`--includeSnapshot` on):**
 
 ```json
 {
-  "snapshot": "[ref=e1] role=text label=\"Welcome\" ...",
+  "snapshot": "- text \"Welcome\"\n- button \"Continue\" [ref=e2]\n...",
   "ref": "e2"
 }
 ```
@@ -99,7 +93,7 @@ claiming a plain success:
 
 `changed` is `true` when the target's route or its own semantics subtree differed after the tap, `false` when nothing observable changed. The signal is deliberately scoped to the TARGET rather than the whole tree, so unrelated background churn does not read as "something happened", and a counter button whose own label increments does.
 
-`changed: false` is the classic false success: a button the gate accepted, whose `onTap` never fired. It was an opt-in `--verify` flag until it became clear that the agents who most needed it were the ones who did not know to ask for it.
+`changed: false` means nothing changed within that measured scope (the target's own semantics subtree and the route). It is not proof that the handler did not fire: a handler that updates state elsewhere on the screen, or one that has no semantic effect, also reads `false`. Check the intended result with `tapir:snap` before retrying, because a tap is not safe to repeat blindly.
 
 **Stale `eN` refs.** When the widget behind an `eN` ref was rebuilt since the snapshot, the tap relocates it by the label and index the snapshot bound to the ref, provided the live tree has the same number of nodes with that label. The response then lists the ref: `"reresolved": ["e2"]`. With a different count the ref fails as `defunct (element no longer mounted)` and the agent re-snaps. The bound query has no role, so a node of another role with the same label in the same position could be matched.
 
@@ -120,10 +114,10 @@ The message format is `Widget ref=<ref> is not actionable: <reason>` where `<rea
 
 The actionability gate runs six preconditions in order: defunct (Step 0, preflight: render-object still attached), enabled (Tristate.isFalse fails), zero-rect (zero width or height), off-viewport (auto-`showOnScreen` first when a Scrollable ancestor exists), stable (2-frame rect drift ≤ 0.5px; opt out via `--no-checkStable`), and receives-events (hit-test path includes the target or descendant; opt out via `--no-checkReceivesEvents`). The full reference lives at [Reference: Actionability gate](../reference/actionability-gate.md).
 
-Two further checks layer on top when their CLI flags are enabled:
+Two of the six run only while their CLI flags are enabled (both default to on):
 
-- `checkStable` ; the rect is unchanged across two consecutive frames.
-- `checkReceivesEvents` ; the hit-test at the rect center resolves to the target widget (i.e. no overlay is intercepting the tap).
+- `checkStable`: the rect is unchanged across two consecutive frames.
+- `checkReceivesEvents`: the hit-test at the rect centre resolves to the target widget (that is, no overlay is intercepting the tap).
 
 See [Reference: Actionability gate](../reference/actionability-gate.md) for the full ordering rationale and how new preconditions can be appended without breaking pinned agent prompts.
 
@@ -143,7 +137,7 @@ dart run tapir tapir:tap --ref=e2
 Expected output (illustrative):
 
 ```
-[ok]      Tapped e2
+✓ Tapped e2
 ```
 
 ### 2. Tap and capture the post-tap tree in one round trip
@@ -155,7 +149,7 @@ dart run tapir tapir:tap --ref=e2 --includeSnapshot
 Expected output (illustrative; abbreviated):
 
 ```json
-{"snapshot":"[ref=e1] role=text label=\"Detail page\" ...","ref":"e2"}
+{"snapshot":"- text \"Detail page\"\n...","ref":"e2"}
 ```
 
 ### 3. Tap an intentionally-animating widget
@@ -196,8 +190,8 @@ After the tap, the handler polls the element tree for a `Text("Welcome back")` u
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:snap](tapir-snap.md): produce the `eN` refs that `tapir:tap` consumes.
 - [tapir:find](tapir-find.md): mint a re-resolvable `qN` handle that survives rebuilds; pass it as `--ref=q1`.

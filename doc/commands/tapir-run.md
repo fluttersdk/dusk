@@ -1,12 +1,10 @@
 # tapir:run
 
-Run several tapir verbs against the running app in one call. Every step is a verb line, so an agent that already knows its next three moves (tap a button, fill a field, read the result) spends one round trip instead of three, and gets one summary line per step instead of three full outputs.
+Run several tapir verbs against the running app in one call.
+
+Every step is a verb line, so an agent that already knows its next three moves (tap a button, fill a field, read the result) spends one round trip instead of three, and gets one summary line per step instead of three full outputs.
 
 `tapir:run` runs each step through the verb's own command class, so a step accepts exactly the options the standalone command accepts. The steps share the one VM Service connection of the call.
-
----
-
-## Table of contents
 
 - [Synopsis](#synopsis)
 - [Step grammar](#step-grammar)
@@ -15,9 +13,7 @@ Run several tapir verbs against the running app in one call. Every step is a ver
 - [MCP form](#mcp-form)
 - [Working with refs](#working-with-refs)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -93,7 +89,7 @@ Without `--continue` the batch ends at that step. With it, every step runs and t
 <a name="mcp-form"></a>
 ## MCP form
 
-The `tapir_run` tool takes the same steps as a list and routes through `dowel:tapir:run` (the seventh substrate-routed tool).
+The `tapir_run` tool takes the same steps as a list and routes through the substrate command `dowel:tapir:run`.
 
 ```json
 {
@@ -149,8 +145,8 @@ All three steps run. The exit code is the first failing step's, or `0`.
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [Commands index](index.md): every verb a step may name.
 - [tapir:snap](tapir-snap.md): the usual last step.

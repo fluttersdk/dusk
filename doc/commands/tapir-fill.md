@@ -1,12 +1,10 @@
 # tapir:fill
 
-Focus, clear, type, and settle a text field in a single call. `tapir:fill` promotes the manual focus + clear + type + settle + stale-retry dance into one first-class command, so an agent no longer re-discovers the sequence (and its frame-await + retry subtleties) on every form.
+Focus, clear, type, and settle a text field in a single call.
+
+`tapir:fill` promotes the manual focus + clear + type + settle + stale-retry dance into one first-class command, so an agent no longer re-discovers the sequence (and its frame-await + retry subtleties) on every form.
 
 Internally `tapir:fill` composes the existing gated `ext.tapir.focus`, `ext.tapir.clear`, and `ext.tapir.type` handlers verbatim, so it inherits the full 6-step actionability gate, IME focus, `onChanged` / form-validator firing (via `userUpdateTextEditingValue`), and post-action snapshot semantics. It re-resolves the ref before each attempt and retries the whole sequence once if the ref goes stale mid-fill.
-
----
-
-## Table of contents
 
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
@@ -14,9 +12,7 @@ Internally `tapir:fill` composes the existing gated `ext.tapir.focus`, `ext.tapi
 - [Which field was written](#which-field-was-written)
 - [Stale-retry](#stale-retry)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -71,7 +67,7 @@ With `--includeSnapshot` or `--json` the JSON envelope is printed and the exit c
   "ref": "e7",
   "text": "alice@example.com",
   "filled": true,
-  "snapshot": "[ref=e7] role=textbox typeable:true ..."
+  "snapshot": "- textbox \"Email\" [ref=e7]\n  typeable: true\n..."
 }
 ```
 
@@ -114,7 +110,7 @@ dart run tapir tapir:fill --ref=e7 --text="alice@example.com"
 ```
 
 ```
-[ok]      Filled e7
+✓ Filled e7
 ```
 
 ### 2. Clear a field
@@ -132,8 +128,8 @@ dart run tapir tapir:fill --ref=q1 --text="alice@example.com" --includeSnapshot
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:snap](tapir-snap.md): produce the `eN` refs that `tapir:fill` consumes; text fields collapse to a single `typeable: true` node.
 - [tapir:find](tapir-find.md): mint a re-resolvable `qN` handle that survives rebuilds; pass it as `--ref=q1`.

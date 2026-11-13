@@ -1,6 +1,8 @@
 # tapir:observe
 
-Return a structured candidate list of every interactive widget on screen. Mirrors the Stagehand observe-once-act-many pattern: the agent observes once, then issues many `tapir:tap` / `tapir:type` / `tapir:drag` calls against the minted `qN` refs without re-observing between actions.
+Return a structured candidate list of every interactive widget on screen.
+
+The command mirrors the Stagehand observe-once-act-many pattern: the agent observes once, then issues many `tapir:tap` / `tapir:type` / `tapir:drag` calls against the minted `qN` refs without re-observing between actions.
 
 No LLM is invoked server-side. The handler walks the live Semantics tree, mints a re-resolvable `qN` handle for each interactive widget, and returns the candidate list as JSON. The agent reads the list and decides which refs to act on. This is what differentiates `tapir:observe` from a model-side `tapir:snap`: it returns a flat, role-filterable list optimised for LLM consumption rather than the full tree.
 
@@ -8,18 +10,12 @@ A control wrapped in `MergeSemantics` is listed once, as its boundary node: the 
 
 The CLI surface is mostly for debugging; the MCP descriptor is the primary surface for agent integrations.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [Observe-once-act-many](#observe-once-act-many)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -40,10 +36,10 @@ dart run tapir tapir:observe [--intent=<hint>]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `intent` | string | unset | Free-form caller hint describing what the agent is looking for. Echoed back in the response; NOT used server-side for ranking or filtering. Useful for logging and for telemetry that wants to correlate observes with the agent's downstream intent. |
+| `intent` | string | unset | Free-form caller hint describing what the agent is looking for. Accepted for caller-side logging only; the handler does not use it for ranking or filtering and the response does not carry it. |
 | `roles` | csv string | unset (every role) | Comma-separated role filter (e.g. `button,textbox,checkbox`). Omit for every role. Useful when the agent already knows it only cares about, say, form fields. |
-| `limit` | int (string) | `50` | Maximum number of candidates to return. The handler ranks by hit-test depth and returns the first N. |
-| `includeEnrichers` | enum string | `true` | One of `true` (default; subset of enricher fields), `false` (no enricher fields), `full` (every enricher field). Use `full` when the agent needs the complete className tokens, route metadata, and form-field shape; use `false` for the smallest payload. |
+| `limit` | int (string) | `50` | Maximum number of candidates to return. The handler walks the tree in order and stops once it has N. |
+| `includeEnrichers` | enum string | `true` | One of `true` (default; `magicFormField`, `magicRoute`, `magicGateResult` and the `wind` fields `breakpoint` and `states`), `false` (no enricher fields), `full` (every enricher field, including every `wind` sub-field). Use `full` when the agent needs the complete wind block; use `false` for the smallest payload. |
 
 All four options pass through to the VM Service handler as string values (no client-side parsing). Empty strings are dropped so the handler sees absent rather than empty when the caller omits an option.
 
@@ -58,21 +54,22 @@ The VM Service handler returns a JSON envelope; the CLI dumps it to stdout via `
 
 ```json
 {
-  "intent": "find the sign in button",
   "candidates": [
     {
       "ref": "q1",
       "role": "button",
       "label": "Sign in",
-      "rect": [120, 400, 240, 48],
-      "actions": ["tap"],
-      "enrichers": {
-        "windClassName": "bg-primary-600 text-white",
-        "magicRoute": "/login"
-      }
+      "value": null,
+      "bounds": {"x": 120, "y": 400, "w": 240, "h": 48},
+      "isEnabled": true,
+      "isVisible": true,
+      "inViewport": true,
+      "occluded": false,
+      "magicRoute": "/login",
+      "wind": {"breakpoint": "md", "states": "hover"}
     }
   ],
-  "totalMatches": 1
+  "count": 1
 }
 ```
 
@@ -80,12 +77,11 @@ Every candidate ships with:
 
 - A re-resolvable `qN` handle (Playwright Locator semantics: every action call re-walks the tree).
 - The Semantics `role` (button, textbox, checkbox, link, etc.).
-- The Semantics `label` (visible text or explicit a11y label).
-- The widget `rect` as `[left, top, width, height]`.
-- `inViewport`, `false` when the bounds lie outside the view, and `occluded`, `true` when a hit test at the bounds' centre reaches a widget painted above the candidate instead of the candidate itself. `isVisible` is unchanged (non-empty bounds that overlap the viewport); `occluded` is only probed for a visible candidate, so it is `false` for one that is not.
-- `tapOwner`, `{x, y, w, h}`, only on a merged candidate (a `MergeSemantics` boundary) whose bounds' centre is not on its own control: the control's rect, which a `tapir:tap` on the candidate goes to unless `retargets` is `false` (#60); `centreHandled: true` means the centre has a tap handler of its own. Absent on every other candidate.
-- The available `actions` list (typically a subset of `tap`, `focus`, `type`, `scroll`).
-- The `enrichers` map when `includeEnrichers` is `true` or `full`.
+- The Semantics `label` (visible text or explicit a11y label) and its `value`, `null` when empty.
+- The widget `bounds` as `{x, y, w, h}`.
+- `isEnabled`, `isVisible` (non-empty bounds that overlap the viewport), `inViewport` (`false` when the bounds lie outside the view) and `occluded` (`true` when a hit test at the bounds' centre reaches a widget painted above the candidate instead of the candidate itself; only probed for a visible candidate, so `false` for one that is not).
+- `tapOwner`, `{x, y, w, h}`, only on a merged candidate (a `MergeSemantics` boundary) whose bounds' centre is not on its own control: the control's rect, which a `tapir:tap` on the candidate goes to unless `--no-retarget` is passed (#60); `centreHandled: true` means the centre has a tap handler of its own. Absent on every other candidate.
+- The enricher fields (`magicFormField`, `magicRoute`, `magicGateResult`, `wind`) as top-level keys when `includeEnrichers` is `true` or `full` and an enricher produced them.
 
 **Error envelope:**
 
@@ -125,7 +121,7 @@ For incremental state changes on the same screen (clicking a button that disable
 dart run tapir tapir:observe
 ```
 
-Returns up to 50 candidates with a subset of enricher fields. Useful as the first call after a navigation to discover what is on screen.
+Returns up to 50 candidates with the default subset of enricher fields. Useful as the first call after a navigation to discover what is on screen.
 
 ### 2. Filter to a single role
 
@@ -148,8 +144,8 @@ No re-observe between the two actions; both `qN` handles re-resolve against the 
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:snap](tapir-snap.md): the raw Semantics-tree YAML; richer than `tapir:observe` but with `eN` refs that go stale on rebuild.
 - [tapir:find](tapir-find.md): mint a single `qN` handle from a known predicate; pair with `tapir:observe` when the agent already knows what to look for.

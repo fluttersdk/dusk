@@ -1,21 +1,15 @@
 # tapir:doctor
 
-Verify the `tapir` runtime and the consumer-side wiring health in a single pure-CLI pass. `tapir:doctor` does not dial the VM Service; every check runs against the consumer's filesystem, the dowel state file (`~/.dowel/state.json`), and a small set of environment probes.
+Verify the `tapir` runtime and the consumer-side wiring health in a single pure-CLI pass.
 
-Five lightweight checks run in order, each emitting one row via the `DowelOutput` facade (colored `[ok]` / `[warn]` / `[error]` / `[info]` tokens in TTY mode, plain text under buffered or null output).
-
----
-
-## Table of contents
+`tapir:doctor` does not dial the VM Service; every check runs against the consumer's filesystem, the dowel session state file, and a small set of environment probes. Seven lightweight checks run in order, each emitting one row via the `DowelOutput` facade (a coloured `✓` / `⚠` / `✗` / `ℹ` symbol in TTY mode, plain text under buffered or null output).
 
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [The seven checks](#the-seven-checks)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -24,7 +18,7 @@ Five lightweight checks run in order, each emitting one row via the `DowelOutput
 dart run tapir tapir:doctor
 ```
 
-`tapir:doctor` accepts no positional arguments and no flags. It runs five preflight checks against the cwd and exits with a status code derived from the single ERROR-class check (the Semantics tree probe).
+`tapir:doctor` accepts no positional arguments and no flags. It runs the seven checks below against the cwd and exits with a status code derived from the single ERROR-class check (the Semantics tree probe).
 
 `CommandBoot.none`: no VM Service connection. The command can run before `dowel start` (some checks will downgrade to "Skipped (no Chrome attached)" but the command itself completes cleanly).
 
@@ -33,21 +27,7 @@ dart run tapir tapir:doctor
 <a name="arguments"></a>
 ## Arguments
 
-`tapir:doctor` has no `addOption` or `addFlag` calls in its `configure` method. The probes are configurable via test seams (static fields on `TapirDoctorCommand`) so tests can override per-test, but no CLI surface drives them.
-
-Test seams (for completeness; not user-facing):
-
-| Seam | Default | Purpose |
-|------|---------|---------|
-| `stateFileReader` | `StateFile.read` | Reads `~/.dowel/state.json`. |
-| `chromePidProbe` | `captureChromePid` | Locates the live Chrome PID under a given parent PID. |
-| `processStartTimeProbe` | POSIX `ps -o lstart=` / Windows wmic | Reads a process's start time. |
-| `nowProvider` | `DateTime.now` | Wall-clock source. |
-| `semanticsEnabledProbe` | returns `true` | Reports whether the running app forced Semantics on. |
-| `tapirDisableEnvReader` | reads `TAPIR_DISABLE` compile-time constant | Detects the kill-switch env-var. |
-| `enrichersProbe` | returns `0` | Reports the count of registered enrichers. |
-| `mainDartPathResolver` | returns `lib/main.dart` | Resolves the consumer's main file. |
-| `mainDartReader` | reads bytes off disk | Returns the main.dart source. |
+`tapir:doctor` takes no options. Its probes read the session state file, `lib/main.dart` and the `TAPIR_DISABLE` compile-time constant, and nothing on the command line changes them.
 
 ---
 
@@ -70,15 +50,15 @@ No structured JSON envelope is emitted; the output is row-per-check via `DowelOu
 
 ### 1. Hot-restart staleness
 
-Reads `~/.dowel/state.json`, locates the live Chrome PID via `captureChromePid`, and compares Chrome's `ps -o lstart=` start time against `state.json.startedAt`. Drift over 30 s means a hot-restart spawned a fresh Chrome after the CLI wrote `state.json`; the cached isolate id will be stale, so the check WARNs and asks the operator to restart the CLI. Downgrades to an INFO "Skipped" row when no state.json exists, no Chrome can be found, or the lstart probe fails (POSIX-only).
+Reads the session's `state.json`, locates the live Chrome PID via `captureChromePid`, and compares Chrome's `ps -o lstart=` start time against `state.json.startedAt`. Drift over 30 s means a hot-restart spawned a fresh Chrome after the CLI wrote `state.json`; the cached isolate id will be stale, so the check WARNs and asks the operator to restart the CLI. Downgrades to an INFO "Skipped" row when no state.json exists, no Chrome can be found, or the lstart probe fails (POSIX-only).
 
 ### 2. TAPIR_DISABLE env-var
 
-Reads the compile-time `--dart-define=TAPIR_DISABLE=<value>` constant. Non-empty values WARN with the actual value echoed back so the operator can confirm where the kill switch came from (a stale `.env` export, a CI flag, etc.). Empty value passes silently with `[ok]`.
+Reads the compile-time `--dart-define=TAPIR_DISABLE=<value>` constant of the doctor process itself, not of the running app: the doctor is a separate Dart process, so a define passed to `flutter run` or `dart run tapir start` is invisible to it. The check therefore confirms the define only when it was also passed to the doctor (`dart run --define=TAPIR_DISABLE=<value> tapir doctor`). Non-empty values WARN with the actual value echoed back. Empty value passes with a `✓` row, which says nothing about how the app was built.
 
 ### 3. Enricher list non-empty
 
-Reads the count of registered `TapirSnapshotEnricher` instances. Zero means the consumer wired `TapirPlugin.install()` but did not install `MagicTapirIntegration` (and the Magic stack is not in use). Wind metadata flows through the neutral `WindDebugRegistry` bridge in wind alpha-10, so a wind-only app still shows a `wind:` block per ref even when this count is zero. WARN, never fail. Defaults to `0` in CLI context (the pure-Dart doctor cannot reach into Flutter without pulling `dart:ui`); the WARN row is the correct CLI-time outcome.
+Reads the count of registered `TapirSnapshotEnricher` instances. Zero means no enricher is registered, for example because the consumer did not install `MagicTapirIntegration`. Wind metadata flows through the neutral `WindDebugRegistry` bridge (see [Wind integration](../plugins/wind-integration.md)), so a wind-only app still shows a `wind:` block per ref even when this count is zero. INFO, never fails: enrichers are opt-in. The count defaults to `0` in CLI context (the pure-Dart doctor cannot reach into Flutter without pulling `dart:ui`), so `enrichers are opt-in; none registered` is the normal CLI-time outcome.
 
 ### 4. Semantics tree forced on (ERROR-class)
 
@@ -88,19 +68,19 @@ Reports whether `RendererBinding.instance.semanticsEnabled` is true. The only ch
 
 Reads `lib/main.dart` and reports one of three states:
 
-- `Magic-stack detected, integration wired` ; both `Magic.init(` and `MagicTapirIntegration.install` are present.
-- `Magic detected but MagicTapirIntegration missing` ; `Magic.init(` is present but the integration is not. Suggests re-running `tapir:install`.
-- `vanilla Flutter detected` ; no `Magic.init(` anchor.
+- `Magic-stack detected, integration wired`: both `Magic.init(` and `MagicTapirIntegration.install` are present.
+- `Magic detected but MagicTapirIntegration missing`: `Magic.init(` is present but the integration is not. Suggests re-running `tapir:install`.
+- `vanilla Flutter detected`: no `Magic.init(` anchor.
 
 INFO only; never fails the doctor regardless of the consumer stack.
 
 ### 6. Session ownership
 
-Compares `state.json`'s `projectRoot` against the directory the command is running from. `~/.dowel/state.json` is a **single global slot**, so a sibling project's `dowel start` silently takes it over: every `tapir:*` call from here then drives that app instead, and every one of them succeeds. The measured case had a worktree in another repository rewrite the file mid-session, after which two commands produced a screenshot of an entirely different product before anyone noticed.
+Compares the session state's `projectRoot` against the directory the command is running from, using dowel's own ownership rule (a directory inside the recorded root counts as the owner). dowel keeps one state file per project, and `~/.dowel/state.json` is a pointer to whichever session started last; when the state read here describes another project, every `tapir:*` call from this directory would drive that app instead, and every one of them would succeed.
 
-WARN, naming both paths. Skipped when no `projectRoot` is recorded. Paths are compared after resolving symlinks, so a worktree checkout does not read as a mismatch on the same directory.
+WARN, naming both paths. Skipped when no `projectRoot` is recorded.
 
-That last property cuts the other way now that worktrees live at `<repo>/.claude/worktrees/<slug>` rather than beside the checkout. A worktree is INSIDE `projectRoot`, so the check reads it as the owner and stays silent, while a `tapir:*` call from a worktree with no session of its own drives the app started from the main checkout and succeeds. The layout that used to trip this check no longer exists, so the check no longer covers the case it was written for. Start a session in the worktree, or pass `--state=<path>`.
+A worktree checked out inside the recorded root (for example `<repo>/.claude/worktrees/<slug>`) reads as the owner, so the check stays silent while a `tapir:*` call from a worktree with no session of its own drives the app started from the main checkout. Start a session in the worktree, or pass `--state=<path>`.
 
 ### 7. CDP session health
 
@@ -121,7 +101,7 @@ See [Frame production](../reference/frame-production.md) for the hidden-page cas
 <a name="examples"></a>
 ## Examples
 
-### 1. Healthy magic-stack app
+### 1. Healthy magic-stack app on a web session
 
 ```bash
 dart run tapir tapir:doctor
@@ -130,11 +110,13 @@ dart run tapir tapir:doctor
 Expected output (illustrative):
 
 ```
-[ok]      hot-restart staleness: no drift detected (Chrome PID 51234)
-[ok]      TAPIR_DISABLE env-var: unset (runtime hooks active)
-[ok]      snapshot enrichers: enrichers registered: 8
-[ok]      Semantics tree forced on: enabled
-[info]    Magic-init detection: Magic-stack detected, integration wired
+✓ hot-restart staleness: no drift detected (Chrome PID 51234)
+✓ TAPIR_DISABLE env-var: unset (runtime hooks active)
+ ℹ snapshot enrichers: enrichers are opt-in; none registered
+✓ Semantics tree forced on: enabled
+ ℹ Magic-init detection: Magic-stack detected, integration wired
+✓ Session ownership: state.json describes this project
+ ℹ CDP session: Skipped (no cdpPort recorded; start with --cdp-port=N to enable tapir:resize, tapir:device and clipped web screenshots)
 ```
 
 Exit code: `0`.
@@ -148,14 +130,16 @@ dart run tapir tapir:doctor
 Expected output (illustrative):
 
 ```
-[info]    hot-restart staleness: Skipped (no Chrome attached)
-[ok]      TAPIR_DISABLE env-var: unset (runtime hooks active)
-[warn]    snapshot enrichers: no enrichers registered; install Magic + Wind integrations for richer snapshots
-[ok]      Semantics tree forced on: enabled
-[info]    Magic-init detection: vanilla Flutter detected
+ ℹ hot-restart staleness: Skipped (no Chrome attached)
+✓ TAPIR_DISABLE env-var: unset (runtime hooks active)
+ ℹ snapshot enrichers: enrichers are opt-in; none registered
+✓ Semantics tree forced on: enabled
+ ℹ Magic-init detection: vanilla Flutter detected
+✓ Session ownership: state.json describes this project
+ ℹ CDP session: Skipped (no cdpPort recorded; start with --cdp-port=N to enable tapir:resize, tapir:device and clipped web screenshots)
 ```
 
-Exit code: `0`. The doctor passes despite the WARN row.
+Exit code: `0`. Only the Semantics tree check can fail the doctor; WARN and INFO rows do not.
 
 ### 3. Consumer forgot to run `tapir:install`
 
@@ -163,8 +147,8 @@ The doctor cannot directly detect missing `TapirPlugin.install()` from CLI conte
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:install](tapir-install.md): the bootstrap command. Re-run `tapir:install` when check 5 reports missing integration glue.
 - [Reference: Actionability gate](../reference/actionability-gate.md): the runtime gate that snapshot consumers rely on; not checked by the doctor today.

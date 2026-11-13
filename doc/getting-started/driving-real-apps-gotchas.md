@@ -1,22 +1,34 @@
 # Driving real apps: gotchas for agents
 
-A long real-app E2E session surfaces a recurring set of traps that every agent
-re-discovers the hard way. This page collects them, with the workaround each one
-now has built into `tapir`. Read it once before driving a non-trivial
+The recurring traps of a long real-app E2E session, each with the workaround `tapir` has built in.
+
+Every agent re-discovers these the hard way. Read the page once before driving a non-trivial
 app; it will save you a dozen dead-end round trips.
 
----
-
-## Table of contents
-
+- [Quick Reference](#quick-reference)
 - [1. Refs go stale on rebuild](#1-refs-go-stale-on-rebuild)
 - [2. Text fields may snapshot nested](#2-text-fields-may-snapshot-nested)
-- [3. tapir:console needs (less than) you think](#3-tapirconsole)
+- [3. tapir:console captures debugPrint in-package now](#3-tapirconsole)
 - [4. tapir:exceptions is cumulative](#4-tapirexceptions-is-cumulative)
 - [5. restart preserves the CDP port](#5-restart-preserves-the-cdp-port)
 - [6. Overlays get stuck](#6-overlays-get-stuck)
 - [7. A green tick is dispatch, not effect](#7-a-green-tick-is-dispatch-not-effect)
 - [8. A hidden desktop app](#8-a-hidden-desktop-app)
+- [Related Documentation](#related-documentation)
+
+<a name="quick-reference"></a>
+## Quick Reference
+
+| Trap | Use |
+|:-----|:----|
+| An `e<N>` ref fails after a rebuild or navigation. | Re-snap with `tapir:snap`, or mint a `q<N>` handle with `tapir:find` / `tapir:observe`. |
+| A text field snapshots as two nested `textbox` nodes. | Target the node marked `typeable: true`, or use `tapir:fill`. |
+| `tapir:console` misses `debugPrint` output. | Nothing to do: `TapirPlugin.install()` captures it in-package. |
+| `tapir:exceptions` keeps reporting an old error. | Pass `--since=<iso8601>` recorded before the action. |
+| A web restart loses the CDP port. | Nothing to do: `restart` reuses the recorded `cdpPort`. |
+| A dialog, sheet or menu blocks the next screen. | Run `tapir:reset_overlays`. |
+| A green tick with no visible result. | Read the `effect` block on the response. |
+| A hidden desktop app reports no change. | Nothing by default; read `framesForced` and `warnings` on the response. |
 
 ---
 
@@ -84,7 +96,7 @@ threw a `-32000`.
   so those entries appear in `tapir:console` even without crumbs.
 - When crumbs IS installed it enriches the output with `Logger.root.onRecord`
   entries and its other watchers. Direct `dart:developer log()` calls that
-  bypass `debugPrint` still require crumbs's `LogWatcher`.
+  bypass `debugPrint` still require the crumbs `LogWatcher`.
 
 ---
 
@@ -115,7 +127,7 @@ the flag again.
 **Workaround:**
 
 - `dowel restart` (and bare `start`) now re-read the prior `cdpPort` from
-  `~/.dowel/state.json` and reuse it as the default, so CDP stays wired across
+  this project's session state (`state.json` under `~/.dowel/sessions/`) and reuse it as the default, so CDP stays wired across
   restarts. An explicit `--cdp-port` still wins.
 
 ---
@@ -177,10 +189,11 @@ not specific to a browser tab.
 
 ---
 
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
-- [tapir:fill](../commands/tapir-fill.md), [tapir:reset_overlays](../commands/tapir-reset-overlays.md)
-- [tapir:tap](../commands/tapir-tap.md) (`effect`, `--until`)
-- [tapir:exceptions](../commands/index.md), [tapir:find](../commands/tapir-find.md)
-- [Reference: Actionability gate](../reference/actionability-gate.md)
-- [Reference: Frame production](../reference/frame-production.md)
+- [tapir:fill](../commands/tapir-fill.md) and [tapir:reset_overlays](../commands/tapir-reset-overlays.md): the two built-in workarounds for nested text fields and stuck overlays.
+- [tapir:tap](../commands/tapir-tap.md): the `effect` block and `--until`.
+- [tapir:exceptions](../commands/index.md#console-and-exceptions) and [tapir:find](../commands/tapir-find.md): the `--since` delta and the re-resolvable `q<N>` handle.
+- [Reference: Actionability gate](../reference/actionability-gate.md): why an action is refused and with which reason.
+- [Reference: Frame production](../reference/frame-production.md): the hidden-window and backgrounded-tab failure mode.

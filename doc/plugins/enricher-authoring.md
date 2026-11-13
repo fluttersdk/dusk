@@ -1,11 +1,20 @@
 # Authoring a snapshot enricher
 
-`TapirSnapshotEnricher` is the extension point that lets an external package
-(or a host app) append custom YAML lines to every `tapir:snap` output. The
-`magic` and `wind` integrations ship enrichers out of the box, but anyone
-can register one. This guide walks through the typedef, the four-clause
-contract, the registration surface, and a ~30-line worked example.
+`TapirSnapshotEnricher` is the extension point that lets a package or a host app append custom YAML lines under each ref of a `tapir:snap` output.
 
+Enrichers run when the snapshot is taken with `includeEnrichers` on. The Magic integration
+ships enrichers out of the box, and anyone can register one. This
+guide walks through the typedef, the four-clause contract, the registration surface, and a
+short worked example.
+
+- [The typedef](#the-typedef)
+- [The four-clause contract](#the-four-clause-contract)
+- [Registration](#registration)
+- [Worked example: Riverpod provider value enricher](#worked-example-riverpod-provider-value-enricher)
+- [Testing your enricher](#testing-your-enricher)
+- [Related Documentation](#related-documentation)
+
+<a name="the-typedef"></a>
 ## The typedef
 
 ```dart
@@ -18,13 +27,12 @@ that receives a Flutter `Element` plus the snapshot's `RefRegistry` and
 returns either a YAML fragment to append under the ref, or `null` to skip
 that element.
 
-**The typedef is frozen for the alpha-2 cycle.** The signature `String?
-Function(Element element, RefRegistry refs)` MUST NOT change in any
-alpha-2 patch release. Any change requires a coordinated bump across
-`tapir`, `magic` (which ships fourteen enrichers via
-`MagicTapirIntegration`), and `wind` (which ships the six-core-field
-`windClassNameEnricher`). Treat it as a load-bearing cross-repo contract.
+**The typedef is frozen.** The signature `String? Function(Element element,
+RefRegistry refs)` does not change without a coordinated bump across `tapir` and
+`magic_devtools` (which ships the Magic enrichers via `MagicTapirIntegration`). Treat it
+as a load-bearing cross-repo contract.
 
+<a name="the-four-clause-contract"></a>
 ## The four-clause contract
 
 Every enricher implementation MUST honour these clauses:
@@ -36,9 +44,9 @@ Every enricher implementation MUST honour these clauses:
    `TapirPlugin.enrichers` in insertion order; later-registered enrichers
    see the same `Element` as earlier ones. An enricher must not mutate
    shared state in a way that affects siblings later in the chain.
-3. **First-write-wins on output keys.** When two enrichers emit
-   overlapping YAML keys for the same ref, the FIRST one in the chain
-   wins. Registration order is therefore precedence order.
+3. **Keep output keys distinct.** When two enrichers emit overlapping
+   YAML keys for the same ref, the snapshot writes both fragments; neither
+   wins, and a reader cannot rely on registration order as precedence.
 4. **Null means skip.** Return `null` when the element is not relevant
    (no matching widget type, no ancestor context, no data available).
    The dispatcher silently drops null returns.
@@ -49,6 +57,7 @@ element by reference; capturing it in a closure, a static field, or any
 external collection produces a leak and can silently widen the actionability
 gate's view of the live tree on the next snap.
 
+<a name="registration"></a>
 ## Registration
 
 Enrichers register against the `TapirPlugin.enrichers` list, mutated in
@@ -56,6 +65,8 @@ place. The list is read live on every snapshot call, so mid-session
 registrations are picked up immediately.
 
 ```dart
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:tapir/tapir.dart';
 
 void main() {
@@ -72,11 +83,12 @@ When you ship a reusable integration (rather than a one-off in `main`),
 follow the `MagicTapirIntegration` pattern: a private constructor, an
 `install()` static that guards against duplicate adds with a static bool,
 and a `resetForTesting()` static that removes the enricher and clears the
-guard. Wind alpha-10 takes a different path (the neutral `WindDebugRegistry`
+guard. `wind_kit` takes a different path (the neutral `WindDebugRegistry`
 bridge, read by tapir at snap time without an enricher); pick the enricher
 pattern when your data is per-element and the bridge pattern when your
 data is a global registry the consumer installs once.
 
+<a name="worked-example-riverpod-provider-value-enricher"></a>
 ## Worked example: Riverpod provider value enricher
 
 Surface the current value of a `StateProvider<int>` (e.g. a session
@@ -85,9 +97,10 @@ per snap from a host-supplied `ProviderContainer`, formats the value, and
 emits a `riverpodCounter:` line.
 
 ```dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:tapir/tapir.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tapir/tapir.dart';
 
 /// Host-owned counter provider. Real apps would define this elsewhere.
 final counterProvider = StateProvider<int>((ref) => 0);
@@ -141,10 +154,10 @@ A few details worth noting:
   still walks the element tree, which keeps the line attached to the
   correct ref in the YAML output.
 
+<a name="testing-your-enricher"></a>
 ## Testing your enricher
 
-Drive the enricher directly from a widget test, the same way `magic` and
-`wind` test their enrichers:
+Drive the enricher directly from a widget test:
 
 ```dart
 testWidgets('riverpodCounterEnricher surfaces the current value',
@@ -157,24 +170,23 @@ testWidgets('riverpodCounterEnricher surfaces the current value',
   await tester.pumpWidget(const SizedBox.shrink());
   final element = tester.element(find.byType(SizedBox));
 
-  expect(riverpodCounterEnricher(element, RefRegistry()),
+  expect(riverpodCounterEnricher(element, RefRegistry.instance),
       'riverpodCounter: 0');
 
   container.read(counterProvider.notifier).state = 42;
-  expect(riverpodCounterEnricher(element, RefRegistry()),
+  expect(riverpodCounterEnricher(element, RefRegistry.instance),
       'riverpodCounter: 42');
 });
 ```
 
 For tests that exercise the enricher inside the full snapshot pipeline,
 trigger a real `tapir:snap` via the VM Service extension (see the tapir
-extension tests under `test/extensions/` for the pattern).
+extension tests under `test/src/extensions/` for the pattern).
 
-## Further reading
+<a name="related-documentation"></a>
+## Related Documentation
 
-- [Magic integration](magic-integration): the canonical multi-enricher
-  reference (fourteen enrichers covering form fields, controllers, gates,
-  middleware, auth, broadcast state, and crumbs ring buffers).
-- [Wind integration](wind-integration): a single enricher with a rich
-  flat YAML block, demonstrating breakpoint / brightness / platform /
-  pseudo-class state resolution at snap time.
+- [magic-integration.md](magic-integration.md): the multi-enricher reference (form
+  fields, controllers, gates, middleware, auth, broadcast state, and crumbs ring buffers).
+- [wind-integration.md](wind-integration.md): the bridge pattern for global state, which
+  surfaces breakpoint, brightness, platform and pseudo-class states without an enricher.

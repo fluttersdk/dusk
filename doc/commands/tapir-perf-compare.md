@@ -2,16 +2,10 @@
 
 Judge one `tapir:perf_run` file against another: a verdict per metric and one overall, on counts per painted frame first and timing-mode milliseconds second.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [What is compared](#what-is-compared)
 - [Returns](#returns)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -74,7 +68,7 @@ The default output is a compact table: the verdict and thresholds, the painted f
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:perf_run](tapir-perf-run.md): the files this reads.

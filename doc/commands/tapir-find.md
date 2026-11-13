@@ -1,21 +1,19 @@
 # tapir:find
 
-Mint a re-resolvable `q<N>` handle backed by one or more predicates (text, semanticsLabel, key). Mirrors Playwright's Locator semantics: every action call against a `qN` handle re-walks the live Semantics tree on each invocation, so the handle survives intermediate widget rebuilds without going stale.
+Mint a re-resolvable `q<N>` handle backed by one or more predicates (text, semanticsLabel, key).
+
+The command mirrors Playwright's Locator semantics: every action call against a `qN` handle re-walks the live Semantics tree on each invocation, so the handle survives intermediate widget rebuilds without going stale.
 
 `qN` and `eN` token spaces are disjoint. A handle minted by `tapir:find` is always `qN`; a handle harvested from `tapir:snap` is always `eN`. The dispatcher distinguishes by prefix, but action commands accept either shape via `--ref=`.
-
----
-
-## Table of contents
 
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [Re-resolution semantics](#re-resolution-semantics)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [e-ref staleness and when to prefer q-handles](#ref-staleness)
+- [Avoiding `--semanticsLabel` over-match](#semantics-label-over-match)
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -25,11 +23,12 @@ dart run tapir tapir:find [--text=<value>]
                                     [--contains=<substring>]
                                     [--semanticsLabel=<value>]
                                     [--key=<value>]
+                                    [--within=<eN>]
 ```
 
 `tapir:find` requires a running Flutter session (`CommandBoot.connected`). It dials the VM Service URI, calls `ext.tapir.find` with the supplied predicates, and prints the minted handle envelope as pretty-printed JSON.
 
-At least one of the four options must be non-empty; an empty params map returns exit code `1` with a CLI-side error before the VM Service call.
+At least one of the four predicate options must be non-empty (`--within` is a scope, not a predicate); an empty params map returns exit code `1` with a CLI-side error before the VM Service call.
 
 ---
 
@@ -38,7 +37,7 @@ At least one of the four options must be non-empty; an empty params map returns 
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--text` | string | unset | Exact match against the widget's visible text label (the Semantics `value` or rendered `Text` content). Most common predicate; mirrors Playwright's `getByText` with exact-match semantics. |
+| `--text` | string | unset | Exact match against an accessibility label first, then against the `Text.data` of a rendered `Text` as a fallback. Most common predicate; mirrors Playwright's `getByText` with exact-match semantics. |
 | `--contains` | string | unset | Substring match against the visible text label or Semantics label (case-sensitive). Use when the label is dynamic (counters, timestamps, plurals) and exact `--text` is too brittle. |
 | `--semanticsLabel` | string | unset | Exact match against the widget's accessibility label (the explicit `Semantics(label: ...)` value set by the widget tree). Use when the visible text and the a11y label diverge. |
 | `--key` | string | unset | Match the widget's `ValueKey` identifier (the `Key('signin-button')` form). Most precise; survives label and copy changes. |
@@ -57,9 +56,9 @@ The CLI guards an empty params map (`Provide at least one of --text / --contains
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | Handle minted (or re-used; the registry is content-addressed). The handler emits the JSON envelope below. |
+| `0` | The call completed. A match mints a handle and emits the JSON envelope below; no match emits `{"ref": null, "matched": false}` (check `matched` before using `ref`). |
 | `1` | No predicate supplied. The CLI guard fires before the VM Service call. |
-| non-zero | VM Service handler returned `ServiceExtensionResponse.error`. Typical cause: the predicate matched zero widgets (no matches surfaces as a structured failure so the agent knows to broaden the predicate). |
+| non-zero | VM Service handler returned `ServiceExtensionResponse.error`, or the call could not reach the app. |
 
 **Success envelope (illustrative):**
 
@@ -92,7 +91,7 @@ Multi-match (ambiguous predicate):
 
 **Error envelope:**
 
-The VM Service handler propagates errors as `ServiceExtensionResponse.error(extensionError, message)`. The CLI surfaces them via `DowelContext.callExtension` and exits non-zero. Common messages include `No widget matched predicates: {}`.
+The VM Service handler propagates errors as `ServiceExtensionResponse.error(extensionError, message)`. The CLI surfaces them via `DowelContext.callExtension` and exits non-zero.
 
 ---
 
@@ -123,10 +122,8 @@ Expected output (illustrative):
 ```json
 {
   "ref": "q1",
-  "matchCount": 1,
-  "rect": [120, 400, 240, 48],
-  "role": "button",
-  "label": "Sign in"
+  "matched": true,
+  "matchCount": 1
 }
 ```
 
@@ -247,8 +244,8 @@ their real position rather than the viewport centre.
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:snap](tapir-snap.md): produce `eN` refs for one-shot reads.
 - [tapir:tap](tapir-tap.md): consume the `qN` ref to synthesise a tap.

@@ -1,13 +1,22 @@
 # Frame production
 
-Every tapir read and every tapir action depends on the app producing frames. When it stops, both go wrong at once and neither looks like a tooling problem. This page describes when that happens, what tapir does about it, and the fallback when it cannot.
+Every tapir read and action depends on the app producing frames, and this page covers when that stops, what tapir does about it, and the fallback.
 
+When frame production stops, reads and actions go wrong at once, and neither looks like a tooling problem.
+
+- [When frame production stops](#when-frame-production-stops)
+- [What breaks, and why it reads as a product defect](#what-breaks-and-why-it-reads-as-a-product-defect)
+- [What tapir does](#what-tapir-does)
+- [The fallback](#the-fallback)
+- [Related Documentation](#related-documentation)
+
+<a name="when-frame-production-stops"></a>
 ## When frame production stops
 
-Flutter turns frame production off for three lifecycle states:
+Flutter turns frame production off for some lifecycle states:
 
 | `AppLifecycleState` | Frames |
-|---|---|
+|:---|:---|
 | `resumed`, `inactive` | on |
 | `hidden`, `paused`, `detached` | off |
 
@@ -15,6 +24,7 @@ On Flutter web, Chrome reports `document.visibilityState: "hidden"` as soon as t
 
 On desktop the same state follows the window: hidden, minimised or fully occluded (macOS reports `hidden` after an occlusion event). Another app in front of a visible window is `inactive`, which still produces frames.
 
+<a name="what-breaks-and-why-it-reads-as-a-product-defect"></a>
 ## What breaks, and why it reads as a product defect
 
 Two separate symptoms, one cause:
@@ -22,6 +32,7 @@ Two separate symptoms, one cause:
 - **A snapshot loses its text.** Semantics labels are rebuilt during a frame. With no frames, `tapir:snap` returns the buttons and none of the `- text` nodes, so a screen that renders perfectly reads as completely empty. This has been mistaken for "the dashboard is permanently stuck on loading skeletons"; the screen was fine and a screenshot proved it.
 - **An action reports success and changes nothing.** A gesture is dispatched into the widget tree, but the frame that would apply it never runs. The handler returns a clean payload for a tap that could not possibly land. On a hidden macOS window a tap answered "no observable change" and a screenshot returned the last cached frame.
 
+<a name="what-tapir-does"></a>
 ## What tapir does
 
 ### Frame forcing
@@ -80,7 +91,7 @@ When tapir could not force frames (the opt-out above, a `detached` lifecycle, or
 ```
 
 | Field | Type | Description |
-|-------|------|-------------|
+|:------|:-----|:------------|
 | `framesEnabled` | bool | Always `false` when the block is present. |
 | `lifecycleState` | string \| null | The `AppLifecycleState` behind it (`hidden`, `paused`, `detached`), or null before the first lifecycle message. |
 | `platform` | string | `web`, or the `TargetPlatform` name (`macOS`, `windows`, `linux`, `iOS`, ...). |
@@ -97,6 +108,7 @@ The block is **omitted entirely** on a healthy engine, so its presence is itself
 
 On desktop the second sentence reads "The window is hidden, minimised or occluded, or the display is asleep: bring the window to front and retry."
 
+<a name="the-fallback"></a>
 ## The fallback
 
 Forcing covers a hidden desktop window. It cannot cover a hidden browser tab, the opt-out, `detached` or an asleep display: bring the target to front yourself.
@@ -118,7 +130,9 @@ On desktop, activate the window (macOS: `osascript -e 'tell application "<App>" 
 
 Two blank-screen causes look identical and are not, so read the console entry count before deciding which one you have. A mounted tree with missing text is a hidden page: `Page.bringToFront` fixes it on web, forcing on desktop. Zero glass panes, zero canvases and **zero console lines** is a dead bootstrap instead, which no amount of bringing-to-front repairs; restart the run.
 
-## Related
+<a name="related-documentation"></a>
+## Related Documentation
 
-- [Actionability gate](actionability-gate.md): the six preconditions each gesture passes before dispatch.
-- [Driving real apps: gotchas for agents](../getting-started/driving-real-apps-gotchas.md)
+- [Actionability gate](actionability-gate.md): the preconditions each gesture passes before dispatch.
+- [Driving real apps: gotchas for agents](../getting-started/driving-real-apps-gotchas.md): the other blank-screen and stale-result traps.
+- [Tool reference](../mcp/tool-reference.md): the `framesForced` and `warnings` response fields on every verb.

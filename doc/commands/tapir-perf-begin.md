@@ -1,19 +1,15 @@
 # tapir:perf_begin
 
-Open a performance measurement session around an interaction you are about to drive. `tapir:perf_begin` zeroes the frame buffer and the wind and magic counters and records the liveness baseline that `tapir:perf_end` judges the run against. In `attribution` mode (the default) it also switches Flutter's build profiling on; in `timing` mode it touches no profiling flag at all. Nothing is measured until you call it, and the instrumentation costs real time, so keep every session tight: begin, drive one interaction, end.
+Open a performance measurement session around an interaction you are about to drive.
 
----
-
-## Table of contents
+`tapir:perf_begin` zeroes the frame buffer and the wind and magic counters and records the liveness baseline that `tapir:perf_end` judges the run against. In `attribution` mode (the default) it also switches Flutter's build profiling on; in `timing` mode it touches no profiling flag at all. Nothing is measured until you call it, and the instrumentation costs real time, so keep every session tight: begin, drive one interaction, end.
 
 - [Synopsis](#synopsis)
 - [Modes](#modes)
 - [What it turns on](#what-it-turns-on)
 - [Returns](#returns)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -48,7 +44,7 @@ In `timing` mode only step 4 runs; every flag is left where it was.
 1. `FlutterTimeline.debugCollectionEnabled` first. Both `startSync` and `finishSync` check that flag, so enabling the build flags ahead of it would push a finish with no matching start.
 2. `debugProfileBuildsEnabled` and `debugProfileBuildsEnabledUserWidgets`, from `package:flutter/widgets.dart`.
 3. With `--phases`, `debugProfileLayoutsEnabled` and `debugProfilePaintsEnabled`, from `package:flutter/rendering.dart`. Two libraries, one session.
-4. The session-begin hook the host wired, called with the session's mode: it zeroes wind's counters, clears crumbs's frame buffer, and turns wind's counting on in `attribution` mode only (counting sits on wind's hottest path and would inflate the milliseconds `timing` mode exists to report). Without the hook (no `magic_devtools` in the app) those sections come back empty and the frame summary reports zero frames.
+4. The session-begin hook the host wired, called with the session's mode: it zeroes wind's counters, clears the crumbs frame buffer, and turns wind's counting on in `attribution` mode only (counting sits on wind's hottest path and would inflate the milliseconds `timing` mode exists to report). Without the hook (no `magic_devtools` in the app) those sections come back empty and the frame summary reports zero frames.
 
 Each flag's prior value is saved in the session. `tapir:perf_end` restores those values rather than forcing `false`, so a host that had build profiling on for its own reasons gets it back.
 
@@ -112,8 +108,8 @@ dart run tapir tapir:perf_end --json | jq '.summary.frames'
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:perf_end](tapir-perf-end.md): closes the session, reports ranked insights, restores every flag.
 - [tapir:perf_insight](tapir-perf-insight.md): the rows behind one insight.

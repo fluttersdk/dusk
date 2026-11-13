@@ -1,21 +1,18 @@
 name: tapir
-description: "Flutter E2E driver for LLM agents and CI. 41 CLI commands and 39 MCP tools drive a running app over VM Service extensions; no flutter_test harness needed."
+description: "Drive a live Flutter app from an AI agent or CI: Semantics snapshots, gated taps and typing, screenshots, perf traces. No flutter_test harness, no test file between actions."
 version: 0.0.23
 homepage: https://anilcancakir.com/tapir
 repository: https://github.com/anilcancakir/tapir
 issue_tracker: https://github.com/anilcancakir/tapir/issues
 
-# pub.dev search topics (max 5, lowercase + hyphens, regex ^[a-z][a-z0-9-]{0,31}$).
-# Order = priority. `mcp-server` + `e2e-testing` are near-empty pub.dev topic
-# spaces tapir can rank #1 on immediately; `ai-agents` is forward-looking with
-# no current claimant; `testing` is the canonical broad-reach term; `flutter`
-# is the high-traffic exact-match anchor.
+# pub.dev search topics: at most 5, each an existing topic. No `flutter`: pub.dev
+# derives the Flutter tag from the SDK dependency.
 topics:
   - mcp-server
   - e2e-testing
   - ai-agents
   - testing
-  - flutter
+  - automation
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -31,9 +28,8 @@ dependencies:
   yaml: ^3.1.0
 
 executables:
-  # `dart run tapir <cmd>` is the tapir-flavoured dowel wrapper.
-  # Surfaces 41 CLI commands + 39 MCP tools (33 call an ext.tapir.* extension directly, 6 route
-  # through dowel:tapir:*; 38 ext.tapir.* extensions in all) via TapirDowelProvider.
+  # `dart run tapir <cmd>`: the Flutter-free dowel wrapper with TapirDowelProvider
+  # registered, so the tapir:* commands and `mcp:serve` work without a scaffold.
   tapir: tapir
 
 dev_dependencies:
