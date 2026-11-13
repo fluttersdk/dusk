@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_scroll.dart';
@@ -23,8 +23,9 @@ void main() {
   });
 
   group('aiTestScrollByDelta', () {
-    testWidgets('jumps scroll position to the target pixel value',
-        (tester) async {
+    testWidgets('jumps scroll position to the target pixel value', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -38,8 +39,9 @@ void main() {
         ),
       );
 
-      final ScrollableState scrollable =
-          tester.state(find.byType(Scrollable).first);
+      final ScrollableState scrollable = tester.state(
+        find.byType(Scrollable).first,
+      );
       expect(scrollable.position.pixels, equals(0));
 
       await aiTestScrollByDelta(scrollable, 240.0);
@@ -48,43 +50,44 @@ void main() {
   });
 
   group('aiTestScrollHandler — param + error paths', () {
-    testWidgets('returns error when no scrollable exists in the tree',
-        (tester) async {
+    testWidgets('returns error when no scrollable exists in the tree', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: Text('flat'))),
       );
 
-      final response = await aiTestScrollHandler(
-        'ext.tapir.scroll',
-        const {'dy': '100'},
-      );
+      final response = await aiTestScrollHandler('ext.tapir.scroll', const {
+        'dy': '100',
+      });
       expect(_isError(response), isTrue);
     });
 
-    testWidgets('returns success when scrollable exists (pump-advance frames)',
-        (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ListView(
-              children: List<Widget>.generate(
-                40,
-                (i) => SizedBox(height: 60, child: Text('row $i')),
+    testWidgets(
+      'returns success when scrollable exists (pump-advance frames)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ListView(
+                children: List<Widget>.generate(
+                  40,
+                  (i) => SizedBox(height: 60, child: Text('row $i')),
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      final future = aiTestScrollHandler(
-        'ext.tapir.scroll',
-        const {'dy': '120'},
-      );
-      await tester.pump();
-      await tester.pump();
-      final response = await future;
-      expect(response.errorCode, isNull);
-    });
+        final future = aiTestScrollHandler('ext.tapir.scroll', const {
+          'dy': '120',
+        });
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+        expect(response.errorCode, isNull);
+      },
+    );
 
     testWidgets('unknown e-ref falls back to root walk', (tester) async {
       await tester.pumpWidget(
@@ -100,10 +103,10 @@ void main() {
         ),
       );
 
-      final future = aiTestScrollHandler(
-        'ext.tapir.scroll',
-        const {'ref': 'e9999', 'dy': '120'},
-      );
+      final future = aiTestScrollHandler('ext.tapir.scroll', const {
+        'ref': 'e9999',
+        'dy': '120',
+      });
       await tester.pump();
       await tester.pump();
       final response = await future;
@@ -124,18 +127,19 @@ void main() {
         ),
       );
 
-      final future = aiTestScrollHandler(
-        'ext.tapir.scroll',
-        const {'ref': 'q9999', 'dy': '120'},
-      );
+      final future = aiTestScrollHandler('ext.tapir.scroll', const {
+        'ref': 'q9999',
+        'dy': '120',
+      });
       await tester.pump();
       await tester.pump();
       final response = await future;
       expect(response.errorCode, isNull);
     });
 
-    testWidgets('known e-ref scrolls via its parent scrollable',
-        (tester) async {
+    testWidgets('known e-ref scrolls via its parent scrollable', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -159,18 +163,19 @@ void main() {
         isTextField: false,
       );
 
-      final future = aiTestScrollHandler(
-        'ext.tapir.scroll',
-        {'ref': ref, 'dy': '120'},
-      );
+      final future = aiTestScrollHandler('ext.tapir.scroll', {
+        'ref': ref,
+        'dy': '120',
+      });
       await tester.pump();
       await tester.pump();
       final response = await future;
       expect(response.errorCode, isNull);
     });
 
-    testWidgets('effect reports the offset on both sides of the scroll',
-        (tester) async {
+    testWidgets('effect reports the offset on both sides of the scroll', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -191,10 +196,11 @@ void main() {
         isTextField: false,
       );
 
-      final future = aiTestScrollHandler(
-        'ext.tapir.scroll',
-        {'ref': ref, 'dy': '120', 'includeSnapshot': 'false'},
-      );
+      final future = aiTestScrollHandler('ext.tapir.scroll', {
+        'ref': ref,
+        'dy': '120',
+        'includeSnapshot': 'false',
+      });
       await tester.pump();
       await tester.pump();
       final response = await future;
@@ -230,10 +236,11 @@ void main() {
         groupId: 'g-scroll-direction',
         isTextField: false,
       );
-      final future = aiTestScrollHandler(
-        'ext.tapir.scroll',
-        {'ref': ref, 'includeSnapshot': 'false', ...params},
-      );
+      final future = aiTestScrollHandler('ext.tapir.scroll', {
+        'ref': ref,
+        'includeSnapshot': 'false',
+        ...params,
+      });
       await tester.pump();
       await tester.pump();
       final response = await future;
@@ -242,26 +249,27 @@ void main() {
     }
 
     Future<void> pumpList(WidgetTester tester) => tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: ListView(
-                children: List<Widget>.generate(
-                  40,
-                  (i) => SizedBox(height: 60, child: Text('row $i')),
-                ),
-              ),
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: List<Widget>.generate(
+              40,
+              (i) => SizedBox(height: 60, child: Text('row $i')),
             ),
           ),
-        );
+        ),
+      ),
+    );
 
-    testWidgets('the schema example scrolls down by the given pixels',
-        (tester) async {
+    testWidgets('the schema example scrolls down by the given pixels', (
+      tester,
+    ) async {
       await pumpList(tester);
 
-      final decoded = await scrollBy(
-        tester,
-        {'direction': 'down', 'pixels': '200'},
-      );
+      final decoded = await scrollBy(tester, {
+        'direction': 'down',
+        'pixels': '200',
+      });
 
       final effect = decoded['effect'] as Map<String, dynamic>;
       expect(effect['after'], equals(200.0));
@@ -272,18 +280,19 @@ void main() {
       await pumpList(tester);
       await scrollBy(tester, {'dy': '300'});
 
-      final decoded = await scrollBy(
-        tester,
-        {'direction': 'up', 'pixels': '100'},
-      );
+      final decoded = await scrollBy(tester, {
+        'direction': 'up',
+        'pixels': '100',
+      });
 
       final effect = decoded['effect'] as Map<String, dynamic>;
       expect(effect['before'], equals(300.0));
       expect(effect['after'], equals(200.0));
     });
 
-    testWidgets('a lone direction scrolls the documented 300 pixels',
-        (tester) async {
+    testWidgets('a lone direction scrolls the documented 300 pixels', (
+      tester,
+    ) async {
       await pumpList(tester);
 
       final decoded = await scrollBy(tester, {'direction': 'down'});
@@ -295,10 +304,11 @@ void main() {
     testWidgets('explicit dy wins over direction and pixels', (tester) async {
       await pumpList(tester);
 
-      final decoded = await scrollBy(
-        tester,
-        {'dy': '120', 'direction': 'down', 'pixels': '500'},
-      );
+      final decoded = await scrollBy(tester, {
+        'dy': '120',
+        'direction': 'down',
+        'pixels': '500',
+      });
 
       final effect = decoded['effect'] as Map<String, dynamic>;
       expect(effect['after'], equals(120.0));
@@ -313,25 +323,28 @@ void main() {
       expect(effect['changed'], isFalse);
     });
 
-    testWidgets('a lone pixels scrolls down, the documented default direction',
-        (tester) async {
-      await pumpList(tester);
+    testWidgets(
+      'a lone pixels scrolls down, the documented default direction',
+      (tester) async {
+        await pumpList(tester);
 
-      final decoded = await scrollBy(tester, {'pixels': '150'});
+        final decoded = await scrollBy(tester, {'pixels': '150'});
 
-      final effect = decoded['effect'] as Map<String, dynamic>;
-      expect(effect['after'], equals(150.0));
-    });
+        final effect = decoded['effect'] as Map<String, dynamic>;
+        expect(effect['after'], equals(150.0));
+      },
+    );
 
-    testWidgets('pixels is a distance: the direction alone gives the sign',
-        (tester) async {
+    testWidgets('pixels is a distance: the direction alone gives the sign', (
+      tester,
+    ) async {
       await pumpList(tester);
       await scrollBy(tester, {'dy': '300'});
 
-      final decoded = await scrollBy(
-        tester,
-        {'direction': 'up', 'pixels': '-100'},
-      );
+      final decoded = await scrollBy(tester, {
+        'direction': 'up',
+        'pixels': '-100',
+      });
 
       final effect = decoded['effect'] as Map<String, dynamic>;
       expect(effect['after'], equals(200.0));
@@ -352,16 +365,16 @@ void main() {
         ),
       );
 
-      final right = await scrollBy(
-        tester,
-        {'direction': 'right', 'pixels': '200'},
-      );
+      final right = await scrollBy(tester, {
+        'direction': 'right',
+        'pixels': '200',
+      });
       expect((right['effect'] as Map<String, dynamic>)['after'], equals(200.0));
 
-      final left = await scrollBy(
-        tester,
-        {'direction': 'left', 'pixels': '50'},
-      );
+      final left = await scrollBy(tester, {
+        'direction': 'left',
+        'pixels': '50',
+      });
       expect((left['effect'] as Map<String, dynamic>)['after'], equals(150.0));
     });
 
@@ -371,10 +384,10 @@ void main() {
         Map<String, String> params,
       ) async {
         await pumpList(tester);
-        final response = await aiTestScrollHandler(
-          'ext.tapir.scroll',
-          {'includeSnapshot': 'false', ...params},
-        );
+        final response = await aiTestScrollHandler('ext.tapir.scroll', {
+          'includeSnapshot': 'false',
+          ...params,
+        });
 
         expect(response.errorCode, isNotNull);
         expect(
@@ -392,16 +405,19 @@ void main() {
       });
 
       testWidgets('pixels that is infinite', (tester) async {
-        await expectInvalid(
-            tester, {'direction': 'down', 'pixels': 'Infinity'});
+        await expectInvalid(tester, {
+          'direction': 'down',
+          'pixels': 'Infinity',
+        });
       });
 
       testWidgets('an unknown direction', (tester) async {
         await expectInvalid(tester, {'direction': 'sideways', 'pixels': '10'});
       });
 
-      testWidgets('a dx that is not a number, even next to a direction',
-          (tester) async {
+      testWidgets('a dx that is not a number, even next to a direction', (
+        tester,
+      ) async {
         await expectInvalid(tester, {'dx': 'abc', 'direction': 'down'});
       });
     });
@@ -412,170 +428,161 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('aiTestScrollHandler snapshot-in-response', () {
-    testWidgets(
-      'embeds snapshot field in success response by default',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: ListView(
-                children: List<Widget>.generate(
-                  40,
-                  (i) => SizedBox(height: 60, child: Text('scroll-row-$i')),
+    testWidgets('embeds snapshot field in success response by default', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: List<Widget>.generate(
+                40,
+                (i) => SizedBox(height: 60, child: Text('scroll-row-$i')),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final future = aiTestScrollHandler(
+        'ext.tapir.scroll',
+        const <String, String>{'dy': '120'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
+
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['scrolled'], isTrue);
+      expect(decoded['snapshot'], isA<String>());
+    });
+
+    testWidgets('omits snapshot when includeSnapshot is false', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: List<Widget>.generate(
+                40,
+                (i) => SizedBox(height: 60, child: Text('row $i')),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final future = aiTestScrollHandler(
+        'ext.tapir.scroll',
+        const <String, String>{'dy': '120', 'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
+
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded.containsKey('snapshot'), isFalse);
+    });
+
+    testWidgets('snapshot YAML reflects the post-scroll tree contents', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: List<Widget>.generate(
+                40,
+                (i) => SizedBox(
+                  height: 60,
+                  child: Text('scroll-content-marker-$i'),
                 ),
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        final future = aiTestScrollHandler(
-          'ext.tapir.scroll',
-          const <String, String>{'dy': '120'},
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestScrollHandler(
+        'ext.tapir.scroll',
+        const <String, String>{'dy': '60'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['scrolled'], isTrue);
-        expect(decoded['snapshot'], isA<String>());
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['snapshot'] as String, contains('scroll-content-marker'));
+    });
 
-    testWidgets(
-      'omits snapshot when includeSnapshot is false',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: ListView(
-                children: List<Widget>.generate(
-                  40,
-                  (i) => SizedBox(height: 60, child: Text('row $i')),
-                ),
+    testWidgets('snapshot=diff answers the rows the scroll changed', (
+      WidgetTester tester,
+    ) async {
+      resetSnapshotBaselineForTesting();
+      addTearDown(resetSnapshotBaselineForTesting);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: List<Widget>.generate(
+                40,
+                (i) => SizedBox(height: 60, child: Text('diff-row-$i')),
               ),
             ),
           ),
-        );
+        ),
+      );
+      await tapirSnapBuild();
 
-        final future = aiTestScrollHandler(
-          'ext.tapir.scroll',
-          const <String, String>{
-            'dy': '120',
-            'includeSnapshot': 'false',
-          },
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestScrollHandler(
+        'ext.tapir.scroll',
+        const <String, String>{'dy': '600', 'snapshot': 'diff'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded.containsKey('snapshot'), isFalse);
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['snapshotMode'], 'diff');
+      final String diff = decoded['snapshot'] as String;
+      expect(diff, contains('- - text "diff-row-0"'));
+      expect(diff, matches(RegExp(r'\(\d+ of \d+ lines changed\)$')));
+    });
 
-    testWidgets(
-      'snapshot YAML reflects the post-scroll tree contents',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: ListView(
-                children: List<Widget>.generate(
-                  40,
-                  (i) => SizedBox(
-                    height: 60,
-                    child: Text('scroll-content-marker-$i'),
-                  ),
-                ),
+    testWidgets('snapshot=none omits the snapshot', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: List<Widget>.generate(
+                40,
+                (i) => SizedBox(height: 60, child: Text('none-row-$i')),
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        final future = aiTestScrollHandler(
-          'ext.tapir.scroll',
-          const <String, String>{'dy': '60'},
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestScrollHandler(
+        'ext.tapir.scroll',
+        const <String, String>{'dy': '120', 'snapshot': 'none'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(
-            decoded['snapshot'] as String, contains('scroll-content-marker'));
-      },
-    );
-
-    testWidgets(
-      'snapshot=diff answers the rows the scroll changed',
-      (WidgetTester tester) async {
-        resetSnapshotBaselineForTesting();
-        addTearDown(resetSnapshotBaselineForTesting);
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: ListView(
-                children: List<Widget>.generate(
-                  40,
-                  (i) => SizedBox(height: 60, child: Text('diff-row-$i')),
-                ),
-              ),
-            ),
-          ),
-        );
-        await tapirSnapBuild();
-
-        final future = aiTestScrollHandler(
-          'ext.tapir.scroll',
-          const <String, String>{'dy': '600', 'snapshot': 'diff'},
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
-
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['snapshotMode'], 'diff');
-        final String diff = decoded['snapshot'] as String;
-        expect(diff, contains('- - text "diff-row-0"'));
-        expect(diff, matches(RegExp(r'\(\d+ of \d+ lines changed\)$')));
-      },
-    );
-
-    testWidgets(
-      'snapshot=none omits the snapshot',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: ListView(
-                children: List<Widget>.generate(
-                  40,
-                  (i) => SizedBox(height: 60, child: Text('none-row-$i')),
-                ),
-              ),
-            ),
-          ),
-        );
-
-        final future = aiTestScrollHandler(
-          'ext.tapir.scroll',
-          const <String, String>{'dy': '120', 'snapshot': 'none'},
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
-
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded.containsKey('snapshot'), isFalse);
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded.containsKey('snapshot'), isFalse);
+    });
   });
 
   group('registerScrollExtensions', () {
@@ -590,59 +597,45 @@ void main() {
     // (a) aiTestSelectOptionInElement selects DropdownButton value
     // -------------------------------------------------------------------------
 
-    testWidgets(
-      'aiTestSelectOptionInElement invokes onChanged callback on'
-      ' DropdownButton',
-      (WidgetTester tester) async {
-        String? selectedValue = 'a';
+    testWidgets('aiTestSelectOptionInElement invokes onChanged callback on'
+        ' DropdownButton', (WidgetTester tester) async {
+      String? selectedValue = 'a';
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: DropdownButton<String>(
-                value: selectedValue,
-                items: const <DropdownMenuItem<String>>[
-                  DropdownMenuItem(
-                    value: 'a',
-                    child: Text('Option A'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'b',
-                    child: Text('Option B'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'c',
-                    child: Text('Option C'),
-                  ),
-                ],
-                onChanged: (String? newValue) {
-                  selectedValue = newValue;
-                },
-              ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DropdownButton<String>(
+              value: selectedValue,
+              items: const <DropdownMenuItem<String>>[
+                DropdownMenuItem(value: 'a', child: Text('Option A')),
+                DropdownMenuItem(value: 'b', child: Text('Option B')),
+                DropdownMenuItem(value: 'c', child: Text('Option C')),
+              ],
+              onChanged: (String? newValue) {
+                selectedValue = newValue;
+              },
             ),
           ),
-        );
+        ),
+      );
 
-        final BuildContext context = tester.element(find.byType(Scaffold));
+      final BuildContext context = tester.element(find.byType(Scaffold));
 
-        final bool invoked = aiTestSelectOptionInElement(
-          context,
-          value: 'b',
-        );
+      final bool invoked = aiTestSelectOptionInElement(context, value: 'b');
 
-        expect(
-          invoked,
-          isTrue,
-          reason: 'aiTestSelectOptionInElement should find and invoke'
-              ' DropdownButton',
-        );
-        expect(
-          selectedValue,
-          equals('b'),
-          reason: 'value should be updated via onChanged callback',
-        );
-      },
-    );
+      expect(
+        invoked,
+        isTrue,
+        reason:
+            'aiTestSelectOptionInElement should find and invoke'
+            ' DropdownButton',
+      );
+      expect(
+        selectedValue,
+        equals('b'),
+        reason: 'value should be updated via onChanged callback',
+      );
+    });
 
     // -------------------------------------------------------------------------
     // (b) aiTestSelectOptionInElement returns false when no widget found
@@ -654,20 +647,13 @@ void main() {
       (WidgetTester tester) async {
         await tester.pumpWidget(
           MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: Text('No dropdown here'),
-              ),
-            ),
+            home: Scaffold(body: Center(child: Text('No dropdown here'))),
           ),
         );
 
         final BuildContext context = tester.element(find.byType(Scaffold));
 
-        final bool invoked = aiTestSelectOptionInElement(
-          context,
-          value: 'b',
-        );
+        final bool invoked = aiTestSelectOptionInElement(context, value: 'b');
 
         expect(
           invoked,
@@ -691,14 +677,8 @@ void main() {
               body: DropdownButton<String>(
                 value: 'a',
                 items: const <DropdownMenuItem<String>>[
-                  DropdownMenuItem(
-                    value: 'a',
-                    child: Text('Option A'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'b',
-                    child: Text('Option B'),
-                  ),
+                  DropdownMenuItem(value: 'a', child: Text('Option A')),
+                  DropdownMenuItem(value: 'b', child: Text('Option B')),
                 ],
                 onChanged: null,
               ),
@@ -708,10 +688,7 @@ void main() {
 
         final BuildContext context = tester.element(find.byType(Scaffold));
 
-        final bool invoked = aiTestSelectOptionInElement(
-          context,
-          value: 'b',
-        );
+        final bool invoked = aiTestSelectOptionInElement(context, value: 'b');
 
         expect(
           invoked,
@@ -734,10 +711,7 @@ void main() {
               body: DropdownButton<String>(
                 value: 'a',
                 items: const <DropdownMenuItem<String>>[
-                  DropdownMenuItem(
-                    value: 'a',
-                    child: Text('Option A'),
-                  ),
+                  DropdownMenuItem(value: 'a', child: Text('Option A')),
                 ],
                 onChanged: (_) {},
               ),
@@ -770,11 +744,7 @@ void main() {
       (WidgetTester tester) async {
         await tester.pumpWidget(
           const MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: Text('No dropdown'),
-              ),
-            ),
+            home: Scaffold(body: Center(child: Text('No dropdown'))),
           ),
         );
 
@@ -819,9 +789,9 @@ void main() {
       // harness is pumped.
       final Future<developer.ServiceExtensionResponse> future =
           aiTestSelectOptionHandler(
-        'ext.tapir.select_option',
-        const <String, String>{'value': 'two'},
-      );
+            'ext.tapir.select_option',
+            const <String, String>{'value': 'two'},
+          );
       for (int i = 0; i < 4; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
@@ -839,8 +809,9 @@ void main() {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
-    testWidgets('a ref pointing at the ListView itself reports a real before',
-        (WidgetTester tester) async {
+    testWidgets('a ref pointing at the ListView itself reports a real before', (
+      WidgetTester tester,
+    ) async {
       // The before-offset used to come from `Scrollable.maybeOf(target)`,
       // which is the ANCESTOR, while the scroll drove the target itself.
       // Passing a ListView's own ref (what `find --key=my-list` returns)
@@ -869,10 +840,10 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> future =
           aiTestScrollHandler('ext.tapir.scroll', <String, String>{
-        'ref': ref,
-        'dy': '300',
-        'includeSnapshot': 'false',
-      });
+            'ref': ref,
+            'dy': '300',
+            'includeSnapshot': 'false',
+          });
       for (int i = 0; i < 8; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
@@ -899,9 +870,9 @@ void main() {
     ) async {
       final Future<developer.ServiceExtensionResponse> future =
           aiTestScrollHandler('ext.tapir.scroll', <String, String>{
-        ...params,
-        'includeSnapshot': 'false',
-      });
+            ...params,
+            'includeSnapshot': 'false',
+          });
       for (int i = 0; i < 8; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
@@ -922,7 +893,9 @@ void main() {
       );
 
       final Map<String, dynamic> decoded = await scroll(
-          tester, <String, String>{'ref': ref, 'intoView': 'true'});
+        tester,
+        <String, String>{'ref': ref, 'intoView': 'true'},
+      );
 
       expect(decoded['scrolled'], isFalse);
       expect(
@@ -948,8 +921,10 @@ void main() {
         ),
       );
 
-      final Map<String, dynamic> decoded =
-          await scroll(tester, <String, String>{'dy': '0'});
+      final Map<String, dynamic> decoded = await scroll(
+        tester,
+        <String, String>{'dy': '0'},
+      );
 
       expect(decoded['scrolled'], isFalse);
       expect(decoded['effect']['changed'], isFalse);
@@ -970,14 +945,17 @@ void main() {
           ),
         ),
       );
-      final ScrollableState scrollable =
-          tester.state<ScrollableState>(find.byType(Scrollable).first);
+      final ScrollableState scrollable = tester.state<ScrollableState>(
+        find.byType(Scrollable).first,
+      );
       final double max = scrollable.position.maxScrollExtent;
       scrollable.position.jumpTo(max);
       await tester.pump();
 
-      final Map<String, dynamic> decoded =
-          await scroll(tester, <String, String>{'dy': '500'});
+      final Map<String, dynamic> decoded = await scroll(
+        tester,
+        <String, String>{'dy': '500'},
+      );
 
       expect(decoded['scrolled'], isFalse);
       expect(decoded['finalOffset'], equals(max));
@@ -1018,9 +996,9 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> future =
           aiTestScrollHandler('ext.tapir.scroll', <String, String>{
-        'dy': '200',
-        'includeSnapshot': 'false',
-      });
+            'dy': '200',
+            'includeSnapshot': 'false',
+          });
       for (int i = 0; i < 8; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
@@ -1030,8 +1008,11 @@ void main() {
       final Map<String, dynamic> decoded =
           jsonDecode(response.result!) as Map<String, dynamic>;
       expect(decoded['scrolled'], isTrue);
-      expect(find.text('shown-0'), findsNothing,
-          reason: 'the visible list is the one that scrolled');
+      expect(
+        find.text('shown-0'),
+        findsNothing,
+        reason: 'the visible list is the one that scrolled',
+      );
     });
 
     testWidgets('is true when the offset moved', (WidgetTester tester) async {
@@ -1048,8 +1029,10 @@ void main() {
         ),
       );
 
-      final Map<String, dynamic> decoded =
-          await scroll(tester, <String, String>{'dy': '200'});
+      final Map<String, dynamic> decoded = await scroll(
+        tester,
+        <String, String>{'dy': '200'},
+      );
 
       expect(decoded['scrolled'], isTrue);
       expect(decoded['finalOffset'], equals(200.0));
@@ -1067,9 +1050,9 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> future =
           aiTestSelectOptionHandler(
-        'ext.tapir.select_option',
-        const <String, String>{'value': 'two'},
-      );
+            'ext.tapir.select_option',
+            const <String, String>{'value': 'two'},
+          );
       for (int i = 0; i < 4; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
@@ -1095,9 +1078,9 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> future =
           aiTestSelectOptionHandler(
-        'ext.tapir.select_option',
-        const <String, String>{'value': 'two'},
-      );
+            'ext.tapir.select_option',
+            const <String, String>{'value': 'two'},
+          );
       for (int i = 0; i < 4; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }

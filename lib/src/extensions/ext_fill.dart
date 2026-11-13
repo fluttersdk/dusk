@@ -103,10 +103,10 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
     //    join it rather than opening three.
     final developer.ServiceExtensionResponse? outcome =
         await runPerfInteraction(
-      'fill',
-      ref,
-      () async => await _attemptFill(params) ?? await _attemptFill(params),
-    );
+          'fill',
+          ref,
+          () async => await _attemptFill(params) ?? await _attemptFill(params),
+        );
     if (outcome == null) {
       // Two consecutive stale resolutions: the handle is genuinely gone.
       return developer.ServiceExtensionResponse.error(
@@ -244,12 +244,8 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
   await awaitFrameOrTimeout();
 
   // 4. Type the new value. The gated type handler awaits two frames itself.
-  return aiTestTypeHandler(
-    'ext.tapir.type',
-    <String, String>{
-      ...stepParams,
-      'text': params['text']!,
-    },
-    target: target,
-  );
+  return aiTestTypeHandler('ext.tapir.type', <String, String>{
+    ...stepParams,
+    'text': params['text']!,
+  }, target: target);
 }

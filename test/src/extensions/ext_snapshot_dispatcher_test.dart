@@ -2,7 +2,7 @@ library;
 
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/tapir_plugin.dart';
@@ -57,26 +57,16 @@ import 'package:tapir/src/ref_registry.dart';
 // ---------------------------------------------------------------------------
 
 /// Returns a single-line YAML fragment with a stable key.
-String? _fakeEnricher1(
-  Element element,
-  RefRegistry refs,
-) =>
+String? _fakeEnricher1(Element element, RefRegistry refs) =>
     'magicFormField: email';
 
 /// Returns a multi-line YAML fragment (simulates Wind's className block).
-String? _fakeEnricher2(
-  Element element,
-  RefRegistry refs,
-) =>
+String? _fakeEnricher2(Element element, RefRegistry refs) =>
     'wind:\n  breakpoint: lg\n  brightness: light';
 
 /// Always returns null — simulates an enricher that does not apply to this
 /// element (e.g. MagicFormEnricher outside a MagicForm).
-String? _fakeEnricher3(
-  Element element,
-  RefRegistry refs,
-) =>
-    null;
+String? _fakeEnricher3(Element element, RefRegistry refs) => null;
 
 // ---------------------------------------------------------------------------
 // Helper: replicate the dispatcher loop from ext_snapshot.dart:158-167.
@@ -179,41 +169,37 @@ void main() {
   // -------------------------------------------------------------------------
 
   group('(b) null enricher skipped', () {
-    testWidgets(
-      'null-returning enricher produces no output line',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(1440, 900);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
+    testWidgets('null-returning enricher produces no output line', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
 
-        // 1. Register only the null enricher.
-        TapirPlugin.enrichers.add(_fakeEnricher3);
+      // 1. Register only the null enricher.
+      TapirPlugin.enrichers.add(_fakeEnricher3);
 
-        // 2. Mount widget and obtain a live element.
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: ElevatedButton(
-                onPressed: () {},
-                child: const Text('Submit'),
-              ),
-            ),
+      // 2. Mount widget and obtain a live element.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ElevatedButton(onPressed: () {}, child: const Text('Submit')),
           ),
-        );
+        ),
+      );
 
-        final Element element = tester.element(find.byType(ElevatedButton));
+      final Element element = tester.element(find.byType(ElevatedButton));
 
-        // 3. Run the dispatcher — output must be empty.
-        final String output = _runDispatcher(element);
-        expect(
-          output,
-          isEmpty,
-          reason:
-              'null-returning enricher must contribute no output (skipped by '
-              'the `if (fragment == null || fragment.isEmpty) continue` guard)',
-        );
-      },
-    );
+      // 3. Run the dispatcher — output must be empty.
+      final String output = _runDispatcher(element);
+      expect(
+        output,
+        isEmpty,
+        reason:
+            'null-returning enricher must contribute no output (skipped by '
+            'the `if (fragment == null || fragment.isEmpty) continue` guard)',
+      );
+    });
 
     testWidgets(
       'null enricher between two non-null enrichers does not introduce a gap',
@@ -313,9 +299,7 @@ void main() {
         );
 
         // 5. 'wind:' and 'breakpoint: lg' must be on separate lines.
-        final int windIdx = lines.indexWhere(
-          (String l) => l.contains('wind:'),
-        );
+        final int windIdx = lines.indexWhere((String l) => l.contains('wind:'));
         final int bpIdx = lines.indexWhere(
           (String l) => l.contains('breakpoint: lg'),
         );
@@ -403,54 +387,50 @@ void main() {
   // -------------------------------------------------------------------------
 
   group('TapirPlugin.enrichers list and tapirSnapBuild envelope', () {
-    test('enrichers list accepts registrations and retains insertion order',
-        () {
-      TapirPlugin.enrichers
-        ..add(_fakeEnricher1)
-        ..add(_fakeEnricher2)
-        ..add(_fakeEnricher3);
+    test(
+      'enrichers list accepts registrations and retains insertion order',
+      () {
+        TapirPlugin.enrichers
+          ..add(_fakeEnricher1)
+          ..add(_fakeEnricher2)
+          ..add(_fakeEnricher3);
 
-      expect(TapirPlugin.enrichers, hasLength(3));
-      expect(TapirPlugin.enrichers[0], equals(_fakeEnricher1));
-      expect(TapirPlugin.enrichers[1], equals(_fakeEnricher2));
-      expect(TapirPlugin.enrichers[2], equals(_fakeEnricher3));
-    });
-
-    testWidgets(
-      'tapirSnapBuild returns snapshot and groupId keys',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: ElevatedButton(
-                onPressed: () {},
-                child: const Text('Submit'),
-              ),
-            ),
-          ),
-        );
-
-        final Map<String, dynamic> payload = await tapirSnapBuild();
-
-        expect(
-          payload,
-          containsPair('snapshot', isA<String>()),
-          reason:
-              'tapirSnapBuild must return a snapshot key with a String value',
-        );
-        expect(
-          payload,
-          containsPair('groupId', isA<String>()),
-          reason:
-              'tapirSnapBuild must return a groupId key with a String value',
-        );
-        expect(
-          (payload['groupId'] as String).startsWith('snapshot-'),
-          isTrue,
-          reason: 'groupId must be prefixed with snapshot-',
-        );
+        expect(TapirPlugin.enrichers, hasLength(3));
+        expect(TapirPlugin.enrichers[0], equals(_fakeEnricher1));
+        expect(TapirPlugin.enrichers[1], equals(_fakeEnricher2));
+        expect(TapirPlugin.enrichers[2], equals(_fakeEnricher3));
       },
     );
+
+    testWidgets('tapirSnapBuild returns snapshot and groupId keys', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ElevatedButton(onPressed: () {}, child: const Text('Submit')),
+          ),
+        ),
+      );
+
+      final Map<String, dynamic> payload = await tapirSnapBuild();
+
+      expect(
+        payload,
+        containsPair('snapshot', isA<String>()),
+        reason: 'tapirSnapBuild must return a snapshot key with a String value',
+      );
+      expect(
+        payload,
+        containsPair('groupId', isA<String>()),
+        reason: 'tapirSnapBuild must return a groupId key with a String value',
+      );
+      expect(
+        (payload['groupId'] as String).startsWith('snapshot-'),
+        isTrue,
+        reason: 'groupId must be prefixed with snapshot-',
+      );
+    });
 
     test('RefRegistry.resetForTesting clears counter and entries', () {
       RefRegistry.resetForTesting();
@@ -502,10 +482,7 @@ void main() {
                 children: [
                   ElevatedButton(
                     onPressed: () {},
-                    child: const SizedBox(
-                      width: 500,
-                      child: Text('Wide'),
-                    ),
+                    child: const SizedBox(width: 500, child: Text('Wide')),
                   ),
                 ],
               ),
@@ -526,50 +503,46 @@ void main() {
         expect(
           snapshot,
           contains('overflow: true'),
-          reason: 'overflowing RenderFlex must annotate the ref node with '
+          reason:
+              'overflowing RenderFlex must annotate the ref node with '
               'overflow: true',
         );
       },
     );
 
-    testWidgets(
-      'non-overflowing layout produces no overflow annotation',
-      (WidgetTester tester) async {
-        // 1. Wide viewport so the Row fits comfortably.
-        tester.view.physicalSize = const Size(1440, 900);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('non-overflowing layout produces no overflow annotation', (
+      WidgetTester tester,
+    ) async {
+      // 1. Wide viewport so the Row fits comfortably.
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Row(
-                children: [
-                  ElevatedButton(
-                    onPressed: () {},
-                    child: const Text('Fits'),
-                  ),
-                ],
-              ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Row(
+              children: [
+                ElevatedButton(onPressed: () {}, child: const Text('Fits')),
+              ],
             ),
           ),
-        );
+        ),
+      );
 
-        await tester.pump();
+      await tester.pump();
 
-        final Map<String, dynamic> payload = await tester.runAsync(
-          () => tapirSnapBuild(),
-        ) as Map<String, dynamic>;
+      final Map<String, dynamic> payload =
+          await tester.runAsync(() => tapirSnapBuild()) as Map<String, dynamic>;
 
-        final String snapshot = payload['snapshot'] as String;
-        expect(
-          snapshot,
-          isNot(contains('overflow: true')),
-          reason:
-              'non-overflowing layout must not produce an overflow annotation',
-        );
-      },
-    );
+      final String snapshot = payload['snapshot'] as String;
+      expect(
+        snapshot,
+        isNot(contains('overflow: true')),
+        reason:
+            'non-overflowing layout must not produce an overflow annotation',
+      );
+    });
   });
 }

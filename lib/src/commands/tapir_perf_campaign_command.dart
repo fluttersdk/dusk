@@ -137,11 +137,8 @@ abstract interface class PerfCampaignApp {
 /// before a tapir change is the caller's to rebuild (`rm -f
 /// .dowel/build.stamp` before invoking).
 class TapirPerfCampaignCommand extends DowelCommand {
-  TapirPerfCampaignCommand({
-    PerfCampaignHost? host,
-    Map<String, String>? environment,
-  })  : _host = host ?? _DowelPerfCampaignHost(),
-        _environment = environment;
+  TapirPerfCampaignCommand({PerfCampaignHost? host, this._environment})
+    : _host = host ?? _DowelPerfCampaignHost();
 
   final PerfCampaignHost _host;
 
@@ -189,7 +186,8 @@ class TapirPerfCampaignCommand extends DowelCommand {
       )
       ..addOption(
         'device',
-        help: 'The device to start on: required on ios (a USB device), an '
+        help:
+            'The device to start on: required on ios (a USB device), an '
             'adb serial on android (default: the emulator running '
             'android.avd when set, else the first emulator).',
       )
@@ -365,11 +363,11 @@ final class _ScenarioResult {
 
   /// A scenario the campaign stopped before.
   const _ScenarioResult.notRun(this.name)
-      : status = _Status.notRun,
-        attempts = 0,
-        runFile = null,
-        errFile = null,
-        stop = null;
+    : status = _Status.notRun,
+      attempts = 0,
+      runFile = null,
+      errFile = null,
+      stop = null;
 
   final String name;
   final _Status status;
@@ -385,19 +383,19 @@ final class _ScenarioResult {
   /// The summary's word for it: a pass on a later attempt names that attempt
   /// and the `.err` that holds the earlier ones.
   String get line => switch ((status, attempts)) {
-        (_Status.failed, _) => 'FAILED (see $errFile)',
-        (_Status.notRun, _) => 'not run',
-        (_Status.ok, 1) => 'ok',
-        (_Status.ok, _) => 'ok (attempt $attempts, see $errFile)',
-      };
+    (_Status.failed, _) => 'FAILED (see $errFile)',
+    (_Status.notRun, _) => 'not run',
+    (_Status.ok, 1) => 'ok',
+    (_Status.ok, _) => 'ok (attempt $attempts, see $errFile)',
+  };
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'scenario': name,
-        'status': status.wire,
-        'attempts': attempts,
-        'runFile': runFile,
-        'errFile': errFile,
-      };
+    'scenario': name,
+    'status': status.wire,
+    'attempts': attempts,
+    'runFile': runFile,
+    'errFile': errFile,
+  };
 }
 
 /// One invocation of the campaign, holding its settings.
@@ -417,8 +415,8 @@ final class _CampaignRun {
     required this.timing,
     required this.semanticsPass,
     required this.json,
-  })  : cwd = Directory.current.path,
-        projectRoot = StateFile.projectRootFor(Directory.current.path);
+  }) : cwd = Directory.current.path,
+       projectRoot = StateFile.projectRootFor(Directory.current.path);
 
   final PerfCampaignHost host;
   final Map<String, String> env;
@@ -481,7 +479,8 @@ final class _CampaignRun {
       } on _CampaignStop catch (stop) {
         final String? detail = stop.detail;
         if (detail != null) campaignRecord.write('${stop.message}\n$detail');
-        stopped = detail != null &&
+        stopped =
+            detail != null &&
                 await _record(campaignErr, campaignRecord.toString())
             ? '${stop.message}; see ${campaignErr.path}'
             : stop.message;
@@ -495,12 +494,16 @@ final class _CampaignRun {
             .reduce((int a, int b) => a > b ? a : b);
         try {
           for (final PerfCampaignScenario scenario in scenarios) {
-            final _ScenarioResult result =
-                await _scenario(scenario, campaign, target);
+            final _ScenarioResult result = await _scenario(
+              scenario,
+              campaign,
+              target,
+            );
             results.add(result);
             if (!json) {
-              output
-                  .writeln('  ${result.name.padRight(width)}  ${result.line}');
+              output.writeln(
+                '  ${result.name.padRight(width)}  ${result.line}',
+              );
             }
             stopped = result.stop;
             if (stopped != null) break;
@@ -509,8 +512,10 @@ final class _CampaignRun {
           if (_started) {
             final int code = await host.stop(BufferedOutput());
             if (code != 0) {
-              errors.add('dowel stop exited $code after the campaign; the '
-                  'app may still be running.');
+              errors.add(
+                'dowel stop exited $code after the campaign; the '
+                'app may still be running.',
+              );
             }
           }
         }
@@ -521,7 +526,8 @@ final class _CampaignRun {
       //    before_campaign may have started half of what it tears down.
       final String? teardown = campaign.hooks.afterCampaign;
       if (teardown != null) {
-        final bool ok = finished &&
+        final bool ok =
+            finished &&
             stopped == null &&
             errors.isEmpty &&
             results.every((_ScenarioResult r) => r.ok);
@@ -549,7 +555,7 @@ final class _CampaignRun {
             'results': <Object?>[
               for (final _ScenarioResult r in reported) r.toJson(),
             ],
-            if (stopped != null) 'stopped': stopped,
+            'stopped': ?stopped,
             if (errors.isNotEmpty) 'errors': errors,
           }),
         ),
@@ -562,14 +568,18 @@ final class _CampaignRun {
     }
     final int failed = results.where((_ScenarioResult r) => !r.ok).length;
     if (failed > 0) {
-      output.error('$failed of ${results.length} scenarios failed; each '
-          'FAILED line names its .err.');
+      output.error(
+        '$failed of ${results.length} scenarios failed; each '
+        'FAILED line names its .err.',
+      );
       return 1;
     }
     if (errors.isNotEmpty) return 1;
     if (!json) {
-      output.success('Campaign done: ${results.length} scenarios on '
-          '${platform.name}, run files in $out.');
+      output.success(
+        'Campaign done: ${results.length} scenarios on '
+        '${platform.name}, run files in $out.',
+      );
     }
     return 0;
   }
@@ -631,7 +641,8 @@ final class _CampaignRun {
     //    kills `flutter run` before it prints the VM Service URI.
     final String adb = _adb();
     final String? avd = android.avd;
-    final String serial = device ??
+    final String serial =
+        device ??
         (avd == null ? await _emulatorSerial(adb) : await _avdSerial(adb, avd));
     if (avd != null) await _awaitBootCompleted(adb, serial);
 
@@ -639,10 +650,13 @@ final class _CampaignRun {
     //    granted up front: a permission prompt on first launch sits on top
     //    of the task and swallows every later launch intent.
     for (final int port in android.reverse) {
-      await _step(
-        adb,
-        <String>['-s', serial, 'reverse', 'tcp:$port', 'tcp:$port'],
-      );
+      await _step(adb, <String>[
+        '-s',
+        serial,
+        'reverse',
+        'tcp:$port',
+        'tcp:$port',
+      ]);
     }
     if (applicationId != null) {
       await _step('flutter', <String>['build', 'apk', '--profile']);
@@ -692,9 +706,10 @@ final class _CampaignRun {
     if (running != null) return running;
     await _step('flutter', <String>['emulators', '--launch', avd]);
     final Stopwatch clock = Stopwatch()..start();
-    final int maxPolls = _kBootCompletedBudget.inMilliseconds ~/
+    final int maxPolls =
+        _kBootCompletedBudget.inMilliseconds ~/
         _kBootCompletedPollInterval.inMilliseconds;
-    for (int poll = 1;; poll++) {
+    for (int poll = 1; ; poll++) {
       final String? serial = await _runningAvd(adb, avd);
       if (serial != null) return serial;
       if (poll >= maxPolls || clock.elapsed >= _kBootCompletedBudget) {
@@ -727,9 +742,10 @@ final class _CampaignRun {
   Future<List<String>> _emulatorSerials(String adb) async {
     final ProcessResult result = await _step(adb, <String>['devices']);
     return <String>[
-      for (final RegExpMatch match
-          in RegExp(r'^(emulator-\d+)\s+device\s*$', multiLine: true)
-              .allMatches('${result.stdout}'))
+      for (final RegExpMatch match in RegExp(
+        r'^(emulator-\d+)\s+device\s*$',
+        multiLine: true,
+      ).allMatches('${result.stdout}'))
         match.group(1)!,
     ];
   }
@@ -738,9 +754,10 @@ final class _CampaignRun {
   /// device still coming up, not a failure.
   Future<void> _awaitBootCompleted(String adb, String serial) async {
     final Stopwatch clock = Stopwatch()..start();
-    final int maxPolls = _kBootCompletedBudget.inMilliseconds ~/
+    final int maxPolls =
+        _kBootCompletedBudget.inMilliseconds ~/
         _kBootCompletedPollInterval.inMilliseconds;
-    for (int poll = 1;; poll++) {
+    for (int poll = 1; ; poll++) {
       final ProcessResult result = await _spawn(
         adb,
         <String>['-s', serial, 'shell', 'getprop', 'sys.boot_completed'],
@@ -805,20 +822,19 @@ final class _CampaignRun {
     String hook, {
     String? scenario,
     String? status,
-  }) =>
-      _spawn(
-        '/bin/sh',
-        <String>['-c', hook],
-        workingDirectory: cwd,
-        environment: <String, String>{
-          ...inherited,
-          'TAPIR_PERF_PLATFORM': platform.name,
-          'TAPIR_PERF_LABEL': label,
-          'TAPIR_PERF_OUT': out,
-          if (scenario != null) 'TAPIR_PERF_SCENARIO': scenario,
-          if (status != null) 'TAPIR_PERF_STATUS': status,
-        },
-      );
+  }) => _spawn(
+    '/bin/sh',
+    <String>['-c', hook],
+    workingDirectory: cwd,
+    environment: <String, String>{
+      ...inherited,
+      'TAPIR_PERF_PLATFORM': platform.name,
+      'TAPIR_PERF_LABEL': label,
+      'TAPIR_PERF_OUT': out,
+      'TAPIR_PERF_SCENARIO': ?scenario,
+      'TAPIR_PERF_STATUS': ?status,
+    },
+  );
 
   /// Runs `hooks.after_campaign` with `TAPIR_PERF_STATUS` `ok` or `failed`;
   /// answers the sentence to report when it failed, null when it exited 0.
@@ -978,22 +994,26 @@ final class _CampaignRun {
         timeout: _kBootBudget,
         pollInterval: _kBootPollInterval,
         pause: host.pause,
-        failure: 'the app did not answer ext.tapir.boot_id within '
+        failure:
+            'the app did not answer ext.tapir.boot_id within '
             '${_kBootBudget.inSeconds} s of the start',
       );
       progress.phase = _Phase.running;
 
       // 3. One driver for the attempt: after_start and perf_run share it, so
       //    the host is described and the run log read once.
-      final (PerfRunDriver driver, PerfRunEnvironment env) =
-          await app.driver(platform);
+      final (PerfRunDriver driver, PerfRunEnvironment env) = await app.driver(
+        platform,
+      );
       try {
         // 4. The campaign's setup, the Router first: boot_id answers before
         //    the app has mounted one, and a login screen needs it.
         final String name = scenario.scenario.name;
         if (afterStart.isNotEmpty) {
-          final PerfSetupRunner runner =
-              PerfSetupRunner(PerfActions(driver, env), redactor: redactor);
+          final PerfSetupRunner runner = PerfSetupRunner(
+            PerfActions(driver, env),
+            redactor: redactor,
+          );
           await runner.awaitRouter(name, budget: _routerBudget(afterStart));
           await runner.run(afterStart, name);
         }
@@ -1040,12 +1060,12 @@ final class _CampaignRun {
     // starts over it regardless.
     final List<int> ports = <int>[
       if (browser && previous['webPort'] is int) previous['webPort'] as int,
-      if (cdp != null) cdp,
+      ?cdp,
     ];
     final Stopwatch clock = Stopwatch()..start();
     final int maxPolls =
         _kStopBudget.inMilliseconds ~/ _kStopPollInterval.inMilliseconds;
-    for (int poll = 1;; poll++) {
+    for (int poll = 1; ; poll++) {
       final bool alive = pid != null && host.isAlive(pid);
       final List<int> held = <int>[
         for (final int port in ports)
@@ -1066,12 +1086,12 @@ final class _CampaignRun {
 
   /// dowel start's options, typed as its `handle` casts them.
   Map<String, dynamic> _startOptions(String target) => <String, dynamic>{
-        'device': target,
-        if (platform == PerfPlatform.chrome) 'cdp-port': cdpPort,
-        // `--profile` on a device (dowel passes it on no browser target).
-        'profile-static': platform != PerfPlatform.chrome,
-        'flutter-arg': <String>[],
-      };
+    'device': target,
+    if (platform == PerfPlatform.chrome) 'cdp-port': cdpPort,
+    // `--profile` on a device (dowel passes it on no browser target).
+    'profile-static': platform != PerfPlatform.chrome,
+    'flutter-arg': <String>[],
+  };
 
   /// tapir:perf_run's options. Its own `--json` stays off: what it prints is
   /// captured for the `.err`, where the summary reads better.
@@ -1099,8 +1119,10 @@ final class _CampaignRun {
     try {
       if (file.existsSync()) await file.delete();
     } on FileSystemException catch (e) {
-      output.error('tapir:perf_campaign could not delete ${file.path}: '
-          '${e.osError?.message ?? e.message}.');
+      output.error(
+        'tapir:perf_campaign could not delete ${file.path}: '
+        '${e.osError?.message ?? e.message}.',
+      );
     }
   }
 
@@ -1114,8 +1136,10 @@ final class _CampaignRun {
       await file.writeAsString(redactor.redact(text));
       return true;
     } on FileSystemException catch (e) {
-      output.error('tapir:perf_campaign could not write ${file.path}: '
-          '${e.osError?.message ?? e.message}.');
+      output.error(
+        'tapir:perf_campaign could not write ${file.path}: '
+        '${e.osError?.message ?? e.message}.',
+      );
       return false;
     }
   }
@@ -1139,10 +1163,12 @@ Future<({int exitCode, String stdout, String stderr})> drainProcessOutput({
   final StringBuffer out = StringBuffer();
   final StringBuffer err = StringBuffer();
   const Utf8Decoder decoder = Utf8Decoder(allowMalformed: true);
-  final StreamSubscription<String> outSub =
-      stdout.transform(decoder).listen(out.write);
-  final StreamSubscription<String> errSub =
-      stderr.transform(decoder).listen(err.write);
+  final StreamSubscription<String> outSub = stdout
+      .transform(decoder)
+      .listen(out.write);
+  final StreamSubscription<String> errSub = stderr
+      .transform(decoder)
+      .listen(err.write);
   // Taken now, not after the exit: `asFuture` replaces the done handler, and
   // one set after a short-lived process already closed its pipes never
   // completes, which cut every hook at the grace and blamed a server.
@@ -1186,8 +1212,9 @@ Duration _routerBudget(List<PerfSetupStep> afterStart) {
       if (g.timeoutMs > ms) ms = g.timeoutMs;
     }
   }
-  final Duration guards =
-      Duration(milliseconds: ms == 0 ? kPerfWhenTimeoutMs : ms);
+  final Duration guards = Duration(
+    milliseconds: ms == 0 ? kPerfWhenTimeoutMs : ms,
+  );
   return guards > kPerfRouterBudget ? guards : kPerfRouterBudget;
 }
 
@@ -1233,12 +1260,12 @@ final class _DowelPerfCampaignHost implements PerfCampaignHost {
     );
     final ({int exitCode, String stdout, String stderr}) drained =
         await drainProcessOutput(
-      stdout: process.stdout,
-      stderr: process.stderr,
-      exitCode: process.exitCode,
-      grace: _kPipeGrace,
-      executable: executable,
-    );
+          stdout: process.stdout,
+          stderr: process.stderr,
+          exitCode: process.exitCode,
+          grace: _kPipeGrace,
+          executable: executable,
+        );
     return ProcessResult(
       process.pid,
       drained.exitCode,
@@ -1254,8 +1281,9 @@ final class _DowelPerfCampaignHost implements PerfCampaignHost {
   /// a malformed byte in it must not throw out of the attempt's catch.
   @override
   Future<String?> readSessionLog() async {
-    final File log =
-        File('${File(StateFile.path).parent.path}/flutter-dev.log');
+    final File log = File(
+      '${File(StateFile.path).parent.path}/flutter-dev.log',
+    );
     if (!log.existsSync()) return null;
     return const Utf8Decoder(allowMalformed: true)
         .convert(await log.readAsBytes());
@@ -1263,8 +1291,8 @@ final class _DowelPerfCampaignHost implements PerfCampaignHost {
 
   @override
   Future<int> stop(DowelOutput output) => StopCommand().handle(
-        DowelContext.bare(MapInput(const <String, dynamic>{}), output),
-      );
+    DowelContext.bare(MapInput(const <String, dynamic>{}), output),
+  );
 
   @override
   Future<int> start(Map<String, dynamic> options, DowelOutput output) =>
@@ -1276,8 +1304,10 @@ final class _DowelPerfCampaignHost implements PerfCampaignHost {
   @override
   Future<bool> isPortFree(int port) async {
     try {
-      final ServerSocket socket =
-          await ServerSocket.bind(InternetAddress.loopbackIPv4, port);
+      final ServerSocket socket = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        port,
+      );
       await socket.close();
       return true;
     } on SocketException {
@@ -1322,10 +1352,10 @@ final class _DowelPerfCampaignApp implements PerfCampaignApp {
     DowelOutput output, {
     required PerfRunDriver driver,
     required PerfRunEnvironment environment,
-  }) =>
-      TapirPerfRunCommand.connected(driver, environment).handle(
-        DowelContext.connected(MapInput(options), output, _client),
-      );
+  }) => TapirPerfRunCommand.connected(
+    driver,
+    environment,
+  ).handle(DowelContext.connected(MapInput(options), output, _client));
 
   @override
   Future<void> close() => _client.disconnect();

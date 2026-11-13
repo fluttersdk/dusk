@@ -47,8 +47,9 @@ Future<PerfLoadResult> loadPerfScenarios(
   Map<String, String> env = const <String, String>{},
 }) async {
   final String file = perfAbsolutePath(path);
-  final Map<Object?, Object?> document =
-      _scenarioDocument(await File(file).readAsString());
+  final Map<Object?, Object?> document = _scenarioDocument(
+    await File(file).readAsString(),
+  );
   final _ScenarioReader reader = _ScenarioReader(env: env, file: file);
   final List<PerfScenario> scenarios = reader.readScenarios(document);
   return (
@@ -151,8 +152,10 @@ extension on _ScenarioReader {
     //    they may go.
     for (final Object? key in entry.keys) {
       if (!_kIncludeKeys.contains(key)) {
-        problems.add('$where: unknown include key "$key"; allowed: '
-            '${_kIncludeKeys.join(', ')}.');
+        problems.add(
+          '$where: unknown include key "$key"; allowed: '
+          '${_kIncludeKeys.join(', ')}.',
+        );
       }
     }
     final String? path = _string(
@@ -165,9 +168,11 @@ extension on _ScenarioReader {
     }
     final String? from = frame.file;
     if (from == null) {
-      problems.add("$where.include: an include resolves against the "
-          "including file's path, and a scenario parsed from a string has "
-          'none; load the file with loadPerfScenarios.');
+      problems.add(
+        "$where.include: an include resolves against the "
+        "including file's path, and a scenario parsed from a string has "
+        'none; load the file with loadPerfScenarios.',
+      );
       return;
     }
     if (path == null || given is! Map<Object?, Object?>) return;
@@ -177,22 +182,30 @@ extension on _ScenarioReader {
     final String target = _resolvePath(from, path);
     final String shown = _shown(target);
     if (frame.chain.contains(target)) {
-      problems.add('$where.include: include cycle '
-          '${<String>[...frame.chain, target].map(_shown).join(' -> ')}.');
+      problems.add(
+        '$where.include: include cycle '
+        '${<String>[...frame.chain, target].map(_shown).join(' -> ')}.',
+      );
       return;
     }
     if (frame.depth >= kPerfMaxIncludeDepth) {
-      problems.add('$where.include: includes nest deeper than '
-          '$kPerfMaxIncludeDepth (${frame.chain.map(_shown).join(' -> ')} '
-          '-> $shown).');
+      problems.add(
+        '$where.include: includes nest deeper than '
+        '$kPerfMaxIncludeDepth (${frame.chain.map(_shown).join(' -> ')} '
+        '-> $shown).',
+      );
       return;
     }
 
     // 3. The fragment, its params filled from `with:`.
     final Map<Object?, Object?>? fragment = _fragment(target, shown, where);
     if (fragment == null) return;
-    final Map<String, Object>? scope =
-        _scope(fragment['params'], given, shown, where);
+    final Map<String, Object>? scope = _scope(
+      fragment['params'],
+      given,
+      shown,
+      where,
+    );
     if (scope == null) return;
 
     // 4. Its guard: the include's own, else the fragment's, read in the
@@ -237,8 +250,10 @@ extension on _ScenarioReader {
     try {
       document = loadYaml(File(target).readAsStringSync());
     } on FileSystemException catch (e) {
-      problems.add('$where.include: cannot read $shown '
-          '(${e.osError?.message ?? e.message}).');
+      problems.add(
+        '$where.include: cannot read $shown '
+        '(${e.osError?.message ?? e.message}).',
+      );
       return null;
     } on YamlException catch (e) {
       problems.add('$shown: not valid YAML: ${e.message}');
@@ -248,11 +263,14 @@ extension on _ScenarioReader {
       problems.add('$shown must be a map of ${_kFragmentKeys.join(', ')}.');
       return null;
     }
-    final Iterable<Object?> unknown =
-        document.keys.where((Object? k) => !_kFragmentKeys.contains(k));
+    final Iterable<Object?> unknown = document.keys.where(
+      (Object? k) => !_kFragmentKeys.contains(k),
+    );
     for (final Object? key in unknown) {
-      problems.add('$shown: unknown key "$key"; allowed: '
-          '${_kFragmentKeys.join(', ')}.');
+      problems.add(
+        '$shown: unknown key "$key"; allowed: '
+        '${_kFragmentKeys.join(', ')}.',
+      );
     }
     return unknown.isEmpty ? document : null;
   }
@@ -268,8 +286,9 @@ extension on _ScenarioReader {
     String where,
   ) {
     final int before = problems.length;
-    final Map<Object?, Object?> params =
-        raw is Map<Object?, Object?> ? raw : const <Object?, Object?>{};
+    final Map<Object?, Object?> params = raw is Map<Object?, Object?>
+        ? raw
+        : const <Object?, Object?>{};
     if (raw != null && raw is! Map<Object?, Object?>) {
       problems.add('$shown params must be a map of name: {secret, default}.');
     }
@@ -280,8 +299,10 @@ extension on _ScenarioReader {
       final String name = '$key';
       final String at = '$shown params.$name';
       if (!_kParamName.hasMatch(name)) {
-        problems.add('$at: a param name is a letter or _, then letters, '
-            'digits or _.');
+        problems.add(
+          '$at: a param name is a letter or _, then letters, '
+          'digits or _.',
+        );
         continue;
       }
       final Object spec = value ?? const <Object?, Object?>{};
@@ -291,8 +312,10 @@ extension on _ScenarioReader {
       }
       for (final Object? k in spec.keys) {
         if (!_kParamKeys.contains(k)) {
-          problems.add('$at: unknown key "$k"; allowed: '
-              '${_kParamKeys.join(', ')}.');
+          problems.add(
+            '$at: unknown key "$k"; allowed: '
+            '${_kParamKeys.join(', ')}.',
+          );
         }
       }
       final Object secret = spec['secret'] ?? false;
@@ -304,8 +327,12 @@ extension on _ScenarioReader {
         filled = _paramValue(given[name], '$where.with.$name');
       } else if (spec.containsKey('default')) {
         filled = _paramValue(
-          _plain(spec['default'], const <String, Object>{}, shown,
-              'params.$name.default'),
+          _plain(
+            spec['default'],
+            const <String, Object>{},
+            shown,
+            'params.$name.default',
+          ),
           '$at.default',
         );
       } else {
@@ -321,8 +348,9 @@ extension on _ScenarioReader {
           'the secret param $name of $shown',
         );
       }
-      final Object bound =
-          secret == true && filled is String ? _Secret(filled) : filled;
+      final Object bound = secret == true && filled is String
+          ? _Secret(filled)
+          : filled;
       if (bound is _Secret && bound.value.isNotEmpty) secrets.add(bound.value);
       scope[name] = bound;
     }
@@ -330,8 +358,10 @@ extension on _ScenarioReader {
     // 3. Anything passed that the fragment does not declare.
     for (final Object? key in given.keys) {
       if (!params.containsKey(key)) {
-        problems.add('$where.with.$key: unknown param; $shown declares '
-            '${params.isEmpty ? 'none' : params.keys.join(', ')}.');
+        problems.add(
+          '$where.with.$key: unknown param; $shown declares '
+          '${params.isEmpty ? 'none' : params.keys.join(', ')}.',
+        );
       }
     }
     return problems.length > before ? null : scope;
@@ -339,10 +369,10 @@ extension on _ScenarioReader {
 
   /// A param value as the opaque string `${name}` substitutes.
   Object? _paramValue(Object? value, String at) => switch (value) {
-        String() || _Secret() => value,
-        num() || bool() => '$value',
-        _ => _refuseParamValue(at),
-      };
+    String() || _Secret() => value,
+    num() || bool() => '$value',
+    _ => _refuseParamValue(at),
+  };
 
   Object? _refuseParamValue(String at) {
     problems.add('$at must be a string, a number or a boolean.');
@@ -363,14 +393,17 @@ extension on _ScenarioReader {
     }
     for (final Object? key in when.keys) {
       if (!_kWhenKeys.contains(key)) {
-        problems.add('$at: unknown key "$key"; allowed: '
-            '${_kWhenKeys.join(', ')}.');
+        problems.add(
+          '$at: unknown key "$key"; allowed: '
+          '${_kWhenKeys.join(', ')}.',
+        );
       }
     }
     final String? text = _string(when['text'], '$at.text');
     final Object? unless = when['unless_text'];
-    final String? unlessText =
-        unless == null ? null : _string(unless, '$at.unless_text');
+    final String? unlessText = unless == null
+        ? null
+        : _string(unless, '$at.unless_text');
     final int? timeoutMs = when['timeout_ms'] == null
         ? kPerfWhenTimeoutMs
         : _positiveInt(when['timeout_ms'], '$at.timeout_ms');

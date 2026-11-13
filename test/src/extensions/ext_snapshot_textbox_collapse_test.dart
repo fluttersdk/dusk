@@ -1,6 +1,6 @@
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_snapshot.dart';
@@ -104,59 +104,54 @@ void main() {
       },
     );
 
-    testWidgets(
-      '(a) tapir:type on the surviving collapsed ref succeeds',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(1440, 900);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(a) tapir:type on the surviving collapsed ref succeeds', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        final TextEditingController controller = TextEditingController();
-        addTearDown(controller.dispose);
+      final TextEditingController controller = TextEditingController();
+      addTearDown(controller.dispose);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Semantics(
-                textField: true,
-                label: 'Email',
-                child: MergeSemantics(
-                  child: TextField(controller: controller),
-                ),
-              ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Semantics(
+              textField: true,
+              label: 'Email',
+              child: MergeSemantics(child: TextField(controller: controller)),
             ),
           ),
-        );
-        await tester.pump();
+        ),
+      );
+      await tester.pump();
 
-        // 1. Build the snapshot so the surviving textbox is registered as a ref.
-        await tester.runAsync(() => tapirSnapBuild());
+      // 1. Build the snapshot so the surviving textbox is registered as a ref.
+      await tester.runAsync(() => tapirSnapBuild());
 
-        // 2. The single registered ref must be the outer (typeable) node, whose
-        //    element subtree hosts the EditableText. typeIntoElement walks
-        //    descendants, so typing resolves the inner EditableTextState.
-        final RefEntry? entry = RefRegistry.lookup('e1');
-        expect(
-          entry,
-          isNotNull,
-          reason: 'the surviving collapsed textbox must be registered as e1',
-        );
+      // 2. The single registered ref must be the outer (typeable) node, whose
+      //    element subtree hosts the EditableText. typeIntoElement walks
+      //    descendants, so typing resolves the inner EditableTextState.
+      final RefEntry? entry = RefRegistry.lookup('e1');
+      expect(
+        entry,
+        isNotNull,
+        reason: 'the surviving collapsed textbox must be registered as e1',
+      );
 
-        await tester.runAsync(
-          () =>
-              typeIntoElement(element: entry!.element, text: 'hello@tapir.dev'),
-        );
-        await tester.pump();
+      await tester.runAsync(
+        () => typeIntoElement(element: entry!.element, text: 'hello@tapir.dev'),
+      );
+      await tester.pump();
 
-        expect(
-          controller.text,
-          'hello@tapir.dev',
-          reason:
-              'typing on the surviving ref must reach the inner EditableText',
-        );
-      },
-    );
+      expect(
+        controller.text,
+        'hello@tapir.dev',
+        reason: 'typing on the surviving ref must reach the inner EditableText',
+      );
+    });
 
     testWidgets(
       '(b) two sibling fields sharing the same label remain TWO distinct refs',
@@ -177,16 +172,12 @@ void main() {
                   Semantics(
                     textField: true,
                     label: 'Code',
-                    child: MergeSemantics(
-                      child: TextField(),
-                    ),
+                    child: MergeSemantics(child: TextField()),
                   ),
                   Semantics(
                     textField: true,
                     label: 'Code',
-                    child: MergeSemantics(
-                      child: TextField(),
-                    ),
+                    child: MergeSemantics(child: TextField()),
                   ),
                 ],
               ),
@@ -237,8 +228,9 @@ void main() {
                 child: MergeSemantics(
                   child: TextField(
                     controller: controller,
-                    decoration:
-                        const InputDecoration(hintText: 'Jane Appleseed'),
+                    decoration: const InputDecoration(
+                      hintText: 'Jane Appleseed',
+                    ),
                   ),
                 ),
               ),
@@ -293,9 +285,7 @@ void main() {
                 label: 'Token',
                 child: Semantics(
                   textField: true,
-                  child: const MergeSemantics(
-                    child: TextField(),
-                  ),
+                  child: const MergeSemantics(child: TextField()),
                 ),
               ),
             ),

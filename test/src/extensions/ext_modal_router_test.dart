@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,8 +23,9 @@ void main() {
       expect(dismissed, equals(0));
     });
 
-    testWidgets('returns 0 when no Navigator exists in the tree',
-        (tester) async {
+    testWidgets('returns 0 when no Navigator exists in the tree', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const Directionality(
           textDirection: TextDirection.ltr,
@@ -76,75 +77,67 @@ void main() {
       },
     );
 
-    testWidgets(
-      'dismisses two stacked PopupRoutes on the same navigator; '
-      'returns additive total (popped==2)',
-      (tester) async {
-        // Reproduce the multi-modal count bug: the original implementation
-        // only popped one PopupRoute per call because it awaited endOfFrame
-        // after each pop (which would hang in test harness) and was
-        // structured as a one-at-a-time loop. The new popUntil-per-navigator
-        // approach dismisses ALL PopupRoutes on each navigator atomically.
-        //
-        // showDialog defaults useRootNavigator: true and showModalBottomSheet
-        // defaults useRootNavigator: false. In a single-navigator app both
-        // land on the same navigator. We open both and verify popped==2.
+    testWidgets('dismisses two stacked PopupRoutes on the same navigator; '
+        'returns additive total (popped==2)', (tester) async {
+      // Reproduce the multi-modal count bug: the original implementation
+      // only popped one PopupRoute per call because it awaited endOfFrame
+      // after each pop (which would hang in test harness) and was
+      // structured as a one-at-a-time loop. The new popUntil-per-navigator
+      // approach dismisses ALL PopupRoutes on each navigator atomically.
+      //
+      // showDialog defaults useRootNavigator: true and showModalBottomSheet
+      // defaults useRootNavigator: false. In a single-navigator app both
+      // land on the same navigator. We open both and verify popped==2.
 
-        // 1. Capture the Scaffold context via a GlobalKey so we can call
-        //    showDialog / showModalBottomSheet after pumpWidget returns.
-        final scaffoldKey = GlobalKey<ScaffoldState>();
-        late NavigatorState nav;
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Builder(
-              builder: (context) {
-                nav = Navigator.of(context);
-                return Scaffold(
-                  key: scaffoldKey,
-                  body: const Text('home'),
-                );
-              },
-            ),
+      // 1. Capture the Scaffold context via a GlobalKey so we can call
+      //    showDialog / showModalBottomSheet after pumpWidget returns.
+      final scaffoldKey = GlobalKey<ScaffoldState>();
+      late NavigatorState nav;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              nav = Navigator.of(context);
+              return Scaffold(key: scaffoldKey, body: const Text('home'));
+            },
           ),
-        );
-        await tester.pump();
+        ),
+      );
+      await tester.pump();
 
-        // Resolve a context that is inside the MaterialApp so Material
-        // Localizations and Navigator are available.
-        final BuildContext ctx = tester.element(find.byKey(scaffoldKey));
+      // Resolve a context that is inside the MaterialApp so Material
+      // Localizations and Navigator are available.
+      final BuildContext ctx = tester.element(find.byKey(scaffoldKey));
 
-        // 2. Push dialog (PopupRoute via showDialog -> RawDialogRoute).
-        showDialog<void>(
-          context: ctx,
-          builder: (_) => const AlertDialog(title: Text('dialog')),
-        );
-        await tester.pumpAndSettle();
-        expect(find.text('dialog'), findsOneWidget);
+      // 2. Push dialog (PopupRoute via showDialog -> RawDialogRoute).
+      showDialog<void>(
+        context: ctx,
+        builder: (_) => const AlertDialog(title: Text('dialog')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('dialog'), findsOneWidget);
 
-        // 3. Push bottom sheet on top of the dialog (second PopupRoute).
-        showModalBottomSheet<void>(
-          context: ctx,
-          builder: (_) => const SizedBox(
-            height: 200,
-            child: Center(child: Text('sheet')),
-          ),
-        );
-        await tester.pumpAndSettle();
-        expect(find.text('sheet'), findsOneWidget);
+      // 3. Push bottom sheet on top of the dialog (second PopupRoute).
+      showModalBottomSheet<void>(
+        context: ctx,
+        builder: (_) =>
+            const SizedBox(height: 200, child: Center(child: Text('sheet'))),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('sheet'), findsOneWidget);
 
-        // 4. Dismiss all modals. Both PopupRoutes must be removed.
-        final popped = await dismissAllModals();
-        await tester.pumpAndSettle();
+      // 4. Dismiss all modals. Both PopupRoutes must be removed.
+      final popped = await dismissAllModals();
+      await tester.pumpAndSettle();
 
-        expect(popped, equals(2));
-        expect(find.text('sheet'), findsNothing);
-        expect(find.text('dialog'), findsNothing);
+      expect(popped, equals(2));
+      expect(find.text('sheet'), findsNothing);
+      expect(find.text('dialog'), findsNothing);
 
-        // Home page must still be present (page route was NOT popped).
-        expect(find.text('home'), findsOneWidget);
-        expect(nav.canPop(), isFalse);
-      },
-    );
+      // Home page must still be present (page route was NOT popped).
+      expect(find.text('home'), findsOneWidget);
+      expect(nav.canPop(), isFalse);
+    });
   });
 
   group('registerModalRouterExtension', () {
@@ -155,8 +148,9 @@ void main() {
   });
 
   group('aiTestResetOverlaysHandler', () {
-    testWidgets('its Escape reaches the focused widget, as a real press does',
-        (tester) async {
+    testWidgets('its Escape reaches the focused widget, as a real press does', (
+      tester,
+    ) async {
       final List<LogicalKeyboardKey> heard = <LogicalKeyboardKey>[];
       await tester.pumpWidget(
         MaterialApp(
@@ -183,31 +177,34 @@ void main() {
     });
 
     testWidgets(
-        'with no key data handler the Escape layer reports escaped=false '
-        'and the reset still succeeds', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(home: Scaffold(body: Text('idle'))),
-      );
-      final dispatcher = tester.binding.platformDispatcher;
-      final saved = dispatcher.onKeyData;
-      dispatcher.onKeyData = null;
-      addTearDown(() => dispatcher.onKeyData = saved);
+      'with no key data handler the Escape layer reports escaped=false '
+      'and the reset still succeeds',
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(home: Scaffold(body: Text('idle'))),
+        );
+        final dispatcher = tester.binding.platformDispatcher;
+        final saved = dispatcher.onKeyData;
+        dispatcher.onKeyData = null;
+        addTearDown(() => dispatcher.onKeyData = saved);
 
-      final response = await tester.runAsync(
-        () => aiTestResetOverlaysHandler(
-          'ext.tapir.reset_overlays',
-          const <String, String>{},
-        ),
-      );
+        final response = await tester.runAsync(
+          () => aiTestResetOverlaysHandler(
+            'ext.tapir.reset_overlays',
+            const <String, String>{},
+          ),
+        );
 
-      expect(response!.errorCode, isNull);
-      final Map<String, dynamic> json =
-          jsonDecode(response.result!) as Map<String, dynamic>;
-      expect(json['escaped'], isFalse);
-    });
+        expect(response!.errorCode, isNull);
+        final Map<String, dynamic> json =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(json['escaped'], isFalse);
+      },
+    );
 
-    testWidgets('idempotent: returns popped=0 when no overlays are open',
-        (tester) async {
+    testWidgets('idempotent: returns popped=0 when no overlays are open', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: Text('idle'))),
       );
@@ -238,8 +235,9 @@ void main() {
       expect(secondJson['popped'], equals(0));
     });
 
-    testWidgets('dismisses an open bottom sheet and reports popped>=1',
-        (tester) async {
+    testWidgets('dismisses an open bottom sheet and reports popped>=1', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Builder(
@@ -296,9 +294,7 @@ void main() {
     });
 
     test('returns false for a MaterialPageRoute (regular page route)', () {
-      final page = MaterialPageRoute<void>(
-        builder: (_) => const SizedBox(),
-      );
+      final page = MaterialPageRoute<void>(builder: (_) => const SizedBox());
       expect(isModalRoute(page), isFalse);
     });
   });
@@ -345,43 +341,42 @@ void main() {
       },
     );
 
-    testWidgets(
-      'handler returns popped==1 when a bottom sheet is open',
-      (tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Builder(
-              builder: (context) => Scaffold(
-                body: TextButton(
-                  onPressed: () => showModalBottomSheet<void>(
-                    context: context,
-                    builder: (_) => const SizedBox(
-                      height: 150,
-                      child: Center(child: Text('handler-sheet')),
-                    ),
+    testWidgets('handler returns popped==1 when a bottom sheet is open', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  builder: (_) => const SizedBox(
+                    height: 150,
+                    child: Center(child: Text('handler-sheet')),
                   ),
-                  child: const Text('open'),
                 ),
+                child: const Text('open'),
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        await tester.tap(find.text('open'));
-        await tester.pumpAndSettle();
-        expect(find.text('handler-sheet'), findsOneWidget);
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('handler-sheet'), findsOneWidget);
 
-        final response = await aiTestDismissModalsHandler(
-          'ext.tapir.dismiss_modals',
-          const <String, String>{},
-        );
-        await tester.pumpAndSettle();
+      final response = await aiTestDismissModalsHandler(
+        'ext.tapir.dismiss_modals',
+        const <String, String>{},
+      );
+      await tester.pumpAndSettle();
 
-        expect(response.errorCode, isNull);
-        expect(response.result, contains('"popped":1'));
-        expect(find.text('handler-sheet'), findsNothing);
-      },
-    );
+      expect(response.errorCode, isNull);
+      expect(response.result, contains('"popped":1'));
+      expect(find.text('handler-sheet'), findsNothing);
+    });
   });
 }
 
@@ -399,6 +394,5 @@ class _TestPopupRoute<T> extends PopupRoute<T> {
     BuildContext context,
     Animation<double> animation,
     Animation<double> secondaryAnimation,
-  ) =>
-      const SizedBox.shrink();
+  ) => const SizedBox.shrink();
 }

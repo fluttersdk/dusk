@@ -6,11 +6,7 @@ import 'package:tapir/src/commands/tapir_run_command.dart';
 
 /// A connected verb that records what it was handed and answers [exitCode].
 class _FakeVerb extends DowelCommand {
-  _FakeVerb(
-    this.name, {
-    this.exitCode = 0,
-    this.throws,
-  });
+  _FakeVerb(this.name, {this.exitCode = 0, this.throws});
 
   @override
   final String name;
@@ -99,21 +95,18 @@ void main() {
     test('runs three steps in order and prints a line per step', () async {
       final BufferedOutput output = BufferedOutput();
       final int exit = await TapirRunCommand().handle(
-        cliContext(
-          <String>[
-            'tap --ref=e5',
-            'fill --ref=q1 --text=hi',
-            'tap --ref=e6',
-          ],
-          output,
-        ),
+        cliContext(<String>[
+          'tap --ref=e5',
+          'fill --ref=q1 --text=hi',
+          'tap --ref=e6',
+        ], output),
       );
 
       expect(exit, 0);
-      expect(
-        tap.calls.map((Map<String, Object?> c) => c['ref']),
-        <String>['e5', 'e6'],
-      );
+      expect(tap.calls.map((Map<String, Object?> c) => c['ref']), <String>[
+        'e5',
+        'e6',
+      ]);
       expect(fill.calls.single['text'], 'hi');
       expect(tap.calls.first['connected'], isTrue);
       expect(output.content, contains('[1/3] tap --ref=e5 ok'));
@@ -126,45 +119,46 @@ void main() {
     test('stops at the first failing step and exits with its code', () async {
       final BufferedOutput output = BufferedOutput();
       final int exit = await TapirRunCommand().handle(
-        cliContext(
-          <String>[
-            'tap --ref=e5',
-            'broken --ref=e7',
-            'tap --ref=e6',
-          ],
-          output,
-        ),
+        cliContext(<String>[
+          'tap --ref=e5',
+          'broken --ref=e7',
+          'tap --ref=e6',
+        ], output),
       );
 
       expect(exit, 4);
       expect(tap.calls, hasLength(1));
       expect(
-          output.content, contains('step 2 failed (exit 4): broken --ref=e7'));
+        output.content,
+        contains('step 2 failed (exit 4): broken --ref=e7'),
+      );
       expect(output.content, contains('tapir:broken ran e7'));
       expect(output.content, isNot(contains('[3/3]')));
     });
 
-    test('--continue runs every step and exits with the first failure',
-        () async {
-      final BufferedOutput output = BufferedOutput();
-      final int exit = await TapirRunCommand().handle(
-        cliContext(
-          <String>[
+    test(
+      '--continue runs every step and exits with the first failure',
+      () async {
+        final BufferedOutput output = BufferedOutput();
+        final int exit = await TapirRunCommand().handle(
+          cliContext(<String>[
             'broken --ref=e7',
             'tap --ref=e5',
             'tap --ref=e6',
             '--continue',
-          ],
-          output,
-        ),
-      );
+          ], output),
+        );
 
-      expect(exit, 4);
-      expect(tap.calls, hasLength(2));
-      expect(output.content, contains('[1/3] broken --ref=e7 failed (exit 4)'));
-      expect(output.content, contains('[3/3] tap --ref=e6 ok'));
-      expect(output.content, contains('step 1 failed (exit 4)'));
-    });
+        expect(exit, 4);
+        expect(tap.calls, hasLength(2));
+        expect(
+          output.content,
+          contains('[1/3] broken --ref=e7 failed (exit 4)'),
+        );
+        expect(output.content, contains('[3/3] tap --ref=e6 ok'));
+        expect(output.content, contains('step 1 failed (exit 4)'));
+      },
+    );
 
     test('rejects a nested tapir:run step', () async {
       final BufferedOutput output = BufferedOutput();
@@ -198,36 +192,37 @@ void main() {
       expect(output.content, contains('unknown verb tapir:nope'));
     });
 
-    test('reports an option the verb does not declare as that step failing',
-        () async {
-      final BufferedOutput output = BufferedOutput();
-      final int exit = await TapirRunCommand().handle(
-        cliContext(<String>['tap --bogus=1'], output),
-      );
+    test(
+      'reports an option the verb does not declare as that step failing',
+      () async {
+        final BufferedOutput output = BufferedOutput();
+        final int exit = await TapirRunCommand().handle(
+          cliContext(<String>['tap --bogus=1'], output),
+        );
 
-      expect(exit, 1);
-      expect(tap.calls, isEmpty);
-      expect(output.content, contains('step 1 failed (exit 1)'));
-    });
+        expect(exit, 1);
+        expect(tap.calls, isEmpty);
+        expect(output.content, contains('step 1 failed (exit 1)'));
+      },
+    );
 
     test('keeps a quoted value with a space as one token', () async {
       final int exit = await TapirRunCommand().handle(
-        cliContext(
-          <String>[
-            'fill --ref=q1 --text="a b"',
-            "fill --ref=q2 --text='c d'",
-            r'fill --ref=q3 --text=e\ f',
-            r'fill --ref=q4 --text="say \"hi\""',
-          ],
-          BufferedOutput(),
-        ),
+        cliContext(<String>[
+          'fill --ref=q1 --text="a b"',
+          "fill --ref=q2 --text='c d'",
+          r'fill --ref=q3 --text=e\ f',
+          r'fill --ref=q4 --text="say \"hi\""',
+        ], BufferedOutput()),
       );
 
       expect(exit, 0);
-      expect(
-        fill.calls.map((Map<String, Object?> c) => c['text']),
-        <String>['a b', 'c d', 'e f', 'say "hi"'],
-      );
+      expect(fill.calls.map((Map<String, Object?> c) => c['text']), <String>[
+        'a b',
+        'c d',
+        'e f',
+        'say "hi"',
+      ]);
     });
 
     test('reports an unterminated quote as that step failing', () async {
@@ -241,19 +236,25 @@ void main() {
       expect(output.content, contains('unterminated quote'));
     });
 
-    test('a verb that throws an Error fails its own step, not the batch',
-        () async {
-      final BufferedOutput output = BufferedOutput();
-      final int exit = await TapirRunCommand().handle(
-        cliContext(<String>['mandatory', 'tap --ref=e2', '--continue'], output),
-      );
+    test(
+      'a verb that throws an Error fails its own step, not the batch',
+      () async {
+        final BufferedOutput output = BufferedOutput();
+        final int exit = await TapirRunCommand().handle(
+          cliContext(<String>[
+            'mandatory',
+            'tap --ref=e2',
+            '--continue',
+          ], output),
+        );
 
-      expect(exit, 3);
-      expect(output.content, contains('mandatory'));
-      expect(output.content, contains('Option ref is mandatory'));
-      expect(output.content, contains('step 1 failed (exit 3)'));
-      expect(tap.calls, hasLength(1), reason: '--continue still runs step 2');
-    });
+        expect(exit, 3);
+        expect(output.content, contains('mandatory'));
+        expect(output.content, contains('Option ref is mandatory'));
+        expect(output.content, contains('step 1 failed (exit 3)'));
+        expect(tap.calls, hasLength(1), reason: '--continue still runs step 2');
+      },
+    );
 
     test('maps an extension that is not registered yet to exit 75', () async {
       final BufferedOutput output = BufferedOutput();
@@ -270,10 +271,7 @@ void main() {
       final int exit = await TapirRunCommand().handle(
         DowelContext.connected(
           MapInput(<String, dynamic>{
-            'steps': <dynamic>[
-              'tap --ref=e5',
-              'fill --ref=q1 --text="a b"',
-            ],
+            'steps': <dynamic>['tap --ref=e5', 'fill --ref=q1 --text="a b"'],
           }),
           output,
           VmServiceClient('ws://127.0.0.1:1/ws'),
@@ -291,10 +289,7 @@ void main() {
       final int exit = await TapirRunCommand().handle(
         DowelContext.connected(
           MapInput(<String, dynamic>{
-            'steps': <dynamic>[
-              'broken',
-              'tap --ref=e5',
-            ],
+            'steps': <dynamic>['broken', 'tap --ref=e5'],
             'continue': true,
           }),
           BufferedOutput(),

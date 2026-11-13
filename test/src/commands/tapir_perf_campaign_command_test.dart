@@ -116,9 +116,9 @@ final class _FakeHost implements PerfCampaignHost {
   int _pid = 100;
 
   List<String> get commandLines => <String>[
-        for (final _Run run in runs)
-          <String>[run.executable, ...run.arguments].join(' '),
-      ];
+    for (final _Run run in runs)
+      <String>[run.executable, ...run.arguments].join(' '),
+  ];
 
   @override
   Future<ProcessResult> run(
@@ -283,8 +283,8 @@ final class _FakeDriver implements PerfRunDriver {
       'ext.tapir.get_routes' => <String, dynamic>{'uri': '/'},
       'ext.tapir.wait_for_network_idle' => <String, dynamic>{'matched': true},
       'ext.tapir.exceptions' => <String, dynamic>{
-          'exceptions': host.exceptions,
-        },
+        'exceptions': host.exceptions,
+      },
       _ => <String, dynamic>{},
     };
   }
@@ -293,8 +293,7 @@ final class _FakeDriver implements PerfRunDriver {
   Future<Map<String, dynamic>> cdp(
     String method, [
     Map<String, dynamic> params = const <String, dynamic>{},
-  ]) async =>
-      <String, dynamic>{};
+  ]) async => <String, dynamic>{};
 
   @override
   Future<void> restart() async {}
@@ -326,9 +325,9 @@ String _nameOf(Map<String, dynamic> options) {
 }
 
 /// `<out>/<scenario>-<label>.json`, the run file perf_run writes.
-File _runFileOf(Map<String, dynamic> options) => File(
-      '${options['out']}/${_nameOf(options)}-${options['label']}.json',
-    ).absolute;
+File _runFileOf(Map<String, dynamic> options) =>
+    File('${options['out']}/${_nameOf(options)}-${options['label']}.json')
+        .absolute;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -336,7 +335,8 @@ File _runFileOf(Map<String, dynamic> options) => File(
 
 /// A scenario whose one step fills the secret, so the campaign's redactor
 /// holds it.
-String _scenario(String name, List<String> platforms) => '''
+String _scenario(String name, List<String> platforms) =>
+    '''
 name: $name
 platforms: [${platforms.join(', ')}]
 steps:
@@ -372,10 +372,7 @@ void main() {
   }
 
   /// A campaign over [scenarios] (name to platforms), plus [extra] YAML.
-  String campaign(
-    Map<String, List<String>> scenarios, {
-    String extra = '',
-  }) {
+  String campaign(Map<String, List<String>> scenarios, {String extra = ''}) {
     for (final MapEntry<String, List<String>> s in scenarios.entries) {
       write('scenarios/${s.key}.yaml', _scenario(s.key, s.value));
     }
@@ -394,18 +391,16 @@ $extra
     Map<String, String> env = _env,
   }) async {
     final BufferedOutput output = BufferedOutput();
-    final int code = await TapirPerfCampaignCommand(
-      host: host,
-      environment: env,
-    ).handle(
-      DowelContext.bare(
-        MapInput(
-          <String, dynamic>{'platform': platform, ...options},
-          positional: <String>[path],
-        ),
-        output,
-      ),
-    );
+    final int code =
+        await TapirPerfCampaignCommand(host: host, environment: env).handle(
+          DowelContext.bare(
+            MapInput(
+              <String, dynamic>{'platform': platform, ...options},
+              positional: <String>[path],
+            ),
+            output,
+          ),
+        );
     return (code, output.content);
   }
 
@@ -426,16 +421,12 @@ $extra
     });
 
     group('.handle() filtering', () {
-      test(
-          '--only matching nothing prints the sentence, exits 1 and runs no '
+      test('--only matching nothing prints the sentence, exits 1 and runs no '
           'hook or process', () async {
         final _FakeHost host = _FakeHost();
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: 'hooks: {before_campaign: ./services.sh up}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        }, extra: 'hooks: {before_campaign: ./services.sh up}');
 
         final (int code, String out) = await handle(
           host,
@@ -522,17 +513,13 @@ $extra
         expect(host.events, isEmpty);
       });
 
-      test(
-          'a --cdp-port that is not a port exits 1 before any hook or '
+      test('a --cdp-port that is not a port exits 1 before any hook or '
           'process', () async {
         for (final String bad in <String>['abc', '0', '70000']) {
           final _FakeHost host = _FakeHost();
-          final String path = campaign(
-            <String, List<String>>{
-              'a': <String>['chrome'],
-            },
-            extra: 'hooks: {before_campaign: ./services.sh up}',
-          );
+          final String path = campaign(<String, List<String>>{
+            'a': <String>['chrome'],
+          }, extra: 'hooks: {before_campaign: ./services.sh up}');
 
           final (int code, String out) = await handle(
             host,
@@ -560,27 +547,23 @@ $extra
     });
 
     group('.handle() hooks', () {
-      test(
-          'a failing before_campaign stops the campaign with its output in '
+      test('a failing before_campaign stops the campaign with its output in '
           'campaign-<label>.err', () async {
         final _FakeHost host = _FakeHost(
           onRun: (String exe, List<String> args) =>
               exe == '/bin/sh' ? (3, 'redis down\n', 'boom\n') : (0, '', ''),
         );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: 'hooks: {before_campaign: ./services.sh up}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        }, extra: 'hooks: {before_campaign: ./services.sh up}');
 
         final (int code, String out) = await handle(host, path);
 
         expect(code, 1);
         expect(host.commandLines, <String>['/bin/sh -c ./services.sh up']);
         expect(host.events, isNot(contains('start')));
-        final String err =
-            File('build/perf/campaign-run.err').readAsStringSync();
+        final String err = File('build/perf/campaign-run.err')
+            .readAsStringSync();
         expect(err, contains('redis down'));
         expect(err, contains('boom'));
         expect(err, contains('exited 3'));
@@ -593,26 +576,22 @@ $extra
               ? (1, 'password $_secret\n', 'json {"p":"$_secretInJson"}\n')
               : (0, '', ''),
         );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: 'hooks: {before_campaign: ./services.sh up}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        }, extra: 'hooks: {before_campaign: ./services.sh up}');
 
         final (int code, String out) = await handle(host, path);
 
         expect(code, 1);
-        final String err =
-            File('build/perf/campaign-run.err').readAsStringSync();
+        final String err = File('build/perf/campaign-run.err')
+            .readAsStringSync();
         expect(err, contains('password ***'));
         expect(err, contains('json {"p":"***"}'));
         expectMasked(err);
         expectMasked(out);
       });
 
-      test(
-          'hooks run through /bin/sh in the invoking directory with '
+      test('hooks run through /bin/sh in the invoking directory with '
           'TAPIR_PERF_* on top of the inherited environment, minus every '
           'variable the campaign read', () async {
         final _FakeHost host = _FakeHost();
@@ -635,8 +614,9 @@ hooks:
         );
 
         expect(code, 0);
-        final List<_Run> hooks =
-            host.runs.where((_Run r) => r.executable == '/bin/sh').toList();
+        final List<_Run> hooks = host.runs
+            .where((_Run r) => r.executable == '/bin/sh')
+            .toList();
         expect(hooks, hasLength(2));
         for (final _Run hook in hooks) {
           expect(hook.environment, isNot(contains('DEMO_PASSWORD')));
@@ -650,7 +630,9 @@ hooks:
           expect(hook.workingDirectory, Directory.current.path);
           expect(hook.environment, containsPair('HOME', '/home/perf'));
           expect(
-              hook.environment, containsPair('TAPIR_PERF_PLATFORM', 'chrome'));
+            hook.environment,
+            containsPair('TAPIR_PERF_PLATFORM', 'chrome'),
+          );
           expect(hook.environment, containsPair('TAPIR_PERF_LABEL', 'base'));
           expect(hook.environment, containsPair('TAPIR_PERF_OUT', 'out/perf'));
         }
@@ -658,32 +640,32 @@ hooks:
         expect(hooks[1].environment, containsPair('TAPIR_PERF_SCENARIO', 'a'));
       });
 
-      test('a failing before_scenario stops the campaign at that scenario',
-          () async {
-        final _FakeHost host = _FakeHost(
-          onRun: (String exe, List<String> args) =>
-              exe == '/bin/sh' ? (2, 'reset failed', '') : (0, '', ''),
-        );
-        final String path = campaign(
-          <String, List<String>>{
+      test(
+        'a failing before_scenario stops the campaign at that scenario',
+        () async {
+          final _FakeHost host = _FakeHost(
+            onRun: (String exe, List<String> args) =>
+                exe == '/bin/sh' ? (2, 'reset failed', '') : (0, '', ''),
+          );
+          final String path = campaign(<String, List<String>>{
             'a': <String>['chrome'],
             'b': <String>['chrome'],
-          },
-          extra: 'hooks: {before_scenario: ./services.sh reset}',
-        );
+          }, extra: 'hooks: {before_scenario: ./services.sh reset}');
 
-        final (int code, String out) = await handle(host, path);
+          final (int code, String out) = await handle(host, path);
 
-        expect(code, 1);
-        expect(host.events, isNot(contains('start')));
-        expect(host.events.where((String e) => e.startsWith('run /bin/sh')),
-            hasLength(1));
-        expect(errOf('a'), contains('reset failed'));
-        expect(out, contains('hooks.before_scenario exited 2'));
-      });
+          expect(code, 1);
+          expect(host.events, isNot(contains('start')));
+          expect(
+            host.events.where((String e) => e.startsWith('run /bin/sh')),
+            hasLength(1),
+          );
+          expect(errOf('a'), contains('reset failed'));
+          expect(out, contains('hooks.before_scenario exited 2'));
+        },
+      );
 
-      test(
-          'a before_scenario hook whose shell cannot start stops the campaign '
+      test('a before_scenario hook whose shell cannot start stops the campaign '
           'with the reason', () async {
         final _FakeHost host = _FakeHost(
           onRun: (String exe, List<String> args) => exe == '/bin/sh'
@@ -695,13 +677,10 @@ hooks:
                 )
               : (0, '', ''),
         );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-            'b': <String>['chrome'],
-          },
-          extra: 'hooks: {before_scenario: ./services.sh reset}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+          'b': <String>['chrome'],
+        }, extra: 'hooks: {before_scenario: ./services.sh reset}');
 
         final (int code, String out) = await handle(host, path);
 
@@ -726,16 +705,12 @@ hooks:
         expect(host.runs.first.workingDirectory, Directory.current.path);
       });
 
-      test(
-          'every preparation process gets the whole environment minus the '
+      test('every preparation process gets the whole environment minus the '
           'variables the campaign read, and no TAPIR_PERF_*', () async {
         final _FakeHost host = _FakeHost();
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['android'],
-          },
-          extra: 'android: {reverse: [8001]}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['android'],
+        }, extra: 'android: {reverse: [8001]}');
 
         final (int code, _) = await handle(
           host,
@@ -772,67 +747,67 @@ hooks:
         expect(host.events, isNot(contains('start')));
       });
 
-      test('a flutter that cannot start stops the campaign with the reason',
-          () async {
-        final _FakeHost host = _FakeHost(
-          onRun: (String exe, List<String> args) => exe == 'flutter'
-              ? throw const ProcessException(
-                  'flutter',
-                  <String>['pub', 'get'],
-                  'No such file or directory',
-                  2,
-                )
-              : (0, '', ''),
-        );
-        final String path = campaign(<String, List<String>>{
-          'a': <String>['chrome'],
-        });
+      test(
+        'a flutter that cannot start stops the campaign with the reason',
+        () async {
+          final _FakeHost host = _FakeHost(
+            onRun: (String exe, List<String> args) => exe == 'flutter'
+                ? throw const ProcessException(
+                    'flutter',
+                    <String>['pub', 'get'],
+                    'No such file or directory',
+                    2,
+                  )
+                : (0, '', ''),
+          );
+          final String path = campaign(<String, List<String>>{
+            'a': <String>['chrome'],
+          });
 
-        final (int code, String out) = await handle(host, path);
+          final (int code, String out) = await handle(host, path);
 
-        expect(code, 1);
-        expect(out, contains('flutter could not start: No such file'));
-        expect(host.events, isNot(contains('start')));
-      });
-
-      test('an adb that cannot start while matching the AVD stops the campaign',
-          () async {
-        final _FakeHost host = _FakeHost(
-          onRun: (String exe, List<String> args) {
-            if (args.contains('devices')) {
-              return (0, 'emulator-5554\tdevice\n', '');
-            }
-            if (args.contains('emu')) {
-              throw const ProcessException(
-                'adb',
-                <String>[],
-                'Permission denied',
-                13,
-              );
-            }
-            return (0, '', '');
-          },
-        );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['android'],
-          },
-          extra: 'android: {avd: perf_avd}',
-        );
-
-        final (int code, String out) = await handle(
-          host,
-          path,
-          platform: 'android',
-        );
-
-        expect(code, 1);
-        expect(out, contains('adb could not start: Permission denied'));
-        expect(host.events, isNot(contains('start')));
-      });
+          expect(code, 1);
+          expect(out, contains('flutter could not start: No such file'));
+          expect(host.events, isNot(contains('start')));
+        },
+      );
 
       test(
-          'an applicationId Gradle interpolates is refused before anything '
+        'an adb that cannot start while matching the AVD stops the campaign',
+        () async {
+          final _FakeHost host = _FakeHost(
+            onRun: (String exe, List<String> args) {
+              if (args.contains('devices')) {
+                return (0, 'emulator-5554\tdevice\n', '');
+              }
+              if (args.contains('emu')) {
+                throw const ProcessException(
+                  'adb',
+                  <String>[],
+                  'Permission denied',
+                  13,
+                );
+              }
+              return (0, '', '');
+            },
+          );
+          final String path = campaign(<String, List<String>>{
+            'a': <String>['android'],
+          }, extra: 'android: {avd: perf_avd}');
+
+          final (int code, String out) = await handle(
+            host,
+            path,
+            platform: 'android',
+          );
+
+          expect(code, 1);
+          expect(out, contains('adb could not start: Permission denied'));
+          expect(host.events, isNot(contains('start')));
+        },
+      );
+
+      test('an applicationId Gradle interpolates is refused before anything '
           'reaches the device', () async {
         write(
           'android/app/build.gradle',
@@ -840,12 +815,9 @@ hooks:
               '"com.example.\${flavor}"\n  }\n}\n',
         );
         final _FakeHost host = _FakeHost();
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['android'],
-          },
-          extra: 'android: {grant: [android.permission.CAMERA]}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['android'],
+        }, extra: 'android: {grant: [android.permission.CAMERA]}');
 
         final (int code, String out) = await handle(
           host,
@@ -862,64 +834,63 @@ hooks:
       });
 
       test(
-          'android boots the AVD beside another emulator, waits for '
-          'boot_completed, reverses, builds, installs and grants, in order',
-          () async {
-        final String adb = write('sdk/platform-tools/adb', '');
-        write(
-          'android/app/build.gradle',
-          'android {\n  defaultConfig {\n    applicationId "com.example.perf"'
-              '\n  }\n}\n',
-        );
-        // Another AVD is already up as emulator-5580; perf_avd appears as
-        // emulator-5554 once launched, listed after it.
-        bool launched = false;
-        int bootReads = 0;
-        final _FakeHost host = _FakeHost(
-          onRun: (String exe, List<String> args) {
-            if (args.contains('--launch')) launched = true;
-            if (args.contains('devices')) {
-              return (
-                0,
-                'List of devices attached\nemulator-5580\tdevice\n'
-                    '${launched ? 'emulator-5554\tdevice\n' : ''}\n',
-                '',
-              );
-            }
-            if (args.contains('emu')) {
-              final String name =
-                  args[1] == 'emulator-5580' ? 'other_avd' : 'perf_avd';
-              return (0, '$name\r\nOK\r\n', '');
-            }
-            if (args.contains('sys.boot_completed')) {
-              return (0, bootReads++ == 0 ? '\n' : '1\r\n', '');
-            }
-            return (0, '', '');
-          },
-        );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['android'],
-          },
-          extra: '''
+        'android boots the AVD beside another emulator, waits for '
+        'boot_completed, reverses, builds, installs and grants, in order',
+        () async {
+          final String adb = write('sdk/platform-tools/adb', '');
+          write(
+            'android/app/build.gradle',
+            'android {\n  defaultConfig {\n    applicationId "com.example.perf"'
+                '\n  }\n}\n',
+          );
+          // Another AVD is already up as emulator-5580; perf_avd appears as
+          // emulator-5554 once launched, listed after it.
+          bool launched = false;
+          int bootReads = 0;
+          final _FakeHost host = _FakeHost(
+            onRun: (String exe, List<String> args) {
+              if (args.contains('--launch')) launched = true;
+              if (args.contains('devices')) {
+                return (
+                  0,
+                  'List of devices attached\nemulator-5580\tdevice\n'
+                      '${launched ? 'emulator-5554\tdevice\n' : ''}\n',
+                  '',
+                );
+              }
+              if (args.contains('emu')) {
+                final String name = args[1] == 'emulator-5580'
+                    ? 'other_avd'
+                    : 'perf_avd';
+                return (0, '$name\r\nOK\r\n', '');
+              }
+              if (args.contains('sys.boot_completed')) {
+                return (0, bootReads++ == 0 ? '\n' : '1\r\n', '');
+              }
+              return (0, '', '');
+            },
+          );
+          final String path = campaign(
+            <String, List<String>>{
+              'a': <String>['android'],
+            },
+            extra: '''
 android:
   avd: perf_avd
   reverse: [8001, 8080]
   grant: [android.permission.POST_NOTIFICATIONS]
 ''',
-        );
+          );
 
-        final (int code, _) = await handle(
-          host,
-          path,
-          platform: 'android',
-          env: <String, String>{..._env, 'ANDROID_HOME': '${dir.path}/sdk'},
-        );
+          final (int code, _) = await handle(
+            host,
+            path,
+            platform: 'android',
+            env: <String, String>{..._env, 'ANDROID_HOME': '${dir.path}/sdk'},
+          );
 
-        expect(code, 0);
-        expect(
-          host.commandLines,
-          <String>[
+          expect(code, 0);
+          expect(host.commandLines, <String>[
             'flutter pub get',
             '$adb devices',
             '$adb -s emulator-5580 emu avd name',
@@ -936,12 +907,12 @@ android:
                 'build/app/outputs/flutter-apk/app-profile.apk',
             '$adb -s emulator-5554 shell pm grant com.example.perf '
                 'android.permission.POST_NOTIFICATIONS',
-          ],
-        );
-        expect(host.starts.single['device'], 'emulator-5554');
-        expect(host.starts.single['profile-static'], isTrue);
-        expect(host.starts.single.containsKey('cdp-port'), isFalse);
-      });
+          ]);
+          expect(host.starts.single['device'], 'emulator-5554');
+          expect(host.starts.single['profile-static'], isTrue);
+          expect(host.starts.single.containsKey('cdp-port'), isFalse);
+        },
+      );
 
       test('android reuses the AVD when it already runs', () async {
         final _FakeHost host = _FakeHost(
@@ -955,20 +926,18 @@ android:
               );
             }
             if (args.contains('emu')) {
-              final String name =
-                  args[1] == 'emulator-5580' ? 'other_avd' : 'perf_avd';
+              final String name = args[1] == 'emulator-5580'
+                  ? 'other_avd'
+                  : 'perf_avd';
               return (0, '$name\r\nOK\r\n', '');
             }
             if (args.contains('sys.boot_completed')) return (0, '1\n', '');
             return (0, '', '');
           },
         );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['android'],
-          },
-          extra: 'android: {avd: perf_avd}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['android'],
+        }, extra: 'android: {avd: perf_avd}');
 
         final (int code, _) = await handle(host, path, platform: 'android');
 
@@ -979,12 +948,9 @@ android:
 
       test('android falls back to adb on PATH and honours --device', () async {
         final _FakeHost host = _FakeHost();
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['android'],
-          },
-          extra: 'android: {reverse: [8001]}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['android'],
+        }, extra: 'android: {reverse: [8001]}');
 
         final (int code, _) = await handle(
           host,
@@ -1023,12 +989,9 @@ android:
 
       test('android grant without an applicationId stops', () async {
         final _FakeHost host = _FakeHost();
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['android'],
-          },
-          extra: 'android: {grant: [android.permission.CAMERA]}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['android'],
+        }, extra: 'android: {grant: [android.permission.CAMERA]}');
 
         final (int code, String out) = await handle(
           host,
@@ -1044,8 +1007,7 @@ android:
     });
 
     group('.handle() cold start', () {
-      test(
-          'reads the session before stop, waits for the pid and the ports, '
+      test('reads the session before stop, waits for the pid and the ports, '
           'then starts', () async {
         final _FakeHost host = _FakeHost()
           ..session = <String, dynamic>{
@@ -1069,7 +1031,9 @@ android:
         final int start = events.indexOf('start');
         final List<String> between = events.sublist(stop + 1, start);
         expect(
-            between.where((String e) => e == 'free:9222=false'), hasLength(3));
+          between.where((String e) => e == 'free:9222=false'),
+          hasLength(3),
+        );
         expect(between, contains('free:9222=true'));
         expect(between, contains('alive:41=false'));
         expect(between, contains('free:3100=true'));
@@ -1078,8 +1042,7 @@ android:
         expect(events.lastIndexOf('free:9222=true'), lessThan(start));
       });
 
-      test(
-          'a VM Service port adb still forwards does not hold the start: '
+      test('a VM Service port adb still forwards does not hold the start: '
           'dowel start never probes it', () async {
         final _FakeHost host = _FakeHost()
           ..session = <String, dynamic>{
@@ -1088,12 +1051,9 @@ android:
             'device': 'emulator-5554',
           };
         host.busyReads[8181] = 1 << 20;
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['android'],
-          },
-          extra: 'retries: 0',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['android'],
+        }, extra: 'retries: 0');
 
         final (int code, _) = await handle(
           host,
@@ -1106,8 +1066,7 @@ android:
         expect(host.starts, hasLength(1));
       });
 
-      test(
-          'a browser session with no CDP port still waits for its web port, '
+      test('a browser session with no CDP port still waits for its web port, '
           'told by its device', () async {
         final _FakeHost host = _FakeHost()
           ..session = <String, dynamic>{
@@ -1145,12 +1104,9 @@ android:
             'device': 'chrome',
           };
         host.busyReads[9222] = 1 << 20;
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: 'retries: 0',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        }, extra: 'retries: 0');
 
         final (int code, _) = await handle(host, path);
 
@@ -1188,32 +1144,31 @@ android:
         }
       });
 
-      test('polls ext.tapir.boot_id until it answers, then runs perf_run',
-          () async {
-        final _FakeHost host = _FakeHost(bootMisses: 2);
-        final String path = campaign(<String, List<String>>{
-          'a': <String>['chrome'],
-        });
+      test(
+        'polls ext.tapir.boot_id until it answers, then runs perf_run',
+        () async {
+          final _FakeHost host = _FakeHost(bootMisses: 2);
+          final String path = campaign(<String, List<String>>{
+            'a': <String>['chrome'],
+          });
 
-        final (int code, _) = await handle(host, path);
+          final (int code, _) = await handle(host, path);
 
-        expect(code, 0);
-        final List<String> events = host.events;
-        final int connect = events.indexOf('connect');
-        expect(
-          events.sublist(connect + 1, events.indexOf('driver open')),
-          <String>['boot:miss', 'pause', 'boot:miss', 'pause', 'boot:ok'],
-        );
-      });
+          expect(code, 0);
+          final List<String> events = host.events;
+          final int connect = events.indexOf('connect');
+          expect(
+            events.sublist(connect + 1, events.indexOf('driver open')),
+            <String>['boot:miss', 'pause', 'boot:miss', 'pause', 'boot:ok'],
+          );
+        },
+      );
 
       test('an app that never answers boot_id fails the attempt', () async {
         final _FakeHost host = _FakeHost(bootMisses: 1 << 20);
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: 'retries: 0',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        }, extra: 'retries: 0');
 
         final (int code, _) = await handle(host, path);
 
@@ -1222,53 +1177,46 @@ android:
         expect(errOf('a'), contains('ext.tapir.boot_id'));
       });
 
-      test('runs after_start once per cold start, the Router awaited first',
-          () async {
-        final _FakeHost host = _FakeHost();
-        final String path = campaign(
-          <String, List<String>>{
+      test(
+        'runs after_start once per cold start, the Router awaited first',
+        () async {
+          final _FakeHost host = _FakeHost();
+          final String path = campaign(<String, List<String>>{
             'a': <String>['chrome'],
             'b': <String>['chrome'],
-          },
-          extra: 'after_start: [wait_for_network_idle]',
-        );
+          }, extra: 'after_start: [wait_for_network_idle]');
 
-        final (int code, _) = await handle(host, path);
+          final (int code, _) = await handle(host, path);
 
-        expect(code, 0);
-        final List<String> events = host.events;
-        final int bootA = events.indexOf('boot:ok');
-        expect(
-          events.sublist(bootA + 1, events.indexOf('close')),
-          <String>[
+          expect(code, 0);
+          final List<String> events = host.events;
+          final int bootA = events.indexOf('boot:ok');
+          expect(events.sublist(bootA + 1, events.indexOf('close')), <String>[
             'driver open',
             'driver ext.tapir.get_routes',
             'driver ext.tapir.wait_for_network_idle',
             'perf_run a',
             'driver close',
-          ],
-        );
-        expect(
-          events.where(
-              (String e) => e == 'driver ext.tapir.wait_for_network_idle'),
-          hasLength(2),
-        );
-      });
+          ]);
+          expect(
+            events.where(
+              (String e) => e == 'driver ext.tapir.wait_for_network_idle',
+            ),
+            hasLength(2),
+          );
+        },
+      );
 
-      test(
-          'opens one driver per attempt, hands perf_run the one after_start '
+      test('opens one driver per attempt, hands perf_run the one after_start '
           'drove, and closes it once the run is done', () async {
         int calls = 0;
         final _FakeHost host = _FakeHost(
           onPerfRun: (Map<String, dynamic> options, DowelOutput output) async =>
               calls++ == 0 ? 1 : 0,
         );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: 'after_start: [wait_for_network_idle]',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        }, extra: 'after_start: [wait_for_network_idle]');
 
         final (int code, _) = await handle(host, path);
 
@@ -1285,102 +1233,106 @@ android:
       });
 
       test(
-          'after_start waits for a Router that mounts at 15 s: the router '
-          'wait takes the after_start guard budget, not perf_run\'s 10 s',
-          () async {
-        write('fragments/login.yaml', '''
+        'after_start waits for a Router that mounts at 15 s: the router '
+        'wait takes the after_start guard budget, not perf_run\'s 10 s',
+        () async {
+          write('fragments/login.yaml', '''
 steps:
   - tap: {target: {text: Sign in}}
 ''');
-        final _FakeHost host = _FakeHost()..routerMountReads = 150;
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: '''
+          final _FakeHost host = _FakeHost()..routerMountReads = 150;
+          final String path = campaign(
+            <String, List<String>>{
+              'a': <String>['chrome'],
+            },
+            extra: '''
 retries: 0
 after_start:
   - include: fragments/login.yaml
     when: {text: Sign in}
 ''',
-        );
+          );
 
-        final (int code, String out) = await handle(host, path);
+          final (int code, String out) = await handle(host, path);
 
-        expect(code, 0, reason: out);
-        expect(
-          host.events.where((String e) => e == 'driver ext.tapir.get_routes'),
-          hasLength(151),
-        );
-      });
+          expect(code, 0, reason: out);
+          expect(
+            host.events.where((String e) => e == 'driver ext.tapir.get_routes'),
+            hasLength(151),
+          );
+        },
+      );
 
-      test('the router wait stops at the largest after_start guard budget',
-          () async {
-        write('fragments/login.yaml', '''
+      test(
+        'the router wait stops at the largest after_start guard budget',
+        () async {
+          write('fragments/login.yaml', '''
 steps:
   - tap: {target: {text: Sign in}}
 ''');
-        final _FakeHost host = _FakeHost()..routerMountReads = 250;
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: '''
+          final _FakeHost host = _FakeHost()..routerMountReads = 250;
+          final String path = campaign(
+            <String, List<String>>{
+              'a': <String>['chrome'],
+            },
+            extra: '''
 retries: 0
 after_start:
   - include: fragments/login.yaml
     when: {text: Sign in, timeout_ms: 20000}
 ''',
-        );
+          );
 
-        final (int code, _) = await handle(host, path);
+          final (int code, _) = await handle(host, path);
 
-        expect(code, 1);
-        expect(errOf('a'), contains('no Router was mounted within 20 s'));
-      });
+          expect(code, 1);
+          expect(errOf('a'), contains('no Router was mounted within 20 s'));
+        },
+      );
 
-      test('chrome starts with the CDP port and perf_run gets the options',
-          () async {
-        final _FakeHost host = _FakeHost();
-        final String path = campaign(<String, List<String>>{
-          'a': <String>['chrome'],
-        });
+      test(
+        'chrome starts with the CDP port and perf_run gets the options',
+        () async {
+          final _FakeHost host = _FakeHost();
+          final String path = campaign(<String, List<String>>{
+            'a': <String>['chrome'],
+          });
 
-        final (int code, _) = await handle(
-          host,
-          path,
-          options: <String, dynamic>{
+          final (int code, _) = await handle(
+            host,
+            path,
+            options: <String, dynamic>{
+              'cdp-port': '9333',
+              'label': 'base',
+              'out': 'out/perf',
+              'timing': true,
+              'semantics-pass': true,
+            },
+          );
+
+          expect(code, 0);
+          expect(host.starts.single, <String, dynamic>{
+            'device': 'chrome',
             'cdp-port': '9333',
+            'profile-static': false,
+            'flutter-arg': <String>[],
+          });
+          expect(host.perfRuns.single, <String, dynamic>{
+            'scenario': '${dir.path}/scenarios/a.yaml',
+            'variant': null,
             'label': 'base',
             'out': 'out/perf',
+            'platform': 'chrome',
             'timing': true,
             'semantics-pass': true,
-          },
-        );
-
-        expect(code, 0);
-        expect(host.starts.single, <String, dynamic>{
-          'device': 'chrome',
-          'cdp-port': '9333',
-          'profile-static': false,
-          'flutter-arg': <String>[],
-        });
-        expect(host.perfRuns.single, <String, dynamic>{
-          'scenario': '${dir.path}/scenarios/a.yaml',
-          'variant': null,
-          'label': 'base',
-          'out': 'out/perf',
-          'platform': 'chrome',
-          'timing': true,
-          'semantics-pass': true,
-          'json': false,
-        });
-      });
+            'json': false,
+          });
+        },
+      );
     });
 
     group('.handle() attempts', () {
-      test(
-          'a scenario that throws a non-PerfRunException is a failed attempt '
+      test('a scenario that throws a non-PerfRunException is a failed attempt '
           'and the next scenario still runs', () async {
         final _FakeHost host = _FakeHost(
           onPerfRun: (Map<String, dynamic> options, DowelOutput output) async {
@@ -1390,13 +1342,10 @@ after_start:
             return 0;
           },
         );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-            'b': <String>['chrome'],
-          },
-          extra: 'retries: 0',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+          'b': <String>['chrome'],
+        }, extra: 'retries: 0');
 
         final (int code, String out) = await handle(host, path);
 
@@ -1404,9 +1353,11 @@ after_start:
         expect(host.events, contains('perf_run b'));
         expect(errOf('a'), contains('the isolate went away'));
         expect(
-            out,
-            matches(RegExp(r'^\s*a\s+FAILED \(see .*a-run\.err\)$',
-                multiLine: true)));
+          out,
+          matches(
+            RegExp(r'^\s*a\s+FAILED \(see .*a-run\.err\)$', multiLine: true),
+          ),
+        );
         expect(out, matches(RegExp(r'^\s*b\s+ok$', multiLine: true)));
       });
 
@@ -1460,35 +1411,38 @@ after_start:
         expect(result['errFile'], File('build/perf/a-run.err').absolute.path);
       });
 
-      test('a retry that passes names its attempt and its .err in the summary',
-          () async {
-        int calls = 0;
-        final _FakeHost host = _FakeHost(
-          onPerfRun: (Map<String, dynamic> options, DowelOutput output) async =>
-              calls++ == 0 ? 1 : 0,
-        );
-        final String path = campaign(<String, List<String>>{
-          'a': <String>['chrome'],
-          'bb': <String>['chrome'],
-        });
-
-        final (int code, String out) = await handle(host, path);
-
-        expect(code, 0);
-        expect(
-          out,
-          matches(
-            RegExp(
-              r'^\s*a\s+ok \(attempt 2, see .*/build/perf/a-run\.err\)$',
-              multiLine: true,
-            ),
-          ),
-        );
-        expect(out, matches(RegExp(r'^\s*bb\s+ok$', multiLine: true)));
-      });
-
       test(
-          'the run file perf_run wrote is masked for the campaign\'s secrets '
+        'a retry that passes names its attempt and its .err in the summary',
+        () async {
+          int calls = 0;
+          final _FakeHost host = _FakeHost(
+            onPerfRun: (
+              Map<String, dynamic> options,
+              DowelOutput output,
+            ) async => calls++ == 0 ? 1 : 0,
+          );
+          final String path = campaign(<String, List<String>>{
+            'a': <String>['chrome'],
+            'bb': <String>['chrome'],
+          });
+
+          final (int code, String out) = await handle(host, path);
+
+          expect(code, 0);
+          expect(
+            out,
+            matches(
+              RegExp(
+                r'^\s*a\s+ok \(attempt 2, see .*/build/perf/a-run\.err\)$',
+                multiLine: true,
+              ),
+            ),
+          );
+          expect(out, matches(RegExp(r'^\s*bb\s+ok$', multiLine: true)));
+        },
+      );
+
+      test('the run file perf_run wrote is masked for the campaign\'s secrets '
           'and stays valid JSON', () async {
         final _FakeHost host = _FakeHost(
           onPerfRun: (Map<String, dynamic> options, DowelOutput output) async {
@@ -1519,12 +1473,14 @@ after_start:
             jsonDecode(text) as Map<String, dynamic>;
         expect(run['semanticsPassReason'], 'login failed for ***');
         expect(run['summary'], <String, dynamic>{'repeats': 3, 'refused': 0});
-        expect(
-            run.keys, <String>['scenario', 'semanticsPassReason', 'summary']);
+        expect(run.keys, <String>[
+          'scenario',
+          'semanticsPassReason',
+          'summary',
+        ]);
       });
 
-      test(
-          'a secret that spells an envelope key leaves the --json envelope '
+      test('a secret that spells an envelope key leaves the --json envelope '
           'with its keys and numbers intact', () async {
         int calls = 0;
         final _FakeHost host = _FakeHost(
@@ -1557,12 +1513,9 @@ after_start:
       test('a failed start attaches the session log to the .err', () async {
         final _FakeHost host = _FakeHost(startCode: 1)
           ..sessionLog = 'Launching lib/main.dart\nGradle task failed\n';
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: 'retries: 0',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        }, extra: 'retries: 0');
 
         final (int code, _) = await handle(host, path);
 
@@ -1573,45 +1526,49 @@ after_start:
         expect(err, contains('Gradle task failed'));
       });
 
-      test('the summary and the --json envelope report every scenario',
-          () async {
-        final _FakeHost host = _FakeHost(
-          onPerfRun: (Map<String, dynamic> options, DowelOutput output) async =>
-              _stem(options['scenario'] as String) == 'b' ? 1 : 0,
-        );
-        final String path = campaign(<String, List<String>>{
-          'a': <String>['chrome'],
-          'b': <String>['chrome'],
-        });
+      test(
+        'the summary and the --json envelope report every scenario',
+        () async {
+          final _FakeHost host = _FakeHost(
+            onPerfRun: (
+              Map<String, dynamic> options,
+              DowelOutput output,
+            ) async => _stem(options['scenario'] as String) == 'b' ? 1 : 0,
+          );
+          final String path = campaign(<String, List<String>>{
+            'a': <String>['chrome'],
+            'b': <String>['chrome'],
+          });
 
-        final (int code, String out) = await handle(
-          host,
-          path,
-          options: <String, dynamic>{'json': true},
-        );
+          final (int code, String out) = await handle(
+            host,
+            path,
+            options: <String, dynamic>{'json': true},
+          );
 
-        expect(code, 1);
-        final Map<String, dynamic> envelope =
-            jsonDecode(out.split('\n').first) as Map<String, dynamic>;
-        expect(envelope['results'], <Map<String, dynamic>>[
-          <String, dynamic>{
-            'scenario': 'a',
-            'status': 'ok',
-            'attempts': 1,
-            'runFile': File('build/perf/a-run.json').absolute.path,
-            'errFile': null,
-          },
-          <String, dynamic>{
-            'scenario': 'b',
-            'status': 'failed',
-            'attempts': 2,
-            'runFile': null,
-            'errFile': File('build/perf/b-run.err').absolute.path,
-          },
-        ]);
-        // The app is stopped once the last scenario is done.
-        expect(host.events.last, 'stop');
-      });
+          expect(code, 1);
+          final Map<String, dynamic> envelope =
+              jsonDecode(out.split('\n').first) as Map<String, dynamic>;
+          expect(envelope['results'], <Map<String, dynamic>>[
+            <String, dynamic>{
+              'scenario': 'a',
+              'status': 'ok',
+              'attempts': 1,
+              'runFile': File('build/perf/a-run.json').absolute.path,
+              'errFile': null,
+            },
+            <String, dynamic>{
+              'scenario': 'b',
+              'status': 'failed',
+              'attempts': 2,
+              'runFile': null,
+              'errFile': File('build/perf/b-run.err').absolute.path,
+            },
+          ]);
+          // The app is stopped once the last scenario is done.
+          expect(host.events.last, 'stop');
+        },
+      );
 
       test('a clean campaign exits 0 and stops the app at the end', () async {
         final _FakeHost host = _FakeHost();
@@ -1632,23 +1589,19 @@ after_start:
     group('.handle() hooks.after_campaign', () {
       /// The after_campaign runs the host saw.
       List<_Run> teardowns(_FakeHost host) => <_Run>[
-            for (final _Run r in host.runs)
-              if (r.executable == '/bin/sh' &&
-                  r.arguments.last == './services.sh down')
-                r,
-          ];
+        for (final _Run r in host.runs)
+          if (r.executable == '/bin/sh' &&
+              r.arguments.last == './services.sh down')
+            r,
+      ];
 
-      test(
-          'runs once after the final stop with TAPIR_PERF_STATUS=ok and the '
+      test('runs once after the final stop with TAPIR_PERF_STATUS=ok and the '
           'hook environment', () async {
         final _FakeHost host = _FakeHost();
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-            'b': <String>['chrome'],
-          },
-          extra: 'hooks: {after_campaign: ./services.sh down}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+          'b': <String>['chrome'],
+        }, extra: 'hooks: {after_campaign: ./services.sh down}');
 
         final (int code, _) = await handle(
           host,
@@ -1670,17 +1623,13 @@ after_start:
         });
       });
 
-      test(
-          'still runs, with TAPIR_PERF_STATUS=failed, when the final stop '
+      test('still runs, with TAPIR_PERF_STATUS=failed, when the final stop '
           'throws, and the throw is not swallowed', () async {
         final _FakeHost host = _FakeHost()
           ..stopThrowsAfterRun = const FileSystemException('state.json');
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: 'hooks: {after_campaign: ./services.sh down}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        }, extra: 'hooks: {after_campaign: ./services.sh down}');
 
         await expectLater(
           handle(host, path),
@@ -1692,37 +1641,37 @@ after_start:
         );
       });
 
-      test('runs with TAPIR_PERF_STATUS=failed after a failed scenario',
-          () async {
-        final _FakeHost host = _FakeHost(
-          onPerfRun: (Map<String, dynamic> options, DowelOutput output) async =>
-              1,
-        );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: 'retries: 0\nhooks: {after_campaign: ./services.sh down}',
-        );
-
-        final (int code, String out) = await handle(host, path);
-
-        expect(code, 1);
-        expect(
-          teardowns(host).single.environment,
-          containsPair('TAPIR_PERF_STATUS', 'failed'),
-        );
-        expect(out, matches(RegExp(r'^\s*a\s+FAILED', multiLine: true)));
-      });
-
       test(
-          'runs after a before_campaign that failed, to tear down what it '
+        'runs with TAPIR_PERF_STATUS=failed after a failed scenario',
+        () async {
+          final _FakeHost host = _FakeHost(
+            onPerfRun: (
+              Map<String, dynamic> options,
+              DowelOutput output,
+            ) async => 1,
+          );
+          final String path = campaign(<String, List<String>>{
+            'a': <String>['chrome'],
+          }, extra: 'retries: 0\nhooks: {after_campaign: ./services.sh down}');
+
+          final (int code, String out) = await handle(host, path);
+
+          expect(code, 1);
+          expect(
+            teardowns(host).single.environment,
+            containsPair('TAPIR_PERF_STATUS', 'failed'),
+          );
+          expect(out, matches(RegExp(r'^\s*a\s+FAILED', multiLine: true)));
+        },
+      );
+
+      test('runs after a before_campaign that failed, to tear down what it '
           'started, with TAPIR_PERF_STATUS=failed', () async {
         final _FakeHost host = _FakeHost(
           onRun: (String exe, List<String> args) =>
               args.last == './services.sh up'
-                  ? (3, 'half up', '')
-                  : (0, '', ''),
+              ? (3, 'half up', '')
+              : (0, '', ''),
         );
         final String path = campaign(
           <String, List<String>>{
@@ -1745,21 +1694,17 @@ hooks:
         );
       });
 
-      test(
-          'a failing after_campaign exits 1 without hiding the results, its '
+      test('a failing after_campaign exits 1 without hiding the results, its '
           'output in campaign-<label>.err', () async {
         final _FakeHost host = _FakeHost(
           onRun: (String exe, List<String> args) =>
               args.last == './services.sh down'
-                  ? (4, 'redis would not stop', '')
-                  : (0, '', ''),
+              ? (4, 'redis would not stop', '')
+              : (0, '', ''),
         );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: 'hooks: {after_campaign: ./services.sh down}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        }, extra: 'hooks: {after_campaign: ./services.sh down}');
 
         final (int code, String out) = await handle(
           host,
@@ -1774,10 +1719,9 @@ hooks:
           (envelope['results'] as List<dynamic>).single,
           containsPair('status', 'ok'),
         );
-        expect(
-          envelope['errors'],
-          <Object?>[contains('hooks.after_campaign exited 4')],
-        );
+        expect(envelope['errors'], <Object?>[
+          contains('hooks.after_campaign exited 4'),
+        ]);
         expect(out, contains('hooks.after_campaign exited 4'));
         expect(
           File('build/perf/campaign-run.err').readAsStringSync(),
@@ -1790,31 +1734,27 @@ hooks:
       /// The envelope line: error lines, stderr in a real run, may precede it
       /// in the one buffer a test reads.
       Map<String, dynamic> envelopeOf(String out) => jsonDecode(
-            out.split('\n').firstWhere((String l) => l.startsWith('{')),
-          ) as Map<String, dynamic>;
+        out.split('\n').firstWhere((String l) => l.startsWith('{')),
+      ) as Map<String, dynamic>;
 
       Map<String, dynamic> notRun(String name) => <String, dynamic>{
-            'scenario': name,
-            'status': 'not_run',
-            'attempts': 0,
-            'runFile': null,
-            'errFile': null,
-          };
+        'scenario': name,
+        'status': 'not_run',
+        'attempts': 0,
+        'runFile': null,
+        'errFile': null,
+      };
 
-      test(
-          'a preparation stop still prints the --json envelope, every '
+      test('a preparation stop still prints the --json envelope, every '
           'scenario not_run and the reason', () async {
         final _FakeHost host = _FakeHost(
           onRun: (String exe, List<String> args) =>
               exe == '/bin/sh' ? (3, 'redis down', '') : (0, '', ''),
         );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-            'b': <String>['chrome'],
-          },
-          extra: 'hooks: {before_campaign: ./services.sh up}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+          'b': <String>['chrome'],
+        }, extra: 'hooks: {before_campaign: ./services.sh up}');
 
         final (int code, String out) = await handle(
           host,
@@ -1833,21 +1773,17 @@ hooks:
         expect(envelope.containsKey('errors'), isFalse);
       });
 
-      test(
-          'a before_scenario stop lists the scenarios after it as not_run in '
+      test('a before_scenario stop lists the scenarios after it as not_run in '
           'the --json envelope', () async {
         final _FakeHost host = _FakeHost(
           onRun: (String exe, List<String> args) =>
               exe == '/bin/sh' ? (2, 'reset failed', '') : (0, '', ''),
         );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-            'b': <String>['chrome'],
-            'c': <String>['chrome'],
-          },
-          extra: 'hooks: {before_scenario: ./services.sh reset}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+          'b': <String>['chrome'],
+          'c': <String>['chrome'],
+        }, extra: 'hooks: {before_scenario: ./services.sh reset}');
 
         final (int code, String out) = await handle(
           host,
@@ -1865,14 +1801,10 @@ hooks:
           notRun('b'),
           notRun('c'),
         ]);
-        expect(
-          envelope['stopped'],
-          'hooks.before_scenario exited 2 before a',
-        );
+        expect(envelope['stopped'], 'hooks.before_scenario exited 2 before a');
       });
 
-      test(
-          'a final dowel stop that fails exits 1, says so, and names it in '
+      test('a final dowel stop that fails exits 1, says so, and names it in '
           'the --json envelope', () async {
         final _FakeHost host = _FakeHost()..stopCodeAfterRun = 1;
         final String path = campaign(<String, List<String>>{
@@ -1892,25 +1824,18 @@ hooks:
           (envelope['results'] as List<dynamic>).single,
           containsPair('status', 'ok'),
         );
-        expect(
-          envelope['errors'],
-          <String>[
-            'dowel stop exited 1 after the campaign; the app may still be '
-                'running.',
-          ],
-        );
+        expect(envelope['errors'], <String>[
+          'dowel stop exited 1 after the campaign; the app may still be '
+              'running.',
+        ]);
       });
 
-      test(
-          'a stale .err that cannot be deleted is reported, and the campaign '
+      test('a stale .err that cannot be deleted is reported, and the campaign '
           'still tears down and prints its envelope', () async {
         final _FakeHost host = _FakeHost();
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-          },
-          extra: 'retries: 0\nhooks: {after_campaign: ./services.sh down}',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+        }, extra: 'retries: 0\nhooks: {after_campaign: ./services.sh down}');
         write('ro/a-run.err', 'a stale failure');
         final Directory ro = Directory('${dir.path}/ro');
         Process.runSync('chmod', <String>['555', ro.path]);
@@ -1932,20 +1857,16 @@ hooks:
         );
       });
 
-      test(
-          'an .err that cannot be written is reported and the campaign goes '
+      test('an .err that cannot be written is reported and the campaign goes '
           'on', () async {
         final _FakeHost host = _FakeHost(
           onPerfRun: (Map<String, dynamic> options, DowelOutput output) async =>
               1,
         );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-            'b': <String>['chrome'],
-          },
-          extra: 'retries: 0',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+          'b': <String>['chrome'],
+        }, extra: 'retries: 0');
         // The out directory's parent is a file, so no .err can be created.
         write('blocked', 'a file, not a directory');
 
@@ -1967,24 +1888,21 @@ hooks:
     });
 
     group('.handle() secrets', () {
-      test(
-          'no .err, output line or envelope carries the secret, raw or '
+      test('no .err, output line or envelope carries the secret, raw or '
           'JSON-encoded, and no command line does', () async {
         final _FakeHost host = _FakeHost(
           onPerfRun: (Map<String, dynamic> options, DowelOutput output) async {
-            output
-                .error('fill failed for "$_secret" in {"t":"$_secretInJson"}');
+            output.error(
+              'fill failed for "$_secret" in {"t":"$_secretInJson"}',
+            );
             if (_stem(options['scenario'] as String) == 'a') return 1;
             throw StateError('isolate died holding $_secret');
           },
         );
-        final String path = campaign(
-          <String, List<String>>{
-            'a': <String>['chrome'],
-            'b': <String>['chrome'],
-          },
-          extra: 'retries: 0',
-        );
+        final String path = campaign(<String, List<String>>{
+          'a': <String>['chrome'],
+          'b': <String>['chrome'],
+        }, extra: 'retries: 0');
 
         final (int code, String out) = await handle(
           host,
@@ -2008,8 +1926,7 @@ hooks:
         }
       });
 
-      test(
-          'an after_start failure masks a secret its diagnostics quote before '
+      test('an after_start failure masks a secret its diagnostics quote before '
           'cutting the exception message', () async {
         // The secret straddles the 200-character cut: a mask after the cut
         // no longer matches, and its prefix would leak.
@@ -2042,28 +1959,28 @@ after_start:
         }
       });
 
-      test('a failed start masks the secret in the copied session log',
-          () async {
-        final _FakeHost host = _FakeHost(startCode: 1)
-          ..startOutput = 'start saw $_secret'
-          ..sessionLog = 'dart-define PASSWORD=$_secret\n'
-              '{"password":"$_secretInJson"}\n';
-        final String path = campaign(
-          <String, List<String>>{
+      test(
+        'a failed start masks the secret in the copied session log',
+        () async {
+          final _FakeHost host = _FakeHost(startCode: 1)
+            ..startOutput = 'start saw $_secret'
+            ..sessionLog =
+                'dart-define PASSWORD=$_secret\n'
+                '{"password":"$_secretInJson"}\n';
+          final String path = campaign(<String, List<String>>{
             'a': <String>['chrome'],
-          },
-          extra: 'retries: 0',
-        );
+          }, extra: 'retries: 0');
 
-        final (int code, String out) = await handle(host, path);
+          final (int code, String out) = await handle(host, path);
 
-        expect(code, 1);
-        final String err = errOf('a');
-        expect(err, contains('PASSWORD=***'));
-        expect(err, contains('start saw ***'));
-        expectMasked(err);
-        expectMasked(out);
-      });
+          expect(code, 1);
+          final String err = errOf('a');
+          expect(err, contains('PASSWORD=***'));
+          expect(err, contains('start saw ***'));
+          expectMasked(err);
+          expectMasked(out);
+        },
+      );
     });
 
     group('the options it hands dowel and perf_run', () {
@@ -2088,8 +2005,7 @@ after_start:
           bool runInShell = false,
           Encoding? stdoutEncoding,
           Encoding? stderrEncoding,
-        }) async =>
-            ProcessResult(0, 0, '{"frameworkVersion":"3.35.0"}', '');
+        }) async => ProcessResult(0, 0, '{"frameworkVersion":"3.35.0"}', '');
         StartCommand.cdpChromeBinaryResolver = (_) => '/fake/chrome';
         StartCommand.cdpPortProbe = (_) async => true;
         StartCommand.cdpProcessStarter = (
@@ -2097,8 +2013,7 @@ after_start:
           List<String> arguments, {
           String? workingDirectory,
           ProcessStartMode? mode,
-        }) async =>
-            throw _Reached(arguments);
+        }) async => throw _Reached(arguments);
         StartCommand.cdpFifoMaker = (_) async {};
         StateFile.debugHomeOverride = dir.path;
         StateFile.debugProjectRootOverride = dir.path;
@@ -2136,32 +2051,34 @@ after_start:
         );
       });
 
-      test('the android start map parses in StartCommand as a profile build',
-          () async {
-        final _FakeHost host = _FakeHost();
-        final String path = campaign(<String, List<String>>{
-          'a': <String>['android'],
-        });
-        await handle(
-          host,
-          path,
-          platform: 'android',
-          options: <String, dynamic>{'device': 'emulator-5554'},
-        );
+      test(
+        'the android start map parses in StartCommand as a profile build',
+        () async {
+          final _FakeHost host = _FakeHost();
+          final String path = campaign(<String, List<String>>{
+            'a': <String>['android'],
+          });
+          await handle(
+            host,
+            path,
+            platform: 'android',
+            options: <String, dynamic>{'device': 'emulator-5554'},
+          );
 
-        await expectLater(
-          StartCommand().handle(
-            DowelContext.bare(MapInput(host.starts.single), BufferedOutput()),
-          ),
-          throwsA(
-            isA<_Reached>().having(
-              (_Reached r) => r.arguments.join(' '),
-              'flutter wrapper',
-              allOf(contains('emulator-5554'), contains('--profile')),
+          await expectLater(
+            StartCommand().handle(
+              DowelContext.bare(MapInput(host.starts.single), BufferedOutput()),
             ),
-          ),
-        );
-      });
+            throwsA(
+              isA<_Reached>().having(
+                (_Reached r) => r.arguments.join(' '),
+                'flutter wrapper',
+                allOf(contains('emulator-5554'), contains('--profile')),
+              ),
+            ),
+          );
+        },
+      );
 
       test('the perf_run map parses in TapirPerfRunCommand', () async {
         write('scenarios/list.yaml', '''

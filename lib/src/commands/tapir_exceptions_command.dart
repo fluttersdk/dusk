@@ -35,12 +35,14 @@ class TapirExceptionsCommand extends DowelCommand {
     );
     parser.addOption(
       'since',
-      help: 'ISO8601 timestamp. When set, only exceptions strictly after '
+      help:
+          'ISO8601 timestamp. When set, only exceptions strictly after '
           'this time are returned (e.g. 2024-01-01T10:00:00.000Z).',
     );
     parser.addFlag(
       'clear',
-      help: 'Empty the in-package capture buffer AFTER returning the current '
+      help:
+          'Empty the in-package capture buffer AFTER returning the current '
           'entries, so the next read is a clean per-route delta.',
       defaultsTo: false,
     );

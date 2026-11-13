@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/tapir_plugin.dart';
@@ -107,44 +107,40 @@ void main() {
       },
     );
 
-    testWidgets(
-      '(b) every candidate carries a q-shape ref (never e-shape)',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(1440, 900);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
+    testWidgets('(b) every candidate carries a q-shape ref (never e-shape)', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: ElevatedButton(
-                onPressed: () {},
-                child: const Text('Submit'),
-              ),
-            ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ElevatedButton(onPressed: () {}, child: const Text('Submit')),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        final response = await extTapirObserveHandler(
-          'ext.tapir.observe',
-          <String, String>{},
-        );
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        final List<dynamic> candidates = decoded['candidates'] as List<dynamic>;
+      final response = await extTapirObserveHandler(
+        'ext.tapir.observe',
+        <String, String>{},
+      );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final List<dynamic> candidates = decoded['candidates'] as List<dynamic>;
 
-        expect(candidates, isNotEmpty);
-        for (final dynamic entry in candidates) {
-          final String ref = (entry as Map<String, dynamic>)['ref'] as String;
-          expect(
-            ref.startsWith('q'),
-            isTrue,
-            reason: 'observe must mint q-shape refs only; got "$ref"',
-          );
-        }
-      },
-    );
+      expect(candidates, isNotEmpty);
+      for (final dynamic entry in candidates) {
+        final String ref = (entry as Map<String, dynamic>)['ref'] as String;
+        expect(
+          ref.startsWith('q'),
+          isTrue,
+          reason: 'observe must mint q-shape refs only; got "$ref"',
+        );
+      }
+    });
 
     testWidgets(
       '(c) every candidate carries role / label / bounds / isEnabled / isVisible',
@@ -201,89 +197,85 @@ void main() {
       TapirPlugin.enrichers.clear();
     });
 
-    testWidgets(
-      '(d) roles=button returns only button candidates',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(1440, 900);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
+    testWidgets('(d) roles=button returns only button candidates', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Column(
-                children: <Widget>[
-                  ElevatedButton(onPressed: () {}, child: const Text('B1')),
-                  ElevatedButton(onPressed: () {}, child: const Text('B2')),
-                  ElevatedButton(onPressed: () {}, child: const Text('B3')),
-                  ElevatedButton(onPressed: () {}, child: const Text('B4')),
-                  ElevatedButton(onPressed: () {}, child: const Text('B5')),
-                  const TextField(),
-                  const TextField(),
-                  const TextField(),
-                ],
-              ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: <Widget>[
+                ElevatedButton(onPressed: () {}, child: const Text('B1')),
+                ElevatedButton(onPressed: () {}, child: const Text('B2')),
+                ElevatedButton(onPressed: () {}, child: const Text('B3')),
+                ElevatedButton(onPressed: () {}, child: const Text('B4')),
+                ElevatedButton(onPressed: () {}, child: const Text('B5')),
+                const TextField(),
+                const TextField(),
+                const TextField(),
+              ],
             ),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        final response = await extTapirObserveHandler(
-          'ext.tapir.observe',
-          <String, String>{'roles': 'button'},
-        );
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        final List<dynamic> candidates = decoded['candidates'] as List<dynamic>;
+      final response = await extTapirObserveHandler(
+        'ext.tapir.observe',
+        <String, String>{'roles': 'button'},
+      );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final List<dynamic> candidates = decoded['candidates'] as List<dynamic>;
 
-        expect(candidates, hasLength(5));
-        for (final dynamic entry in candidates) {
-          expect(
-            (entry as Map<String, dynamic>)['role'],
-            equals('button'),
-          );
-        }
-      },
-    );
+      expect(candidates, hasLength(5));
+      for (final dynamic entry in candidates) {
+        expect((entry as Map<String, dynamic>)['role'], equals('button'));
+      }
+    });
 
-    testWidgets(
-      '(e) roles=button,textbox accepts a CSV list',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(1440, 900);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
+    testWidgets('(e) roles=button,textbox accepts a CSV list', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Column(
-                children: <Widget>[
-                  ElevatedButton(onPressed: () {}, child: const Text('B1')),
-                  const TextField(),
-                  Checkbox(value: false, onChanged: (_) {}),
-                ],
-              ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: <Widget>[
+                ElevatedButton(onPressed: () {}, child: const Text('B1')),
+                const TextField(),
+                Checkbox(value: false, onChanged: (_) {}),
+              ],
             ),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        final response = await extTapirObserveHandler(
-          'ext.tapir.observe',
-          <String, String>{'roles': 'button,textbox'},
-        );
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        final List<dynamic> candidates = decoded['candidates'] as List<dynamic>;
+      final response = await extTapirObserveHandler(
+        'ext.tapir.observe',
+        <String, String>{'roles': 'button,textbox'},
+      );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final List<dynamic> candidates = decoded['candidates'] as List<dynamic>;
 
-        final Set<String> roles = candidates
-            .map<String>(
-                (dynamic e) => (e as Map<String, dynamic>)['role'] as String)
-            .toSet();
-        expect(roles, containsAll(<String>['button', 'textbox']));
-        expect(roles.contains('checkbox'), isFalse);
-      },
-    );
+      final Set<String> roles = candidates
+          .map<String>(
+            (dynamic e) => (e as Map<String, dynamic>)['role'] as String,
+          )
+          .toSet();
+      expect(roles, containsAll(<String>['button', 'textbox']));
+      expect(roles.contains('checkbox'), isFalse);
+    });
   });
 
   group('extTapirObserveHandler — limit param', () {
@@ -297,42 +289,41 @@ void main() {
       TapirPlugin.enrichers.clear();
     });
 
-    testWidgets(
-      '(f) limit=3 caps the list at 3 entries',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(1440, 900);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
+    testWidgets('(f) limit=3 caps the list at 3 entries', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Column(
-                children: <Widget>[
-                  ElevatedButton(onPressed: () {}, child: const Text('B1')),
-                  ElevatedButton(onPressed: () {}, child: const Text('B2')),
-                  ElevatedButton(onPressed: () {}, child: const Text('B3')),
-                  ElevatedButton(onPressed: () {}, child: const Text('B4')),
-                  ElevatedButton(onPressed: () {}, child: const Text('B5')),
-                ],
-              ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: <Widget>[
+                ElevatedButton(onPressed: () {}, child: const Text('B1')),
+                ElevatedButton(onPressed: () {}, child: const Text('B2')),
+                ElevatedButton(onPressed: () {}, child: const Text('B3')),
+                ElevatedButton(onPressed: () {}, child: const Text('B4')),
+                ElevatedButton(onPressed: () {}, child: const Text('B5')),
+              ],
             ),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        final response = await extTapirObserveHandler(
-          'ext.tapir.observe',
-          <String, String>{'limit': '3'},
-        );
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        final List<dynamic> candidates = decoded['candidates'] as List<dynamic>;
+      final response = await extTapirObserveHandler(
+        'ext.tapir.observe',
+        <String, String>{'limit': '3'},
+      );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final List<dynamic> candidates = decoded['candidates'] as List<dynamic>;
 
-        expect(candidates, hasLength(3));
-        expect(decoded['count'], equals(3));
-      },
-    );
+      expect(candidates, hasLength(3));
+      expect(decoded['count'], equals(3));
+    });
   });
 
   group('extTapirObserveHandler — q-ref re-resolves on subsequent lookup', () {
@@ -439,8 +430,9 @@ void main() {
           'ext.tapir.observe',
           <String, String>{},
         );
-        final List<dynamic> candidates = (jsonDecode(response.result!)
-            as Map<String, dynamic>)['candidates'] as List<dynamic>;
+        final List<dynamic> candidates =
+            (jsonDecode(response.result!) as Map<String, dynamic>)['candidates']
+                as List<dynamic>;
 
         expect(candidates.length, 3);
 
@@ -450,7 +442,8 @@ void main() {
         final List<double> observed = <double>[
           for (final dynamic entry in candidates)
             ((entry as Map<String, dynamic>)['bounds']
-                as Map<String, dynamic>)['y'] as double,
+                    as Map<String, dynamic>)['y']
+                as double,
         ];
 
         final List<double> resolved = <double>[
@@ -459,9 +452,7 @@ void main() {
               RefRegistry.lookupQuery(
                 (entry as Map<String, dynamic>)['ref'] as String,
               )!,
-            )!
-                .rect
-                .top,
+            )!.rect.top,
         ];
 
         expect(resolved, observed);
@@ -510,8 +501,9 @@ void main() {
           'ext.tapir.observe',
           <String, String>{},
         );
-        final List<dynamic> candidates = (jsonDecode(response.result!)
-            as Map<String, dynamic>)['candidates'] as List<dynamic>;
+        final List<dynamic> candidates =
+            (jsonDecode(response.result!) as Map<String, dynamic>)['candidates']
+                as List<dynamic>;
         final String last =
             (candidates.last as Map<String, dynamic>)['ref'] as String;
 
@@ -561,8 +553,9 @@ void main() {
           'ext.tapir.observe',
           <String, String>{},
         );
-        final List<dynamic> candidates = (jsonDecode(response.result!)
-            as Map<String, dynamic>)['candidates'] as List<dynamic>;
+        final List<dynamic> candidates =
+            (jsonDecode(response.result!) as Map<String, dynamic>)['candidates']
+                as List<dynamic>;
 
         expect(candidates.length, 1, reason: 'only the button is interactive');
 
@@ -655,17 +648,18 @@ void main() {
           <String, String>{},
         );
         final List<Map<String, dynamic>> candidates = <Map<String, dynamic>>[
-          for (final dynamic entry in (jsonDecode(response.result!)
-              as Map<String, dynamic>)['candidates'] as List<dynamic>)
+          for (final dynamic entry
+              in (jsonDecode(response.result!)
+                      as Map<String, dynamic>)['candidates']
+                  as List<dynamic>)
             entry as Map<String, dynamic>,
         ];
 
         double topOf(Map<String, dynamic> candidate) =>
             (candidate['bounds'] as Map<String, dynamic>)['y'] as double;
 
-        RefEntry? resolve(Map<String, dynamic> candidate) => resolveQuery(
-              RefRegistry.lookupQuery(candidate['ref'] as String)!,
-            );
+        RefEntry? resolve(Map<String, dynamic> candidate) =>
+            resolveQuery(RefRegistry.lookupQuery(candidate['ref'] as String)!);
 
         // The inner button is merged into the boundary, so it is no candidate
         // of its own; the platform never sees it either.
@@ -676,8 +670,9 @@ void main() {
         // The counter still counts the merged inner node, as the resolver
         // does, so the plain button keeps index 1.
         expect(
-            RefRegistry.lookupQuery(candidates[1]['ref'] as String)!.matchIndex,
-            1);
+          RefRegistry.lookupQuery(candidates[1]['ref'] as String)!.matchIndex,
+          1,
+        );
         expect(resolve(candidates[1])!.rect.top, 56);
 
         // And the boundary, which is the case this fix deliberately does not
@@ -688,8 +683,9 @@ void main() {
         // branch; what the index changes is that it can no longer drag its
         // neighbours along with it.
         expect(
-            RefRegistry.lookupQuery(candidates[0]['ref'] as String)!.matchIndex,
-            isNull);
+          RefRegistry.lookupQuery(candidates[0]['ref'] as String)!.matchIndex,
+          isNull,
+        );
         expect(
           resolve(candidates[0])!.rect.top,
           8,
@@ -710,31 +706,30 @@ void main() {
       TapirPlugin.enrichers.clear();
     });
 
-    testWidgets(
-      '(h) returns empty list when no interactive widgets exist',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(1440, 900);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
+    testWidgets('(h) returns empty list when no interactive widgets exist', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Text('No interactive widgets here')),
-          ),
-        );
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Text('No interactive widgets here')),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        final response = await extTapirObserveHandler(
-          'ext.tapir.observe',
-          <String, String>{},
-        );
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
+      final response = await extTapirObserveHandler(
+        'ext.tapir.observe',
+        <String, String>{},
+      );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
 
-        expect(decoded['candidates'], isEmpty);
-        expect(decoded['count'], equals(0));
-      },
-    );
+      expect(decoded['candidates'], isEmpty);
+      expect(decoded['count'], equals(0));
+    });
   });
 
   group('extTapirObserveHandler — enricher fields', () {
@@ -748,61 +743,56 @@ void main() {
       TapirPlugin.enrichers.clear();
     });
 
-    testWidgets(
-      '(i) default includeEnrichers projects the default subset '
-      '(magicFormField present; full wind sub-fields collapsed)',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(1440, 900);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
+    testWidgets('(i) default includeEnrichers projects the default subset '
+        '(magicFormField present; full wind sub-fields collapsed)', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
 
-        // Register fake enrichers that mimic Magic + Wind output shapes.
-        TapirPlugin.enrichers.add(
-          (Element element, RefRegistry refs) => 'magicFormField: email',
-        );
-        TapirPlugin.enrichers.add(
-          (Element element, RefRegistry refs) =>
-              'wind:\n  breakpoint: lg\n  brightness: light\n  '
-              'platform: web\n  states: [hover]\n  bgColor: \'#3B82F6\'',
-        );
+      // Register fake enrichers that mimic Magic + Wind output shapes.
+      TapirPlugin.enrichers.add(
+        (Element element, RefRegistry refs) => 'magicFormField: email',
+      );
+      TapirPlugin.enrichers.add(
+        (Element element, RefRegistry refs) =>
+            'wind:\n  breakpoint: lg\n  brightness: light\n  '
+            'platform: web\n  states: [hover]\n  bgColor: \'#3B82F6\'',
+      );
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: ElevatedButton(
-                onPressed: () {},
-                child: const Text('Submit'),
-              ),
-            ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ElevatedButton(onPressed: () {}, child: const Text('Submit')),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        final response = await extTapirObserveHandler(
-          'ext.tapir.observe',
-          <String, String>{},
-        );
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        final Map<String, dynamic> first =
-            (decoded['candidates'] as List<dynamic>).first
-                as Map<String, dynamic>;
+      final response = await extTapirObserveHandler(
+        'ext.tapir.observe',
+        <String, String>{},
+      );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final Map<String, dynamic> first =
+          (decoded['candidates'] as List<dynamic>).first
+              as Map<String, dynamic>;
 
-        // Default-subset enricher fields present.
-        expect(first['magicFormField'], equals('email'));
+      // Default-subset enricher fields present.
+      expect(first['magicFormField'], equals('email'));
 
-        // Wind sub-fields filtered down to breakpoint + states only in the
-        // default subset.
-        final Map<String, dynamic>? wind =
-            first['wind'] as Map<String, dynamic>?;
-        expect(wind, isNotNull);
-        expect(wind!['breakpoint'], equals('lg'));
-        expect(wind['states'], equals('[hover]'));
-        expect(wind.containsKey('brightness'), isFalse);
-        expect(wind.containsKey('platform'), isFalse);
-        expect(wind.containsKey('bgColor'), isFalse);
-      },
-    );
+      // Wind sub-fields filtered down to breakpoint + states only in the
+      // default subset.
+      final Map<String, dynamic>? wind = first['wind'] as Map<String, dynamic>?;
+      expect(wind, isNotNull);
+      expect(wind!['breakpoint'], equals('lg'));
+      expect(wind['states'], equals('[hover]'));
+      expect(wind.containsKey('brightness'), isFalse);
+      expect(wind.containsKey('platform'), isFalse);
+      expect(wind.containsKey('bgColor'), isFalse);
+    });
 
     testWidgets(
       '(j) includeEnrichers="full" projects every enricher field including '
@@ -816,7 +806,8 @@ void main() {
           (Element element, RefRegistry refs) => 'magicFormField: email',
         );
         TapirPlugin.enrichers.add(
-          (Element element, RefRegistry refs) => 'magicRouteParams: id=7,'
+          (Element element, RefRegistry refs) =>
+              'magicRouteParams: id=7,'
               'page=2',
         );
         TapirPlugin.enrichers.add(
@@ -946,13 +937,20 @@ void main() {
 
         final Map<String, dynamic>? wind =
             first['wind'] as Map<String, dynamic>?;
-        expect(wind, isNotNull,
-            reason: 'wind block must come from WindDebugRegistry, '
-                'not the enricher list');
+        expect(
+          wind,
+          isNotNull,
+          reason:
+              'wind block must come from WindDebugRegistry, '
+              'not the enricher list',
+        );
         expect(wind!['breakpoint'], equals('lg'));
         expect(wind['states'], equals('hover'));
-        expect(wind.containsKey('brightness'), isFalse,
-            reason: 'defaults mode filters to _kDefaultWindKeys subset');
+        expect(
+          wind.containsKey('brightness'),
+          isFalse,
+          reason: 'defaults mode filters to _kDefaultWindKeys subset',
+        );
         expect(wind.containsKey('platform'), isFalse);
         expect(wind.containsKey('bgColor'), isFalse);
       },
@@ -1111,9 +1109,9 @@ void main() {
             jsonDecode(response.result!) as Map<String, dynamic>;
         final Map<String, Map<String, dynamic>> byLabel =
             <String, Map<String, dynamic>>{
-          for (final dynamic c in decoded['candidates'] as List<dynamic>)
-            (c as Map<String, dynamic>)['label'] as String: c,
-        };
+              for (final dynamic c in decoded['candidates'] as List<dynamic>)
+                (c as Map<String, dynamic>)['label'] as String: c,
+            };
 
         expect(byLabel['Visible']!['inViewport'], isTrue);
         expect(byLabel['Visible']!['occluded'], isFalse);
@@ -1244,9 +1242,11 @@ void main() {
       expect(kTapirObserveMcpName, equals('tapir_observe'));
     });
 
-    test('tapir_observe MCP descriptor extensionMethod is ext.tapir.observe',
-        () {
-      expect(kTapirObserveMcpExtension, equals('ext.tapir.observe'));
-    });
+    test(
+      'tapir_observe MCP descriptor extensionMethod is ext.tapir.observe',
+      () {
+        expect(kTapirObserveMcpExtension, equals('ext.tapir.observe'));
+      },
+    );
   });
 }

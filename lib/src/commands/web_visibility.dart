@@ -59,8 +59,10 @@ Future<Map<String, dynamic>> callExtensionVisible(
   if (cdpPort == null) return response;
 
   // 3. Bring the tab to front; a failure keeps the response already held.
-  final BringToFrontResult result =
-      await bringCdpPageToFront(cdpPort, _asInt(state?['webPort']));
+  final BringToFrontResult result = await bringCdpPageToFront(
+    cdpPort,
+    _asInt(state?['webPort']),
+  );
   if (!result.succeeded) {
     ctx.output.error(
       '⚠ Could not bring the page to front over CDP on port $cdpPort: '

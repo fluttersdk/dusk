@@ -13,11 +13,8 @@ import '../cdp/fake_cdp_server.dart';
 /// [Exception] in the list is thrown instead of returned, the way a DWDS
 /// timeout on a hidden tab reaches the command.
 class _SequenceContext extends DowelContext {
-  _SequenceContext({
-    required DowelOutput output,
-    required List<Object> responses,
-  })  : _responses = responses,
-        super.bare(MapInput(const {}), output);
+  _SequenceContext({required DowelOutput output, required this._responses})
+    : super.bare(MapInput(const {}), output);
 
   final List<Object> _responses;
   final List<String> methods = <String>[];
@@ -28,8 +25,9 @@ class _SequenceContext extends DowelContext {
     Map<String, dynamic>? params,
   ]) async {
     methods.add(method);
-    final int index =
-        methods.length <= _responses.length ? methods.length - 1 : 0;
+    final int index = methods.length <= _responses.length
+        ? methods.length - 1
+        : 0;
     final Object answer = _responses[index];
     if (answer is Exception) throw answer;
     return answer as T;
@@ -38,8 +36,8 @@ class _SequenceContext extends DowelContext {
 
 /// What the app's tab reports for `document.visibilityState`.
 Map<String, dynamic> _visibility(String state) => <String, dynamic>{
-      'result': <String, dynamic>{'type': 'string', 'value': state},
-    };
+  'result': <String, dynamic>{'type': 'string', 'value': state},
+};
 
 const Map<String, dynamic> _hiddenWeb = <String, dynamic>{
   'snapshot': '- stale',
@@ -58,9 +56,7 @@ const Map<String, dynamic> _hiddenNative = <String, dynamic>{
   },
 };
 
-const Map<String, dynamic> _fresh = <String, dynamic>{
-  'snapshot': '- fresh',
-};
+const Map<String, dynamic> _fresh = <String, dynamic>{'snapshot': '- fresh'};
 
 void main() {
   group('callExtensionVisible()', () {
@@ -158,25 +154,30 @@ void main() {
       expect(cdpCalls, isEmpty);
     });
 
-    test('a read-only verb is brought to front once and re-called once',
-        () async {
-      await writeState({'cdpPort': server.port, 'webPort': 5123});
-      final ctx = _SequenceContext(
-        output: BufferedOutput(),
-        responses: [_hiddenWeb, _fresh],
-      );
+    test(
+      'a read-only verb is brought to front once and re-called once',
+      () async {
+        await writeState({'cdpPort': server.port, 'webPort': 5123});
+        final ctx = _SequenceContext(
+          output: BufferedOutput(),
+          responses: [_hiddenWeb, _fresh],
+        );
 
-      final response = await callExtensionVisible(
-        ctx,
-        'ext.tapir.snap',
-        const {},
-        retry: true,
-      );
+        final response = await callExtensionVisible(
+          ctx,
+          'ext.tapir.snap',
+          const {},
+          retry: true,
+        );
 
-      expect(cdpCalls, equals(<String>['Page.bringToFront']));
-      expect(ctx.methods, equals(<String>['ext.tapir.snap', 'ext.tapir.snap']));
-      expect(response, same(_fresh));
-    });
+        expect(cdpCalls, equals(<String>['Page.bringToFront']));
+        expect(
+          ctx.methods,
+          equals(<String>['ext.tapir.snap', 'ext.tapir.snap']),
+        );
+        expect(response, same(_fresh));
+      },
+    );
 
     test('a mutating verb is brought to front but never re-called', () async {
       await writeState({'cdpPort': server.port, 'webPort': 5123});
@@ -186,11 +187,9 @@ void main() {
         responses: [_hiddenWeb, _fresh],
       );
 
-      final response = await callExtensionVisible(
-        ctx,
-        'ext.tapir.tap',
-        const {'ref': 'e1'},
-      );
+      final response = await callExtensionVisible(ctx, 'ext.tapir.tap', const {
+        'ref': 'e1',
+      });
 
       expect(cdpCalls, equals(<String>['Page.bringToFront']));
       expect(ctx.methods, equals(<String>['ext.tapir.tap']));
@@ -221,71 +220,86 @@ void main() {
     });
 
     group('when the call throws (a hidden tab never answers)', () {
-      final Exception timeout =
-          Exception('DWDS: callServiceExtension timed out');
-
-      test('a read-only verb on a hidden tab is brought to front and re-called',
-          () async {
-        await writeState({'cdpPort': server.port, 'webPort': 5123});
-        final ctx = _SequenceContext(
-          output: BufferedOutput(),
-          responses: [timeout, _fresh],
-        );
-
-        final response = await callExtensionVisible(
-          ctx,
-          'ext.tapir.snap',
-          const {},
-          retry: true,
-        );
-
-        expect(cdpCalls,
-            equals(<String>['Runtime.evaluate', 'Page.bringToFront']));
-        expect(
-            ctx.methods, equals(<String>['ext.tapir.snap', 'ext.tapir.snap']));
-        expect(response, same(_fresh));
-      });
+      final Exception timeout = Exception(
+        'DWDS: callServiceExtension timed out',
+      );
 
       test(
-          'a mutating verb on a hidden tab is brought to front, not re-called, '
-          'and still fails', () async {
-        await writeState({'cdpPort': server.port, 'webPort': 5123});
-        final output = BufferedOutput();
-        final ctx =
-            _SequenceContext(output: output, responses: [timeout, _fresh]);
+        'a read-only verb on a hidden tab is brought to front and re-called',
+        () async {
+          await writeState({'cdpPort': server.port, 'webPort': 5123});
+          final ctx = _SequenceContext(
+            output: BufferedOutput(),
+            responses: [timeout, _fresh],
+          );
 
-        await expectLater(
-          callExtensionVisible(ctx, 'ext.tapir.tap', const {'ref': 'e1'}),
-          throwsA(same(timeout)),
-        );
+          final response = await callExtensionVisible(
+            ctx,
+            'ext.tapir.snap',
+            const {},
+            retry: true,
+          );
 
-        expect(cdpCalls,
-            equals(<String>['Runtime.evaluate', 'Page.bringToFront']));
-        expect(ctx.methods, equals(<String>['ext.tapir.tap']));
-        expect(output.content, contains('was hidden'));
-        expect(output.content, contains('tapir:snap'));
-      });
+          expect(
+            cdpCalls,
+            equals(<String>['Runtime.evaluate', 'Page.bringToFront']),
+          );
+          expect(
+            ctx.methods,
+            equals(<String>['ext.tapir.snap', 'ext.tapir.snap']),
+          );
+          expect(response, same(_fresh));
+        },
+      );
 
-      test('a tapir refusal is not a hidden-tab symptom: no CDP call, no retry',
-          () async {
-        await writeState({'cdpPort': server.port, 'webPort': 5123});
-        final Exception refusal = Exception(
-          'ext.tapir.fill: (-32000) Server error {"message":"ref e5 is a '
-          'button, not a text field"}',
-        );
-        final ctx = _SequenceContext(
-          output: BufferedOutput(),
-          responses: [refusal, _fresh],
-        );
+      test(
+        'a mutating verb on a hidden tab is brought to front, not re-called, '
+        'and still fails',
+        () async {
+          await writeState({'cdpPort': server.port, 'webPort': 5123});
+          final output = BufferedOutput();
+          final ctx = _SequenceContext(
+            output: output,
+            responses: [timeout, _fresh],
+          );
 
-        await expectLater(
-          callExtensionVisible(ctx, 'ext.tapir.snap', const {}, retry: true),
-          throwsA(same(refusal)),
-        );
+          await expectLater(
+            callExtensionVisible(ctx, 'ext.tapir.tap', const {'ref': 'e1'}),
+            throwsA(same(timeout)),
+          );
 
-        expect(cdpCalls, isEmpty);
-        expect(ctx.methods, hasLength(1));
-      });
+          expect(
+            cdpCalls,
+            equals(<String>['Runtime.evaluate', 'Page.bringToFront']),
+          );
+          expect(ctx.methods, equals(<String>['ext.tapir.tap']));
+          expect(output.content, contains('was hidden'));
+          expect(output.content, contains('tapir:snap'));
+        },
+      );
+
+      test(
+        'a tapir refusal is not a hidden-tab symptom: no CDP call, no retry',
+        () async {
+          await writeState({'cdpPort': server.port, 'webPort': 5123});
+          final Exception refusal = Exception(
+            'ext.tapir.fill: (-32000) Server error {"message":"ref e5 is a '
+            'button, not a text field"}',
+          );
+          final ctx = _SequenceContext(
+            output: BufferedOutput(),
+            responses: [refusal, _fresh],
+          );
+
+          await expectLater(
+            callExtensionVisible(ctx, 'ext.tapir.snap', const {}, retry: true),
+            throwsA(same(refusal)),
+          );
+
+          expect(cdpCalls, isEmpty);
+          expect(ctx.methods, hasLength(1));
+        },
+      );
 
       test('a visible tab is left alone and the error propagates', () async {
         tabState = 'visible';
@@ -304,37 +318,41 @@ void main() {
         expect(ctx.methods, hasLength(1));
       });
 
-      test('without a cdpPort the error propagates and CDP is not touched',
-          () async {
-        await writeState({'webPort': 5123});
-        final ctx = _SequenceContext(
-          output: BufferedOutput(),
-          responses: [timeout, _fresh],
-        );
+      test(
+        'without a cdpPort the error propagates and CDP is not touched',
+        () async {
+          await writeState({'webPort': 5123});
+          final ctx = _SequenceContext(
+            output: BufferedOutput(),
+            responses: [timeout, _fresh],
+          );
 
-        await expectLater(
-          callExtensionVisible(ctx, 'ext.tapir.snap', const {}, retry: true),
-          throwsA(same(timeout)),
-        );
+          await expectLater(
+            callExtensionVisible(ctx, 'ext.tapir.snap', const {}, retry: true),
+            throwsA(same(timeout)),
+          );
 
-        expect(cdpCalls, isEmpty);
-      });
+          expect(cdpCalls, isEmpty);
+        },
+      );
 
-      test('an unreachable CDP port leaves the original error untouched',
-          () async {
-        await writeState({'cdpPort': 1, 'webPort': 5123});
-        final ctx = _SequenceContext(
-          output: BufferedOutput(),
-          responses: [timeout, _fresh],
-        );
+      test(
+        'an unreachable CDP port leaves the original error untouched',
+        () async {
+          await writeState({'cdpPort': 1, 'webPort': 5123});
+          final ctx = _SequenceContext(
+            output: BufferedOutput(),
+            responses: [timeout, _fresh],
+          );
 
-        await expectLater(
-          callExtensionVisible(ctx, 'ext.tapir.snap', const {}, retry: true),
-          throwsA(same(timeout)),
-        );
+          await expectLater(
+            callExtensionVisible(ctx, 'ext.tapir.snap', const {}, retry: true),
+            throwsA(same(timeout)),
+          );
 
-        expect(ctx.methods, hasLength(1));
-      });
+          expect(ctx.methods, hasLength(1));
+        },
+      );
     });
   });
 }

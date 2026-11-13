@@ -8,12 +8,9 @@ import 'package:tapir/src/extensions/ext_wait_find.dart';
 import 'package:tapir/src/ref_registry.dart';
 
 Widget _wrap(Widget child) => MediaQuery(
-      data: const MediaQueryData(),
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: child,
-      ),
-    );
+  data: const MediaQueryData(),
+  child: Directionality(textDirection: TextDirection.ltr, child: child),
+);
 
 bool _isError(developer.ServiceExtensionResponse response) =>
     response.errorCode != null;
@@ -32,8 +29,9 @@ void main() {
   // E2E (tapir:wait against Forms screen) — see CHANGELOG.
 
   group('aiTestWaitForHandler', () {
-    testWidgets('returns extensionError when no condition is supplied',
-        (tester) async {
+    testWidgets('returns extensionError when no condition is supplied', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const SizedBox()));
       final response = await aiTestWaitForHandler(
         'ext.tapir.wait_for',
@@ -44,8 +42,9 @@ void main() {
   });
 
   group('aiTestFindByTextHandler', () {
-    testWidgets('returns extensionError when text param is missing',
-        (tester) async {
+    testWidgets('returns extensionError when text param is missing', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const SizedBox()));
       final response = await aiTestFindByTextHandler(
         'ext.tapir.find_by_text',
@@ -54,8 +53,9 @@ void main() {
       expect(_isError(response), isTrue);
     });
 
-    testWidgets('finds a single matching Text widget by exact text',
-        (tester) async {
+    testWidgets('finds a single matching Text widget by exact text', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const Text('Hello tapir')));
       final response = await aiTestFindByTextHandler(
         'ext.tapir.find_by_text',
@@ -93,8 +93,9 @@ void main() {
   });
 
   group('aiTestFindByLabelHandler', () {
-    testWidgets('returns extensionError when label param is missing',
-        (tester) async {
+    testWidgets('returns extensionError when label param is missing', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const SizedBox()));
       final response = await aiTestFindByLabelHandler(
         'ext.tapir.find_by_label',
@@ -103,8 +104,9 @@ void main() {
       expect(_isError(response), isTrue);
     });
 
-    testWidgets('finds a Semantics widget by exact label match',
-        (tester) async {
+    testWidgets('finds a Semantics widget by exact label match', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           Semantics(
@@ -130,8 +132,9 @@ void main() {
       expect(_isSuccess(response), isTrue);
     });
 
-    testWidgets('role param filters matches by SemanticsFlag role',
-        (tester) async {
+    testWidgets('role param filters matches by SemanticsFlag role', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           Semantics(
@@ -157,8 +160,9 @@ void main() {
   });
 
   group('findByTextWaitLoop fast path', () {
-    testWidgets('returns matched immediately when text is already present',
-        (tester) async {
+    testWidgets('returns matched immediately when text is already present', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const Text('hello tapir')));
       final result = await findByTextWaitLoop(
         text: 'hello tapir',
@@ -171,8 +175,9 @@ void main() {
   });
 
   group('findByTextGoneWaitLoop fast path', () {
-    testWidgets('returns matched immediately when text is absent',
-        (tester) async {
+    testWidgets('returns matched immediately when text is absent', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const Text('other')));
       final result = await findByTextGoneWaitLoop(
         text: 'never appeared',
@@ -185,8 +190,9 @@ void main() {
   });
 
   group('wait loops timeout=0 short-circuit', () {
-    testWidgets('findByTextWaitLoop with timeoutMs=0 returns timeout',
-        (tester) async {
+    testWidgets('findByTextWaitLoop with timeoutMs=0 returns timeout', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const Text('not the target')));
       final result = await findByTextWaitLoop(
         text: 'will never match',
@@ -197,8 +203,9 @@ void main() {
       expect(result['reason'], equals('timeout'));
     });
 
-    testWidgets('findByTextGoneWaitLoop with timeoutMs=0 returns timeout',
-        (tester) async {
+    testWidgets('findByTextGoneWaitLoop with timeoutMs=0 returns timeout', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const Text('still here')));
       final result = await findByTextGoneWaitLoop(
         text: 'still here',
@@ -209,61 +216,62 @@ void main() {
       expect(result['reason'], equals('timeout'));
     });
 
-    testWidgets('aiTestWaitForHandler with timeoutMs=0 surfaces the timeout',
-        (tester) async {
+    testWidgets('aiTestWaitForHandler with timeoutMs=0 surfaces the timeout', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const Text('absent')));
-      final response = await aiTestWaitForHandler(
-        'ext.tapir.wait_for',
-        const {'text': 'never appears', 'timeoutMs': '0'},
-      );
+      final response = await aiTestWaitForHandler('ext.tapir.wait_for', const {
+        'text': 'never appears',
+        'timeoutMs': '0',
+      });
       expect(_isSuccess(response), isTrue);
     });
   });
 
   group('aiTestWaitForHandler — fast path success branches', () {
-    testWidgets('text param: returns matched JSON when text is already present',
-        (tester) async {
-      await tester.pumpWidget(_wrap(const Text('hello')));
-      final response = await aiTestWaitForHandler(
-        'ext.tapir.wait_for',
-        const {'text': 'hello'},
-      );
-      expect(_isSuccess(response), isTrue);
-    });
+    testWidgets(
+      'text param: returns matched JSON when text is already present',
+      (tester) async {
+        await tester.pumpWidget(_wrap(const Text('hello')));
+        final response = await aiTestWaitForHandler(
+          'ext.tapir.wait_for',
+          const {'text': 'hello'},
+        );
+        expect(_isSuccess(response), isTrue);
+      },
+    );
 
     testWidgets(
-        'textGone param: returns matched JSON when text is absent immediately',
-        (tester) async {
-      await tester.pumpWidget(_wrap(const Text('other')));
-      final response = await aiTestWaitForHandler(
-        'ext.tapir.wait_for',
-        const {'textGone': 'gone-already'},
-      );
-      expect(_isSuccess(response), isTrue);
-    });
+      'textGone param: returns matched JSON when text is absent immediately',
+      (tester) async {
+        await tester.pumpWidget(_wrap(const Text('other')));
+        final response = await aiTestWaitForHandler(
+          'ext.tapir.wait_for',
+          const {'textGone': 'gone-already'},
+        );
+        expect(_isSuccess(response), isTrue);
+      },
+    );
 
-    testWidgets('expression param: routed through text-presence loop',
-        (tester) async {
+    testWidgets('expression param: routed through text-presence loop', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const Text('hello tapir')));
-      final response = await aiTestWaitForHandler(
-        'ext.tapir.wait_for',
-        const {'expression': 'hello tapir'},
-      );
+      final response = await aiTestWaitForHandler('ext.tapir.wait_for', const {
+        'expression': 'hello tapir',
+      });
       expect(_isSuccess(response), isTrue);
     });
   });
 
   group('findByTextInTree', () {
-    testWidgets('returns ref for each matching Text widget (exact)',
-        (tester) async {
+    testWidgets('returns ref for each matching Text widget (exact)', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           const Column(
-            children: <Widget>[
-              Text('alpha'),
-              Text('beta'),
-              Text('alpha'),
-            ],
+            children: <Widget>[Text('alpha'), Text('beta'), Text('alpha')],
           ),
         ),
       );
@@ -280,9 +288,7 @@ void main() {
     });
 
     testWidgets('returns substring matches when exact=false', (tester) async {
-      await tester.pumpWidget(
-        _wrap(const Text('welcome to tapir testing')),
-      );
+      await tester.pumpWidget(_wrap(const Text('welcome to tapir testing')));
 
       final refs = findByTextInTree(
         text: 'tapir',
@@ -337,8 +343,9 @@ void main() {
       expect(refs, isA<List<String>>());
     });
 
-    testWidgets('role=button filters via SemanticsFlag.isButton',
-        (tester) async {
+    testWidgets('role=button filters via SemanticsFlag.isButton', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           Semantics(
@@ -407,8 +414,9 @@ void main() {
       expect(refs, isA<List<String>>());
     });
 
-    testWidgets('role=checkbox filters via hasCheckedState flag',
-        (tester) async {
+    testWidgets('role=checkbox filters via hasCheckedState flag', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           Semantics(
@@ -450,8 +458,9 @@ void main() {
       expect(refs, isA<List<String>>());
     });
 
-    testWidgets('role=unknown returns no matches (null role flag)',
-        (tester) async {
+    testWidgets('role=unknown returns no matches (null role flag)', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           Semantics(
@@ -476,30 +485,32 @@ void main() {
     });
 
     testWidgets(
-        'finds a label in a child pipeline owner, where the harness and a '
-        'nested view mount the app', (tester) async {
-      // The Flutter test harness mounts the widget tree under a CHILD
-      // pipeline owner of the root one, the same shape a multi-view or
-      // embedded app has; a walk that stops at rootPipelineOwner finds
-      // nothing there.
-      await tester.pumpWidget(
-        _wrap(
-          Semantics(
-            label: 'child-owner-label',
-            container: true,
-            child: const SizedBox(width: 40, height: 40),
+      'finds a label in a child pipeline owner, where the harness and a '
+      'nested view mount the app',
+      (tester) async {
+        // The Flutter test harness mounts the widget tree under a CHILD
+        // pipeline owner of the root one, the same shape a multi-view or
+        // embedded app has; a walk that stops at rootPipelineOwner finds
+        // nothing there.
+        await tester.pumpWidget(
+          _wrap(
+            Semantics(
+              label: 'child-owner-label',
+              container: true,
+              child: const SizedBox(width: 40, height: 40),
+            ),
           ),
-        ),
-      );
+        );
 
-      final refs = findByLabelInSemantics(
-        label: 'child-owner-label',
-        role: null,
-        groupId: 'g-child-owner',
-      );
+        final refs = findByLabelInSemantics(
+          label: 'child-owner-label',
+          role: null,
+          groupId: 'g-child-owner',
+        );
 
-      expect(refs, hasLength(1));
-    });
+        expect(refs, hasLength(1));
+      },
+    );
 
     testWidgets('returns empty when no labels match', (tester) async {
       await tester.pumpWidget(_wrap(const SizedBox(width: 40, height: 40)));
@@ -533,8 +544,7 @@ void main() {
       pendingHttpCountReader = originalReader;
     });
 
-    testWidgets(
-        'fast path: returns matched=true with idleAchievedMs when '
+    testWidgets('fast path: returns matched=true with idleAchievedMs when '
         'pendingCount is already 0', (tester) async {
       // idleMs == pollIntervalMs lets the first iteration satisfy the idle
       // window WITHOUT awaiting Future.delayed (which hangs under the
@@ -553,108 +563,118 @@ void main() {
     });
 
     testWidgets(
-        'missing-crumbs graceful: default reader (returns 0) is treated '
-        'the same as idle from the start', (tester) async {
-      // Restore the default reader (which always returns 0) to simulate a
-      // host that never wired crumbs -> pendingCount stays 0 forever.
-      pendingHttpCountReader = () => 0;
-      final response = await aiTestWaitForNetworkIdleHandler(
-        'ext.tapir.wait_for_network_idle',
-        const <String, String>{
-          'timeoutMs': '500',
-          'idleMs': '100',
-          'pollIntervalMs': '100',
-        },
-      );
-      expect(_isSuccess(response), isTrue);
-    });
-
-    testWidgets(
-        'timeout path: returns error envelope when pendingCount is positive '
-        'AND timeoutMs is 0 (fast-fail short-circuit)', (tester) async {
-      // timeoutMs=0 short-circuits before any real Future.delayed runs ; the
-      // fake-clock harness in flutter_test cannot advance real timers, so the
-      // sample-then-check ordering inside networkIdleWaitLoop is what lets
-      // this case complete deterministically.
-      counterValue = 4;
-      final response = await aiTestWaitForNetworkIdleHandler(
-        'ext.tapir.wait_for_network_idle',
-        const <String, String>{
-          'timeoutMs': '0',
-          'idleMs': '200',
-          'pollIntervalMs': '100',
-        },
-      );
-      expect(_isError(response), isTrue);
-    });
-
-    testWidgets(
-        'idle-then-spike resets the countdown so transient zero does not '
-        'count as idle (runAsync)', (tester) async {
-      // Sequence: 1, 0, 1, 0, 0, 0 -> the first 0 starts the countdown, the
-      // next 1 resets it, and the trailing run of 0s must accumulate idleMs
-      // again. Real Future.delayed runs under tester.runAsync.
-      final script = <int>[1, 0, 1, 0, 0, 0];
-      var idx = 0;
-      pendingHttpCountReader = () {
-        if (idx >= script.length) return 0;
-        return script[idx++];
-      };
-
-      final response = await tester.runAsync(() async {
-        return aiTestWaitForNetworkIdleHandler(
+      'missing-crumbs graceful: default reader (returns 0) is treated '
+      'the same as idle from the start',
+      (tester) async {
+        // Restore the default reader (which always returns 0) to simulate a
+        // host that never wired crumbs -> pendingCount stays 0 forever.
+        pendingHttpCountReader = () => 0;
+        final response = await aiTestWaitForNetworkIdleHandler(
           'ext.tapir.wait_for_network_idle',
           const <String, String>{
-            'timeoutMs': '5000',
+            'timeoutMs': '500',
+            'idleMs': '100',
+            'pollIntervalMs': '100',
+          },
+        );
+        expect(_isSuccess(response), isTrue);
+      },
+    );
+
+    testWidgets(
+      'timeout path: returns error envelope when pendingCount is positive '
+      'AND timeoutMs is 0 (fast-fail short-circuit)',
+      (tester) async {
+        // timeoutMs=0 short-circuits before any real Future.delayed runs ; the
+        // fake-clock harness in flutter_test cannot advance real timers, so the
+        // sample-then-check ordering inside networkIdleWaitLoop is what lets
+        // this case complete deterministically.
+        counterValue = 4;
+        final response = await aiTestWaitForNetworkIdleHandler(
+          'ext.tapir.wait_for_network_idle',
+          const <String, String>{
+            'timeoutMs': '0',
             'idleMs': '200',
             'pollIntervalMs': '100',
           },
         );
-      });
-      // The final three 0s satisfy idleMs=200ms with pollInterval=100 ;
-      // matched=true after the spike resets the earlier accumulation.
-      expect(_isSuccess(response!), isTrue);
-    });
+        expect(_isError(response), isTrue);
+      },
+    );
 
     testWidgets(
-        'idle-after-some-pending: pendingCount drops from positive to 0 and '
-        'stays there long enough to satisfy idleMs (runAsync)', (tester) async {
-      final script = <int>[2, 1, 0, 0, 0];
-      var idx = 0;
-      pendingHttpCountReader = () {
-        if (idx >= script.length) return 0;
-        return script[idx++];
-      };
+      'idle-then-spike resets the countdown so transient zero does not '
+      'count as idle (runAsync)',
+      (tester) async {
+        // Sequence: 1, 0, 1, 0, 0, 0 -> the first 0 starts the countdown, the
+        // next 1 resets it, and the trailing run of 0s must accumulate idleMs
+        // again. Real Future.delayed runs under tester.runAsync.
+        final script = <int>[1, 0, 1, 0, 0, 0];
+        var idx = 0;
+        pendingHttpCountReader = () {
+          if (idx >= script.length) return 0;
+          return script[idx++];
+        };
 
-      final response = await tester.runAsync(() async {
-        return aiTestWaitForNetworkIdleHandler(
-          'ext.tapir.wait_for_network_idle',
-          const <String, String>{
-            'timeoutMs': '5000',
-            'idleMs': '200',
-            'pollIntervalMs': '100',
-          },
+        final response = await tester.runAsync(() async {
+          return aiTestWaitForNetworkIdleHandler(
+            'ext.tapir.wait_for_network_idle',
+            const <String, String>{
+              'timeoutMs': '5000',
+              'idleMs': '200',
+              'pollIntervalMs': '100',
+            },
+          );
+        });
+        // The final three 0s satisfy idleMs=200ms with pollInterval=100 ;
+        // matched=true after the spike resets the earlier accumulation.
+        expect(_isSuccess(response!), isTrue);
+      },
+    );
+
+    testWidgets(
+      'idle-after-some-pending: pendingCount drops from positive to 0 and '
+      'stays there long enough to satisfy idleMs (runAsync)',
+      (tester) async {
+        final script = <int>[2, 1, 0, 0, 0];
+        var idx = 0;
+        pendingHttpCountReader = () {
+          if (idx >= script.length) return 0;
+          return script[idx++];
+        };
+
+        final response = await tester.runAsync(() async {
+          return aiTestWaitForNetworkIdleHandler(
+            'ext.tapir.wait_for_network_idle',
+            const <String, String>{
+              'timeoutMs': '5000',
+              'idleMs': '200',
+              'pollIntervalMs': '100',
+            },
+          );
+        });
+        expect(_isSuccess(response!), isTrue);
+      },
+    );
+
+    testWidgets(
+      'networkIdleWaitLoop direct: maxPending tracks the highest observed '
+      'count when the loop times out',
+      (tester) async {
+        // Drive the unit-level loop with timeoutMs=0 so we never hit Future.delayed
+        // and can inspect the maxPending field that feeds the error message
+        // surfaced by the handler.
+        final result = await networkIdleWaitLoop(
+          timeoutMs: 0,
+          idleMs: 200,
+          pollIntervalMs: 100,
+          pendingCountReader: () => 7,
         );
-      });
-      expect(_isSuccess(response!), isTrue);
-    });
 
-    testWidgets(
-        'networkIdleWaitLoop direct: maxPending tracks the highest observed '
-        'count when the loop times out', (tester) async {
-      // Drive the unit-level loop with timeoutMs=0 so we never hit Future.delayed
-      // and can inspect the maxPending field that feeds the error message
-      // surfaced by the handler.
-      final result = await networkIdleWaitLoop(
-        timeoutMs: 0,
-        idleMs: 200,
-        pollIntervalMs: 100,
-        pendingCountReader: () => 7,
-      );
-
-      expect(result['matched'], isFalse);
-      expect(result['reason'], equals('timeout'));
-      expect(result['maxPending'], equals(7));
-    });
+        expect(result['matched'], isFalse);
+        expect(result['reason'], equals('timeout'));
+        expect(result['maxPending'], equals(7));
+      },
+    );
   });
 }

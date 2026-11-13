@@ -63,12 +63,12 @@ final class PerfInteraction {
   bool get isOpen => _closedAtUs == null;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'id': id,
-        'verb': verb,
-        'target': target,
-        'startUs': startUs,
-        'closedAtUs': _closedAtUs,
-      };
+    'id': id,
+    'verb': verb,
+    'target': target,
+    'startUs': startUs,
+    'closedAtUs': _closedAtUs,
+  };
 }
 
 /// Poll cadence of the settle watch.
@@ -149,9 +149,7 @@ PerfInteraction? perfInteractionAt(int us) {
 
 /// Interactions opened between [startUs] and [endUs] inclusive, oldest first.
 List<PerfInteraction> perfInteractionsBetween(int startUs, int endUs) => _log
-    .where(
-      (PerfInteraction i) => i.startUs >= startUs && i.startUs <= endUs,
-    )
+    .where((PerfInteraction i) => i.startUs >= startUs && i.startUs <= endUs)
     .toList();
 
 /// Forgets every interaction and restarts the id sequence. A watch still
@@ -219,12 +217,14 @@ void _watchSettle(PerfInteraction handle) {
   int quiet = 0;
   Timer.periodic(_kSettlePoll, (Timer timer) {
     polls++;
-    final bool busy = framed ||
+    final bool busy =
+        framed ||
         scheduler.hasScheduledFrame ||
         scheduler.schedulerPhase != SchedulerPhase.idle;
     framed = false;
     quiet = busy ? 0 : quiet + 1;
-    final bool capped = polls >= _kCapPolls ||
+    final bool capped =
+        polls >= _kCapPolls ||
         FlutterTimeline.now - handle.startUs >= _kCapMicros;
     if (quiet < _kQuietPolls && !capped && perfSessionOpen) return;
 

@@ -9,17 +9,18 @@ class _StubContext extends DowelContext {
   _StubContext({
     required DowelInput input,
     required DowelOutput output,
-    Map<String, dynamic> response = const {},
-  })  : _response = response,
-        super.bare(input, output);
+    this._response = const {},
+  }) : super.bare(input, output);
 
   final Map<String, dynamic> _response;
   String? lastMethod;
   Map<String, dynamic>? lastParams;
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     lastMethod = method;
     lastParams = params;
     return _response as T;
@@ -40,7 +41,9 @@ void main() {
       final parser = ArgParser();
       TapirClearCommand().configure(parser);
       expect(
-          parser.options.keys, containsAll(<String>['ref', 'includeSnapshot']));
+        parser.options.keys,
+        containsAll(<String>['ref', 'includeSnapshot']),
+      );
     });
 
     test('handle forwards --ref to ext.tapir.clear', () async {
@@ -55,15 +58,19 @@ void main() {
     });
 
     test('handle returns exit=1 when --ref is missing', () async {
-      final ctx =
-          _StubContext(input: MapInput(const {}), output: BufferedOutput());
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: BufferedOutput(),
+      );
       expect(await TapirClearCommand().handle(ctx), equals(1));
       expect(ctx.lastMethod, isNull);
     });
 
     test('handle returns exit=1 when --ref is empty string', () async {
       final ctx = _StubContext(
-          input: MapInput(const {'ref': ''}), output: BufferedOutput());
+        input: MapInput(const {'ref': ''}),
+        output: BufferedOutput(),
+      );
       expect(await TapirClearCommand().handle(ctx), equals(1));
     });
 
@@ -81,8 +88,10 @@ void main() {
 
     test('handle emits "Cleared" success by default', () async {
       final output = BufferedOutput();
-      final ctx =
-          _StubContext(input: MapInput(const {'ref': 'e1'}), output: output);
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e1'}),
+        output: output,
+      );
       await TapirClearCommand().handle(ctx);
       expect(output.content, contains('Cleared e1'));
     });

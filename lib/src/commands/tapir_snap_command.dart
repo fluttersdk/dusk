@@ -24,13 +24,15 @@ class TapirSnapCommand extends DowelCommand {
     parser.addOption('depth', help: 'Optional max tree depth.');
     parser.addFlag(
       'includeEnrichers',
-      help: 'Emit Magic + Wind enricher fragments under each ref entry. '
+      help:
+          'Emit Magic + Wind enricher fragments under each ref entry. '
           'Default off (Playwright-style minimal snapshot).',
       defaultsTo: false,
     );
     parser.addOption(
       'within',
-      help: 'Scope the walk to one subtree: the e<N> ref of the region to '
+      help:
+          'Scope the walk to one subtree: the e<N> ref of the region to '
           'read. Use it when a label repeats across the shell (a sidebar '
           'item and the page it opens usually share one).',
     );
@@ -41,7 +43,8 @@ class TapirSnapCommand extends DowelCommand {
     );
     parser.addOption(
       'grep',
-      help: 'Emit only nodes whose label or value matches this regular '
+      help:
+          'Emit only nodes whose label or value matches this regular '
           'expression, plus the ancestors that lead to them.',
     );
   }
@@ -77,8 +80,10 @@ class TapirSnapCommand extends DowelCommand {
     final renderErrors = result['renderErrors'] as Map<String, dynamic>?;
     if (renderErrors != null) {
       final count = renderErrors['count'];
-      ctx.output.error('⚠ $count render error(s) captured on this screen '
-          '(run tapir:exceptions / tapir_exceptions for full detail):');
+      ctx.output.error(
+        '⚠ $count render error(s) captured on this screen '
+        '(run tapir:exceptions / tapir_exceptions for full detail):',
+      );
       final recent = renderErrors['recent'] as List<dynamic>? ?? const [];
       for (final e in recent) {
         final entry = e as Map<String, dynamic>;

@@ -15,8 +15,8 @@ topics:
   - automation
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
-  flutter: ">=3.22.0"
+  sdk: ^3.13.0
+  flutter: ">=3.47.0"
 
 dependencies:
   flutter:
@@ -35,4 +35,5 @@ executables:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ">=5.0.0 <7.0.0"
+  flutter_lints: ^6.0.0
+  material_ui: ^1.11.0

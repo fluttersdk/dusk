@@ -1,7 +1,8 @@
 import 'dart:developer' as developer;
+import 'dart:ui' show CheckedState, Tristate;
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart' show Checkbox, Switch;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:dowel/dowel.dart';
 
@@ -47,8 +48,9 @@ void registerCheckboxExtensions() {
 
 /// Handler for the `ext.tapir.set_checkbox` VM Service extension.
 ///
-/// Reads the current checked state of the [Checkbox] (or [Switch]) widget
-/// identified by `ref` via a Semantics-node walk. When the current value
+/// Reads the current checked (or toggled) state of the control identified by
+/// `ref` from its Semantics node, so a material, material_ui, wind_kit or
+/// hand-built checkbox or switch answers the same way. When the current value
 /// differs from the requested [value], injects a tap to toggle it; when
 /// they already match, returns an idempotent success without touching the
 /// widget.
@@ -120,10 +122,8 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
     );
   }
 
-  // 3. Read the current checked state via the Semantics node associated with
-  //    the ref's element. Walk up and down the element tree to find the
-  //    nearest Checkbox or Switch widget and read its current value.
-  final bool? currentValue = _readCheckboxValue(entry.element);
+  // 3. Read the current checked state from the ref's Semantics node.
+  final bool? currentValue = _readCheckedState(entry);
   if (currentValue == null) {
     // Fall back to false when no checkbox state is detectable so the handler
     // stays non-crashing; the tap below will then toggle the widget.
@@ -176,7 +176,7 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
   //    control whose parent rejects the change, or one whose tap landed on
   //    an overlay, keeps its old state, and `value: targetValue` would call
   //    that a success.
-  final bool? settledValue = _readCheckboxValue(entry.element);
+  final bool? settledValue = _readCheckedState(entry);
 
   return tapirResult(<String, dynamic>{
     'ref': ref,
@@ -195,48 +195,36 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
 // Private helpers
 // ---------------------------------------------------------------------------
 
-/// Reads the current boolean checked value from the element's associated
-/// Semantics data.
+/// Reads the checked (checkbox) or toggled (switch) state of the control that
+/// [entry] names, from its Semantics node.
 ///
-/// Strategy (in order):
-/// 1. Walk the element itself — if it IS a [Checkbox] or [Switch] stateful
-///    widget, read the [CheckboxState] or [SwitchState] value directly.
-/// 2. Walk descendants — find the nearest Checkbox/Switch descendant.
-/// 3. Fall back to Semantics-node `isChecked` flag via the render pipeline.
+/// The Semantics flags are the one place every checkable widget reports its
+/// state, whichever library built it (`flutter/material`, `material_ui`,
+/// `wind_kit`, a hand-built `Semantics`). The node is the one the ref was
+/// minted from; an entry without one (the Element-tree walk behind
+/// `find_by_text`) falls back to the nearest node at or above its render
+/// object. A mixed checkbox reads as unchecked.
 ///
-/// Returns `null` when no checkable state is detectable.
-bool? _readCheckboxValue(Element element) {
-  // Try direct element and descendants.
-  final bool? direct = _checkboxValueFromElement(element);
-  if (direct != null) return direct;
-
-  // Walk descendants.
-  bool? found;
-  void visit(Element child) {
-    if (found != null) return;
-    final bool? v = _checkboxValueFromElement(child);
-    if (v != null) {
-      found = v;
-      return;
-    }
-    child.visitChildren(visit);
+/// Returns `null` when the node carries neither flag, or when Semantics is off.
+bool? _readCheckedState(RefEntry entry) {
+  // 1. Find the node: the one the ref was minted from, else the closest
+  //    ancestor render object that owns one.
+  SemanticsNode? node = entry.node;
+  RenderObject? render = entry.renderObject ?? entry.element.renderObject;
+  while (node == null && render != null) {
+    node = render.debugSemantics;
+    render = render.parent;
   }
+  if (node == null) return null;
 
-  element.visitChildren(visit);
-  return found;
-}
-
-/// Extracts the current boolean checked value from a single [element] if it
-/// wraps a [Checkbox] or [Switch] widget.
-///
-/// Returns `null` when the element does not represent a checkable widget.
-bool? _checkboxValueFromElement(Element element) {
-  final Widget widget = element.widget;
-  if (widget is Checkbox) {
-    return widget.value ?? false;
+  // 2. The merged data carries the flags of every descendant folded into the
+  //    node, which is how a labelled tile reports its inner checkbox.
+  final SemanticsFlags flags = node.getSemanticsData().flagsCollection;
+  if (flags.isChecked != CheckedState.none) {
+    return flags.isChecked == CheckedState.isTrue;
   }
-  if (widget is Switch) {
-    return widget.value;
+  if (flags.isToggled != Tristate.none) {
+    return flags.isToggled == Tristate.isTrue;
   }
   return null;
 }

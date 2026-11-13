@@ -57,7 +57,7 @@ typedef WsConnect = Future<WebSocket> Function(String url);
 /// from `/json/version`) which is sufficient for Emulation.* + Browser.*
 /// + Page.navigate against the single foreground tab.
 final class CdpClient {
-  CdpClient._({required WebSocket ws}) : _ws = ws {
+  CdpClient._({required WebSocket this._ws}) {
     _connected = true;
     _subscription = _ws!.listen(
       _onMessage,
@@ -166,9 +166,7 @@ final class CdpClient {
     try {
       body = await cdpHttpGet(listUri).timeout(handshakeTimeout);
     } catch (e) {
-      throw TapirCdpException(
-        'Chrome DevTools port unreachable on $port: $e',
-      );
+      throw TapirCdpException('Chrome DevTools port unreachable on $port: $e');
     }
 
     // 2. Parse the JSON envelope. /json returns a List of tab descriptors;
@@ -208,10 +206,10 @@ final class CdpClient {
       throw TapirCdpException(
         matchUrlSubstring == null
             ? 'Chrome /json on port $port returned no page tab. '
-                'Open a tab in the running Chrome before retrying.'
+                  'Open a tab in the running Chrome before retrying.'
             : 'Chrome /json on port $port has no page tab whose URL contains '
-                '"$matchUrlSubstring". The port may belong to a different '
-                'browser than the one running this app.',
+                  '"$matchUrlSubstring". The port may belong to a different '
+                  'browser than the one running this app.',
       );
     }
 
@@ -228,9 +226,7 @@ final class CdpClient {
     try {
       ws = await cdpWsConnect(wsUrl).timeout(handshakeTimeout);
     } catch (e) {
-      throw TapirCdpException(
-        'WebSocket connection to $wsUrl refused: $e',
-      );
+      throw TapirCdpException('WebSocket connection to $wsUrl refused: $e');
     }
 
     return CdpClient._(ws: ws);
@@ -260,7 +256,7 @@ final class CdpClient {
     final Map<String, dynamic> envelope = <String, dynamic>{
       'id': id,
       'method': method,
-      if (params != null) 'params': params,
+      'params': ?params,
     };
 
     try {
@@ -342,9 +338,7 @@ final class CdpClient {
     final dynamic error = json['error'];
     if (error is Map<String, dynamic>) {
       completer.completeError(
-        TapirCdpException(
-          'CDP error ${error['code']}: ${error['message']}',
-        ),
+        TapirCdpException('CDP error ${error['code']}: ${error['message']}'),
       );
       return;
     }

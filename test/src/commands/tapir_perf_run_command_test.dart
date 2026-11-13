@@ -32,8 +32,8 @@ final class _FakeDriver implements PerfRunDriver {
     this.landingReads,
     this.landsOn,
     this.releaseAnswer = _kReleasedOff,
-  })  : perfEnds = perfEnds ?? <Map<String, dynamic>>[],
-        findMisses = findMisses ?? <String, int>{};
+  }) : perfEnds = perfEnds ?? <Map<String, dynamic>>[],
+       findMisses = findMisses ?? <String, int>{};
 
   /// What `ext.tapir.semantics_hold action=release` answers. The default is a
   /// release that turned the tree off, what a native app with no screen
@@ -162,10 +162,7 @@ final class _FakeDriver implements PerfRunDriver {
           return <String, dynamic>{'ref': null, 'matched': false};
         }
         final bool miss = unresolved.contains(params['text']);
-        return <String, dynamic>{
-          'ref': miss ? null : 'q1',
-          'matched': !miss,
-        };
+        return <String, dynamic>{'ref': miss ? null : 'q1', 'matched': !miss};
       case 'ext.tapir.find_by_label':
         // What the live app answers: find_by_label walks only the root
         // pipeline owner, which holds no semantics tree, so it finds nothing.
@@ -509,17 +506,19 @@ void main() {
   });
 
   group('perfPerFrameMetrics()', () {
-    test('flattens blocks and counters to per-frame values, gauges excluded',
-        () {
-      final Map<String, double> metrics = perfPerFrameMetrics(
-        _report(painted: 40, rowsPerFrame: 2.5, wDivPerFrame: 31),
-      );
+    test(
+      'flattens blocks and counters to per-frame values, gauges excluded',
+      () {
+        final Map<String, double> metrics = perfPerFrameMetrics(
+          _report(painted: 40, rowsPerFrame: 2.5, wDivPerFrame: 31),
+        );
 
-      expect(metrics['blocks.MonitorRow'], 2.5);
-      expect(metrics['wind.wDivBuilds'], 31);
-      expect(metrics['magic.controllerNotifies.MonitorController'], 1.0);
-      expect(metrics.containsKey('wind.cacheSize'), isFalse);
-    });
+        expect(metrics['blocks.MonitorRow'], 2.5);
+        expect(metrics['wind.wDivBuilds'], 31);
+        expect(metrics['magic.controllerNotifies.MonitorController'], 1.0);
+        expect(metrics.containsKey('wind.cacheSize'), isFalse);
+      },
+    );
 
     test('divides a raw count by painted frames when perFrame is absent', () {
       final Map<String, dynamic> report = _report(painted: 10);
@@ -583,35 +582,34 @@ void main() {
       );
     });
 
-    test('leaves out a repeat whose frames could not be placed, and counts it',
-        () {
-      // A unit that kept every frame because the clocks disagreed describes
-      // frames from outside its session; a median over it is not a
-      // measurement of the scenario.
-      final Map<String, dynamic> unplaced =
-          _report(painted: 90, rowsPerFrame: 9)
-            ..['coverage'] = <String, dynamic>{
-              'framesDrawn': 90,
-              'framesSummarized': 90,
-              'sessionClockMismatch': true,
-              'complete': false,
-              'missing': <String>[],
-            };
-      final Map<String, Object?> summary = summarizePerfSeries(
-        <Map<String, dynamic>>[
-          _report(painted: 40, rowsPerFrame: 2),
-          unplaced,
-          _report(painted: 42, rowsPerFrame: 2),
-        ],
-      );
+    test(
+      'leaves out a repeat whose frames could not be placed, and counts it',
+      () {
+        // A unit that kept every frame because the clocks disagreed describes
+        // frames from outside its session; a median over it is not a
+        // measurement of the scenario.
+        final Map<String, dynamic> unplaced =
+            _report(painted: 90, rowsPerFrame: 9)
+              ..['coverage'] = <String, dynamic>{
+                'framesDrawn': 90,
+                'framesSummarized': 90,
+                'sessionClockMismatch': true,
+                'complete': false,
+                'missing': <String>[],
+              };
+        final Map<String, Object?> summary = summarizePerfSeries(
+          <Map<String, dynamic>>[
+            _report(painted: 40, rowsPerFrame: 2),
+            unplaced,
+            _report(painted: 42, rowsPerFrame: 2),
+          ],
+        );
 
-      expect(summary['repeats'], 2);
-      expect(summary['unplaced'], 1);
-      expect(
-        (summary['frames']! as Map<String, Object?>)['painted'],
-        41,
-      );
-    });
+        expect(summary['repeats'], 2);
+        expect(summary['unplaced'], 1);
+        expect((summary['frames']! as Map<String, Object?>)['painted'], 41);
+      },
+    );
 
     test('a series of refusals only has counts', () {
       expect(
@@ -643,10 +641,9 @@ void main() {
         PerfPlatform.android,
       );
       expect(
-        resolvePerfPlatform(
-          <String, dynamic>{'device': '0D5E3E4C-7A2B-4C47-9E5B-1B6F5B0F9A11'},
-          null,
-        ),
+        resolvePerfPlatform(<String, dynamic>{
+          'device': '0D5E3E4C-7A2B-4C47-9E5B-1B6F5B0F9A11',
+        }, null),
         PerfPlatform.ios,
       );
     });
@@ -667,10 +664,14 @@ void main() {
 
   group('perfRestartMode()', () {
     test('a profile build relaunches, a debug build hot restarts', () {
-      expect(perfRestartMode(<String, dynamic>{'profile': 'debug'}),
-          'hot_restart');
       expect(
-          perfRestartMode(<String, dynamic>{'profile': 'static'}), 'relaunch');
+        perfRestartMode(<String, dynamic>{'profile': 'debug'}),
+        'hot_restart',
+      );
+      expect(
+        perfRestartMode(<String, dynamic>{'profile': 'static'}),
+        'relaunch',
+      );
       expect(
         perfRestartMode(<String, dynamic>{
           'profile': 'debug',
@@ -704,44 +705,48 @@ void main() {
       expect(TapirPerfRunCommand().boot, CommandBoot.connected);
     });
 
-    test('writes the run file with summary, insights, repeats and env',
-        () async {
-      final _FakeDriver driver = _FakeDriver(
-        perfEnds: <Map<String, dynamic>>[
-          _report(painted: 40, rowsPerFrame: 2),
-          _report(
-            painted: 42,
-            rowsPerFrame: 2.1,
-            insights: <Map<String, dynamic>>[
-              <String, dynamic>{'id': 'I1', 'severity': 'warn', 'title': 'x'},
-            ],
-          ),
-          _report(painted: 44, rowsPerFrame: 2.4),
-        ],
-      );
-
-      final (int code, String out) = await _run(driver, options());
-
-      expect(code, 0);
-      final Map<String, dynamic> run = readRun('list-scroll', 'base');
-      expect(run['label'], 'base');
-      expect((run['scenario'] as Map<String, dynamic>)['name'], 'list-scroll');
-      expect((run['repeats'] as List<dynamic>), hasLength(3));
-      expect((run['summary'] as Map<String, dynamic>)['repeats'], 3);
-      final Map<String, dynamic> env = run['env'] as Map<String, dynamic>;
-      expect(env['buildMode'], 'debug');
-      expect(env['restartMode'], 'hot_restart');
-      expect(env['renderer'], 'unknown');
-      expect(env['host'], <String, dynamic>{'uname': 'Darwin 25.0 arm64'});
-      expect(env['target'], 'chrome');
-      // The median repeat by per-frame counts is the second one.
-      expect((run['insights'] as List<dynamic>).single['id'], 'I1');
-      expect(out, contains('list-scroll-base.json'));
-      expect(driver.closed, isTrue);
-    });
-
     test(
-        '.connected runs on the driver it was handed and leaves it open for '
+      'writes the run file with summary, insights, repeats and env',
+      () async {
+        final _FakeDriver driver = _FakeDriver(
+          perfEnds: <Map<String, dynamic>>[
+            _report(painted: 40, rowsPerFrame: 2),
+            _report(
+              painted: 42,
+              rowsPerFrame: 2.1,
+              insights: <Map<String, dynamic>>[
+                <String, dynamic>{'id': 'I1', 'severity': 'warn', 'title': 'x'},
+              ],
+            ),
+            _report(painted: 44, rowsPerFrame: 2.4),
+          ],
+        );
+
+        final (int code, String out) = await _run(driver, options());
+
+        expect(code, 0);
+        final Map<String, dynamic> run = readRun('list-scroll', 'base');
+        expect(run['label'], 'base');
+        expect(
+          (run['scenario'] as Map<String, dynamic>)['name'],
+          'list-scroll',
+        );
+        expect((run['repeats'] as List<dynamic>), hasLength(3));
+        expect((run['summary'] as Map<String, dynamic>)['repeats'], 3);
+        final Map<String, dynamic> env = run['env'] as Map<String, dynamic>;
+        expect(env['buildMode'], 'debug');
+        expect(env['restartMode'], 'hot_restart');
+        expect(env['renderer'], 'unknown');
+        expect(env['host'], <String, dynamic>{'uname': 'Darwin 25.0 arm64'});
+        expect(env['target'], 'chrome');
+        // The median repeat by per-frame counts is the second one.
+        expect((run['insights'] as List<dynamic>).single['id'], 'I1');
+        expect(out, contains('list-scroll-base.json'));
+        expect(driver.closed, isTrue);
+      },
+    );
+
+    test('.connected runs on the driver it was handed and leaves it open for '
         'its owner', () async {
       final _FakeDriver driver = _FakeDriver();
       final BufferedOutput output = BufferedOutput();
@@ -756,21 +761,25 @@ void main() {
       expect(driver.closed, isFalse);
     });
 
-    test('the default connector refuses a context with no running app',
-        () async {
-      final BufferedOutput output = BufferedOutput();
+    test(
+      'the default connector refuses a context with no running app',
+      () async {
+        final BufferedOutput output = BufferedOutput();
 
-      final int code = await TapirPerfRunCommand().handle(
-        DowelContext.bare(MapInput(options()), output),
-      );
+        final int code = await TapirPerfRunCommand().handle(
+          DowelContext.bare(MapInput(options()), output),
+        );
 
-      expect(code, 1);
-      expect(output.content, contains('dowel start'));
-    });
+        expect(code, 1);
+        expect(output.content, contains('dowel start'));
+      },
+    );
 
     test('a --repeat that is not a positive integer is rejected', () async {
-      final (int code, String out) =
-          await _run(_FakeDriver(), options(<String, dynamic>{'repeat': '0'}));
+      final (int code, String out) = await _run(
+        _FakeDriver(),
+        options(<String, dynamic>{'repeat': '0'}),
+      );
 
       expect(code, 1);
       expect(out, contains('--repeat'));
@@ -781,17 +790,16 @@ void main() {
 
       await _run(driver, options());
 
-      expect(
-        driver.callsTo('ext.tapir.perf_end').first.params['full'],
-        'true',
-      );
+      expect(driver.callsTo('ext.tapir.perf_end').first.params['full'], 'true');
     });
 
     test('--json prints the same object minus repeats[]', () async {
       final _FakeDriver driver = _FakeDriver();
 
-      final (int code, String out) =
-          await _run(driver, options(<String, dynamic>{'json': true}));
+      final (int code, String out) = await _run(
+        driver,
+        options(<String, dynamic>{'json': true}),
+      );
 
       expect(code, 0);
       final Map<String, dynamic> printed =
@@ -801,21 +809,20 @@ void main() {
       expect(printed['path'], endsWith('list-scroll-base.json'));
     });
 
-    test('setup runs before every repeat and each session is brought to front',
-        () async {
-      final _FakeDriver driver = _FakeDriver();
+    test(
+      'setup runs before every repeat and each session is brought to front',
+      () async {
+        final _FakeDriver driver = _FakeDriver();
 
-      await _run(driver, options());
+        await _run(driver, options());
 
-      expect(driver.restarts, 3);
-      final List<String> m = driver.methods;
-      // Viewport, restart, viewport again, a mounted Router, navigate and
-      // its route check across network idle, wait, front, then the first step's target,
-      // which nothing before it can move, and begin.
-      final int firstBegin = m.indexOf('ext.tapir.perf_begin');
-      expect(
-        m.sublist(0, firstBegin),
-        <String>[
+        expect(driver.restarts, 3);
+        final List<String> m = driver.methods;
+        // Viewport, restart, viewport again, a mounted Router, navigate and
+        // its route check across network idle, wait, front, then the first step's target,
+        // which nothing before it can move, and begin.
+        final int firstBegin = m.indexOf('ext.tapir.perf_begin');
+        expect(m.sublist(0, firstBegin), <String>[
           'cdp:Emulation.setDeviceMetricsOverride',
           'restart',
           'cdp:Emulation.setDeviceMetricsOverride',
@@ -827,10 +834,10 @@ void main() {
           'ext.tapir.wait_for',
           'cdp:Page.bringToFront',
           'ext.tapir.find',
-        ],
-      );
-      expect(driver.callsTo('cdp:Page.bringToFront'), hasLength(3));
-    });
+        ]);
+        expect(driver.callsTo('cdp:Page.bringToFront'), hasLength(3));
+      },
+    );
 
     test('drives chrome steps and skips the android-only drag', () async {
       final _FakeDriver driver = _FakeDriver();
@@ -842,17 +849,14 @@ void main() {
       final int end = m.indexOf('ext.tapir.perf_end');
       // The tap's target was resolved before begin; the wheel's, which the
       // tap can move, inside the window.
-      expect(
-        m.sublist(begin + 1, end),
-        <String>[
-          'ext.tapir.tap',
-          'ext.tapir.find',
-          'ext.tapir.hover',
-          'cdp:Input.dispatchMouseEvent',
-          'pause',
-          'pause',
-        ],
-      );
+      expect(m.sublist(begin + 1, end), <String>[
+        'ext.tapir.tap',
+        'ext.tapir.find',
+        'ext.tapir.hover',
+        'cdp:Input.dispatchMouseEvent',
+        'pause',
+        'pause',
+      ]);
       final _Call wheel = driver.callsTo('cdp:Input.dispatchMouseEvent').single;
       expect(wheel.params['type'], 'mouseWheel');
       expect(wheel.params['x'], 11.0);
@@ -863,38 +867,47 @@ void main() {
       );
     });
 
-    test('wait_for_text waits in slices DWDS lets finish, until the budget',
-        () async {
-      // DWDS cuts any service extension call at 10 s, so one in-app wait of
-      // the full 15 s budget died as a -32603 on a slow restart.
-      final _FakeDriver driver = _FakeDriver(waitMisses: 2);
+    test(
+      'wait_for_text waits in slices DWDS lets finish, until the budget',
+      () async {
+        // DWDS cuts any service extension call at 10 s, so one in-app wait of
+        // the full 15 s budget died as a -32603 on a slow restart.
+        final _FakeDriver driver = _FakeDriver(waitMisses: 2);
 
-      final (int code, _) =
-          await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+        final (int code, _) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+        );
 
-      expect(code, 0);
-      final List<_Call> waits = driver.callsTo('ext.tapir.wait_for');
-      expect(waits, hasLength(3));
-      for (final _Call w in waits) {
-        expect(int.parse(w.params['timeoutMs']!), lessThanOrEqualTo(8000));
-      }
-    });
+        expect(code, 0);
+        final List<_Call> waits = driver.callsTo('ext.tapir.wait_for');
+        expect(waits, hasLength(3));
+        for (final _Call w in waits) {
+          expect(int.parse(w.params['timeoutMs']!), lessThanOrEqualTo(8000));
+        }
+      },
+    );
 
-    test('wait_for_text still gives up once its whole budget is spent',
-        () async {
-      final _FakeDriver driver = _FakeDriver(waitMisses: 1000);
+    test(
+      'wait_for_text still gives up once its whole budget is spent',
+      () async {
+        final _FakeDriver driver = _FakeDriver(waitMisses: 1000);
 
-      final (int code, String out) =
-          await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+        );
 
-      expect(code, isNot(0));
-      expect(out, contains('did not appear within'));
-      expect(driver.callsTo('ext.tapir.wait_for').length, lessThan(10));
-    });
+        expect(code, isNot(0));
+        expect(out, contains('did not appear within'));
+        expect(driver.callsTo('ext.tapir.wait_for').length, lessThan(10));
+      },
+    );
 
-    test('a wheel with ticks sends that many events at one resolved point',
-        () async {
-      await File(scenarioPath).writeAsString('''
+    test(
+      'a wheel with ticks sends that many events at one resolved point',
+      () async {
+        await File(scenarioPath).writeAsString('''
 name: list-scroll
 viewport: {width: 1440, height: 900}
 platforms: [chrome]
@@ -902,79 +915,89 @@ steps:
   - wheel: {target: {text: List}, dy: 120, ticks: 4}
 repeat: 1
 ''');
-      final _FakeDriver driver = _FakeDriver();
+        final _FakeDriver driver = _FakeDriver();
 
-      await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+        await _run(driver, options(<String, dynamic>{'repeat': '1'}));
 
-      final List<_Call> wheels = driver.callsTo('cdp:Input.dispatchMouseEvent');
-      expect(wheels, hasLength(4));
-      expect(wheels.map((_Call c) => c.params['deltaY']).toSet(), <num>{120.0});
-      expect(wheels.map((_Call c) => c.params['x']).toSet(), hasLength(1));
-      expect(driver.callsTo('ext.tapir.find'), hasLength(1));
-    });
+        final List<_Call> wheels = driver.callsTo(
+          'cdp:Input.dispatchMouseEvent',
+        );
+        expect(wheels, hasLength(4));
+        expect(wheels.map((_Call c) => c.params['deltaY']).toSet(), <num>{
+          120.0,
+        });
+        expect(wheels.map((_Call c) => c.params['x']).toSet(), hasLength(1));
+        expect(driver.callsTo('ext.tapir.find'), hasLength(1));
+      },
+    );
 
-    test('on android the drag resolves its role target and runs by offset',
-        () async {
-      final _FakeDriver driver = _FakeDriver();
+    test(
+      'on android the drag resolves its role target and runs by offset',
+      () async {
+        final _FakeDriver driver = _FakeDriver();
 
-      await _run(
-        driver,
-        options(<String, dynamic>{'repeat': '1'}),
-        platform: PerfPlatform.android,
-      );
+        await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+          platform: PerfPlatform.android,
+        );
 
-      expect(driver.callsTo('cdp:Input.dispatchMouseEvent'), isEmpty);
-      expect(driver.callsTo('cdp:Page.bringToFront'), isEmpty);
-      final _Call observe = driver.callsTo('ext.tapir.observe').single;
-      expect(observe.params['roles'], 'button');
-      expect(observe.params['includeEnrichers'], 'false');
-      final _Call drag = driver.callsTo('ext.tapir.drag').single;
-      // The second button named Row: the heading shares the name, not the
-      // role, and the Add button shares neither.
-      expect(drag.params['startRef'], 'q4');
-      expect(drag.params['dy'], '-300.0');
-    });
+        expect(driver.callsTo('cdp:Input.dispatchMouseEvent'), isEmpty);
+        expect(driver.callsTo('cdp:Page.bringToFront'), isEmpty);
+        final _Call observe = driver.callsTo('ext.tapir.observe').single;
+        expect(observe.params['roles'], 'button');
+        expect(observe.params['includeEnrichers'], 'false');
+        final _Call drag = driver.callsTo('ext.tapir.drag').single;
+        // The second button named Row: the heading shares the name, not the
+        // role, and the Add button shares neither.
+        expect(drag.params['startRef'], 'q4');
+        expect(drag.params['dy'], '-300.0');
+      },
+    );
 
-    test('a role target matching no role and name fails naming the target',
-        () async {
-      final _FakeDriver driver = _FakeDriver(
-        observed: const <Map<String, dynamic>>[
-          <String, dynamic>{'ref': 'q1', 'role': 'button', 'label': 'Row'},
-        ],
-      );
+    test(
+      'a role target matching no role and name fails naming the target',
+      () async {
+        final _FakeDriver driver = _FakeDriver(
+          observed: const <Map<String, dynamic>>[
+            <String, dynamic>{'ref': 'q1', 'role': 'button', 'label': 'Row'},
+          ],
+        );
 
-      final (int code, String out) = await _run(
-        driver,
-        options(<String, dynamic>{'repeat': '1'}),
-        platform: PerfPlatform.android,
-      );
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+          platform: PerfPlatform.android,
+        );
 
-      expect(code, 1);
-      expect(out, contains('"role":"button","name":"Row","index":1'));
-      expect(out, contains('matched nothing'));
-    });
+        expect(code, 1);
+        expect(out, contains('"role":"button","name":"Row","index":1'));
+        expect(out, contains('matched nothing'));
+      },
+    );
 
-    test('a gesture in setup runs before perf_begin, outside the window',
-        () async {
-      await File(scenarioPath).writeAsString(
-        _scenario.replaceFirst(
-          '  - wait_for_text: Monitors\n',
-          '  - wait_for_text: Monitors\n'
-              '  - tap: {target: {text: perf-monitor-0000}}\n'
-              '  - wait: 150\n',
-        ),
-      );
-      final _FakeDriver driver = _FakeDriver();
+    test(
+      'a gesture in setup runs before perf_begin, outside the window',
+      () async {
+        await File(scenarioPath).writeAsString(
+          _scenario.replaceFirst(
+            '  - wait_for_text: Monitors\n',
+            '  - wait_for_text: Monitors\n'
+                '  - tap: {target: {text: perf-monitor-0000}}\n'
+                '  - wait: 150\n',
+          ),
+        );
+        final _FakeDriver driver = _FakeDriver();
 
-      final (int code, _) =
-          await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+        final (int code, _) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+        );
 
-      expect(code, 0);
-      final List<String> m = driver.methods;
-      final int begin = m.indexOf('ext.tapir.perf_begin');
-      expect(
-        m.sublist(0, begin),
-        <String>[
+        expect(code, 0);
+        final List<String> m = driver.methods;
+        final int begin = m.indexOf('ext.tapir.perf_begin');
+        expect(m.sublist(0, begin), <String>[
           'cdp:Emulation.setDeviceMetricsOverride',
           'restart',
           'cdp:Emulation.setDeviceMetricsOverride',
@@ -989,60 +1012,63 @@ repeat: 1
           'pause',
           'cdp:Page.bringToFront',
           'ext.tapir.find',
-        ],
-      );
-      expect(
-        driver.callsTo('ext.tapir.find').first.params,
-        <String, dynamic>{'text': 'perf-monitor-0000'},
-      );
-      expect(
-        driver.callsTo('ext.tapir.tap').first.params['includeSnapshot'],
-        'false',
-      );
-    });
+        ]);
+        expect(driver.callsTo('ext.tapir.find').first.params, <String, dynamic>{
+          'text': 'perf-monitor-0000',
+        });
+        expect(
+          driver.callsTo('ext.tapir.tap').first.params['includeSnapshot'],
+          'false',
+        );
+      },
+    );
 
-    test('a setup gesture that matches nothing fails before perf_begin',
-        () async {
-      await File(scenarioPath).writeAsString(
-        _scenario.replaceFirst(
-          '  - wait_for_text: Monitors\n',
-          '  - wait_for_text: Monitors\n'
-              '  - tap: {target: {text: Gone}}\n',
-        ),
-      );
-      final _FakeDriver driver = _FakeDriver(unresolved: <String>{'Gone'});
+    test(
+      'a setup gesture that matches nothing fails before perf_begin',
+      () async {
+        await File(scenarioPath).writeAsString(
+          _scenario.replaceFirst(
+            '  - wait_for_text: Monitors\n',
+            '  - wait_for_text: Monitors\n'
+                '  - tap: {target: {text: Gone}}\n',
+          ),
+        );
+        final _FakeDriver driver = _FakeDriver(unresolved: <String>{'Gone'});
 
-      final (int code, String out) = await _run(driver, options());
+        final (int code, String out) = await _run(driver, options());
 
-      expect(code, 1);
-      expect(out, contains('list-scroll setup[3] (tap)'));
-      expect(out, contains('Gone'));
-      expect(driver.callsTo('ext.tapir.perf_begin'), isEmpty);
-    });
+        expect(code, 1);
+        expect(out, contains('list-scroll setup[3] (tap)'));
+        expect(out, contains('Gone'));
+        expect(driver.callsTo('ext.tapir.perf_begin'), isEmpty);
+      },
+    );
 
-    test('a refused repeat is recorded, not averaged, and the run exits 0',
-        () async {
-      final _FakeDriver driver = _FakeDriver(
-        perfEnds: <Map<String, dynamic>>[
-          _report(painted: 40),
-          _refused,
-          _report(painted: 50),
-        ],
-      );
+    test(
+      'a refused repeat is recorded, not averaged, and the run exits 0',
+      () async {
+        final _FakeDriver driver = _FakeDriver(
+          perfEnds: <Map<String, dynamic>>[
+            _report(painted: 40),
+            _refused,
+            _report(painted: 50),
+          ],
+        );
 
-      final (int code, _) = await _run(driver, options());
+        final (int code, _) = await _run(driver, options());
 
-      expect(code, 0);
-      final Map<String, dynamic> run = readRun('list-scroll', 'base');
-      expect((run['summary'] as Map<String, dynamic>)['refused'], 1);
-      expect((run['summary'] as Map<String, dynamic>)['repeats'], 2);
-      expect(
-        ((run['summary'] as Map<String, dynamic>)['frames']
-            as Map<String, dynamic>)['painted'],
-        45,
-      );
-      expect((run['repeats'] as List<dynamic>)[1]['refused'], isTrue);
-    });
+        expect(code, 0);
+        final Map<String, dynamic> run = readRun('list-scroll', 'base');
+        expect((run['summary'] as Map<String, dynamic>)['refused'], 1);
+        expect((run['summary'] as Map<String, dynamic>)['repeats'], 2);
+        expect(
+          ((run['summary'] as Map<String, dynamic>)['frames']
+              as Map<String, dynamic>)['painted'],
+          45,
+        );
+        expect((run['repeats'] as List<dynamic>)[1]['refused'], isTrue);
+      },
+    );
 
     test('every repeat refused exits 1 and still writes the file', () async {
       final _FakeDriver driver = _FakeDriver(
@@ -1056,19 +1082,21 @@ repeat: 1
       expect(readRun('list-scroll', 'base')['repeats'], hasLength(3));
     });
 
-    test('a label outside [a-z0-9_-] is rejected before anything runs',
-        () async {
-      final _FakeDriver driver = _FakeDriver();
+    test(
+      'a label outside [a-z0-9_-] is rejected before anything runs',
+      () async {
+        final _FakeDriver driver = _FakeDriver();
 
-      final (int code, String out) = await _run(
-        driver,
-        options(<String, dynamic>{'label': '../escape'}),
-      );
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{'label': '../escape'}),
+        );
 
-      expect(code, 1);
-      expect(out, contains('[a-z0-9_-]'));
-      expect(driver.calls, isEmpty);
-    });
+        expect(code, 1);
+        expect(out, contains('[a-z0-9_-]'));
+        expect(driver.calls, isEmpty);
+      },
+    );
 
     test('an invalid scenario lists its problems and runs nothing', () async {
       await File(scenarioPath).writeAsString('name: ../x\nsteps: []\n');
@@ -1106,8 +1134,7 @@ repeat: 1
       expect(driver.calls, isEmpty);
     });
 
-    test(
-        'a target that matches nothing fails the run after closing the '
+    test('a target that matches nothing fails the run after closing the '
         'session', () async {
       final _FakeDriver driver = _FakeDriver(unresolved: <String>{'List'});
 
@@ -1119,144 +1146,172 @@ repeat: 1
       expect(driver.closed, isTrue);
     });
 
-    test('--timing interleaves timing repeats, alternating the order',
-        () async {
-      final _FakeDriver driver = _FakeDriver(
-        perfEnds: <Map<String, dynamic>>[
-          _report(painted: 40),
-          _report(painted: 40, mode: 'timing', buildP50: 2),
-          _report(painted: 40, mode: 'timing', buildP50: 3),
-          _report(painted: 40),
-          _report(painted: 40),
-          _report(painted: 40, mode: 'timing', buildP50: 4),
-        ],
-      );
-
-      final (int code, _) =
-          await _run(driver, options(<String, dynamic>{'timing': true}));
-
-      expect(code, 0);
-      expect(
-        driver
-            .callsTo('ext.tapir.perf_begin')
-            .map((_Call c) => c.params['mode'])
-            .toList(),
-        <String>[
-          'attribution',
-          'timing',
-          'timing',
-          'attribution',
-          'attribution',
-          'timing',
-        ],
-      );
-      final Map<String, dynamic> timing =
-          (readRun('list-scroll', 'base')['summary']
-              as Map<String, dynamic>)['timing'] as Map<String, dynamic>;
-      expect(timing['repeats'], 3);
-      expect((timing['ms'] as Map<String, dynamic>)['buildMs.p50'], 3);
-    });
-
-    test('--against runs both scenarios interleaved and writes both files',
-        () async {
-      final String baseline = '${temp.path}/baseline.yaml';
-      await File(baseline).writeAsString(
-        _scenario.replaceFirst('name: list-scroll', 'name: list-baseline'),
-      );
-      final _FakeDriver driver = _FakeDriver();
-
-      final (int code, _) = await _run(
-        driver,
-        options(<String, dynamic>{'against': baseline, 'repeat': '2'}),
-      );
-
-      expect(code, 0);
-      expect(
-          readRun('list-scroll', 'base')['interleavedWith'], 'list-baseline');
-      expect(
-          readRun('list-baseline', 'base')['interleavedWith'], 'list-scroll');
-      // Round 0 runs A then B, round 1 runs B then A: navigate is the first
-      // setup call of each unit, so its count tracks the units.
-      expect(driver.callsTo('ext.tapir.perf_begin'), hasLength(4));
-    });
-
-    group('setup diagnostics', () {
-      test('a setup navigate answering navigated:false fails with the payload',
-          () async {
-        final _FakeDriver driver = _FakeDriver(navigateHonoured: false);
-
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
-
-        expect(code, 1);
-        expect(out, contains('list-scroll setup[1] (navigate)'));
-        expect(out, contains('"navigated":false'));
-        expect(out, contains('router did not honor the new route'));
-        expect(out, contains('route "/"'));
-        expect(driver.callsTo('ext.tapir.navigate'), hasLength(1));
-        expect(driver.callsTo('ext.tapir.get_routes').length, lessThan(40));
-        expect(driver.callsTo('ext.tapir.wait_for'), isEmpty);
-        expect(driver.callsTo('ext.tapir.perf_begin'), isEmpty);
-      });
-
-      test('a navigate right after a restart waits for the Router to mount',
-          () async {
-        // The boot id answers from main(), before runApp mounts the Router
-        // the navigate is verified against: navigating then answered
-        // navigated:false on every Chrome scenario.
-        final _FakeDriver driver = _FakeDriver(routerMountReads: 3);
-
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
-
-        expect(code, 0, reason: out);
-        final List<String> m = driver.methods;
-        final int navigate = m.indexOf('ext.tapir.navigate');
-        expect(
-          m.sublist(m.indexOf('restart'), navigate).where(
-                (String method) => method == 'ext.tapir.get_routes',
-              ),
-          hasLength(4),
+    test(
+      '--timing interleaves timing repeats, alternating the order',
+      () async {
+        final _FakeDriver driver = _FakeDriver(
+          perfEnds: <Map<String, dynamic>>[
+            _report(painted: 40),
+            _report(painted: 40, mode: 'timing', buildP50: 2),
+            _report(painted: 40, mode: 'timing', buildP50: 3),
+            _report(painted: 40),
+            _report(painted: 40),
+            _report(painted: 40, mode: 'timing', buildP50: 4),
+          ],
         );
-        expect(driver.callsTo('ext.tapir.navigate'), hasLength(1));
-      });
 
-      test('a navigate that lands just after its answer is held to the route',
-          () async {
-        // Measured on uptizm after a web hot restart: a navigate sent as the
-        // Router mounts answers false, and the route lands a moment later.
-        final _FakeDriver driver = _FakeDriver(landingReads: 3);
-
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
-
-        expect(code, 0, reason: out);
-        expect(driver.callsTo('ext.tapir.navigate'), hasLength(1));
-        expect(driver.callsTo('ext.tapir.perf_begin'), hasLength(1));
-        final List<dynamic> repeats =
-            readRun('list-scroll', 'base')['repeats'] as List<dynamic>;
-        expect(
-          (repeats.single as Map<String, dynamic>)['setupLandedLate'],
-          isTrue,
+        final (int code, _) = await _run(
+          driver,
+          options(<String, dynamic>{'timing': true}),
         );
-      });
 
-      test('a unit whose navigate landed at once carries no late mark',
-          () async {
+        expect(code, 0);
+        expect(
+          driver
+              .callsTo('ext.tapir.perf_begin')
+              .map((_Call c) => c.params['mode'])
+              .toList(),
+          <String>[
+            'attribution',
+            'timing',
+            'timing',
+            'attribution',
+            'attribution',
+            'timing',
+          ],
+        );
+        final Map<String, dynamic> timing =
+            (readRun('list-scroll', 'base')['summary']
+                    as Map<String, dynamic>)['timing']
+                as Map<String, dynamic>;
+        expect(timing['repeats'], 3);
+        expect((timing['ms'] as Map<String, dynamic>)['buildMs.p50'], 3);
+      },
+    );
+
+    test(
+      '--against runs both scenarios interleaved and writes both files',
+      () async {
+        final String baseline = '${temp.path}/baseline.yaml';
+        await File(baseline).writeAsString(
+          _scenario.replaceFirst('name: list-scroll', 'name: list-baseline'),
+        );
         final _FakeDriver driver = _FakeDriver();
 
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
-
-        expect(code, 0, reason: out);
-        final List<dynamic> repeats =
-            readRun('list-scroll', 'base')['repeats'] as List<dynamic>;
-        expect(
-          (repeats.single as Map<String, dynamic>)
-              .containsKey('setupLandedLate'),
-          isFalse,
+        final (int code, _) = await _run(
+          driver,
+          options(<String, dynamic>{'against': baseline, 'repeat': '2'}),
         );
-      });
+
+        expect(code, 0);
+        expect(
+          readRun('list-scroll', 'base')['interleavedWith'],
+          'list-baseline',
+        );
+        expect(
+          readRun('list-baseline', 'base')['interleavedWith'],
+          'list-scroll',
+        );
+        // Round 0 runs A then B, round 1 runs B then A: navigate is the first
+        // setup call of each unit, so its count tracks the units.
+        expect(driver.callsTo('ext.tapir.perf_begin'), hasLength(4));
+      },
+    );
+
+    group('setup diagnostics', () {
+      test(
+        'a setup navigate answering navigated:false fails with the payload',
+        () async {
+          final _FakeDriver driver = _FakeDriver(navigateHonoured: false);
+
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+          );
+
+          expect(code, 1);
+          expect(out, contains('list-scroll setup[1] (navigate)'));
+          expect(out, contains('"navigated":false'));
+          expect(out, contains('router did not honor the new route'));
+          expect(out, contains('route "/"'));
+          expect(driver.callsTo('ext.tapir.navigate'), hasLength(1));
+          expect(driver.callsTo('ext.tapir.get_routes').length, lessThan(40));
+          expect(driver.callsTo('ext.tapir.wait_for'), isEmpty);
+          expect(driver.callsTo('ext.tapir.perf_begin'), isEmpty);
+        },
+      );
+
+      test(
+        'a navigate right after a restart waits for the Router to mount',
+        () async {
+          // The boot id answers from main(), before runApp mounts the Router
+          // the navigate is verified against: navigating then answered
+          // navigated:false on every Chrome scenario.
+          final _FakeDriver driver = _FakeDriver(routerMountReads: 3);
+
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+          );
+
+          expect(code, 0, reason: out);
+          final List<String> m = driver.methods;
+          final int navigate = m.indexOf('ext.tapir.navigate');
+          expect(
+            m
+                .sublist(m.indexOf('restart'), navigate)
+                .where((String method) => method == 'ext.tapir.get_routes'),
+            hasLength(4),
+          );
+          expect(driver.callsTo('ext.tapir.navigate'), hasLength(1));
+        },
+      );
+
+      test(
+        'a navigate that lands just after its answer is held to the route',
+        () async {
+          // Measured on uptizm after a web hot restart: a navigate sent as the
+          // Router mounts answers false, and the route lands a moment later.
+          final _FakeDriver driver = _FakeDriver(landingReads: 3);
+
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+          );
+
+          expect(code, 0, reason: out);
+          expect(driver.callsTo('ext.tapir.navigate'), hasLength(1));
+          expect(driver.callsTo('ext.tapir.perf_begin'), hasLength(1));
+          final List<dynamic> repeats =
+              readRun('list-scroll', 'base')['repeats'] as List<dynamic>;
+          expect(
+            (repeats.single as Map<String, dynamic>)['setupLandedLate'],
+            isTrue,
+          );
+        },
+      );
+
+      test(
+        'a unit whose navigate landed at once carries no late mark',
+        () async {
+          final _FakeDriver driver = _FakeDriver();
+
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+          );
+
+          expect(code, 0, reason: out);
+          final List<dynamic> repeats =
+              readRun('list-scroll', 'base')['repeats'] as List<dynamic>;
+          expect(
+            (repeats.single as Map<String, dynamic>).containsKey(
+              'setupLandedLate',
+            ),
+            isFalse,
+          );
+        },
+      );
 
       test('a late landing on a page under the route does not count', () async {
         // A web hot restart keeps the URL: a dropped navigate to /monitors
@@ -1266,31 +1321,40 @@ repeat: 1
           landsOn: '/monitors/7',
         );
 
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+        );
 
         expect(code, 1);
         expect(out, contains('the router did not honor "/monitors"'));
         expect(driver.callsTo('ext.tapir.perf_begin'), isEmpty);
       });
 
-      test('a query the page adds once the network is idle is not a move',
-          () async {
-        final _FakeDriver driver =
-            _FakeDriver(redirectOnIdle: '/monitors?page=1');
+      test(
+        'a query the page adds once the network is idle is not a move',
+        () async {
+          final _FakeDriver driver = _FakeDriver(
+            redirectOnIdle: '/monitors?page=1',
+          );
 
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+          );
 
-        expect(code, 0, reason: out);
-        expect(driver.callsTo('ext.tapir.perf_begin'), hasLength(1));
-      });
+          expect(code, 0, reason: out);
+          expect(driver.callsTo('ext.tapir.perf_begin'), hasLength(1));
+        },
+      );
 
       test('a Router that never mounts fails before navigating', () async {
         final _FakeDriver driver = _FakeDriver(routerMountReads: 1 << 20);
 
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+        );
 
         expect(code, 1);
         expect(out, contains('list-scroll setup[1] (navigate)'));
@@ -1300,36 +1364,43 @@ repeat: 1
         expect(driver.callsTo('ext.tapir.get_routes').length, lessThan(200));
       });
 
-      test('an app whose get_routes carries no uri is told to relaunch',
-          () async {
-        final _FakeDriver driver = _FakeDriver(answersUri: false);
+      test(
+        'an app whose get_routes carries no uri is told to relaunch',
+        () async {
+          final _FakeDriver driver = _FakeDriver(answersUri: false);
 
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+          );
 
-        expect(code, 1);
-        expect(out, contains('older'));
-        expect(driver.callsTo('ext.tapir.navigate'), isEmpty);
-        expect(driver.callsTo('ext.tapir.get_routes'), hasLength(2));
-      });
-
-      test('a route that moves once the network is idle fails naming both',
-          () async {
-        // The page name stays '' across the redirect, as in a Router-based
-        // app; only the router's uri moves.
-        final _FakeDriver driver = _FakeDriver(redirectOnIdle: '/login');
-
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
-
-        expect(code, 1);
-        expect(out, contains('/monitors'));
-        expect(out, contains('/login'));
-        expect(driver.callsTo('ext.tapir.perf_begin'), isEmpty);
-      });
+          expect(code, 1);
+          expect(out, contains('older'));
+          expect(driver.callsTo('ext.tapir.navigate'), isEmpty);
+          expect(driver.callsTo('ext.tapir.get_routes'), hasLength(2));
+        },
+      );
 
       test(
-          'a setup wait that fails reports the route, the navigate payload '
+        'a route that moves once the network is idle fails naming both',
+        () async {
+          // The page name stays '' across the redirect, as in a Router-based
+          // app; only the router's uri moves.
+          final _FakeDriver driver = _FakeDriver(redirectOnIdle: '/login');
+
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+          );
+
+          expect(code, 1);
+          expect(out, contains('/monitors'));
+          expect(out, contains('/login'));
+          expect(driver.callsTo('ext.tapir.perf_begin'), isEmpty);
+        },
+      );
+
+      test('a setup wait that fails reports the route, the navigate payload '
           'and the last exceptions', () async {
         final _FakeDriver driver = _FakeDriver(
           waitMisses: 1000,
@@ -1342,8 +1413,10 @@ repeat: 1
           ],
         );
 
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+        );
 
         expect(code, 1);
         expect(out, contains('did not appear within'));
@@ -1353,24 +1426,28 @@ repeat: 1
         expect(driver.callsTo('ext.tapir.exceptions'), hasLength(1));
       });
 
-      test('a setup gesture that matches nothing reports the diagnostics too',
-          () async {
-        await File(scenarioPath).writeAsString(
-          _scenario.replaceFirst(
-            '  - wait_for_text: Monitors\n',
-            '  - wait_for_text: Monitors\n'
-                '  - tap: {target: {text: Gone}}\n',
-          ),
-        );
-        final _FakeDriver driver = _FakeDriver(unresolved: <String>{'Gone'});
+      test(
+        'a setup gesture that matches nothing reports the diagnostics too',
+        () async {
+          await File(scenarioPath).writeAsString(
+            _scenario.replaceFirst(
+              '  - wait_for_text: Monitors\n',
+              '  - wait_for_text: Monitors\n'
+                  '  - tap: {target: {text: Gone}}\n',
+            ),
+          );
+          final _FakeDriver driver = _FakeDriver(unresolved: <String>{'Gone'});
 
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+          );
 
-        expect(code, 1);
-        expect(out, contains('route "/monitors"'));
-        expect(out, contains('last exceptions: none'));
-      });
+          expect(code, 1);
+          expect(out, contains('route "/monitors"'));
+          expect(out, contains('last exceptions: none'));
+        },
+      );
     });
 
     group('target resolution', () {
@@ -1379,8 +1456,10 @@ repeat: 1
           findMisses: <String, int>{'List': 1},
         );
 
-        final (int code, _) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+        final (int code, _) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+        );
 
         expect(code, 0);
         final List<_Call> finds = driver
@@ -1391,26 +1470,29 @@ repeat: 1
         expect(driver.callsTo('cdp:Input.dispatchMouseEvent'), hasLength(1));
       });
 
-      test('a target that never shows up gives up after a bounded wait',
-          () async {
-        final _FakeDriver driver = _FakeDriver(unresolved: <String>{'List'});
-
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
-
-        expect(code, 1);
-        expect(out, contains('matched nothing'));
-        expect(out, contains('3 s'));
-        final int polls = driver
-            .callsTo('ext.tapir.find')
-            .where((_Call c) => c.params['text'] == 'List')
-            .length;
-        expect(polls, greaterThan(1));
-        expect(polls, lessThanOrEqualTo(30));
-      });
-
       test(
-          'a target an earlier step opens resolves inside the window, just '
+        'a target that never shows up gives up after a bounded wait',
+        () async {
+          final _FakeDriver driver = _FakeDriver(unresolved: <String>{'List'});
+
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+          );
+
+          expect(code, 1);
+          expect(out, contains('matched nothing'));
+          expect(out, contains('3 s'));
+          final int polls = driver
+              .callsTo('ext.tapir.find')
+              .where((_Call c) => c.params['text'] == 'List')
+              .length;
+          expect(polls, greaterThan(1));
+          expect(polls, lessThanOrEqualTo(30));
+        },
+      );
+
+      test('a target an earlier step opens resolves inside the window, just '
           'before its step, and records resolveMs', () async {
         // locale-switch-390: the first tap opens the overlay `English` lives
         // in, so `English` cannot exist before perf_begin.
@@ -1426,14 +1508,15 @@ repeat: 1
 ''');
         final _FakeDriver driver = _FakeDriver();
 
-        final (int code, _) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+        final (int code, _) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+        );
 
         expect(code, 0);
         int findOf(String text) => driver.calls.indexWhere(
-              (_Call c) =>
-                  c.method == 'ext.tapir.find' && c.params['text'] == text,
-            );
+          (_Call c) => c.method == 'ext.tapir.find' && c.params['text'] == text,
+        );
         final List<String> m = driver.methods;
         final int begin = m.indexOf('ext.tapir.perf_begin');
         final int firstTap = m.indexOf('ext.tapir.tap');
@@ -1462,9 +1545,9 @@ repeat: 1
       });
 
       test(
-          'a wheel no earlier step can move takes its hover point before begin',
-          () async {
-        await File(scenarioPath).writeAsString('''
+        'a wheel no earlier step can move takes its hover point before begin',
+        () async {
+          await File(scenarioPath).writeAsString('''
 name: list-scroll
 viewport: {width: 1440, height: 900}
 platforms: [chrome]
@@ -1473,22 +1556,26 @@ steps:
   - wheel: {target: {text: List}, dy: 120, ticks: 2}
 repeat: 1
 ''');
-        final _FakeDriver driver = _FakeDriver();
+          final _FakeDriver driver = _FakeDriver();
 
-        final (int code, _) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+          final (int code, _) = await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+          );
 
-        expect(code, 0);
-        final List<String> m = driver.methods;
-        final int begin = m.indexOf('ext.tapir.perf_begin');
-        expect(m.indexOf('ext.tapir.find'), lessThan(begin));
-        expect(m.indexOf('ext.tapir.hover'), lessThan(begin));
-        expect(m.lastIndexOf('ext.tapir.hover'), lessThan(begin));
-        final List<_Call> wheels =
-            driver.callsTo('cdp:Input.dispatchMouseEvent');
-        expect(wheels, hasLength(2));
-        expect(wheels.first.params['x'], 11.0);
-      });
+          expect(code, 0);
+          final List<String> m = driver.methods;
+          final int begin = m.indexOf('ext.tapir.perf_begin');
+          expect(m.indexOf('ext.tapir.find'), lessThan(begin));
+          expect(m.indexOf('ext.tapir.hover'), lessThan(begin));
+          expect(m.lastIndexOf('ext.tapir.hover'), lessThan(begin));
+          final List<_Call> wheels = driver.callsTo(
+            'cdp:Input.dispatchMouseEvent',
+          );
+          expect(wheels, hasLength(2));
+          expect(wheels.first.params['x'], 11.0);
+        },
+      );
     });
 
     group('env.renderer', () {
@@ -1512,70 +1599,74 @@ repeat: 1
         );
       });
 
-      test('falls back to the host scrape when the app answers unknown',
-          () async {
-        final Map<String, dynamic> report = _report(painted: 40);
-        (report['env'] as Map<String, dynamic>)['renderer'] = 'unknown';
-        final _FakeDriver driver = _FakeDriver(
-          perfEnds: <Map<String, dynamic>>[report],
-        );
+      test(
+        'falls back to the host scrape when the app answers unknown',
+        () async {
+          final Map<String, dynamic> report = _report(painted: 40);
+          (report['env'] as Map<String, dynamic>)['renderer'] = 'unknown';
+          final _FakeDriver driver = _FakeDriver(
+            perfEnds: <Map<String, dynamic>>[report],
+          );
 
-        await _run(
-          driver,
-          options(<String, dynamic>{'repeat': '1'}),
-          renderer: 'impeller-vulkan',
-        );
+          await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+            renderer: 'impeller-vulkan',
+          );
 
-        expect(
-          (readRun('list-scroll', 'base')['env']
-              as Map<String, dynamic>)['renderer'],
-          'impeller-vulkan',
-        );
-      });
+          expect(
+            (readRun('list-scroll', 'base')['env']
+                as Map<String, dynamic>)['renderer'],
+            'impeller-vulkan',
+          );
+        },
+      );
     });
 
     group('--semantics-pass', () {
-      test('replays recorded points with the handle released in the window',
-          () async {
-        final _FakeDriver driver = _FakeDriver();
+      test(
+        'replays recorded points with the handle released in the window',
+        () async {
+          final _FakeDriver driver = _FakeDriver();
 
-        final (int code, _) = await _run(
-          driver,
-          options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
-        );
+          final (int code, _) = await _run(
+            driver,
+            options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
+          );
 
-        expect(code, 0);
-        final List<String> m = driver.methods;
-        final int release = m.indexWhere(
-          (String s) => s == 'ext.tapir.semantics_hold',
-        );
-        final List<_Call> holds = driver.callsTo('ext.tapir.semantics_hold');
-        expect(
-          holds.map((_Call c) => c.params['action']).toList(),
-          <String>['release', 'acquire'],
-        );
-        // Released after the second perf_begin, and re-acquired only once its
-        // perf_end has closed the session: the acquire's full tree rebuild is
-        // a frame, and perf_end reads semanticsEnabled for its env.
-        expect(m.lastIndexOf('ext.tapir.perf_begin'), lessThan(release));
-        final int end = m.lastIndexOf('ext.tapir.perf_end');
-        final int acquire = m.lastIndexOf('ext.tapir.semantics_hold');
-        expect(release, lessThan(end));
-        expect(end, lessThan(acquire));
-        // Inside the window nothing resolves a target: coordinates only.
-        final List<String> window = m.sublist(release, end);
-        expect(window, isNot(contains('ext.tapir.find')));
-        expect(window, isNot(contains('ext.tapir.hover')));
-        final _Call tap = driver.callsTo('ext.tapir.tap').last;
-        expect(tap.params, <String, dynamic>{'x': '11.0', 'y': '22.0'});
+          expect(code, 0);
+          final List<String> m = driver.methods;
+          final int release = m.indexWhere(
+            (String s) => s == 'ext.tapir.semantics_hold',
+          );
+          final List<_Call> holds = driver.callsTo('ext.tapir.semantics_hold');
+          expect(holds.map((_Call c) => c.params['action']).toList(), <String>[
+            'release',
+            'acquire',
+          ]);
+          // Released after the second perf_begin, and re-acquired only once its
+          // perf_end has closed the session: the acquire's full tree rebuild is
+          // a frame, and perf_end reads semanticsEnabled for its env.
+          expect(m.lastIndexOf('ext.tapir.perf_begin'), lessThan(release));
+          final int end = m.lastIndexOf('ext.tapir.perf_end');
+          final int acquire = m.lastIndexOf('ext.tapir.semantics_hold');
+          expect(release, lessThan(end));
+          expect(end, lessThan(acquire));
+          // Inside the window nothing resolves a target: coordinates only.
+          final List<String> window = m.sublist(release, end);
+          expect(window, isNot(contains('ext.tapir.find')));
+          expect(window, isNot(contains('ext.tapir.hover')));
+          final _Call tap = driver.callsTo('ext.tapir.tap').last;
+          expect(tap.params, <String, dynamic>{'x': '11.0', 'y': '22.0'});
 
-        final Map<String, dynamic> run = readRun('list-scroll', 'base');
-        expect(run['semanticsPass'], 'measured');
-        final Map<String, dynamic> off =
-            run['semanticsOff'] as Map<String, dynamic>;
-        expect((off['summary'] as Map<String, dynamic>)['repeats'], 1);
-        expect(off['repeats'], hasLength(1));
-      });
+          final Map<String, dynamic> run = readRun('list-scroll', 'base');
+          expect(run['semanticsPass'], 'measured');
+          final Map<String, dynamic> off =
+              run['semanticsOff'] as Map<String, dynamic>;
+          expect((off['summary'] as Map<String, dynamic>)['repeats'], 1);
+          expect(off['repeats'], hasLength(1));
+        },
+      );
 
       test('the tap in the recording pass asked for its point', () async {
         final _FakeDriver driver = _FakeDriver();
@@ -1608,28 +1699,30 @@ repeat: 1
         });
       });
 
-      test('a step it cannot replay records unsupported and skips the pass',
-          () async {
-        await File(scenarioPath).writeAsString(
-          _scenario.replaceFirst(
-            '  - wait: 200',
-            '  - fill: {target: {label: Search}, text: api}',
-          ),
-        );
-        final _FakeDriver driver = _FakeDriver();
+      test(
+        'a step it cannot replay records unsupported and skips the pass',
+        () async {
+          await File(scenarioPath).writeAsString(
+            _scenario.replaceFirst(
+              '  - wait: 200',
+              '  - fill: {target: {label: Search}, text: api}',
+            ),
+          );
+          final _FakeDriver driver = _FakeDriver();
 
-        final (int code, _) = await _run(
-          driver,
-          options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
-        );
+          final (int code, _) = await _run(
+            driver,
+            options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
+          );
 
-        expect(code, 0);
-        expect(driver.callsTo('ext.tapir.semantics_hold'), isEmpty);
-        final Map<String, dynamic> run = readRun('list-scroll', 'base');
-        expect(run['semanticsPass'], 'unsupported');
-        expect(run['semanticsPassReason'], contains('fill'));
-        expect(run.containsKey('semanticsOff'), isFalse);
-      });
+          expect(code, 0);
+          expect(driver.callsTo('ext.tapir.semantics_hold'), isEmpty);
+          final Map<String, dynamic> run = readRun('list-scroll', 'base');
+          expect(run['semanticsPass'], 'unsupported');
+          expect(run['semanticsPassReason'], contains('fill'));
+          expect(run.containsKey('semanticsOff'), isFalse);
+        },
+      );
 
       test('a failed acquire after perf_end records unsupported', () async {
         final _FakeDriver driver = _FailingAcquireDriver();
@@ -1676,12 +1769,9 @@ repeat: 1
         expect(run['semanticsPassReason'], contains('perf_end failed'));
       });
 
-      test(
-          'a release the platform outlives on chrome records unsupported, '
+      test('a release the platform outlives on chrome records unsupported, '
           'naming the web engine, and replays nothing', () async {
-        final _FakeDriver driver = _FakeDriver(
-          releaseAnswer: _kHeldByPlatform,
-        );
+        final _FakeDriver driver = _FakeDriver(releaseAnswer: _kHeldByPlatform);
 
         final (int code, _) = await _run(
           driver,
@@ -1717,23 +1807,25 @@ repeat: 1
         expect(run.containsKey('semanticsOff'), isFalse);
       });
 
-      test('a release the platform outlives on android names accessibility',
-          () async {
-        final _FakeDriver driver = _FakeDriver(
-          releaseAnswer: _kHeldByPlatform,
-        );
+      test(
+        'a release the platform outlives on android names accessibility',
+        () async {
+          final _FakeDriver driver = _FakeDriver(
+            releaseAnswer: _kHeldByPlatform,
+          );
 
-        await _run(
-          driver,
-          options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
-          platform: PerfPlatform.android,
-        );
+          await _run(
+            driver,
+            options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
+            platform: PerfPlatform.android,
+          );
 
-        final Map<String, dynamic> run = readRun('list-scroll', 'base');
-        expect(run['semanticsPass'], 'unsupported');
-        expect(run['semanticsPassReason'], contains('on android'));
-        expect(run['semanticsPassReason'], contains('accessibility'));
-      });
+          final Map<String, dynamic> run = readRun('list-scroll', 'base');
+          expect(run['semanticsPass'], 'unsupported');
+          expect(run['semanticsPassReason'], contains('on android'));
+          expect(run['semanticsPassReason'], contains('accessibility'));
+        },
+      );
 
       test('a release another handle outlives names that handle', () async {
         final _FakeDriver driver = _FakeDriver(
@@ -1754,48 +1846,51 @@ repeat: 1
       });
 
       test(
-          'a release that does not say whether the tree went off is unsupported',
-          () async {
-        final _FakeDriver driver = _FakeDriver(
-          releaseAnswer: <String, dynamic>{'action': 'release'},
-        );
+        'a release that does not say whether the tree went off is unsupported',
+        () async {
+          final _FakeDriver driver = _FakeDriver(
+            releaseAnswer: <String, dynamic>{'action': 'release'},
+          );
 
-        await _run(
-          driver,
-          options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
-        );
+          await _run(
+            driver,
+            options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
+          );
 
-        final Map<String, dynamic> run = readRun('list-scroll', 'base');
-        expect(run['semanticsPass'], 'unsupported');
-        expect(run['semanticsPassReason'], contains('older'));
-      });
+          final Map<String, dynamic> run = readRun('list-scroll', 'base');
+          expect(run['semanticsPass'], 'unsupported');
+          expect(run['semanticsPassReason'], contains('older'));
+        },
+      );
 
-      test('a replay that fails re-acquires, closes and records unsupported',
-          () async {
-        final _FakeDriver driver = _FailingReplayDriver();
+      test(
+        'a replay that fails re-acquires, closes and records unsupported',
+        () async {
+          final _FakeDriver driver = _FailingReplayDriver();
 
-        final (int code, _) = await _run(
-          driver,
-          options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
-        );
+          final (int code, _) = await _run(
+            driver,
+            options(<String, dynamic>{'semantics-pass': true, 'repeat': '1'}),
+          );
 
-        expect(code, 0);
-        expect(
-          driver
-              .callsTo('ext.tapir.semantics_hold')
-              .map((_Call c) => c.params['action'])
-              .toList(),
-          <String>['release', 'acquire'],
-        );
-        expect(driver.callsTo('ext.tapir.perf_end'), hasLength(2));
-        expect(
-          driver.methods.lastIndexOf('ext.tapir.perf_end'),
-          lessThan(driver.methods.lastIndexOf('ext.tapir.semantics_hold')),
-        );
-        final Map<String, dynamic> run = readRun('list-scroll', 'base');
-        expect(run['semanticsPass'], 'unsupported');
-        expect(run['semanticsPassReason'], contains('coordinates'));
-      });
+          expect(code, 0);
+          expect(
+            driver
+                .callsTo('ext.tapir.semantics_hold')
+                .map((_Call c) => c.params['action'])
+                .toList(),
+            <String>['release', 'acquire'],
+          );
+          expect(driver.callsTo('ext.tapir.perf_end'), hasLength(2));
+          expect(
+            driver.methods.lastIndexOf('ext.tapir.perf_end'),
+            lessThan(driver.methods.lastIndexOf('ext.tapir.semantics_hold')),
+          );
+          final Map<String, dynamic> run = readRun('list-scroll', 'base');
+          expect(run['semanticsPass'], 'unsupported');
+          expect(run['semanticsPassReason'], contains('coordinates'));
+        },
+      );
     });
 
     group('--variant', () {
@@ -1806,20 +1901,22 @@ repeat: 1
         await File(variantsPath).writeAsString(_kVariantsScenario);
       });
 
-      test('is required when the file declares variants, naming the keys',
-          () async {
-        final _FakeDriver driver = _FakeDriver();
+      test(
+        'is required when the file declares variants, naming the keys',
+        () async {
+          final _FakeDriver driver = _FakeDriver();
 
-        final (int code, String out) = await _run(
-          driver,
-          options(<String, dynamic>{'scenario': variantsPath}),
-        );
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{'scenario': variantsPath}),
+          );
 
-        expect(code, 1);
-        expect(out, contains('--variant'));
-        expect(out, contains('1440, 390'));
-        expect(driver.calls, isEmpty);
-      });
+          expect(code, 1);
+          expect(out, contains('--variant'));
+          expect(out, contains('1440, 390'));
+          expect(driver.calls, isEmpty);
+        },
+      );
 
       test('is rejected when the file declares none', () async {
         final _FakeDriver driver = _FakeDriver();
@@ -1852,42 +1949,44 @@ repeat: 1
         expect(driver.calls, isEmpty);
       });
 
-      test('selects one variant and records it in the file and the envelope',
-          () async {
-        final _FakeDriver driver = _FakeDriver();
+      test(
+        'selects one variant and records it in the file and the envelope',
+        () async {
+          final _FakeDriver driver = _FakeDriver();
 
-        final (int code, String out) = await _run(
-          driver,
-          options(<String, dynamic>{
-            'scenario': variantsPath,
-            'variant': '390',
-            'json': true,
-          }),
-        );
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{
+              'scenario': variantsPath,
+              'variant': '390',
+              'json': true,
+            }),
+          );
 
-        expect(code, 0, reason: out);
-        final Map<String, dynamic> run = readRun('list-scroll-390', 'base');
-        expect(run['variant'], '390');
-        expect(
-          (run['scenario'] as Map<String, dynamic>)['name'],
-          'list-scroll-390',
-        );
-        expect(
-          driver.callsTo('cdp:Emulation.setDeviceMetricsOverride').first.params,
-          containsPair('width', 390),
-        );
-        final Map<String, dynamic> printed =
-            jsonDecode(out.trim()) as Map<String, dynamic>;
-        expect(printed['variant'], '390');
-      });
+          expect(code, 0, reason: out);
+          final Map<String, dynamic> run = readRun('list-scroll-390', 'base');
+          expect(run['variant'], '390');
+          expect(
+            (run['scenario'] as Map<String, dynamic>)['name'],
+            'list-scroll-390',
+          );
+          expect(
+            driver
+                .callsTo('cdp:Emulation.setDeviceMetricsOverride')
+                .first
+                .params,
+            containsPair('width', 390),
+          );
+          final Map<String, dynamic> printed =
+              jsonDecode(out.trim()) as Map<String, dynamic>;
+          expect(printed['variant'], '390');
+        },
+      );
 
       test('takes a numeric key as the text YAML reads it as', () async {
         final (int code, String out) = await _run(
           _FakeDriver(),
-          options(<String, dynamic>{
-            'scenario': variantsPath,
-            'variant': 390,
-          }),
+          options(<String, dynamic>{'scenario': variantsPath, 'variant': 390}),
         );
 
         expect(code, 0, reason: out);
@@ -1958,16 +2057,17 @@ repeat: 1
         await File(scenarioPath).writeAsString(_kLoginScenario);
       });
 
-      test(
-          'a when guard polls until its text shows, then runs the fragment '
+      test('a when guard polls until its text shows, then runs the fragment '
           'before the rest of the setup', () async {
         // The login form draws "Email Address" on the third poll.
         final _FakeDriver driver = _FakeDriver(
           findMisses: <String, int>{'Email Address': 2},
         );
 
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+        );
 
         expect(code, 0, reason: out);
         final List<String> m = driver.methods;
@@ -1985,22 +2085,25 @@ repeat: 1
         expect(firstFill, lessThan(m.indexOf('ext.tapir.navigate')));
       });
 
-      test('a failing secret fill leaves the secret out of the error',
-          () async {
-        final _FakeDriver driver = _FailingSecretFillDriver(failFrom: 1);
-
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
-
-        expect(code, 1);
-        expect(out, contains('fragments/login.yaml steps[1] (fill)'));
-        expect(out, contains('***'));
-        expect(out, isNot(contains(_kSecret)));
-        expect(out, isNot(contains(_kSecretJsonInner)));
-      });
-
       test(
-          'a secret fill that fails in the semantics pass leaves the secret '
+        'a failing secret fill leaves the secret out of the error',
+        () async {
+          final _FakeDriver driver = _FailingSecretFillDriver(failFrom: 1);
+
+          final (int code, String out) = await _run(
+            driver,
+            options(<String, dynamic>{'repeat': '1'}),
+          );
+
+          expect(code, 1);
+          expect(out, contains('fragments/login.yaml steps[1] (fill)'));
+          expect(out, contains('***'));
+          expect(out, isNot(contains(_kSecret)));
+          expect(out, isNot(contains(_kSecretJsonInner)));
+        },
+      );
+
+      test('a secret fill that fails in the semantics pass leaves the secret '
           'out of the envelope and the run file', () async {
         // The pass records the failure as semanticsPassReason, which both the
         // run file and the --json envelope carry.
@@ -2016,8 +2119,8 @@ repeat: 1
         );
 
         expect(code, 0, reason: out);
-        final String file =
-            File('${temp.path}/out/list-scroll-base.json').readAsStringSync();
+        final String file = File('${temp.path}/out/list-scroll-base.json')
+            .readAsStringSync();
         for (final String sink in <String>[out, file]) {
           expect(sink, isNot(contains(_kSecret)));
           expect(sink, isNot(contains(_kSecretJsonInner)));
@@ -2042,8 +2145,7 @@ repeat: 1
         );
       });
 
-      test(
-          'a setup failure masks the secret an app exception quotes before '
+      test('a setup failure masks the secret an app exception quotes before '
           'its diagnostics cut the message', () async {
         // The secret straddles the 200-character cut, so a mask applied
         // after the cut would leave its prefix behind.
@@ -2058,19 +2160,25 @@ repeat: 1
           ],
         );
 
-        final (int code, String out) =
-            await _run(driver, options(<String, dynamic>{'repeat': '1'}));
+        final (int code, String out) = await _run(
+          driver,
+          options(<String, dynamic>{'repeat': '1'}),
+        );
 
         expect(code, 1);
         expect(out, contains('$head***'));
         expect(out, isNot(contains('${head}hun')));
       });
 
-      test(
-          'a numeric secret leaves the --json envelope parseable with its '
+      test('a numeric secret leaves the --json envelope parseable with its '
           'numbers intact', () async {
         await File(scenarioPath).writeAsString(
-          _kLoginScenario.replaceFirst(r"'hun" r'"ter$$2' "'", "'1234'"),
+          _kLoginScenario.replaceFirst(
+            r"'hun"
+                r'"ter$$2'
+                "'",
+            "'1234'",
+          ),
         );
         final _FakeDriver driver = _FakeDriver(
           perfEnds: <Map<String, dynamic>>[_report(painted: 1234)],
@@ -2084,8 +2192,9 @@ repeat: 1
         expect(code, 0, reason: out);
         final Map<String, dynamic> printed =
             jsonDecode(out.trim()) as Map<String, dynamic>;
-        final Map<String, dynamic> frames = (printed['summary']
-            as Map<String, dynamic>)['frames'] as Map<String, dynamic>;
+        final Map<String, dynamic> frames =
+            (printed['summary'] as Map<String, dynamic>)['frames']
+                as Map<String, dynamic>;
         expect(frames['painted'], 1234);
         expect(
           driver.callsTo('ext.tapir.fill').map((_Call c) => c.params['text']),

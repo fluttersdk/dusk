@@ -20,10 +20,10 @@ List<dynamic> perfList(Object? value) =>
 /// A flag as a bool: CLI flags arrive as bools, a hand-built input or an MCP
 /// argument may carry `'true'` or `'1'`. Anything else is false.
 bool perfReadBool(Object? raw) => switch (raw) {
-      final bool value => value,
-      final String value => value == 'true' || value == '1',
-      _ => false,
-    };
+  final bool value => value,
+  final String value => value == 'true' || value == '1',
+  _ => false,
+};
 
 /// `jsonEncode(value)` without its quotes: how [value] reads inside a JSON
 /// string, where a `"` has become `\"`.

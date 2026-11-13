@@ -69,7 +69,8 @@ final class ActionabilityReport {
       if (why != null) 'why': why,
       if (overlapCandidates.isNotEmpty) 'overlapCandidates': overlapCandidates,
       if (receivesEvents == ReceivesEvents.indeterminate)
-        'hint': 'The gate could not confirm the target receives the event, '
+        'hint':
+            'The gate could not confirm the target receives the event, '
             'so this action may have landed on something else. Read the '
             '`effect` block before trusting it.',
     };
@@ -510,8 +511,8 @@ bool _isDescendantOf(HitTestTarget target, RenderObject candidate) {
 /// the target are excluded: a parent that contains the target is not
 /// covering it.
 List<String> occlusionCandidatesFor(RenderObject target, Rect rect) {
-  final RenderObject? root =
-      WidgetsBinding.instance.rootElement?.findRenderObject();
+  final RenderObject? root = WidgetsBinding.instance.rootElement
+      ?.findRenderObject();
   if (root == null) return const <String>[];
 
   final List<String> candidates = <String>[];

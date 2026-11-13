@@ -23,7 +23,8 @@ class TapirPerfBeginCommand extends DowelCommand {
     addJsonFlag(parser);
     parser.addOption(
       'mode',
-      help: 'attribution switches build profiling on for blocks and counters; '
+      help:
+          'attribution switches build profiling on for blocks and counters; '
           'timing touches no profiling flag and reports frame timings only, '
           'the pass whose milliseconds are worth comparing.',
       allowed: <String>['attribution', 'timing'],
@@ -31,7 +32,8 @@ class TapirPerfBeginCommand extends DowelCommand {
     );
     parser.addFlag(
       'phases',
-      help: 'Also profile layout and paint, not just builds. Phase detail '
+      help:
+          'Also profile layout and paint, not just builds. Phase detail '
           'multiplies the span volume, so it is off by default.',
       defaultsTo: false,
     );
@@ -44,10 +46,7 @@ class TapirPerfBeginCommand extends DowelCommand {
 
     final response = await ctx.callExtension<Map<String, dynamic>>(
       'ext.tapir.perf_begin',
-      <String, dynamic>{
-        'mode': mode,
-        'phases': phases.toString(),
-      },
+      <String, dynamic>{'mode': mode, 'phases': phases.toString()},
     );
     reportFrameWarning(ctx, response);
 
@@ -56,8 +55,8 @@ class TapirPerfBeginCommand extends DowelCommand {
       final String scope = mode == 'timing'
           ? 'timing: frame timings only'
           : phases
-              ? 'attribution: builds + layout + paint'
-              : 'attribution: builds';
+          ? 'attribution: builds + layout + paint'
+          : 'attribution: builds';
       ctx.output.success(
         'Performance session $token open ($scope). Drive the interaction, '
         'then run tapir:perf_end.',

@@ -78,25 +78,31 @@ void main() {
       ]);
 
       expect(
-          diffSnapshots(previous, current), equals('(0 of 2 lines changed)'));
-    });
-
-    test('a changed value alongside a marker change reports the whole line',
-        () {
-      final String previous = _snap(<String>[
-        '- button "Counter: 0" [ref=e5] [offscreen]',
-      ]);
-      final String current = _snap(<String>['- button "Counter: 1" [ref=e5]']);
-
-      expect(
         diffSnapshots(previous, current),
-        equals(
-          '- - button "Counter: 0" [ref=e5] [offscreen]\n'
-          '+ - button "Counter: 1" [ref=e5]\n'
-          '(2 of 1 lines changed)',
-        ),
+        equals('(0 of 2 lines changed)'),
       );
     });
+
+    test(
+      'a changed value alongside a marker change reports the whole line',
+      () {
+        final String previous = _snap(<String>[
+          '- button "Counter: 0" [ref=e5] [offscreen]',
+        ]);
+        final String current = _snap(<String>[
+          '- button "Counter: 1" [ref=e5]',
+        ]);
+
+        expect(
+          diffSnapshots(previous, current),
+          equals(
+            '- - button "Counter: 0" [ref=e5] [offscreen]\n'
+            '+ - button "Counter: 1" [ref=e5]\n'
+            '(2 of 1 lines changed)',
+          ),
+        );
+      },
+    );
 
     test('lines without a ref are compared by their text', () {
       final String previous = _snap(<String>[
@@ -119,10 +125,7 @@ void main() {
     });
 
     test('repeated identical lines are matched one for one', () {
-      final String previous = _snap(<String>[
-        '- text "Row"',
-        '- text "Row"',
-      ]);
+      final String previous = _snap(<String>['- text "Row"', '- text "Row"']);
       final String current = _snap(<String>[
         '- text "Row"',
         '- text "Row"',

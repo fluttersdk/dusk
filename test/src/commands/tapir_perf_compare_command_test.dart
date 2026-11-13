@@ -25,10 +25,7 @@ Map<String, Object?> _run({
   String name = 'list',
 }) {
   return <String, Object?>{
-    'scenario': <String, Object?>{
-      'name': name,
-      if (thresholds != null) 'thresholds': thresholds,
-    },
+    'scenario': <String, Object?>{'name': name, 'thresholds': ?thresholds},
     'label': 'x',
     'env': env,
     'summary': <String, Object?>{
@@ -52,9 +49,9 @@ Map<String, Object?> _run({
 }
 
 Map<String, Object?> _row(Map<String, Object?> result, String metric) =>
-    (result['rows']! as List<Object?>)
-        .cast<Map<String, Object?>>()
-        .firstWhere((Map<String, Object?> r) => r['metric'] == metric);
+    (result['rows']! as List<Object?>).cast<Map<String, Object?>>().firstWhere(
+      (Map<String, Object?> r) => r['metric'] == metric,
+    );
 
 void main() {
   group('comparePerfRuns()', () {
@@ -77,10 +74,12 @@ void main() {
     test('a per-frame count 30% up is an error-level regression', () {
       final Map<String, Object?> result = comparePerfRuns(
         _run(),
-        _run(perFrame: <String, double>{
-          'blocks.MonitorRow': 2.6,
-          'wind.wDivBuilds': 30.0,
-        }),
+        _run(
+          perFrame: <String, double>{
+            'blocks.MonitorRow': 2.6,
+            'wind.wDivBuilds': 30.0,
+          },
+        ),
       );
 
       expect(result['verdict'], 'regressed');
@@ -94,17 +93,21 @@ void main() {
     test('12% up is a warning, 15% down an improvement', () {
       final Map<String, Object?> warn = comparePerfRuns(
         _run(),
-        _run(perFrame: <String, double>{
-          'blocks.MonitorRow': 2.24,
-          'wind.wDivBuilds': 30.0,
-        }),
+        _run(
+          perFrame: <String, double>{
+            'blocks.MonitorRow': 2.24,
+            'wind.wDivBuilds': 30.0,
+          },
+        ),
       );
       final Map<String, Object?> better = comparePerfRuns(
         _run(),
-        _run(perFrame: <String, double>{
-          'blocks.MonitorRow': 1.7,
-          'wind.wDivBuilds': 30.0,
-        }),
+        _run(
+          perFrame: <String, double>{
+            'blocks.MonitorRow': 1.7,
+            'wind.wDivBuilds': 30.0,
+          },
+        ),
       );
 
       expect(_row(warn, 'blocks.MonitorRow')['severity'], 'warn');
@@ -115,13 +118,17 @@ void main() {
 
     test('a change inside the repeats\' own spread is unchanged', () {
       final Map<String, Object?> result = comparePerfRuns(
-        _run(spread: <String, Object?>{
-          'blocks.MonitorRow': <String, Object?>{'min': 1.6, 'max': 2.5},
-        }),
-        _run(perFrame: <String, double>{
-          'blocks.MonitorRow': 2.4,
-          'wind.wDivBuilds': 30.0,
-        }),
+        _run(
+          spread: <String, Object?>{
+            'blocks.MonitorRow': <String, Object?>{'min': 1.6, 'max': 2.5},
+          },
+        ),
+        _run(
+          perFrame: <String, double>{
+            'blocks.MonitorRow': 2.4,
+            'wind.wDivBuilds': 30.0,
+          },
+        ),
       );
 
       expect(result['verdict'], 'unchanged');
@@ -130,11 +137,13 @@ void main() {
     test('a metric absent from A is a new, warn-level regression', () {
       final Map<String, Object?> result = comparePerfRuns(
         _run(),
-        _run(perFrame: <String, double>{
-          'blocks.MonitorRow': 2.0,
-          'wind.wDivBuilds': 30.0,
-          'blocks.Spinner': 1.0,
-        }),
+        _run(
+          perFrame: <String, double>{
+            'blocks.MonitorRow': 2.0,
+            'wind.wDivBuilds': 30.0,
+            'blocks.Spinner': 1.0,
+          },
+        ),
       );
 
       final Map<String, Object?> row = _row(result, 'blocks.Spinner');
@@ -151,10 +160,7 @@ void main() {
         _run(attributionMs: <String, double>{'buildMs.p50': 12.0}),
       );
       expect(noTiming['verdict'], 'unchanged');
-      expect(
-        (noTiming['timing']! as Map<String, Object?>)['gated'],
-        isFalse,
-      );
+      expect((noTiming['timing']! as Map<String, Object?>)['gated'], isFalse);
 
       final Map<String, Object?> timed = comparePerfRuns(
         _run(timingMs: <String, double>{'buildMs.p50': 4.0}),
@@ -193,72 +199,63 @@ void main() {
       );
 
       expect(_row(result, 'blocks.MonitorRow')['severity'], 'error');
-      expect(
-        result['thresholds'],
-        <String, Object?>{'warn': 2, 'error': 4},
-      );
+      expect(result['thresholds'], <String, Object?>{'warn': 2, 'error': 4});
     });
 
-    test(
-      'wind.cacheHits rising and wind.cacheMisses falling reads improved '
-      'or unchanged, never regressed',
-      () {
-        final Map<String, Object?> result = comparePerfRuns(
-          _run(
-            perFrame: <String, double>{
-              'blocks.MonitorRow': 2.0,
-              'wind.wDivBuilds': 30.0,
-              'wind.cacheHits': 20.0,
-              'wind.cacheMisses': 10.0,
-            },
-          ),
-          _run(
-            perFrame: <String, double>{
-              'blocks.MonitorRow': 2.0,
-              'wind.wDivBuilds': 30.0,
-              'wind.cacheHits': 29.0,
-              'wind.cacheMisses': 1.0,
-            },
-          ),
-        );
+    test('wind.cacheHits rising and wind.cacheMisses falling reads improved '
+        'or unchanged, never regressed', () {
+      final Map<String, Object?> result = comparePerfRuns(
+        _run(
+          perFrame: <String, double>{
+            'blocks.MonitorRow': 2.0,
+            'wind.wDivBuilds': 30.0,
+            'wind.cacheHits': 20.0,
+            'wind.cacheMisses': 10.0,
+          },
+        ),
+        _run(
+          perFrame: <String, double>{
+            'blocks.MonitorRow': 2.0,
+            'wind.wDivBuilds': 30.0,
+            'wind.cacheHits': 29.0,
+            'wind.cacheMisses': 1.0,
+          },
+        ),
+      );
 
-        expect(result['verdict'], isNot('regressed'));
-        final Map<String, Object?> hits = _row(result, 'wind.cacheHits');
-        expect(hits['verdict'], isNot('regressed'));
-        final Map<String, Object?> misses = _row(result, 'wind.cacheMisses');
-        expect(misses['verdict'], isNot('regressed'));
-      },
-    );
+      expect(result['verdict'], isNot('regressed'));
+      final Map<String, Object?> hits = _row(result, 'wind.cacheHits');
+      expect(hits['verdict'], isNot('regressed'));
+      final Map<String, Object?> misses = _row(result, 'wind.cacheMisses');
+      expect(misses['verdict'], isNot('regressed'));
+    });
 
-    test(
-      'an info row appears when scenario name, env.target or env.buildMode '
-      'differ, and it never gates the verdict',
-      () {
-        final Map<String, Object?> result = comparePerfRuns(
-          _run(
-            name: 'list',
-            env: const <String, Object?>{
-              'emulator': false,
-              'target': 'ios',
-              'buildMode': 'profile',
-            },
-          ),
-          _run(
-            name: 'detail',
-            env: const <String, Object?>{
-              'emulator': false,
-              'target': 'android',
-              'buildMode': 'debug',
-            },
-          ),
-        );
+    test('an info row appears when scenario name, env.target or env.buildMode '
+        'differ, and it never gates the verdict', () {
+      final Map<String, Object?> result = comparePerfRuns(
+        _run(
+          name: 'list',
+          env: const <String, Object?>{
+            'emulator': false,
+            'target': 'ios',
+            'buildMode': 'profile',
+          },
+        ),
+        _run(
+          name: 'detail',
+          env: const <String, Object?>{
+            'emulator': false,
+            'target': 'android',
+            'buildMode': 'debug',
+          },
+        ),
+      );
 
-        expect(_row(result, 'scenario.name')['severity'], 'info');
-        expect(_row(result, 'env.target')['severity'], 'info');
-        expect(_row(result, 'env.buildMode')['severity'], 'info');
-        expect(result['verdict'], isNot('regressed'));
-      },
-    );
+      expect(_row(result, 'scenario.name')['severity'], 'info');
+      expect(_row(result, 'env.target')['severity'], 'info');
+      expect(_row(result, 'env.buildMode')['severity'], 'info');
+      expect(result['verdict'], isNot('regressed'));
+    });
 
     test('a run with no measured repeat cannot be compared', () {
       expect(
@@ -302,8 +299,10 @@ void main() {
       final String a = await write('a', _run());
       final String b = await write('b', _run(painted: 90));
 
-      final (int code, String out) =
-          await compare(<String, dynamic>{'a': a, 'b': b});
+      final (int code, String out) = await compare(<String, dynamic>{
+        'a': a,
+        'b': b,
+      });
 
       expect(code, 0);
       expect(out, contains('unchanged'));
@@ -311,33 +310,41 @@ void main() {
       expect(out, contains('90'));
     });
 
-    test('an error-level regression exits 1 and --json prints the result',
-        () async {
-      final String a = await write('a', _run());
-      final String b = await write(
-        'b',
-        _run(perFrame: <String, double>{
-          'blocks.MonitorRow': 3.0,
-          'wind.wDivBuilds': 30.0,
-        }),
-      );
+    test(
+      'an error-level regression exits 1 and --json prints the result',
+      () async {
+        final String a = await write('a', _run());
+        final String b = await write(
+          'b',
+          _run(
+            perFrame: <String, double>{
+              'blocks.MonitorRow': 3.0,
+              'wind.wDivBuilds': 30.0,
+            },
+          ),
+        );
 
-      final (int code, String out) =
-          await compare(<String, dynamic>{'a': a, 'b': b, 'json': true});
+        final (int code, String out) = await compare(<String, dynamic>{
+          'a': a,
+          'b': b,
+          'json': true,
+        });
 
-      expect(code, 1);
-      final Map<String, dynamic> result =
-          jsonDecode(out.trim()) as Map<String, dynamic>;
-      expect(result['verdict'], 'regressed');
-    });
+        expect(code, 1);
+        final Map<String, dynamic> result =
+            jsonDecode(out.trim()) as Map<String, dynamic>;
+        expect(result['verdict'], 'regressed');
+      },
+    );
 
     test('a missing file or argument exits 1', () async {
       final String a = await write('a', _run());
 
       final (int missing, _) = await compare(<String, dynamic>{'a': a});
-      final (int absent, String out) = await compare(
-        <String, dynamic>{'a': a, 'b': '${temp.path}/nope.json'},
-      );
+      final (int absent, String out) = await compare(<String, dynamic>{
+        'a': a,
+        'b': '${temp.path}/nope.json',
+      });
 
       expect(missing, 1);
       expect(absent, 1);
@@ -348,8 +355,10 @@ void main() {
       final String a = await write('a', _run(repeats: 0));
       final String b = await write('b', _run());
 
-      final (int code, String out) =
-          await compare(<String, dynamic>{'a': a, 'b': b});
+      final (int code, String out) = await compare(<String, dynamic>{
+        'a': a,
+        'b': b,
+      });
 
       expect(code, 1);
       expect(out, contains('refused'));

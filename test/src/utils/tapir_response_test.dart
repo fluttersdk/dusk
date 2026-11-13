@@ -76,8 +76,9 @@ void main() {
 
       await _setLifecycle(tester, AppLifecycleState.hidden);
 
-      final developer.ServiceExtensionResponse response =
-          tapirResult(<String, dynamic>{'ok': true});
+      final developer.ServiceExtensionResponse response = tapirResult(
+        <String, dynamic>{'ok': true},
+      );
 
       final Map<String, dynamic> decoded =
           jsonDecode(response.result!) as Map<String, dynamic>;
@@ -144,10 +145,13 @@ void main() {
         return tapirResult(<String, dynamic>{'ref': 'e2'});
       }
 
-      final developer.ServiceExtensionResponse? response =
-          await tester.runAsync(
-        () => wrapTapirHandler(relocating)('ext.tapir.tap', <String, String>{}),
-      );
+      final developer.ServiceExtensionResponse? response = await tester
+          .runAsync(
+            () => wrapTapirHandler(relocating)(
+              'ext.tapir.tap',
+              <String, String>{},
+            ),
+          );
 
       final Map<String, dynamic> decoded =
           jsonDecode(response!.result!) as Map<String, dynamic>;

@@ -24,13 +24,15 @@ void main() {
   });
 
   group('framePerfReader default', () {
-    test('returns an empty frame list and a zero liveness counter, not null',
-        () {
-      final Map<String, Object?> result = framePerfReader();
+    test(
+      'returns an empty frame list and a zero liveness counter, not null',
+      () {
+        final Map<String, Object?> result = framePerfReader();
 
-      expect(result['frames'], <Map<String, Object?>>[]);
-      expect(result['livenessCounter'], 0);
-    });
+        expect(result['frames'], <Map<String, Object?>>[]);
+        expect(result['livenessCounter'], 0);
+      },
+    );
   });
 
   group('perfExtrasReader default', () {
@@ -67,10 +69,12 @@ void main() {
   });
 
   group('rendererReader default', () {
-    test('answers unknown off the web, where the host log scrape takes over',
-        () {
-      expect(rendererReader(), 'unknown');
-    });
+    test(
+      'answers unknown off the web, where the host log scrape takes over',
+      () {
+        expect(rendererReader(), 'unknown');
+      },
+    );
 
     test('a host may reassign it', () {
       rendererReader = () => 'skwasm';
@@ -87,16 +91,14 @@ void main() {
   });
 
   group('pointer isolation', () {
-    test(
-        'assigning framePerfReader disturbs neither the extras reader nor the hooks',
-        () {
+    test('assigning framePerfReader disturbs neither the extras reader nor the hooks', () {
       bool resetCalled = false;
       framePerfReader = () => <String, Object?>{
-            'frames': <Map<String, Object?>>[
-              <String, Object?>{'frameNumber': 1},
-            ],
-            'livenessCounter': 7,
-          };
+        'frames': <Map<String, Object?>>[
+          <String, Object?>{'frameNumber': 1},
+        ],
+        'livenessCounter': 7,
+      };
 
       final Map<String, Object?> extras = perfExtrasReader();
       expect(extras['controllerNotifies'], <String, int>{});

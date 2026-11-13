@@ -20,9 +20,11 @@ class TapirBlurCommand extends DowelCommand {
   @override
   void configure(ArgParser parser) {
     addJsonFlag(parser);
-    parser.addFlag('includeSnapshot',
-        help: 'Embed the post-blur snapshot in the response.',
-        defaultsTo: false);
+    parser.addFlag(
+      'includeSnapshot',
+      help: 'Embed the post-blur snapshot in the response.',
+      defaultsTo: false,
+    );
   }
 
   @override

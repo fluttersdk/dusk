@@ -17,8 +17,9 @@ String _seedProject(
   final mainDartPath = '${tempDir.path}/lib/main.dart';
   Directory('${tempDir.path}/lib').createSync(recursive: true);
   File(mainDartPath).writeAsStringSync(mainDartContents);
-  final depsBlock =
-      pubspecDeps.entries.map((e) => '  ${e.key}: ${e.value}').join('\n');
+  final depsBlock = pubspecDeps.entries
+      .map((e) => '  ${e.key}: ${e.value}')
+      .join('\n');
   final pubspec = <String>[
     'name: stub_app',
     'environment:',
@@ -98,7 +99,7 @@ void main() {
         final mainDartPath = _seedProject(
           tempDir,
           mainDartContents: '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   runApp(const MyApp());
@@ -112,8 +113,8 @@ class MyApp extends StatelessWidget {
 ''',
         );
         TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-        TapirInstallCommand.pubspecPathResolver =
-            () => '${tempDir.path}/pubspec.yaml';
+        TapirInstallCommand.pubspecPathResolver = () =>
+            '${tempDir.path}/pubspec.yaml';
 
         final exit = await TapirInstallCommand().handle(_ctx());
         expect(exit, equals(0));
@@ -125,10 +126,7 @@ class MyApp extends StatelessWidget {
           ),
           isTrue,
         );
-        expect(
-          result.contains("import 'package:tapir/tapir.dart';"),
-          isTrue,
-        );
+        expect(result.contains("import 'package:tapir/tapir.dart';"), isTrue);
         expect(
           result.contains('WidgetsFlutterBinding.ensureInitialized();'),
           isTrue,
@@ -136,14 +134,12 @@ class MyApp extends StatelessWidget {
         expect(
           result.contains('if (!kReleaseMode) {'),
           isTrue,
-          reason: 'profile builds must carry tapir so perf_run can measure '
+          reason:
+              'profile builds must carry tapir so perf_run can measure '
               'one; release still tree-shakes the branch',
         );
         expect(result.contains('kDebugMode'), isFalse);
-        expect(
-          result.contains('TapirPlugin.install();'),
-          isTrue,
-        );
+        expect(result.contains('TapirPlugin.install();'), isTrue);
         // No Magic deps in this vanilla case, so no MagicTapirIntegration
         // wire lands.
         expect(result.contains('MagicTapirIntegration.install()'), isFalse);
@@ -155,15 +151,13 @@ class MyApp extends StatelessWidget {
     // Magic-stack app: BEFORE-Magic.init + AFTER-Magic.init wires
     // ------------------------------------------------------------------
 
-    test(
-      'magic-stack app: injects TapirPlugin.install() BEFORE Magic.init AND '
-      'MagicTapirIntegration.install() AFTER Magic.init',
-      () async {
-        final mainDartPath = _seedProject(
-          tempDir,
-          pubspecDeps: const {'magic': 'any', 'magic_devtools': 'any'},
-          mainDartContents: '''
-import 'package:flutter/material.dart';
+    test('magic-stack app: injects TapirPlugin.install() BEFORE Magic.init AND '
+        'MagicTapirIntegration.install() AFTER Magic.init', () async {
+      final mainDartPath = _seedProject(
+        tempDir,
+        pubspecDeps: const {'magic': 'any', 'magic_devtools': 'any'},
+        mainDartContents: '''
+import 'package:material_ui/material_ui.dart';
 import 'package:magic/magic.dart';
 
 Future<void> main() async {
@@ -172,42 +166,42 @@ Future<void> main() async {
   runApp(const MagicApplication());
 }
 ''',
-        );
-        TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-        TapirInstallCommand.pubspecPathResolver =
-            () => '${tempDir.path}/pubspec.yaml';
+      );
+      TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+      TapirInstallCommand.pubspecPathResolver = () =>
+          '${tempDir.path}/pubspec.yaml';
 
-        final exit = await TapirInstallCommand().handle(_ctx());
-        expect(exit, equals(0));
+      final exit = await TapirInstallCommand().handle(_ctx());
+      expect(exit, equals(0));
 
-        final result = File(mainDartPath).readAsStringSync();
-        final tapirInstallIdx = result.indexOf('TapirPlugin.install();');
-        final magicInitIdx = result.indexOf('await Magic.init(');
-        final magicIntegrationIdx =
-            result.indexOf('MagicTapirIntegration.install();');
+      final result = File(mainDartPath).readAsStringSync();
+      final tapirInstallIdx = result.indexOf('TapirPlugin.install();');
+      final magicInitIdx = result.indexOf('await Magic.init(');
+      final magicIntegrationIdx = result.indexOf(
+        'MagicTapirIntegration.install();',
+      );
 
-        expect(tapirInstallIdx, greaterThan(-1));
-        expect(magicInitIdx, greaterThan(-1));
-        expect(magicIntegrationIdx, greaterThan(-1));
-        expect(
-          tapirInstallIdx < magicInitIdx,
-          isTrue,
-          reason: 'TapirPlugin.install() must land BEFORE Magic.init()',
-        );
-        expect(
-          magicInitIdx < magicIntegrationIdx,
-          isTrue,
-          reason:
-              'MagicTapirIntegration.install() must land AFTER Magic.init()',
-        );
-        expect(
-          result.contains("import 'package:magic_devtools/tapir.dart';"),
-          isTrue,
-          reason: 'must reference the magic_devtools tapir barrel, not the '
-              'removed package:magic sub-barrel',
-        );
-      },
-    );
+      expect(tapirInstallIdx, greaterThan(-1));
+      expect(magicInitIdx, greaterThan(-1));
+      expect(magicIntegrationIdx, greaterThan(-1));
+      expect(
+        tapirInstallIdx < magicInitIdx,
+        isTrue,
+        reason: 'TapirPlugin.install() must land BEFORE Magic.init()',
+      );
+      expect(
+        magicInitIdx < magicIntegrationIdx,
+        isTrue,
+        reason: 'MagicTapirIntegration.install() must land AFTER Magic.init()',
+      );
+      expect(
+        result.contains("import 'package:magic_devtools/tapir.dart';"),
+        isTrue,
+        reason:
+            'must reference the magic_devtools tapir barrel, not the '
+            'removed package:magic sub-barrel',
+      );
+    });
 
     // ------------------------------------------------------------------
     // WidgetsFlutterBinding.ensureInitialized() — no double inject
@@ -220,7 +214,7 @@ Future<void> main() async {
         final mainDartPath = _seedProject(
           tempDir,
           mainDartContents: '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -235,8 +229,8 @@ class MyApp extends StatelessWidget {
 ''',
         );
         TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-        TapirInstallCommand.pubspecPathResolver =
-            () => '${tempDir.path}/pubspec.yaml';
+        TapirInstallCommand.pubspecPathResolver = () =>
+            '${tempDir.path}/pubspec.yaml';
 
         await TapirInstallCommand().handle(_ctx());
         final result = File(mainDartPath).readAsStringSync();
@@ -252,12 +246,13 @@ class MyApp extends StatelessWidget {
     // Idempotency: re-running the command produces no extra inject
     // ------------------------------------------------------------------
 
-    test('re-running the command is idempotent (no duplicate inject)',
-        () async {
-      final mainDartPath = _seedProject(
-        tempDir,
-        mainDartContents: '''
-import 'package:flutter/material.dart';
+    test(
+      're-running the command is idempotent (no duplicate inject)',
+      () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          mainDartContents: '''
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   runApp(const MyApp());
@@ -269,37 +264,37 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) => const MaterialApp(home: SizedBox());
 }
 ''',
-      );
-      TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-      TapirInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
+        );
+        TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+        TapirInstallCommand.pubspecPathResolver = () =>
+            '${tempDir.path}/pubspec.yaml';
 
-      await TapirInstallCommand().handle(_ctx());
-      final afterFirst = File(mainDartPath).readAsStringSync();
-      await TapirInstallCommand().handle(_ctx());
-      final afterSecond = File(mainDartPath).readAsStringSync();
+        await TapirInstallCommand().handle(_ctx());
+        final afterFirst = File(mainDartPath).readAsStringSync();
+        await TapirInstallCommand().handle(_ctx());
+        final afterSecond = File(mainDartPath).readAsStringSync();
 
-      expect(afterSecond, equals(afterFirst));
-      expect(
-        'TapirPlugin.install();'.allMatches(afterSecond).length,
-        equals(1),
-      );
-      expect(
-        "import 'package:tapir/tapir.dart';".allMatches(afterSecond).length,
-        equals(1),
-      );
-    });
+        expect(afterSecond, equals(afterFirst));
+        expect(
+          'TapirPlugin.install();'.allMatches(afterSecond).length,
+          equals(1),
+        );
+        expect(
+          "import 'package:tapir/tapir.dart';".allMatches(afterSecond).length,
+          equals(1),
+        );
+      },
+    );
 
     // ------------------------------------------------------------------
     // Apps installed before the guard moved to !kReleaseMode
     // ------------------------------------------------------------------
 
-    test(
-        'an app already wired under kDebugMode is left alone '
+    test('an app already wired under kDebugMode is left alone '
         '(no second block, no unused kReleaseMode import)', () async {
       const legacy = '''
 import 'package:flutter/foundation.dart' show kDebugMode;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:tapir/tapir.dart';
 
 void main() {
@@ -312,8 +307,8 @@ void main() {
 ''';
       final mainDartPath = _seedProject(tempDir, mainDartContents: legacy);
       TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-      TapirInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
+      TapirInstallCommand.pubspecPathResolver = () =>
+          '${tempDir.path}/pubspec.yaml';
 
       final exit = await TapirInstallCommand().handle(_ctx());
 
@@ -321,15 +316,14 @@ void main() {
       expect(File(mainDartPath).readAsStringSync(), equals(legacy));
     });
 
-    test(
-        'a kDebugMode magic app gaining magic_devtools gets only the '
+    test('a kDebugMode magic app gaining magic_devtools gets only the '
         'integration block, under !kReleaseMode', () async {
       final mainDartPath = _seedProject(
         tempDir,
         pubspecDeps: const {'magic': 'any', 'magic_devtools': 'any'},
         mainDartContents: '''
 import 'package:flutter/foundation.dart' show kDebugMode;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:tapir/tapir.dart';
 import 'package:magic/magic.dart';
 
@@ -344,8 +338,8 @@ Future<void> main() async {
 ''',
       );
       TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-      TapirInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
+      TapirInstallCommand.pubspecPathResolver = () =>
+          '${tempDir.path}/pubspec.yaml';
 
       await TapirInstallCommand().handle(_ctx());
       final result = File(mainDartPath).readAsStringSync();
@@ -373,10 +367,10 @@ Future<void> main() async {
 
     test('returns 1 with an error when lib/main.dart is missing', () async {
       // No seed — the temp dir has neither lib/main.dart nor pubspec.yaml.
-      TapirInstallCommand.mainDartPathResolver =
-          () => '${tempDir.path}/lib/main.dart';
-      TapirInstallCommand.pubspecPathResolver =
-          () => '${tempDir.path}/pubspec.yaml';
+      TapirInstallCommand.mainDartPathResolver = () =>
+          '${tempDir.path}/lib/main.dart';
+      TapirInstallCommand.pubspecPathResolver = () =>
+          '${tempDir.path}/pubspec.yaml';
 
       final exit = await TapirInstallCommand().handle(_ctx());
       expect(exit, equals(1));
@@ -386,14 +380,12 @@ Future<void> main() async {
     // No bin/dowel.dart or lib/app/ side effects (minimal invariant)
     // ------------------------------------------------------------------
 
-    test(
-      'minimal invariant: never writes bin/dowel.dart, '
-      'lib/app/_plugins.g.dart, or dowel into the consumer',
-      () async {
-        final mainDartPath = _seedProject(
-          tempDir,
-          mainDartContents: '''
-import 'package:flutter/material.dart';
+    test('minimal invariant: never writes bin/dowel.dart, '
+        'lib/app/_plugins.g.dart, or dowel into the consumer', () async {
+      final mainDartPath = _seedProject(
+        tempDir,
+        mainDartContents: '''
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   runApp(const MyApp());
@@ -405,92 +397,85 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) => const MaterialApp(home: SizedBox());
 }
 ''',
-        );
-        TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-        TapirInstallCommand.pubspecPathResolver =
-            () => '${tempDir.path}/pubspec.yaml';
+      );
+      TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+      TapirInstallCommand.pubspecPathResolver = () =>
+          '${tempDir.path}/pubspec.yaml';
 
-        await TapirInstallCommand().handle(_ctx());
+      await TapirInstallCommand().handle(_ctx());
 
-        // The consumer-side dowel dispatcher + plugin barrels MUST NOT
-        // exist after tapir:install: the vanilla UX is `dart run
-        // tapir <cmd>`, not `dart run bin/dowel.dart <cmd>`.
-        expect(
-          File('${tempDir.path}/bin/dowel.dart').existsSync(),
-          isFalse,
-        );
-        expect(
-          File('${tempDir.path}/lib/app/_plugins.g.dart').existsSync(),
-          isFalse,
-        );
-        expect(
-          File('${tempDir.path}/lib/app/commands/_index.g.dart').existsSync(),
-          isFalse,
-        );
-        // pubspec.yaml MUST NOT have dowel added; the plugin
-        // is reachable transitively through tapir and the
-        // consumer never imports dowel directly in a minimal install.
-        final pubspecAfter =
-            File('${tempDir.path}/pubspec.yaml').readAsStringSync();
-        expect(pubspecAfter.contains('dowel'), isFalse);
-      },
-    );
+      // The consumer-side dowel dispatcher + plugin barrels MUST NOT
+      // exist after tapir:install: the vanilla UX is `dart run
+      // tapir <cmd>`, not `dart run bin/dowel.dart <cmd>`.
+      expect(File('${tempDir.path}/bin/dowel.dart').existsSync(), isFalse);
+      expect(
+        File('${tempDir.path}/lib/app/_plugins.g.dart').existsSync(),
+        isFalse,
+      );
+      expect(
+        File('${tempDir.path}/lib/app/commands/_index.g.dart').existsSync(),
+        isFalse,
+      );
+      // pubspec.yaml MUST NOT have dowel added; the plugin
+      // is reachable transitively through tapir and the
+      // consumer never imports dowel directly in a minimal install.
+      final pubspecAfter = File('${tempDir.path}/pubspec.yaml')
+          .readAsStringSync();
+      expect(pubspecAfter.contains('dowel'), isFalse);
+    });
 
     // ------------------------------------------------------------------
     // Phase 2 chained dowel install + plugin:install (recorder fake)
     // ------------------------------------------------------------------
 
-    test(
-      'chained Phase 2 invokes dowel install + plugin:install when '
-      'their idempotency markers are absent',
-      () async {
-        final mainDartPath = _seedProject(
-          tempDir,
-          mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+    test('chained Phase 2 invokes dowel install + plugin:install when '
+        'their idempotency markers are absent', () async {
+      final mainDartPath = _seedProject(
+        tempDir,
+        mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+      );
+      TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+      TapirInstallCommand.pubspecPathResolver = () =>
+          '${tempDir.path}/pubspec.yaml';
+      TapirInstallCommand.runChainedSetup = true;
+
+      // Recorder fake: capture every (executable, arguments) pair and
+      // return exit-0 stubs so the chain runs to completion without
+      // touching the real `dart` binary.
+      final calls = <List<String>>[];
+      TapirInstallCommand.processRunner =
+          (
+            String executable,
+            List<String> arguments, {
+            String? workingDirectory,
+          }) async {
+            calls.add([executable, ...arguments]);
+            return ProcessResult(0, 0, '', '');
+          };
+
+      // Run from inside tempDir so the `File('bin/dispatcher.dart')` +
+      // `File('.dowel/installed/tapir.json')` skip checks
+      // resolve against the test fixture.
+      final originalCwd = Directory.current;
+      Directory.current = tempDir;
+      try {
+        final code = await TapirInstallCommand().handle(
+          DowelContext.bare(MapInput(const {}), BufferedOutput()),
         );
-        TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-        TapirInstallCommand.pubspecPathResolver =
-            () => '${tempDir.path}/pubspec.yaml';
-        TapirInstallCommand.runChainedSetup = true;
+        expect(code, equals(0));
+      } finally {
+        Directory.current = originalCwd;
+        TapirInstallCommand.processRunner = Process.run;
+      }
 
-        // Recorder fake: capture every (executable, arguments) pair and
-        // return exit-0 stubs so the chain runs to completion without
-        // touching the real `dart` binary.
-        final calls = <List<String>>[];
-        TapirInstallCommand.processRunner = (
-          String executable,
-          List<String> arguments, {
-          String? workingDirectory,
-        }) async {
-          calls.add([executable, ...arguments]);
-          return ProcessResult(0, 0, '', '');
-        };
-
-        // Run from inside tempDir so the `File('bin/dispatcher.dart')` +
-        // `File('.dowel/installed/tapir.json')` skip checks
-        // resolve against the test fixture.
-        final originalCwd = Directory.current;
-        Directory.current = tempDir;
-        try {
-          final code = await TapirInstallCommand().handle(
-            DowelContext.bare(
-              MapInput(const {}),
-              BufferedOutput(),
-            ),
-          );
-          expect(code, equals(0));
-        } finally {
-          Directory.current = originalCwd;
-          TapirInstallCommand.processRunner = Process.run;
-        }
-
-        // Both sub-process calls fired in order.
-        expect(calls, hasLength(2));
-        expect(calls[0], equals(['dart', 'run', 'tapir', 'install']));
-        expect(calls[1],
-            equals(['dart', 'run', 'tapir', 'plugin:install', 'tapir']));
-      },
-    );
+      // Both sub-process calls fired in order.
+      expect(calls, hasLength(2));
+      expect(calls[0], equals(['dart', 'run', 'tapir', 'install']));
+      expect(
+        calls[1],
+        equals(['dart', 'run', 'tapir', 'plugin:install', 'tapir']),
+      );
+    });
 
     test(
       'chained Phase 2 swallows sub-process non-zero exit + warns the user',
@@ -500,32 +485,30 @@ class MyApp extends StatelessWidget {
           mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
         );
         TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-        TapirInstallCommand.pubspecPathResolver =
-            () => '${tempDir.path}/pubspec.yaml';
+        TapirInstallCommand.pubspecPathResolver = () =>
+            '${tempDir.path}/pubspec.yaml';
         TapirInstallCommand.runChainedSetup = true;
 
         // First call (dowel install) returns non-zero; the chain should
         // print a warning and bail OUT of plugin:install (because the
         // dispatcher scaffold failed, so there's nothing to register).
         var callCount = 0;
-        TapirInstallCommand.processRunner = (
-          String executable,
-          List<String> arguments, {
-          String? workingDirectory,
-        }) async {
-          callCount += 1;
-          return ProcessResult(0, 1, '', 'scaffold failed');
-        };
+        TapirInstallCommand.processRunner =
+            (
+              String executable,
+              List<String> arguments, {
+              String? workingDirectory,
+            }) async {
+              callCount += 1;
+              return ProcessResult(0, 1, '', 'scaffold failed');
+            };
 
         final originalCwd = Directory.current;
         Directory.current = tempDir;
         int exit;
         try {
           exit = await TapirInstallCommand().handle(
-            DowelContext.bare(
-              MapInput(const {}),
-              BufferedOutput(),
-            ),
+            DowelContext.bare(MapInput(const {}), BufferedOutput()),
           );
         } finally {
           Directory.current = originalCwd;
@@ -550,27 +533,29 @@ class MyApp extends StatelessWidget {
           mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
         );
         TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-        TapirInstallCommand.pubspecPathResolver =
-            () => '${tempDir.path}/pubspec.yaml';
+        TapirInstallCommand.pubspecPathResolver = () =>
+            '${tempDir.path}/pubspec.yaml';
         TapirInstallCommand.runChainedSetup = true;
 
-        TapirInstallCommand.processRunner = (
-          String executable,
-          List<String> arguments, {
-          String? workingDirectory,
-        }) async {
-          throw ProcessException(executable, arguments, 'fake fork failure');
-        };
+        TapirInstallCommand.processRunner =
+            (
+              String executable,
+              List<String> arguments, {
+              String? workingDirectory,
+            }) async {
+              throw ProcessException(
+                executable,
+                arguments,
+                'fake fork failure',
+              );
+            };
 
         final originalCwd = Directory.current;
         Directory.current = tempDir;
         int exit;
         try {
           exit = await TapirInstallCommand().handle(
-            DowelContext.bare(
-              MapInput(const {}),
-              BufferedOutput(),
-            ),
+            DowelContext.bare(MapInput(const {}), BufferedOutput()),
           );
         } finally {
           Directory.current = originalCwd;
@@ -592,8 +577,8 @@ class MyApp extends StatelessWidget {
           mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
         );
         TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-        TapirInstallCommand.pubspecPathResolver =
-            () => '${tempDir.path}/pubspec.yaml';
+        TapirInstallCommand.pubspecPathResolver = () =>
+            '${tempDir.path}/pubspec.yaml';
         TapirInstallCommand.runChainedSetup = true;
 
         // Pre-seed BOTH markers so the chain has nothing to do.
@@ -606,23 +591,21 @@ class MyApp extends StatelessWidget {
             .writeAsStringSync('{"plugin":"tapir"}');
 
         var calls = 0;
-        TapirInstallCommand.processRunner = (
-          String executable,
-          List<String> arguments, {
-          String? workingDirectory,
-        }) async {
-          calls += 1;
-          return ProcessResult(0, 0, '', '');
-        };
+        TapirInstallCommand.processRunner =
+            (
+              String executable,
+              List<String> arguments, {
+              String? workingDirectory,
+            }) async {
+              calls += 1;
+              return ProcessResult(0, 0, '', '');
+            };
 
         final originalCwd = Directory.current;
         Directory.current = tempDir;
         try {
           await TapirInstallCommand().handle(
-            DowelContext.bare(
-              MapInput(const {}),
-              BufferedOutput(),
-            ),
+            DowelContext.bare(MapInput(const {}), BufferedOutput()),
           );
         } finally {
           Directory.current = originalCwd;
@@ -649,7 +632,7 @@ class MyApp extends StatelessWidget {
           tempDir,
           pubspecDeps: const {'magic_devtools': 'any'},
           mainDartContents: '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   runApp(const MyApp());
@@ -663,8 +646,8 @@ class MyApp extends StatelessWidget {
 ''',
         );
         TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-        TapirInstallCommand.pubspecPathResolver =
-            () => '${tempDir.path}/pubspec.yaml';
+        TapirInstallCommand.pubspecPathResolver = () =>
+            '${tempDir.path}/pubspec.yaml';
 
         final exit = await TapirInstallCommand().handle(_ctx());
         expect(exit, equals(0));
@@ -689,56 +672,53 @@ class MyApp extends StatelessWidget {
       },
     );
 
-    test(
-      'chained Phase 2 skips dowel install when bin/dispatcher.dart '
-      'already exists (idempotent re-run)',
-      () async {
-        final mainDartPath = _seedProject(
-          tempDir,
-          mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+    test('chained Phase 2 skips dowel install when bin/dispatcher.dart '
+        'already exists (idempotent re-run)', () async {
+      final mainDartPath = _seedProject(
+        tempDir,
+        mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+      );
+      TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+      TapirInstallCommand.pubspecPathResolver = () =>
+          '${tempDir.path}/pubspec.yaml';
+      TapirInstallCommand.runChainedSetup = true;
+
+      // Pre-seed bin/dispatcher.dart (dowel install marker) so the
+      // chain skips its scaffold. Leave the plugin marker missing so
+      // plugin:install still fires.
+      Directory('${tempDir.path}/bin').createSync(recursive: true);
+      File('${tempDir.path}/bin/dispatcher.dart')
+          .writeAsStringSync('void main() {}');
+
+      final calls = <List<String>>[];
+      TapirInstallCommand.processRunner =
+          (
+            String executable,
+            List<String> arguments, {
+            String? workingDirectory,
+          }) async {
+            calls.add([executable, ...arguments]);
+            return ProcessResult(0, 0, '', '');
+          };
+
+      final originalCwd = Directory.current;
+      Directory.current = tempDir;
+      try {
+        await TapirInstallCommand().handle(
+          DowelContext.bare(MapInput(const {}), BufferedOutput()),
         );
-        TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
-        TapirInstallCommand.pubspecPathResolver =
-            () => '${tempDir.path}/pubspec.yaml';
-        TapirInstallCommand.runChainedSetup = true;
+      } finally {
+        Directory.current = originalCwd;
+        TapirInstallCommand.processRunner = Process.run;
+      }
 
-        // Pre-seed bin/dispatcher.dart (dowel install marker) so the
-        // chain skips its scaffold. Leave the plugin marker missing so
-        // plugin:install still fires.
-        Directory('${tempDir.path}/bin').createSync(recursive: true);
-        File('${tempDir.path}/bin/dispatcher.dart')
-            .writeAsStringSync('void main() {}');
-
-        final calls = <List<String>>[];
-        TapirInstallCommand.processRunner = (
-          String executable,
-          List<String> arguments, {
-          String? workingDirectory,
-        }) async {
-          calls.add([executable, ...arguments]);
-          return ProcessResult(0, 0, '', '');
-        };
-
-        final originalCwd = Directory.current;
-        Directory.current = tempDir;
-        try {
-          await TapirInstallCommand().handle(
-            DowelContext.bare(
-              MapInput(const {}),
-              BufferedOutput(),
-            ),
-          );
-        } finally {
-          Directory.current = originalCwd;
-          TapirInstallCommand.processRunner = Process.run;
-        }
-
-        // Only plugin:install fired; dowel install was skipped by the
-        // dispatcher.dart pre-existence guard.
-        expect(calls, hasLength(1));
-        expect(calls[0].sublist(0, 4),
-            equals(['dart', 'run', 'tapir', 'plugin:install']));
-      },
-    );
+      // Only plugin:install fired; dowel install was skipped by the
+      // dispatcher.dart pre-existence guard.
+      expect(calls, hasLength(1));
+      expect(
+        calls[0].sublist(0, 4),
+        equals(['dart', 'run', 'tapir', 'plugin:install']),
+      );
+    });
   });
 }

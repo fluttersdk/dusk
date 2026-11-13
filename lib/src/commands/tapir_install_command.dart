@@ -68,7 +68,8 @@ class TapirInstallCommand extends DowelCommand {
     String executable,
     List<String> arguments, {
     String? workingDirectory,
-  }) processRunner = Process.run;
+  })
+  processRunner = Process.run;
 
   @override
   Future<int> handle(DowelContext ctx) async {
@@ -118,10 +119,11 @@ class TapirInstallCommand extends DowelCommand {
     if (!dispatcherDart.existsSync()) {
       ctx.output.info('Scaffolding fastcli (dowel install)...');
       try {
-        final result = await processRunner(
-          'dart',
-          const ['run', 'tapir', 'install'],
-        );
+        final result = await processRunner('dart', const [
+          'run',
+          'tapir',
+          'install',
+        ]);
         if (result.exitCode != 0) {
           ctx.output.warning(
             'dowel install exited ${result.exitCode}; rerun manually '
@@ -146,10 +148,12 @@ class TapirInstallCommand extends DowelCommand {
     if (!pluginInstalled.existsSync()) {
       ctx.output.info('Registering tapir as a dowel plugin...');
       try {
-        final result = await processRunner(
-          'dart',
-          const ['run', 'tapir', 'plugin:install', 'tapir'],
-        );
+        final result = await processRunner('dart', const [
+          'run',
+          'tapir',
+          'plugin:install',
+          'tapir',
+        ]);
         if (result.exitCode != 0) {
           ctx.output.warning(
             'dowel plugin:install exited ${result.exitCode}; rerun '
@@ -194,7 +198,8 @@ class TapirInstallCommand extends DowelCommand {
     // uses.
     final String original = FileHelper.readFile(mainDartPath);
     final bool wiresTapir = !original.contains('TapirPlugin.install()');
-    final bool wiresMagic = original.contains('await Magic.init(') &&
+    final bool wiresMagic =
+        original.contains('await Magic.init(') &&
         _hasMagicDevtoolsDep() &&
         !original.contains('MagicTapirIntegration.install()');
 
@@ -240,7 +245,8 @@ class TapirInstallCommand extends DowelCommand {
       source = MainDartEditor.injectBeforeAnchor(
         source: source,
         anchor: anchor,
-        snippet: '  if (!kReleaseMode) {\n'
+        snippet:
+            '  if (!kReleaseMode) {\n'
             '    TapirPlugin.install();\n'
             '  }\n',
       );

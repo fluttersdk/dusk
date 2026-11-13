@@ -52,10 +52,8 @@ class TapirActionabilityException extends TapirException {
   /// Creates a [TapirActionabilityException] for the supplied [ref] and
   /// [reason]; the [message] is composed in the canonical
   /// `"Widget ref=$ref is not actionable: $reason"` shape.
-  const TapirActionabilityException({
-    required this.ref,
-    required this.reason,
-  }) : super('Widget ref=$ref is not actionable: $reason');
+  const TapirActionabilityException({required this.ref, required this.reason})
+    : super('Widget ref=$ref is not actionable: $reason');
 
   /// The `eN` token whose underlying widget failed the actionability check.
   final String ref;
@@ -82,9 +80,9 @@ class TapirStaleHandleException extends TapirException {
   /// `"Query handle ref=$ref is stale: no live match for stored predicates"`
   /// shape.
   const TapirStaleHandleException({required this.ref})
-      : super(
-          'Query handle ref=$ref is stale: no live match for stored predicates',
-        );
+    : super(
+        'Query handle ref=$ref is stale: no live match for stored predicates',
+      );
 
   /// The `qN` token whose stored predicates no longer match any live node.
   final String ref;

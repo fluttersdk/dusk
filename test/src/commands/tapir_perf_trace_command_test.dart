@@ -7,10 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tapir/src/commands/tapir_perf_trace_command.dart';
 
 class _StubContext extends DowelContext {
-  _StubContext({
-    required DowelInput input,
-    required DowelOutput output,
-  }) : super.bare(input, output);
+  _StubContext({required DowelInput input, required DowelOutput output})
+    : super.bare(input, output);
 
   String? lastMethod;
   Map<String, dynamic>? lastParams;
@@ -66,8 +64,11 @@ void main() {
       expect(output.content.trim(), File(out).absolute.path);
       final Map<String, dynamic> trace =
           jsonDecode(File(out).readAsStringSync()) as Map<String, dynamic>;
-      expect(
-          trace.keys, <String>['traceEvents', 'displayTimeUnit', 'otherData']);
+      expect(trace.keys, <String>[
+        'traceEvents',
+        'displayTimeUnit',
+        'otherData',
+      ]);
       expect(trace['traceEvents'], hasLength(1));
     });
 

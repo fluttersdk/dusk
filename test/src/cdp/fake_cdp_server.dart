@@ -21,20 +21,13 @@ import 'dart:io';
 /// upheld by file location (under `test/`), not by name mangling.
 class FakeCdpServer {
   FakeCdpServer._({
-    required HttpServer httpServer,
-    required Map<String,
-            Future<Map<String, dynamic>> Function(Map<String, dynamic> params)>?
-        handlers,
-    required bool failOnJsonVersion,
-    required bool dropWebSocket,
-    required Duration delayResponseMs,
-    required String pageUrl,
-  })  : _httpServer = httpServer,
-        _pageUrl = pageUrl,
-        _handlers = handlers,
-        _failOnJsonVersion = failOnJsonVersion,
-        _dropWebSocket = dropWebSocket,
-        _delayResponseMs = delayResponseMs;
+    required this._httpServer,
+    required this._handlers,
+    required this._failOnJsonVersion,
+    required this._dropWebSocket,
+    required this._delayResponseMs,
+    required this._pageUrl,
+  });
 
   /// Spins up the fake server on an ephemeral loopback port.
   ///
@@ -59,9 +52,11 @@ class FakeCdpServer {
   ///   that exercise URL matching (CdpClient's `matchUrlSubstring`, the
   ///   doctor's session probe) pass one carrying the port they look for.
   static Future<FakeCdpServer> start({
-    Map<String,
-            Future<Map<String, dynamic>> Function(Map<String, dynamic> params)>?
-        handlers,
+    Map<
+      String,
+      Future<Map<String, dynamic>> Function(Map<String, dynamic> params)
+    >?
+    handlers,
     bool failOnJsonVersion = false,
     bool dropWebSocket = false,
     Duration delayResponseMs = Duration.zero,
@@ -89,9 +84,11 @@ class FakeCdpServer {
   }
 
   final HttpServer _httpServer;
-  final Map<String,
-          Future<Map<String, dynamic>> Function(Map<String, dynamic> params)>?
-      _handlers;
+  final Map<
+    String,
+    Future<Map<String, dynamic>> Function(Map<String, dynamic> params)
+  >?
+  _handlers;
   final String _pageUrl;
   final bool _failOnJsonVersion;
   final bool _dropWebSocket;
@@ -176,8 +173,10 @@ class FakeCdpServer {
         },
       ];
       request.response.statusCode = HttpStatus.ok;
-      request.response.headers
-          .set(HttpHeaders.contentTypeHeader, 'application/json');
+      request.response.headers.set(
+        HttpHeaders.contentTypeHeader,
+        'application/json',
+      );
       request.response.write(jsonEncode(body));
       await request.response.close();
       return;
@@ -197,8 +196,10 @@ class FakeCdpServer {
         'Protocol-Version': '1.3',
       };
       request.response.statusCode = HttpStatus.ok;
-      request.response.headers
-          .set(HttpHeaders.contentTypeHeader, 'application/json');
+      request.response.headers.set(
+        HttpHeaders.contentTypeHeader,
+        'application/json',
+      );
       request.response.write(jsonEncode(body));
       await request.response.close();
       return;
@@ -239,13 +240,13 @@ class FakeCdpServer {
         final String method = (envelope['method'] as String?) ?? '';
         final Map<String, dynamic> params =
             (envelope['params'] as Map<String, dynamic>?) ??
-                <String, dynamic>{};
+            <String, dynamic>{};
 
         // 3. Compute the reply via the configured handler. Default error
         //    envelope when no handler is registered for the method.
         Map<String, dynamic> reply;
         final Future<Map<String, dynamic>> Function(Map<String, dynamic>)?
-            handler = _handlers?[method];
+        handler = _handlers?[method];
         if (handler == null) {
           reply = <String, dynamic>{
             'id': rawId,
@@ -257,10 +258,7 @@ class FakeCdpServer {
         } else {
           try {
             final Map<String, dynamic> result = await handler(params);
-            reply = <String, dynamic>{
-              'id': rawId,
-              'result': result,
-            };
+            reply = <String, dynamic>{'id': rawId, 'result': result};
           } catch (e) {
             reply = <String, dynamic>{
               'id': rawId,

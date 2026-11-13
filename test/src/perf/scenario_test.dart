@@ -43,10 +43,10 @@ void main() {
 
       expect(scenario.name, 'list-scroll-1440');
       expect(scenario.viewport, (width: 1440, height: 900));
-      expect(
-        scenario.platforms,
-        <PerfPlatform>{PerfPlatform.chrome, PerfPlatform.android},
-      );
+      expect(scenario.platforms, <PerfPlatform>{
+        PerfPlatform.chrome,
+        PerfPlatform.android,
+      });
       expect(
         scenario.setup.map((PerfSetupStep s) => s.verb).toList(),
         <PerfSetupVerb>[
@@ -83,21 +83,23 @@ void main() {
       expect(steps[6].ms, 400);
     });
 
-    test('defaults platforms to all three, repeat to 3, thresholds to 10/25',
-        () {
-      final PerfScenario scenario = PerfScenario.parse('''
+    test(
+      'defaults platforms to all three, repeat to 3, thresholds to 10/25',
+      () {
+        final PerfScenario scenario = PerfScenario.parse('''
 name: minimal
 steps:
   - tap: {target: {text: Go}}
 ''');
 
-      expect(scenario.platforms, PerfPlatform.values.toSet());
-      expect(scenario.viewport, isNull);
-      expect(scenario.setup, isEmpty);
-      expect(scenario.repeat, 3);
-      expect(scenario.thresholds.warnPct, 10);
-      expect(scenario.thresholds.errorPct, 25);
-    });
+        expect(scenario.platforms, PerfPlatform.values.toSet());
+        expect(scenario.viewport, isNull);
+        expect(scenario.setup, isEmpty);
+        expect(scenario.repeat, 3);
+        expect(scenario.thresholds.warnPct, 10);
+        expect(scenario.thresholds.errorPct, 25);
+      },
+    );
 
     test('a step runs only on the platforms its `only` names', () {
       final PerfStep wheel = PerfScenario.parse(_valid).steps[3];
@@ -133,51 +135,62 @@ steps:
       expect(problems.join('\n'), contains('steps[0]'));
     });
 
-    test('rejects a wheel step without only: [chrome] when android is listed',
-        () {
-      final List<String> problems = _problems(
-        _valid.replaceFirst('    only: [chrome]\n', ''),
-      );
+    test(
+      'rejects a wheel step without only: [chrome] when android is listed',
+      () {
+        final List<String> problems = _problems(
+          _valid.replaceFirst('    only: [chrome]\n', ''),
+        );
 
-      expect(problems.join('\n'), contains('wheel'));
-      expect(problems.join('\n'), contains('android'));
-    });
+        expect(problems.join('\n'), contains('wheel'));
+        expect(problems.join('\n'), contains('android'));
+      },
+    );
 
-    test('accepts a wheel step without only when chrome is the one platform',
-        () {
-      final PerfScenario scenario = PerfScenario.parse('''
+    test(
+      'accepts a wheel step without only when chrome is the one platform',
+      () {
+        final PerfScenario scenario = PerfScenario.parse('''
 name: web-only
 platforms: [chrome]
 steps:
   - wheel: {target: {text: List}, dy: 300}
 ''');
 
-      expect(scenario.steps.single.verb, PerfStepVerb.wheel);
-      expect(scenario.steps.single.ticks, 1);
-    });
+        expect(scenario.steps.single.verb, PerfStepVerb.wheel);
+        expect(scenario.steps.single.ticks, 1);
+      },
+    );
 
-    test('reads wheel ticks and refuses them anywhere else or out of range',
-        () {
-      final PerfScenario scenario = PerfScenario.parse('''
+    test(
+      'reads wheel ticks and refuses them anywhere else or out of range',
+      () {
+        final PerfScenario scenario = PerfScenario.parse('''
 name: web-only
 platforms: [chrome]
 steps:
   - wheel: {target: {text: List}, dy: 120, ticks: 20}
 ''');
-      expect(scenario.steps.single.ticks, 20);
-      expect(
-          scenario.steps.single.toJson()['wheel'], containsPair('ticks', 20));
+        expect(scenario.steps.single.ticks, 20);
+        expect(
+          scenario.steps.single.toJson()['wheel'],
+          containsPair('ticks', 20),
+        );
 
-      final String problems = _problems('''
+        final String problems = _problems('''
 name: web-only
 platforms: [chrome]
 steps:
   - wheel: {target: {text: List}, dy: 120, ticks: 0}
   - tap: {target: {text: List}, ticks: 3}
 ''').join('\n');
-      expect(problems, contains('steps[0].wheel.ticks must be a whole number'));
-      expect(problems, contains('steps[1].tap: ticks applies to wheel only'));
-    });
+        expect(
+          problems,
+          contains('steps[0].wheel.ticks must be a whole number'),
+        );
+        expect(problems, contains('steps[1].tap: ticks applies to wheel only'));
+      },
+    );
 
     test('rejects a resize step that could run on ios', () {
       final List<String> problems = _problems('''
@@ -219,18 +232,20 @@ steps:
       expect(problems.join('\n'), contains('slider'));
     });
 
-    test('accepts the roles tapir:snap prints, textbox and heading included',
-        () {
-      for (final String role in <String>['textbox', 'heading']) {
-        final PerfScenario scenario = PerfScenario.parse('''
+    test(
+      'accepts the roles tapir:snap prints, textbox and heading included',
+      () {
+        for (final String role in <String>['textbox', 'heading']) {
+          final PerfScenario scenario = PerfScenario.parse('''
 name: roles
 steps:
   - tap: {target: {role: $role, name: Search}}
 ''');
 
-        expect(scenario.steps.single.target!.role, role);
-      }
-    });
+          expect(scenario.steps.single.target!.role, role);
+        }
+      },
+    );
 
     test('rejects textField, which is not a role tapir:snap prints', () {
       final List<String> problems = _problems(
@@ -359,10 +374,9 @@ steps:
           ),
         );
 
-        expect(
-          scenario.setup.last.gesture!.only,
-          <PerfPlatform>{PerfPlatform.chrome},
-        );
+        expect(scenario.setup.last.gesture!.only, <PerfPlatform>{
+          PerfPlatform.chrome,
+        });
       });
 
       test('rejects a literal ref, as a step does', () {
@@ -378,23 +392,25 @@ steps:
         expect(problems.join('\n'), contains('e12'));
       });
 
-      test('rejects a step verb setup does not run and only on a setup verb',
-          () {
-        final List<String> problems = _problems(
-          _valid.replaceFirst(
-            '  - wait_for_network_idle\n',
-            '  - wait_for_network_idle\n'
-                '  - scroll: {target: {text: List}, dy: 300}\n'
-                '  - navigate: /monitors\n'
-                '    only: [chrome]\n',
-          ),
-        );
+      test(
+        'rejects a step verb setup does not run and only on a setup verb',
+        () {
+          final List<String> problems = _problems(
+            _valid.replaceFirst(
+              '  - wait_for_network_idle\n',
+              '  - wait_for_network_idle\n'
+                  '  - scroll: {target: {text: List}, dy: 300}\n'
+                  '  - navigate: /monitors\n'
+                  '    only: [chrome]\n',
+            ),
+          );
 
-        expect(problems.join('\n'), contains('setup[4]'));
-        expect(problems.join('\n'), contains('scroll'));
-        expect(problems.join('\n'), contains('setup[5]'));
-        expect(problems.join('\n'), contains('only'));
-      });
+          expect(problems.join('\n'), contains('setup[4]'));
+          expect(problems.join('\n'), contains('scroll'));
+          expect(problems.join('\n'), contains('setup[5]'));
+          expect(problems.join('\n'), contains('only'));
+        },
+      );
     });
 
     test('rejects a document that is not a map', () {
@@ -453,10 +469,7 @@ steps:
       expect(json['name'], 'list-scroll-1440');
       expect(json['platforms'], <String>['chrome', 'android']);
       expect(json['repeat'], 5);
-      expect(
-        json['thresholds'],
-        <String, Object?>{'warn': 8, 'error': 20},
-      );
+      expect(json['thresholds'], <String, Object?>{'warn': 8, 'error': 20});
       expect((json['steps']! as List<Object?>).first, <String, Object?>{
         'tap': <String, Object?>{
           'target': <String, Object?>{'text': 'Monitors'},

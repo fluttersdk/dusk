@@ -28,7 +28,8 @@ final class TapirRunCommand extends DowelCommand {
   String get name => 'tapir:run';
 
   @override
-  String get description => 'Run several tapir verbs in one call, e.g. '
+  String get description =>
+      'Run several tapir verbs in one call, e.g. '
       'tapir:run "tap --ref=e5" "snap --grep Counter".';
 
   @override
@@ -39,7 +40,8 @@ final class TapirRunCommand extends DowelCommand {
     parser.addFlag(
       'continue',
       negatable: false,
-      help: 'Run every step even after one fails; exit with the first '
+      help:
+          'Run every step even after one fails; exit with the first '
           'non-zero code.',
     );
   }
@@ -95,14 +97,14 @@ final class TapirRunCommand extends DowelCommand {
   List<String> _steps(DowelInput input) {
     final Object? listed = input.option('steps');
     if (listed is List) {
-      return <String>[
-        for (final Object? step in listed) '$step',
-      ];
+      return <String>[for (final Object? step in listed) '$step'];
     }
     final List<String> positional = <String>[];
-    for (String? step = input.argument(0);
-        step != null;
-        step = input.argument(positional.length)) {
+    for (
+      String? step = input.argument(0);
+      step != null;
+      step = input.argument(positional.length)
+    ) {
       positional.add(step);
     }
     return positional;
@@ -129,8 +131,9 @@ final class TapirRunCommand extends DowelCommand {
     }
 
     // 2. Resolve the verb; a bare `tap` means `tapir:tap`.
-    final String verb =
-        tokens.first.contains(':') ? tokens.first : 'tapir:${tokens.first}';
+    final String verb = tokens.first.contains(':')
+        ? tokens.first
+        : 'tapir:${tokens.first}';
     if (verb == name) {
       output.error('tapir:run cannot be nested inside a tapir:run step');
       return 1;

@@ -20,11 +20,16 @@ class TapirFocusCommand extends DowelCommand {
   @override
   void configure(ArgParser parser) {
     addJsonFlag(parser);
-    parser.addOption('ref',
-        help: 'Widget ref token (e.g. e5).', mandatory: true);
-    parser.addFlag('includeSnapshot',
-        help: 'Embed the post-focus snapshot in the response.',
-        defaultsTo: false);
+    parser.addOption(
+      'ref',
+      help: 'Widget ref token (e.g. e5).',
+      mandatory: true,
+    );
+    parser.addFlag(
+      'includeSnapshot',
+      help: 'Embed the post-focus snapshot in the response.',
+      defaultsTo: false,
+    );
   }
 
   @override

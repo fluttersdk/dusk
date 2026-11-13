@@ -13,10 +13,8 @@ void main() {
     group('.redact()', () {
       test('masks the raw value and its jsonEncode inner form', () {
         final PerfRedactor redactor = PerfRedactor(<String>{_kSecret});
-        final String inner = jsonEncode(_kSecret).substring(
-          1,
-          jsonEncode(_kSecret).length - 1,
-        );
+        final String inner = jsonEncode(_kSecret)
+            .substring(1, jsonEncode(_kSecret).length - 1);
 
         final String masked = redactor.redact(
           'typed $_kSecret, answered {"text":"$inner"}',
@@ -25,15 +23,14 @@ void main() {
         expect(masked, 'typed ***, answered {"text":"***"}');
       });
 
-      test('masks the longer secret first, so a shorter one leaves no tail',
-          () {
-        final PerfRedactor redactor = PerfRedactor(<String>{
-          'abc',
-          'abcdef',
-        });
+      test(
+        'masks the longer secret first, so a shorter one leaves no tail',
+        () {
+          final PerfRedactor redactor = PerfRedactor(<String>{'abc', 'abcdef'});
 
-        expect(redactor.redact('x abcdef y abc'), 'x *** y ***');
-      });
+          expect(redactor.redact('x abcdef y abc'), 'x *** y ***');
+        },
+      );
 
       test('is the identity with no secrets', () {
         expect(PerfRedactor(const <String>{}).redact('a "b" \$c'), 'a "b" \$c');
@@ -87,18 +84,15 @@ void main() {
         ..debug('debug $_kSecret');
 
       expect(inner.content, isNot(contains(_kSecret)));
-      expect(
-        inner.content.trim().split('\n'),
-        <String>[
-          'writeln ***',
-          'info ***',
-          'success ***',
-          'warning ***',
-          '[ERROR] error ***',
-          'comment ***',
-          '[debug] debug ***',
-        ],
-      );
+      expect(inner.content.trim().split('\n'), <String>[
+        'writeln ***',
+        'info ***',
+        'success ***',
+        'warning ***',
+        '[ERROR] error ***',
+        'comment ***',
+        '[debug] debug ***',
+      ]);
     });
 
     test('keeps the wrapped verbosity and level', () {

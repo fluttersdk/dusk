@@ -21,20 +21,22 @@ void main() {
       );
     });
 
-    test('(b) omits widgetPath when null but always emits empty suggestions',
-        () {
-      const TapirErrorEnvelope envelope = TapirErrorEnvelope(
-        type: 'unexpected',
-        widgetPath: null,
-        suggestions: <String>[],
-      );
+    test(
+      '(b) omits widgetPath when null but always emits empty suggestions',
+      () {
+        const TapirErrorEnvelope envelope = TapirErrorEnvelope(
+          type: 'unexpected',
+          widgetPath: null,
+          suggestions: <String>[],
+        );
 
-      final Map<String, dynamic> json = envelope.toJson();
+        final Map<String, dynamic> json = envelope.toJson();
 
-      expect(json['type'], equals('unexpected'));
-      expect(json.containsKey('widget_path'), isFalse);
-      expect(json['suggestions'], equals(<String>[]));
-    });
+        expect(json['type'], equals('unexpected'));
+        expect(json.containsKey('widget_path'), isFalse);
+        expect(json['suggestions'], equals(<String>[]));
+      },
+    );
   });
 
   group('levenshtein helper', () {
@@ -59,43 +61,47 @@ void main() {
   });
 
   group('fuzzyMatch helper', () {
-    test('(a) top-3 by distance, threshold 3, filters out anything farther',
-        () {
-      final List<String> suggestions = fuzzyMatch(
-        'Submi',
-        <String>[
+    test(
+      '(a) top-3 by distance, threshold 3, filters out anything farther',
+      () {
+        final List<String> suggestions = fuzzyMatch('Submi', <String>[
           'Submit',
           'Submitted',
           'Submission',
           'Cancel',
           'Logout',
           'Profile',
-        ],
-      );
+        ]);
 
-      expect(suggestions, hasLength(3));
-      expect(suggestions, contains('Submit'));
-      expect(suggestions, contains('Submitted'));
-      expect(suggestions, contains('Submission'));
-      // Far-away candidates filtered out.
-      expect(suggestions, isNot(contains('Cancel')));
-    });
+        expect(suggestions, hasLength(3));
+        expect(suggestions, contains('Submit'));
+        expect(suggestions, contains('Submitted'));
+        expect(suggestions, contains('Submission'));
+        // Far-away candidates filtered out.
+        expect(suggestions, isNot(contains('Cancel')));
+      },
+    );
 
-    test('(b) returns fewer than 3 when fewer candidates clear the threshold',
-        () {
-      final List<String> suggestions = fuzzyMatch(
-        'Submit',
-        <String>['Submit', 'WildlyDifferent', 'AnotherUnrelated'],
-      );
+    test(
+      '(b) returns fewer than 3 when fewer candidates clear the threshold',
+      () {
+        final List<String> suggestions = fuzzyMatch('Submit', <String>[
+          'Submit',
+          'WildlyDifferent',
+          'AnotherUnrelated',
+        ]);
 
-      expect(suggestions, equals(<String>['Submit']));
-    });
+        expect(suggestions, equals(<String>['Submit']));
+      },
+    );
 
     test('(c) deduplicates and preserves ascending distance order', () {
-      final List<String> suggestions = fuzzyMatch(
+      final List<String> suggestions = fuzzyMatch('Save', <String>[
         'Save',
-        <String>['Save', 'Save', 'Sav', 'Saves'],
-      );
+        'Save',
+        'Sav',
+        'Saves',
+      ]);
 
       expect(suggestions.first, equals('Save'));
       expect(suggestions.length, lessThanOrEqualTo(3));
@@ -103,10 +109,7 @@ void main() {
     });
 
     test('(d) returns empty list when query is empty', () {
-      expect(
-        fuzzyMatch('', <String>['Save', 'Cancel']),
-        isEmpty,
-      );
+      expect(fuzzyMatch('', <String>['Save', 'Cancel']), isEmpty);
     });
   });
 
@@ -153,28 +156,28 @@ void main() {
     test('(c) "off-viewport (rect=..., viewport=...)" → off_viewport', () {
       final TapirErrorEnvelope envelope =
           TapirErrorEnvelope.fromActionabilityReason(
-        'e2',
-        'off-viewport (rect=Rect.fromLTRB(5000.0, 5000.0, 5050.0, 5050.0), '
-            'viewport=Rect.fromLTRB(0.0, 0.0, 800.0, 600.0))',
-      );
+            'e2',
+            'off-viewport (rect=Rect.fromLTRB(5000.0, 5000.0, 5050.0, 5050.0), '
+                'viewport=Rect.fromLTRB(0.0, 0.0, 800.0, 600.0))',
+          );
       expect(envelope.type, equals('off_viewport'));
     });
 
     test('(d) "not stable (rect changed by 2.0px)" → not_stable', () {
       final TapirErrorEnvelope envelope =
           TapirErrorEnvelope.fromActionabilityReason(
-        'e4',
-        'not stable (rect changed by 2.0px)',
-      );
+            'e4',
+            'not stable (rect changed by 2.0px)',
+          );
       expect(envelope.type, equals('not_stable'));
     });
 
     test('(e) "obscured by other widget (top=...)" → obscured', () {
       final TapirErrorEnvelope envelope =
           TapirErrorEnvelope.fromActionabilityReason(
-        'e5',
-        'obscured by other widget (top=ModalBarrier)',
-      );
+            'e5',
+            'obscured by other widget (top=ModalBarrier)',
+          );
       expect(envelope.type, equals('obscured'));
     });
 
@@ -193,8 +196,9 @@ void main() {
     });
 
     test('missing param → missing_param', () {
-      final TapirErrorEnvelope envelope =
-          TapirErrorEnvelope.missingParam('ref');
+      final TapirErrorEnvelope envelope = TapirErrorEnvelope.missingParam(
+        'ref',
+      );
       expect(envelope.type, equals('missing_param'));
       expect(envelope.widgetPath, isNull);
     });
@@ -258,20 +262,24 @@ void main() {
       }
     });
 
-    test('(c) parseEnvelopeFromErrorDetail returns null for legacy strings',
-        () {
-      expect(
-        parseEnvelopeFromErrorDetail('Plain pre-3.3 error message'),
-        isNull,
-      );
-    });
+    test(
+      '(c) parseEnvelopeFromErrorDetail returns null for legacy strings',
+      () {
+        expect(
+          parseEnvelopeFromErrorDetail('Plain pre-3.3 error message'),
+          isNull,
+        );
+      },
+    );
 
-    test('(d) parseMessageFromErrorDetail returns input for legacy strings',
-        () {
-      expect(
-        parseMessageFromErrorDetail('Plain pre-3.3 error message'),
-        equals('Plain pre-3.3 error message'),
-      );
-    });
+    test(
+      '(d) parseMessageFromErrorDetail returns input for legacy strings',
+      () {
+        expect(
+          parseMessageFromErrorDetail('Plain pre-3.3 error message'),
+          equals('Plain pre-3.3 error message'),
+        );
+      },
+    );
   });
 }

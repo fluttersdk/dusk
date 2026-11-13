@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -50,82 +50,87 @@ void main() {
     // semanticsEnabled: false, or the harness holds a handle of its own and
     // the tree never goes away.
     testWidgets(
-        'release then acquire plus one pumped frame brings the root semantics '
-        'node back',
-        semanticsEnabled: false, (WidgetTester tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(home: Scaffold(body: Text('held'))),
-      );
-      TapirPlugin.acquireSemantics();
-      await tester.pump();
-      expect(_rootSemanticsNode(), isNotNull, reason: 'baseline: held on');
+      'release then acquire plus one pumped frame brings the root semantics '
+      'node back',
+      semanticsEnabled: false,
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(home: Scaffold(body: Text('held'))),
+        );
+        TapirPlugin.acquireSemantics();
+        await tester.pump();
+        expect(_rootSemanticsNode(), isNotNull, reason: 'baseline: held on');
 
-      // 1. Release inside an open session: the tree goes away.
-      await _openTimingSession();
-      final ServiceExtensionResponse released = await tapirSemanticsHoldHandler(
-        'ext.tapir.semantics_hold',
-        <String, String>{'action': 'release'},
-      );
-      expect(_result(released)['released'], isTrue);
-      expect(_result(released)['semanticsEnabled'], isFalse);
-      expect(_result(released)['heldByPlatform'], isFalse);
-      expect(TapirPlugin.semanticsReleased, isTrue);
-      await tester.pump();
-      expect(_rootSemanticsNode(), isNull);
+        // 1. Release inside an open session: the tree goes away.
+        await _openTimingSession();
+        final ServiceExtensionResponse released =
+            await tapirSemanticsHoldHandler(
+              'ext.tapir.semantics_hold',
+              <String, String>{'action': 'release'},
+            );
+        expect(_result(released)['released'], isTrue);
+        expect(_result(released)['semanticsEnabled'], isFalse);
+        expect(_result(released)['heldByPlatform'], isFalse);
+        expect(TapirPlugin.semanticsReleased, isTrue);
+        await tester.pump();
+        expect(_rootSemanticsNode(), isNull);
 
-      // 2. Acquire, and the handler awaits the frame that rebuilds the tree.
-      final Future<ServiceExtensionResponse> acquiring =
-          tapirSemanticsHoldHandler(
-        'ext.tapir.semantics_hold',
-        <String, String>{'action': 'acquire'},
-      );
-      await tester.pump();
-      final Map<String, dynamic> acquired = _result(await acquiring);
+        // 2. Acquire, and the handler awaits the frame that rebuilds the tree.
+        final Future<ServiceExtensionResponse> acquiring =
+            tapirSemanticsHoldHandler(
+              'ext.tapir.semantics_hold',
+              <String, String>{'action': 'acquire'},
+            );
+        await tester.pump();
+        final Map<String, dynamic> acquired = _result(await acquiring);
 
-      expect(acquired['acquired'], isTrue);
-      expect(TapirPlugin.semanticsReleased, isFalse);
-      expect(
-        _rootSemanticsNode(),
-        isNotNull,
-        reason: 'the acquire must restore the tree after one frame',
-      );
+        expect(acquired['acquired'], isTrue);
+        expect(TapirPlugin.semanticsReleased, isFalse);
+        expect(
+          _rootSemanticsNode(),
+          isNotNull,
+          reason: 'the acquire must restore the tree after one frame',
+        );
 
-      // Inside the body: the harness checks for live handles before any
-      // tearDown runs.
-      TapirPlugin.resetSemanticsForTesting();
-    });
+        // Inside the body: the harness checks for live handles before any
+        // tearDown runs.
+        TapirPlugin.resetSemanticsForTesting();
+      },
+    );
 
     // What Flutter web does to every real app: the engine turns semantics on
     // at the first semantics update and never back off, so the platform
     // holds a handle of its own and tapir's release cannot end the tree.
     testWidgets(
-        'a release while the platform holds semantics on says it stayed on '
-        'and who holds it',
-        semanticsEnabled: false, (WidgetTester tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(home: Scaffold(body: Text('held'))),
-      );
-      TapirPlugin.acquireSemantics();
-      tester.binding.platformDispatcher.semanticsEnabledTestValue = true;
-      await _openTimingSession();
+      'a release while the platform holds semantics on says it stayed on '
+      'and who holds it',
+      semanticsEnabled: false,
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(home: Scaffold(body: Text('held'))),
+        );
+        TapirPlugin.acquireSemantics();
+        tester.binding.platformDispatcher.semanticsEnabledTestValue = true;
+        await _openTimingSession();
 
-      final Map<String, dynamic> released = _result(
-        await tapirSemanticsHoldHandler(
-          'ext.tapir.semantics_hold',
-          <String, String>{'action': 'release'},
-        ),
-      );
+        final Map<String, dynamic> released = _result(
+          await tapirSemanticsHoldHandler(
+            'ext.tapir.semantics_hold',
+            <String, String>{'action': 'release'},
+          ),
+        );
 
-      expect(released['released'], isTrue);
-      expect(released['semanticsEnabled'], isTrue);
-      expect(released['heldByPlatform'], isTrue);
+        expect(released['released'], isTrue);
+        expect(released['semanticsEnabled'], isTrue);
+        expect(released['heldByPlatform'], isTrue);
 
-      // Inside the body: the platform's handle is the binding's, dropped
-      // when the test value is cleared, and the harness checks handles
-      // before any tearDown runs.
-      tester.binding.platformDispatcher.clearSemanticsEnabledTestValue();
-      TapirPlugin.resetSemanticsForTesting();
-    });
+        // Inside the body: the platform's handle is the binding's, dropped
+        // when the test value is cleared, and the harness checks handles
+        // before any tearDown runs.
+        tester.binding.platformDispatcher.clearSemanticsEnabledTestValue();
+        TapirPlugin.resetSemanticsForTesting();
+      },
+    );
 
     test('release outside an open perf session is refused', () async {
       final ServiceExtensionResponse response = await tapirSemanticsHoldHandler(

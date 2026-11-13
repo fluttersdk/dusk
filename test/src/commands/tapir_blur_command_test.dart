@@ -9,17 +9,18 @@ class _StubContext extends DowelContext {
   _StubContext({
     required DowelInput input,
     required DowelOutput output,
-    Map<String, dynamic> response = const {'blurred': true},
-  })  : _response = response,
-        super.bare(input, output);
+    this._response = const {'blurred': true},
+  }) : super.bare(input, output);
 
   final Map<String, dynamic> _response;
   String? lastMethod;
   Map<String, dynamic>? lastParams;
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     lastMethod = method;
     lastParams = params;
     return _response as T;
@@ -52,18 +53,20 @@ void main() {
       expect(ctx.lastMethod, equals('ext.tapir.blur'));
     });
 
-    test('handle prints success line when --includeSnapshot is false',
-        () async {
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {'includeSnapshot': false}),
-        output: output,
-      );
+    test(
+      'handle prints success line when --includeSnapshot is false',
+      () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'includeSnapshot': false}),
+          output: output,
+        );
 
-      await TapirBlurCommand().handle(ctx);
+        await TapirBlurCommand().handle(ctx);
 
-      expect(output.content, contains('Blurred'));
-    });
+        expect(output.content, contains('Blurred'));
+      },
+    );
 
     test('handle prints JSON payload when --includeSnapshot is true', () async {
       final output = BufferedOutput();

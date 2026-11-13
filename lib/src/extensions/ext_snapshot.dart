@@ -82,8 +82,9 @@ Future<developer.ServiceExtensionResponse> tapirSnapHandler(
   Map<String, String> params,
 ) async {
   try {
-    final int? depth =
-        params['depth'] != null ? int.tryParse(params['depth']!) : null;
+    final int? depth = params['depth'] != null
+        ? int.tryParse(params['depth']!)
+        : null;
     // Playwright parity: snapshots are MINIMAL by default — just structural
     // YAML (role/label/value/[ref=eN]). Pass includeEnrichers=true to opt in
     // to Magic + Wind enricher fragments (magicRoute, magicAuthUser,
@@ -194,14 +195,16 @@ Future<Map<String, dynamic>> tapirSnapBuild({
     // so an action against it silently no-ops. Including a renderErrors summary
     // here means a broken screen is impossible to miss without remembering to
     // call ext.tapir.exceptions separately. Omitted entirely when there are none.
-    final List<Map<String, dynamic>> captured =
-        recentCapturedExceptions(limit: 50);
+    final List<Map<String, dynamic>> captured = recentCapturedExceptions(
+      limit: 50,
+    );
 
     final String snapshot = buffer.toString();
     // Only the full, default-shaped tree is a fair thing to diff against: a
     // narrowed walk or one carrying enricher lines would read as a wall of
     // added and removed rows next to it.
-    final bool unfiltered = maxDepth == null &&
+    final bool unfiltered =
+        maxDepth == null &&
         (within == null || within.isEmpty) &&
         pattern == null &&
         !interactiveOnly &&
@@ -217,13 +220,15 @@ Future<Map<String, dynamic>> tapirSnapBuild({
           'count': captured.length,
           'recent': captured
               .take(3)
-              .map((Map<String, dynamic> e) => <String, dynamic>{
-                    'type': e['type'],
-                    'message':
-                        (e['message'] as String? ?? '').split('\n').first,
-                  })
+              .map(
+                (Map<String, dynamic> e) => <String, dynamic>{
+                  'type': e['type'],
+                  'message': (e['message'] as String? ?? '').split('\n').first,
+                },
+              )
               .toList(),
-          'hint': 'Run tapir:exceptions (CLI) or tapir_exceptions (MCP) for '
+          'hint':
+              'Run tapir:exceptions (CLI) or tapir_exceptions (MCP) for '
               'full messages + stack traces.',
         },
     };
@@ -465,10 +470,7 @@ RefBinding? _bindingFor(
 
   final Route<dynamic>? route = ModalRoute.of(element);
   return RefBinding(
-    query: TapirQuery(
-      semanticsLabel: label,
-      matchIndex: index,
-    ),
+    query: TapirQuery(semanticsLabel: label, matchIndex: index),
     matchCount: namesakes.length,
     route: route == null ? null : WeakReference<Route<dynamic>>(route),
   );
@@ -532,8 +534,9 @@ void _emitNode({
   int childDepth = depth;
   if (interactive && role != null) {
     final RenderObject? renderObject = _renderObjectFor(node);
-    final Element? element =
-        renderObject == null ? null : elementByRenderObject[renderObject];
+    final Element? element = renderObject == null
+        ? null
+        : elementByRenderObject[renderObject];
 
     // D2 collapse: a `textbox` node whose render object is a DESCENDANT of an
     // ancestor textbox's render object is a duplicate (e.g. wind's
@@ -596,11 +599,15 @@ void _emitNode({
       // #60: a merge boundary whose centre is not on its own control. Additive
       // sub-line, present only for the rare node that needs it, so the ref
       // line (and the diff parser that reads it) stays as it was.
-      final Map<String, Object>? tapOwner =
-          tapOwnerBounds(node: node, element: element, rect: rect);
+      final Map<String, Object>? tapOwner = tapOwnerBounds(
+        node: node,
+        element: element,
+        rect: rect,
+      );
       if (tapOwner != null) {
-        buffer
-            .writeln('${_indent(depth + 1)}tapOwner: ${jsonEncode(tapOwner)}');
+        buffer.writeln(
+          '${_indent(depth + 1)}tapOwner: ${jsonEncode(tapOwner)}',
+        );
       }
 
       // Live overflow check: walk the render-object parent chain to find the
@@ -633,7 +640,8 @@ void _emitNode({
             windData.forEach((key, value) {
               if (value is List) {
                 buffer.writeln(
-                    '${_indent(depth + 2)}$key: [${value.join(', ')}]');
+                  '${_indent(depth + 2)}$key: [${value.join(', ')}]',
+                );
               } else {
                 buffer.writeln('${_indent(depth + 2)}$key: $value');
               }
@@ -644,8 +652,9 @@ void _emitNode({
         for (final enricher in TapirPlugin.enrichers) {
           final String? fragment = enricher(element, RefRegistry.instance);
           if (fragment == null || fragment.isEmpty) continue;
-          for (final line
-              in const LineSplitter().convert(fragment.trimRight())) {
+          for (final line in const LineSplitter().convert(
+            fragment.trimRight(),
+          )) {
             if (line.isEmpty) continue;
             buffer.writeln('${_indent(depth + 1)}$line');
           }

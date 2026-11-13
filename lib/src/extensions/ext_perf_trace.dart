@@ -67,8 +67,9 @@ Future<developer.ServiceExtensionResponse> tapirPerfTraceHandler(
   final String? closed = lastClosedPerfToken;
   final ({int startUs, int endUs})? window = lastClosedPerfWindow;
   final String? problem = switch (closed) {
-    null => 'no closed perf session to export. Run ext.tapir.perf_begin, '
-        'drive the interaction, then ext.tapir.perf_end.',
+    null =>
+      'no closed perf session to export. Run ext.tapir.perf_begin, '
+          'drive the interaction, then ext.tapir.perf_end.',
     _ when token != null && token != closed =>
       'session $token is not held; only the most recent closed session '
           '($closed) is kept. Export it, or rerun the session.',
@@ -101,9 +102,10 @@ Future<developer.ServiceExtensionResponse> tapirPerfTraceHandler(
         token: closed!,
         startUs: window.startUs,
         endUs: window.endUs,
-        interactions: perfInteractionsBetween(window.startUs, window.endUs)
-            .map((PerfInteraction i) => i.toJson())
-            .toList(),
+        interactions: perfInteractionsBetween(
+          window.startUs,
+          window.endUs,
+        ).map((PerfInteraction i) => i.toJson()).toList(),
         frames: rawFrames is List<Object?>
             ? rawFrames.whereType<Map<String, Object?>>().toList()
             : const <Map<String, Object?>>[],
@@ -199,7 +201,8 @@ Map<String, Object?> buildPerfTrace({
     List<Map<String, Object?>> inSession,
     int outside,
     bool clockMismatch,
-  }) window = perfSessionFrames(frames, startUs, endUs);
+  })
+  window = perfSessionFrames(frames, startUs, endUs);
   int frameCount = 0;
   for (final Map<String, Object?> frame in window.inSession) {
     final int? start = _asNullableInt(frame['vsyncStartUs']);
@@ -207,20 +210,16 @@ Map<String, Object?> buildPerfTrace({
     frameCount++;
     tracks.slice(
       _kFrameTrack,
-      _Slice(
-        start,
-        start + _asInt(frame['totalSpanMicros']),
-        <String, Object?>{
-          'cat': 'frame',
-          'name': 'Frame ${frame['frameNumber']}',
-          'args': <String, Object?>{
-            'frameNumber': frame['frameNumber'],
-            'buildMs': _asInt(frame['buildMicros']) / 1000,
-            'rasterMs': _asInt(frame['rasterMicros']) / 1000,
-            ..._links(frame),
-          },
+      _Slice(start, start + _asInt(frame['totalSpanMicros']), <String, Object?>{
+        'cat': 'frame',
+        'name': 'Frame ${frame['frameNumber']}',
+        'args': <String, Object?>{
+          'frameNumber': frame['frameNumber'],
+          'buildMs': _asInt(frame['buildMicros']) / 1000,
+          'rasterMs': _asInt(frame['rasterMicros']) / 1000,
+          ..._links(frame),
         },
-      ),
+      }),
     );
   }
 
@@ -377,8 +376,9 @@ final class _Tracks {
       final List<List<int>> lanes = <List<int>>[];
       for (final _Slice slice in ordered) {
         final int lane = _laneFor(lanes, slice);
-        final String name =
-            lane == 0 ? entry.key : '${entry.key} (${lane + 1})';
+        final String name = lane == 0
+            ? entry.key
+            : '${entry.key} (${lane + 1})';
         placed.add(<String, Object?>{
           ...slice.event,
           'ph': 'X',
@@ -424,10 +424,9 @@ final class _Tracks {
 
 /// The causal link a row or frame carries, when it carries one.
 Map<String, Object?> _links(Map<String, Object?> source) => <String, Object?>{
-      if (source['interactionId'] != null)
-        'interactionId': source['interactionId'],
-      if (source['linkedBy'] != null) 'linkedBy': source['linkedBy'],
-    };
+  if (source['interactionId'] != null) 'interactionId': source['interactionId'],
+  if (source['linkedBy'] != null) 'linkedBy': source['linkedBy'],
+};
 
 int _asInt(Object? value) => value is num ? value.toInt() : 0;
 

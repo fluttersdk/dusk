@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -160,9 +160,7 @@ void main() {
         // A bare Text() has no enabled flag set → Tristate.none.
         await tester.pumpWidget(
           const MaterialApp(
-            home: Scaffold(
-              body: Center(child: Text('plain-text')),
-            ),
+            home: Scaffold(body: Center(child: Text('plain-text'))),
           ),
         );
 
@@ -192,39 +190,38 @@ void main() {
     // (c) Failure mode 2 — zero-area rect (width or height == 0)
     // -------------------------------------------------------------------------
 
-    testWidgets(
-      'throws with reason "zero rect" when the entry width is zero',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(const SizedBox.shrink());
-        final Element element = tester.element(find.byType(SizedBox));
-        final RefEntry entry = _buildEntry(
-          rect: const Rect.fromLTWH(10, 10, 0, 50),
-          element: element,
-        );
+    testWidgets('throws with reason "zero rect" when the entry width is zero', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      final Element element = tester.element(find.byType(SizedBox));
+      final RefEntry entry = _buildEntry(
+        rect: const Rect.fromLTWH(10, 10, 0, 50),
+        element: element,
+      );
 
-        await expectLater(
-          ensureActionable(
-            entry,
-            ref: 'e3',
-            checkStable: false,
-            checkReceivesEvents: false,
-          ),
-          throwsA(
-            isA<TapirActionabilityException>()
-                .having(
-                  (TapirActionabilityException e) => e.reason,
-                  'reason',
-                  'zero rect',
-                )
-                .having(
-                  (TapirActionabilityException e) => e.message,
-                  'message',
-                  contains('Widget ref=e3 is not actionable: zero rect'),
-                ),
-          ),
-        );
-      },
-    );
+      await expectLater(
+        ensureActionable(
+          entry,
+          ref: 'e3',
+          checkStable: false,
+          checkReceivesEvents: false,
+        ),
+        throwsA(
+          isA<TapirActionabilityException>()
+              .having(
+                (TapirActionabilityException e) => e.reason,
+                'reason',
+                'zero rect',
+              )
+              .having(
+                (TapirActionabilityException e) => e.message,
+                'message',
+                contains('Widget ref=e3 is not actionable: zero rect'),
+              ),
+        ),
+      );
+    });
 
     testWidgets(
       'throws with reason "zero rect" when the entry height is zero',
@@ -303,57 +300,56 @@ void main() {
       },
     );
 
-    testWidgets(
-      'honours devicePixelRatio when computing viewport bounds',
-      (WidgetTester tester) async {
-        // Physical 1600x1200 at DPR 2.0 → logical viewport 800x600.
-        tester.view.physicalSize = const Size(1600, 1200);
-        tester.view.devicePixelRatio = 2.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('honours devicePixelRatio when computing viewport bounds', (
+      WidgetTester tester,
+    ) async {
+      // Physical 1600x1200 at DPR 2.0 → logical viewport 800x600.
+      tester.view.physicalSize = const Size(1600, 1200);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(const SizedBox.shrink());
-        final Element element = tester.element(find.byType(SizedBox));
+      await tester.pumpWidget(const SizedBox.shrink());
+      final Element element = tester.element(find.byType(SizedBox));
 
-        // Logical rect at (100, 100, 50, 50) sits comfortably inside 800x600.
-        final RefEntry inside = _buildEntry(
-          rect: const Rect.fromLTWH(100, 100, 50, 50),
-          element: element,
-        );
-        await expectLater(
-          ensureActionable(
-            inside,
-            ref: 'e6',
-            checkStable: false,
-            checkReceivesEvents: false,
-          ),
-          completes,
-        );
+      // Logical rect at (100, 100, 50, 50) sits comfortably inside 800x600.
+      final RefEntry inside = _buildEntry(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: element,
+      );
+      await expectLater(
+        ensureActionable(
+          inside,
+          ref: 'e6',
+          checkStable: false,
+          checkReceivesEvents: false,
+        ),
+        completes,
+      );
 
-        // Logical rect at (1000, 1000) sits OUTSIDE the 800x600 logical
-        // viewport even though it would be inside the 1600x1200 physical
-        // viewport — proves the divide-by-DPR step is applied.
-        final RefEntry outside = _buildEntry(
-          rect: const Rect.fromLTWH(1000, 1000, 50, 50),
-          element: element,
-        );
-        await expectLater(
-          ensureActionable(
-            outside,
-            ref: 'e7',
-            checkStable: false,
-            checkReceivesEvents: false,
+      // Logical rect at (1000, 1000) sits OUTSIDE the 800x600 logical
+      // viewport even though it would be inside the 1600x1200 physical
+      // viewport — proves the divide-by-DPR step is applied.
+      final RefEntry outside = _buildEntry(
+        rect: const Rect.fromLTWH(1000, 1000, 50, 50),
+        element: element,
+      );
+      await expectLater(
+        ensureActionable(
+          outside,
+          ref: 'e7',
+          checkStable: false,
+          checkReceivesEvents: false,
+        ),
+        throwsA(
+          isA<TapirActionabilityException>().having(
+            (TapirActionabilityException e) => e.reason,
+            'reason',
+            startsWith('off-viewport'),
           ),
-          throwsA(
-            isA<TapirActionabilityException>().having(
-              (TapirActionabilityException e) => e.reason,
-              'reason',
-              startsWith('off-viewport'),
-            ),
-          ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
     // -------------------------------------------------------------------------
     // (e) Edge case — platformDispatcher.views is empty → return gracefully
@@ -472,10 +468,7 @@ void main() {
         final Offset topLeft = box.localToGlobal(Offset.zero);
         final Rect liveRect = topLeft & box.size;
 
-        final RefEntry entry = _buildEntry(
-          rect: liveRect,
-          element: element,
-        );
+        final RefEntry entry = _buildEntry(rect: liveRect, element: element);
 
         // Kick off the gate, then pump so its internal `endOfFrame` await
         // resolves; finally drain the returned future to assert success.
@@ -501,9 +494,7 @@ void main() {
         await tester.pumpWidget(
           const MaterialApp(
             home: Scaffold(
-              body: _AnimatedMover(
-                key: ValueKey<String>('mover'),
-              ),
+              body: _AnimatedMover(key: ValueKey<String>('mover')),
             ),
           ),
         );
@@ -575,9 +566,7 @@ void main() {
         await tester.pumpWidget(
           const MaterialApp(
             home: Scaffold(
-              body: _AnimatedMover(
-                key: ValueKey<String>('mover'),
-              ),
+              body: _AnimatedMover(key: ValueKey<String>('mover')),
             ),
           ),
         );
@@ -654,17 +643,10 @@ void main() {
         final RenderBox box = element.findRenderObject()! as RenderBox;
         final Rect liveRect = box.localToGlobal(Offset.zero) & box.size;
 
-        final RefEntry entry = _buildEntry(
-          rect: liveRect,
-          element: element,
-        );
+        final RefEntry entry = _buildEntry(rect: liveRect, element: element);
 
         await expectLater(
-          ensureActionable(
-            entry,
-            ref: 'e13',
-            checkStable: false,
-          ),
+          ensureActionable(entry, ref: 'e13', checkStable: false),
           completes,
         );
       },
@@ -723,11 +705,7 @@ void main() {
         );
 
         await expectLater(
-          ensureActionable(
-            entry,
-            ref: 'e14',
-            checkStable: false,
-          ),
+          ensureActionable(entry, ref: 'e14', checkStable: false),
           throwsA(
             isA<TapirActionabilityException>()
                 .having(
@@ -1069,10 +1047,7 @@ void main() {
         final Rect liveRect = box.localToGlobal(Offset.zero) & box.size;
 
         final Future<ActionabilityReport> future = ensureActionable(
-          _buildEntry(
-            rect: liveRect.translate(0, 76),
-            element: element,
-          ),
+          _buildEntry(rect: liveRect.translate(0, 76), element: element),
           ref: 'e20',
           checkReceivesEvents: false,
         );
@@ -1212,10 +1187,7 @@ void main() {
         ),
       );
 
-      expect(
-        resolveViewFor(captured as Element),
-        same(View.of(captured)),
-      );
+      expect(resolveViewFor(captured as Element), same(View.of(captured)));
     });
 
     testWidgets('falls back to the implicit view for a null element', (
@@ -1258,17 +1230,19 @@ void main() {
       );
     });
 
-    test('falls back to the first attached view when there is no implicit one',
-        () {
-      expect(
-        selectView(
-          owned: null,
-          implicit: null,
-          views: <FlutterView>[first, second],
-        ),
-        same(first),
-      );
-    });
+    test(
+      'falls back to the first attached view when there is no implicit one',
+      () {
+        expect(
+          selectView(
+            owned: null,
+            implicit: null,
+            views: <FlutterView>[first, second],
+          ),
+          same(first),
+        );
+      },
+    );
 
     test('fails with a clear message when no view is attached', () {
       expect(

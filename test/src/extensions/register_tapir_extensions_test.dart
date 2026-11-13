@@ -22,9 +22,7 @@ void main() {
     late String source;
 
     setUpAll(() {
-      final file = File(
-        'lib/src/extensions/register_tapir_extensions.dart',
-      );
+      final file = File('lib/src/extensions/register_tapir_extensions.dart');
       expect(
         file.existsSync(),
         isTrue,
@@ -37,7 +35,8 @@ void main() {
       expect(
         source,
         contains('registerNavigationExtensions();'),
-        reason: 'aggregator must call registerNavigationExtensions() so the '
+        reason:
+            'aggregator must call registerNavigationExtensions() so the '
             'ext.tapir.navigate / navigate_back / get_routes extensions '
             'register on TapirPlugin.install()',
       );
@@ -47,7 +46,8 @@ void main() {
       expect(
         source,
         contains('registerEvaluateExtension();'),
-        reason: 'aggregator must call registerEvaluateExtension() so the '
+        reason:
+            'aggregator must call registerEvaluateExtension() so the '
             'ext.tapir.evaluate extension registers on TapirPlugin.install()',
       );
     });
@@ -56,17 +56,20 @@ void main() {
       expect(
         source,
         contains('registerCloseAppExtension();'),
-        reason: 'aggregator must call registerCloseAppExtension() so the '
+        reason:
+            'aggregator must call registerCloseAppExtension() so the '
             'ext.tapir.close_app extension registers on TapirPlugin.install()',
       );
     });
 
-    test('imports ext_navigation.dart, ext_evaluate.dart, ext_close_app.dart',
-        () {
-      expect(source, contains("import 'ext_navigation.dart';"));
-      expect(source, contains("import 'ext_evaluate.dart';"));
-      expect(source, contains("import 'ext_close_app.dart';"));
-    });
+    test(
+      'imports ext_navigation.dart, ext_evaluate.dart, ext_close_app.dart',
+      () {
+        expect(source, contains("import 'ext_navigation.dart';"));
+        expect(source, contains("import 'ext_evaluate.dart';"));
+        expect(source, contains("import 'ext_close_app.dart';"));
+      },
+    );
 
     test('calls registerPerfTraceExtension() beside the perf session', () {
       expect(source, contains("import 'ext_perf_trace.dart';"));
@@ -78,20 +81,23 @@ void main() {
       expect(source, contains('registerSemanticsHoldExtension();'));
     });
 
-    test('registers ext.tapir.boot_id last, so it answers only after the rest',
-        () {
-      expect(source, contains("import 'ext_boot.dart';"));
-      final String body = source.substring(
-        source.indexOf('void registerAllTapirExtensions() {'),
-      );
-      expect(
-        body.trim(),
-        endsWith('registerBootExtension();\n}'),
-        reason: 'tapir:perf_run reads the boot id as proof that install() '
-            'finished; an extension registered after it could still be '
-            'missing when the id answers',
-      );
-    });
+    test(
+      'registers ext.tapir.boot_id last, so it answers only after the rest',
+      () {
+        expect(source, contains("import 'ext_boot.dart';"));
+        final String body = source.substring(
+          source.indexOf('void registerAllTapirExtensions() {'),
+        );
+        expect(
+          body.trim(),
+          endsWith('registerBootExtension();\n}'),
+          reason:
+              'tapir:perf_run reads the boot id as proof that install() '
+              'finished; an extension registered after it could still be '
+              'missing when the id answers',
+        );
+      },
+    );
 
     test('preserves the pre-existing alpha-1 aggregator calls', () {
       expect(source, contains('registerSnapExtension();'));

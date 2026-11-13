@@ -27,13 +27,16 @@ class TapirNavigateCommand extends DowelCommand {
       help: 'Route path to push, e.g. /forms.',
       mandatory: true,
     );
-    parser.addFlag('includeSnapshot',
-        help: 'Embed the post-navigate snapshot in the response.',
-        defaultsTo: false);
+    parser.addFlag(
+      'includeSnapshot',
+      help: 'Embed the post-navigate snapshot in the response.',
+      defaultsTo: false,
+    );
     parser.addOption(
       'snapshot',
       allowed: <String>['full', 'diff', 'none'],
-      help: 'Print the post-navigate snapshot after the summary: the whole '
+      help:
+          'Print the post-navigate snapshot after the summary: the whole '
           'tree, only the lines changed since the last snapshot, or nothing. '
           'Overrides --includeSnapshot.',
     );
@@ -47,19 +50,16 @@ class TapirNavigateCommand extends DowelCommand {
       return 1;
     }
     final snapshotMode = ctx.input.option('snapshot') as String?;
-    final includeSnapshot = snapshotMode == null &&
+    final includeSnapshot =
+        snapshotMode == null &&
         ((ctx.input.option('includeSnapshot') as bool?) ?? false);
-    final response = await callExtensionVisible(
-      ctx,
-      'ext.tapir.navigate',
-      {
-        'route': route,
-        if (snapshotMode != null)
-          'snapshot': snapshotMode
-        else
-          'includeSnapshot': includeSnapshot.toString(),
-      },
-    );
+    final response = await callExtensionVisible(ctx, 'ext.tapir.navigate', {
+      'route': route,
+      if (snapshotMode != null)
+        'snapshot': snapshotMode
+      else
+        'includeSnapshot': includeSnapshot.toString(),
+    });
     reportFrameWarning(ctx, response);
     if (includeSnapshot || wantsJson(ctx)) {
       ctx.output.writeln(jsonEncode(response));
@@ -70,7 +70,8 @@ class TapirNavigateCommand extends DowelCommand {
     // app has no Router to read a URI from, so a push that did land reports
     // the same thing: say "unconfirmed" and point at the snapshot.
     if (response['navigated'] == false) {
-      final raw = response['reason'] as String? ??
+      final raw =
+          response['reason'] as String? ??
           'the router did not report the new route';
       final reason = raw.endsWith('.') ? raw.substring(0, raw.length - 1) : raw;
       ctx.output.warning(

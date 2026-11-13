@@ -67,48 +67,51 @@ void main() {
   }
 
   group('loadPerfScenarios()', () {
-    test('an existing scenario loads to the toJson it always parsed to',
-        () async {
-      final PerfLoadResult result = await loadPerfScenarios(
-        write('dashboard-load-390.yaml', _dashboardLoad390),
-      );
+    test(
+      'an existing scenario loads to the toJson it always parsed to',
+      () async {
+        final PerfLoadResult result = await loadPerfScenarios(
+          write('dashboard-load-390.yaml', _dashboardLoad390),
+        );
 
-      expect(result.scenarios, hasLength(1));
-      expect(result.secrets, isEmpty);
-      expect(
-        result.scenarios.single.toJson(),
-        PerfScenario.parse(_dashboardLoad390).toJson(),
-      );
-      expect(result.scenarios.single.toJson(), <String, Object?>{
-        'name': 'dashboard-load-390',
-        'viewport': <String, Object?>{'width': 390, 'height': 844},
-        'platforms': <String>['chrome', 'android', 'ios'],
-        'setup': <Object?>[
-          'hot_restart',
-          <String, Object?>{'navigate': '/monitors'},
-          <String, Object?>{
-            'wait_for_text': <String, Object?>{
-              'text': "Uptizm'in bölgeler genelinde izlediği uç noktalar.",
-              'timeout_ms': kPerfWaitForTextTimeoutMs,
+        expect(result.scenarios, hasLength(1));
+        expect(result.secrets, isEmpty);
+        expect(
+          result.scenarios.single.toJson(),
+          PerfScenario.parse(_dashboardLoad390).toJson(),
+        );
+        expect(result.scenarios.single.toJson(), <String, Object?>{
+          'name': 'dashboard-load-390',
+          'viewport': <String, Object?>{'width': 390, 'height': 844},
+          'platforms': <String>['chrome', 'android', 'ios'],
+          'setup': <Object?>[
+            'hot_restart',
+            <String, Object?>{'navigate': '/monitors'},
+            <String, Object?>{
+              'wait_for_text': <String, Object?>{
+                'text': "Uptizm'in bölgeler genelinde izlediği uç noktalar.",
+                'timeout_ms': kPerfWaitForTextTimeoutMs,
+              },
             },
-          },
-          'wait_for_network_idle',
-        ],
-        'steps': <Object?>[
-          <String, Object?>{'navigate': '/'},
-          <String, Object?>{'wait': 800},
-        ],
-        'repeat': 3,
-        'thresholds': <String, Object?>{'warn': 10, 'error': 25},
-      });
-    });
+            'wait_for_network_idle',
+          ],
+          'steps': <Object?>[
+            <String, Object?>{'navigate': '/'},
+            <String, Object?>{'wait': 800},
+          ],
+          'repeat': 3,
+          'thresholds': <String, Object?>{'warn': 10, 'error': 25},
+        });
+      },
+    );
 
     group('an include', () {
-      test('flattens the fragment into setup with its params and defaults',
-          () async {
-        write('fragments/login.yaml', _loginFragment);
-        final PerfLoadResult result = await loadPerfScenarios(
-          write('login-flow.yaml', '''
+      test(
+        'flattens the fragment into setup with its params and defaults',
+        () async {
+          write('fragments/login.yaml', _loginFragment);
+          final PerfLoadResult result = await loadPerfScenarios(
+            write('login-flow.yaml', '''
 name: login-flow
 setup:
   - hot_restart
@@ -118,44 +121,42 @@ setup:
 steps:
   - tap: {target: {text: Monitors}}
 '''),
-        );
+          );
 
-        final List<PerfSetupStep> setup = result.scenarios.single.setup;
-        expect(
-          setup.map((PerfSetupStep s) => s.verb).toList(),
-          <PerfSetupVerb>[
-            PerfSetupVerb.hotRestart,
-            PerfSetupVerb.gesture,
-            PerfSetupVerb.gesture,
-            PerfSetupVerb.gesture,
-            PerfSetupVerb.waitForNetworkIdle,
-          ],
-        );
-        expect(setup[1].gesture!.text, 'demo@uptizm.test');
-        expect(setup[1].gesture!.secret, isFalse);
-        expect(setup[2].gesture!.text, 'hunter2');
-        expect(setup[2].gesture!.secret, isTrue);
-        expect(setup[3].gesture!.target!.value, 'Sign in');
-        expect(
-          setup.map((PerfSetupStep s) => s.origin).toList(),
-          <String>[
+          final List<PerfSetupStep> setup = result.scenarios.single.setup;
+          expect(
+            setup.map((PerfSetupStep s) => s.verb).toList(),
+            <PerfSetupVerb>[
+              PerfSetupVerb.hotRestart,
+              PerfSetupVerb.gesture,
+              PerfSetupVerb.gesture,
+              PerfSetupVerb.gesture,
+              PerfSetupVerb.waitForNetworkIdle,
+            ],
+          );
+          expect(setup[1].gesture!.text, 'demo@uptizm.test');
+          expect(setup[1].gesture!.secret, isFalse);
+          expect(setup[2].gesture!.text, 'hunter2');
+          expect(setup[2].gesture!.secret, isTrue);
+          expect(setup[3].gesture!.target!.value, 'Sign in');
+          expect(setup.map((PerfSetupStep s) => s.origin).toList(), <String>[
             'setup[0]',
             'fragments/login.yaml steps[0]',
             'fragments/login.yaml steps[1]',
             'fragments/login.yaml steps[2]',
             'setup[2]',
-          ],
-        );
-        expect(
-          (result.scenarios.single.toJson()['setup']! as List<Object?>)[2],
-          <String, Object?>{
-            'fill': <String, Object?>{
-              'target': <String, Object?>{'label': 'Password'},
-              'text': '***',
+          ]);
+          expect(
+            (result.scenarios.single.toJson()['setup']! as List<Object?>)[2],
+            <String, Object?>{
+              'fill': <String, Object?>{
+                'target': <String, Object?>{'label': 'Password'},
+                'text': '***',
+              },
             },
-          },
-        );
-      });
+          );
+        },
+      );
 
       test('nests, each fragment resolving against its own file', () async {
         write('fragments/login.yaml', _loginFragment);
@@ -247,12 +248,13 @@ steps:
         expect(result.scenarios.single.setup.single.origin, 'f8.yaml steps[0]');
       });
 
-      test('refuses an unknown param, a missing one and an unknown key',
-          () async {
-        write('fragments/login.yaml', _loginFragment);
-        write('fragments/odd.yaml', 'steps:\n  - wait: 10\nname: odd\n');
-        final String problems = await problemsOf(
-          write('bad-params.yaml', '''
+      test(
+        'refuses an unknown param, a missing one and an unknown key',
+        () async {
+          write('fragments/login.yaml', _loginFragment);
+          write('fragments/odd.yaml', 'steps:\n  - wait: 10\nname: odd\n');
+          final String problems = await problemsOf(
+            write('bad-params.yaml', '''
 name: bad-params
 setup:
   - include: fragments/login.yaml
@@ -261,14 +263,17 @@ setup:
 steps:
   - wait: 100
 '''),
-        );
+          );
 
-        expect(problems, contains('setup[0].with.pasword'));
-        expect(problems, contains('unknown param'));
-        expect(problems,
-            contains('setup[0]: fragments/login.yaml needs password'));
-        expect(problems, contains('fragments/odd.yaml: unknown key "name"'));
-      });
+          expect(problems, contains('setup[0].with.pasword'));
+          expect(problems, contains('unknown param'));
+          expect(
+            problems,
+            contains('setup[0]: fragments/login.yaml needs password'),
+          );
+          expect(problems, contains('fragments/odd.yaml: unknown key "name"'));
+        },
+      );
 
       test('is refused inside the measured steps', () async {
         write('fragments/login.yaml', _loginFragment);
@@ -329,8 +334,7 @@ steps:
         expect(identical(setup[3].guard!.parent, overridden), isTrue);
       });
 
-      test(
-          'echoes each guard in the setup JSON on the first step it governs, '
+      test('echoes each guard in the setup JSON on the first step it governs, '
           'a guard entered there with it as its parent', () async {
         write('fragments/guarded.yaml', '''
 when: {text: Sign in, unless_text: Monitors, timeout_ms: 5000}
@@ -518,12 +522,18 @@ steps:
           env: <String, String>{'TOKEN': 'tok'},
         );
 
-        expect(problems,
-            contains('a secret may only be typed: setup[0].navigate'));
-        expect(problems,
-            contains('a secret may only be typed: setup[1].wait_for_text'));
-        expect(problems,
-            contains('a secret may only be typed: steps[0].tap.target.text'));
+        expect(
+          problems,
+          contains('a secret may only be typed: setup[0].navigate'),
+        );
+        expect(
+          problems,
+          contains('a secret may only be typed: setup[1].wait_for_text'),
+        );
+        expect(
+          problems,
+          contains('a secret may only be typed: steps[0].tap.target.text'),
+        );
       });
 
       test('never reaches a parse error, raw or JSON-encoded', () async {
@@ -609,8 +619,7 @@ steps:
         expect(result.envNames, <String>{'USER_EMAIL', 'SEARCH'});
       });
 
-      test(
-          'shorter than 4 characters is refused, naming the variable and '
+      test('shorter than 4 characters is refused, naming the variable and '
           'never the value', () async {
         final String problems = await problemsOf(
           write('short.yaml', r'''
@@ -641,26 +650,30 @@ steps:
 
         expect(
           problems,
-          contains('setup[0].with.password: the secret param password of '
-              'fragments/login.yaml is 3 characters'),
+          contains(
+            'setup[0].with.password: the secret param password of '
+            'fragments/login.yaml is 3 characters',
+          ),
         );
         expect(problems, isNot(contains('"123"')));
       });
 
-      test('of exactly 4 characters loads, and an empty one is no secret',
-          () async {
-        final PerfLoadResult result = await loadPerfScenarios(
-          write('edge.yaml', r'''
+      test(
+        'of exactly 4 characters loads, and an empty one is no secret',
+        () async {
+          final PerfLoadResult result = await loadPerfScenarios(
+            write('edge.yaml', r'''
 name: edge
 steps:
   - fill: {target: {label: Pin}, text: "${env.PIN}${env.CODE}"}
 '''),
-          env: <String, String>{'PIN': '1234', 'CODE': ''},
-        );
+            env: <String, String>{'PIN': '1234', 'CODE': ''},
+          );
 
-        expect(result.secrets, <String>{'1234'});
-        expect(result.envNames, <String>{'PIN', 'CODE'});
-      });
+          expect(result.secrets, <String>{'1234'});
+          expect(result.envNames, <String>{'PIN', 'CODE'});
+        },
+      );
     });
 
     group('variants', () {
@@ -699,10 +712,10 @@ variants:
         expect(wide.repeat, 5);
         expect(wide.steps.single.verb, PerfStepVerb.wheel);
         expect(narrow.viewport, (width: 390, height: 844));
-        expect(
-          narrow.platforms,
-          <PerfPlatform>{PerfPlatform.chrome, PerfPlatform.android},
-        );
+        expect(narrow.platforms, <PerfPlatform>{
+          PerfPlatform.chrome,
+          PerfPlatform.android,
+        });
         expect(narrow.repeat, 2);
         expect(narrow.steps.single.verb, PerfStepVerb.drag);
         expect(narrow.setup.single.argument, '/monitors');
@@ -729,10 +742,11 @@ variants:
         expect(problems, isNot(contains('scroll-1440')));
       });
 
-      test('refuse a key that cannot name a file and a key given twice',
-          () async {
-        final String problems = await problemsOf(
-          write('keys.yaml', '''
+      test(
+        'refuse a key that cannot name a file and a key given twice',
+        () async {
+          final String problems = await problemsOf(
+            write('keys.yaml', '''
 name: keys
 steps:
   - wait: 100
@@ -742,12 +756,13 @@ variants:
   "390": {}
   "1440": {name: other}
 '''),
-        );
+          );
 
-        expect(problems, contains('variants: key "Wide"'));
-        expect(problems, contains('variants: key "390" appears twice'));
-        expect(problems, contains('variants.1440: unknown key "name"'));
-      });
+          expect(problems, contains('variants: key "Wide"'));
+          expect(problems, contains('variants: key "390" appears twice'));
+          expect(problems, contains('variants.1440: unknown key "name"'));
+        },
+      );
     });
   });
 

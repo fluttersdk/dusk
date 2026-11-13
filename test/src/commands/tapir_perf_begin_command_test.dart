@@ -7,16 +7,17 @@ class _StubContext extends DowelContext {
   _StubContext({
     required DowelInput input,
     required DowelOutput output,
-    required Map<String, dynamic> response,
-  })  : _response = response,
-        super.bare(input, output);
+    required this._response,
+  }) : super.bare(input, output);
 
   final Map<String, dynamic> _response;
   Map<String, dynamic>? lastParams;
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     lastParams = params;
     return _response as T;
   }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The widget tree of anilcancakir/tapir#60: a `MergeSemantics` stage whose own
 /// tap handler fills the frame, with a small labelled `Skip intro` button in

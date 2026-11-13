@@ -1,9 +1,9 @@
 import 'dart:developer' as developer;
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 import 'package:dowel/dowel.dart';
 
@@ -214,8 +214,11 @@ Future<developer.ServiceExtensionResponse> aiTestResetOverlaysHandler(
   try {
     // The three layers are one gesture to the app, so one interaction spans
     // them.
-    final (int popped, bool escaped, bool dismissTapped) =
-        await runPerfInteraction('reset_overlays', null, () async {
+    final (
+      int popped,
+      bool escaped,
+      bool dismissTapped,
+    ) = await runPerfInteraction('reset_overlays', null, () async {
       // 1. Pop every PopupRoute. This alone clears the common cases
       //    (showDialog, showModalBottomSheet, showMenu) and is fully
       //    idempotent.
@@ -326,7 +329,10 @@ bool _hasOpenOverlay() {
 /// Returns `true` when a matching affordance was tapped, `false` otherwise.
 bool _tapDismissAffordance() {
   final SemanticsNode? root = RendererBinding
-      .instance.rootPipelineOwner.semanticsOwner?.rootSemanticsNode;
+      .instance
+      .rootPipelineOwner
+      .semanticsOwner
+      ?.rootSemanticsNode;
   if (root == null) return false;
 
   SemanticsNode? match;

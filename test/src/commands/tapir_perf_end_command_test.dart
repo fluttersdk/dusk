@@ -9,15 +9,16 @@ class _StubContext extends DowelContext {
   _StubContext({
     required DowelInput input,
     required DowelOutput output,
-    required Map<String, dynamic> response,
-  })  : _response = response,
-        super.bare(input, output);
+    required this._response,
+  }) : super.bare(input, output);
 
   final Map<String, dynamic> _response;
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     return _response as T;
   }
 }
@@ -66,26 +67,28 @@ void main() {
       expect(TapirPerfEndCommand().boot, equals(CommandBoot.connected));
     });
 
-    test('the human line warns when the summary covers a subset of frames',
-        () async {
-      // This is the line that misled a real investigation: "2 frames, worst
-      // build 114ms" printed over a session that drew 4, with an empty
-      // attribution, and read as a complete measurement. The JSON knew; the
-      // sentence a human reads did not say it.
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {}),
-        output: output,
-        response: _report(framesDrawn: 4, framesSummarized: 2),
-      );
+    test(
+      'the human line warns when the summary covers a subset of frames',
+      () async {
+        // This is the line that misled a real investigation: "2 frames, worst
+        // build 114ms" printed over a session that drew 4, with an empty
+        // attribution, and read as a complete measurement. The JSON knew; the
+        // sentence a human reads did not say it.
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {}),
+          output: output,
+          response: _report(framesDrawn: 4, framesSummarized: 2),
+        );
 
-      final code = await TapirPerfEndCommand().handle(ctx);
+        final code = await TapirPerfEndCommand().handle(ctx);
 
-      expect(code, equals(0), reason: 'a partial report is still a report');
-      expect(output.content, contains('4'));
-      expect(output.content, contains('2'));
-      expect(output.content.toLowerCase(), contains('subset'));
-    });
+        expect(code, equals(0), reason: 'a partial report is still a report');
+        expect(output.content, contains('4'));
+        expect(output.content, contains('2'));
+        expect(output.content.toLowerCase(), contains('subset'));
+      },
+    );
 
     test('a complete session prints no coverage warning', () async {
       // A warning that fires on every run is one a reader stops seeing.
@@ -102,53 +105,57 @@ void main() {
       expect(output.content.toLowerCase(), isNot(contains('subset')));
     });
 
-    test('the human line names the top insight and how to drill into it',
-        () async {
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {}),
-        output: output,
-        response: _report(
-          framesDrawn: 9,
-          framesSummarized: 9,
-          insights: <Map<String, dynamic>>[
-            <String, dynamic>{
-              'id': 'I2',
-              'severity': 'error',
-              'title': '1 of 9 frames over the 16.7 ms budget',
-            },
-            <String, dynamic>{
-              'id': 'I1',
-              'severity': 'warn',
-              'title': 'something else',
-            },
-          ],
-        ),
-      );
+    test(
+      'the human line names the top insight and how to drill into it',
+      () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {}),
+          output: output,
+          response: _report(
+            framesDrawn: 9,
+            framesSummarized: 9,
+            insights: <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'I2',
+                'severity': 'error',
+                'title': '1 of 9 frames over the 16.7 ms budget',
+              },
+              <String, dynamic>{
+                'id': 'I1',
+                'severity': 'warn',
+                'title': 'something else',
+              },
+            ],
+          ),
+        );
 
-      await TapirPerfEndCommand().handle(ctx);
+        await TapirPerfEndCommand().handle(ctx);
 
-      expect(output.content, contains('1 over the 16.7ms budget'));
-      expect(output.content, contains('worst build 114.0ms'));
-      expect(output.content, contains('2 insights'));
-      expect(output.content, contains('I2'));
-      expect(output.content, contains('tapir:perf_insight --id=I2'));
-    });
+        expect(output.content, contains('1 over the 16.7ms budget'));
+        expect(output.content, contains('worst build 114.0ms'));
+        expect(output.content, contains('2 insights'));
+        expect(output.content, contains('I2'));
+        expect(output.content, contains('tapir:perf_insight --id=I2'));
+      },
+    );
 
-    test('a report with no insight says so rather than printing a top line',
-        () async {
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {}),
-        output: output,
-        response: _report(framesDrawn: 9, framesSummarized: 9),
-      );
+    test(
+      'a report with no insight says so rather than printing a top line',
+      () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {}),
+          output: output,
+          response: _report(framesDrawn: 9, framesSummarized: 9),
+        );
 
-      await TapirPerfEndCommand().handle(ctx);
+        await TapirPerfEndCommand().handle(ctx);
 
-      expect(output.content, contains('No insight fired'));
-      expect(output.content, isNot(contains('perf_insight')));
-    });
+        expect(output.content, contains('No insight fired'));
+        expect(output.content, isNot(contains('perf_insight')));
+      },
+    );
 
     test('a refusal still exits non-zero', () async {
       final output = BufferedOutput();

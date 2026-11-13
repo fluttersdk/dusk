@@ -38,7 +38,8 @@ class TapirScrollCommand extends DowelCommand {
     parser.addOption(
       'direction',
       allowed: ['up', 'down', 'left', 'right'],
-      help: 'Convenience scroll direction; paired with --pixels (default 300). '
+      help:
+          'Convenience scroll direction; paired with --pixels (default 300). '
           'Ignored when --dy or --dx is given.',
     );
     parser.addOption(
@@ -50,13 +51,16 @@ class TapirScrollCommand extends DowelCommand {
       help: 'Scroll until the ref widget is visible.',
       defaultsTo: false,
     );
-    parser.addFlag('includeSnapshot',
-        help: 'Embed the post-scroll snapshot in the response.',
-        defaultsTo: false);
+    parser.addFlag(
+      'includeSnapshot',
+      help: 'Embed the post-scroll snapshot in the response.',
+      defaultsTo: false,
+    );
     parser.addOption(
       'snapshot',
       allowed: <String>['full', 'diff', 'none'],
-      help: 'Print the post-scroll snapshot after the summary: the whole '
+      help:
+          'Print the post-scroll snapshot after the summary: the whole '
           'tree, only the lines changed since the last snapshot, or nothing. '
           'Overrides --includeSnapshot.',
     );
@@ -87,7 +91,8 @@ class TapirScrollCommand extends DowelCommand {
       params['intoView'] = intoView.toString();
     }
     final snapshotMode = ctx.input.option('snapshot') as String?;
-    final includeSnapshot = snapshotMode == null &&
+    final includeSnapshot =
+        snapshotMode == null &&
         ((ctx.input.option('includeSnapshot') as bool?) ?? false);
     if (snapshotMode != null) {
       params['snapshot'] = snapshotMode;
@@ -95,8 +100,11 @@ class TapirScrollCommand extends DowelCommand {
       params['includeSnapshot'] = includeSnapshot.toString();
     }
 
-    final response =
-        await callExtensionVisible(ctx, 'ext.tapir.scroll', params);
+    final response = await callExtensionVisible(
+      ctx,
+      'ext.tapir.scroll',
+      params,
+    );
     reportFrameWarning(ctx, response);
     if (includeSnapshot || wantsJson(ctx)) {
       ctx.output.writeln(jsonEncode(response));

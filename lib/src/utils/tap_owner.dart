@@ -131,11 +131,14 @@ Map<String, Object>? tapOwnerBounds({
 /// retarget stands; on a native platform a root-only path means the point is
 /// outside the window or over nothing.
 bool _isReached(_Carrier owner, int viewId) {
-  final FlutterView? view =
-      WidgetsBinding.instance.platformDispatcher.view(id: viewId);
+  final FlutterView? view = WidgetsBinding.instance.platformDispatcher.view(
+    id: viewId,
+  );
   if (view == null ||
       isRectOutsideViewport(
-          owner.rect, view.physicalSize / view.devicePixelRatio)) {
+        owner.rect,
+        view.physicalSize / view.devicePixelRatio,
+      )) {
     return false;
   }
 

@@ -37,9 +37,7 @@ class TapirPerfEndCommand extends DowelCommand {
     // timed-out condition.
     if (response['refused'] == true) {
       emitEnvelope(ctx, response, () {
-        ctx.output.error(
-          'Refused to report: ${response['reason']}',
-        );
+        ctx.output.error('Refused to report: ${response['reason']}');
       });
       return 1;
     }
@@ -75,7 +73,8 @@ String _summaryLine(Map<String, dynamic> response) {
   final insights = (response['insights'] as List<dynamic>? ?? const [])
       .cast<Map<String, dynamic>>();
 
-  final String head = 'Performance session ${response['sessionToken']} closed '
+  final String head =
+      'Performance session ${response['sessionToken']} closed '
       '(${response['mode']}): ${frames['painted'] ?? 0} painted frames, '
       '${frames['overBudget'] ?? 0} over the ${summary['budgetMs']}ms budget, '
       'worst build ${buildMs['worst'] ?? 0}ms.';

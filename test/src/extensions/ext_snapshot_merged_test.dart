@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -212,17 +212,19 @@ void main() {
         await tester.pumpWidget(_mergedButton(onTap: () => taps += 1));
 
         final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
-        final RegExpMatch? match =
-            RegExp(r'\[ref=(\w+)\]').firstMatch(snapshot);
+        final RegExpMatch? match = RegExp(r'\[ref=(\w+)\]')
+            .firstMatch(snapshot);
         expect(match, isNotNull);
 
-        final Future<dynamic> pending =
-            aiTestTapHandler('ext.tapir.tap', <String, String>{
-          'ref': match!.group(1)!,
-          'checkStable': 'false',
-          'checkReceivesEvents': 'false',
-          'includeSnapshot': 'false',
-        });
+        final Future<dynamic> pending = aiTestTapHandler(
+          'ext.tapir.tap',
+          <String, String>{
+            'ref': match!.group(1)!,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+            'includeSnapshot': 'false',
+          },
+        );
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
         await tester.pump();

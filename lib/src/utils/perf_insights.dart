@@ -113,19 +113,18 @@ Map<String, Object?> buildPerfReport(
   bool sessionClockMismatch = false,
   double? durationMs,
   bool full = false,
-}) =>
-    analysePerf(
-      framePerf,
-      extras,
-      wind,
-      env: env,
-      mode: mode,
-      framesDrawn: framesDrawn,
-      framesOutsideSession: framesOutsideSession,
-      sessionClockMismatch: sessionClockMismatch,
-      durationMs: durationMs,
-      full: full,
-    ).report;
+}) => analysePerf(
+  framePerf,
+  extras,
+  wind,
+  env: env,
+  mode: mode,
+  framesDrawn: framesDrawn,
+  framesOutsideSession: framesOutsideSession,
+  sessionClockMismatch: sessionClockMismatch,
+  durationMs: durationMs,
+  full: full,
+).report;
 
 /// Analyses one closed session into a report and its drill-downs.
 ///
@@ -203,8 +202,9 @@ PerfAnalysis analysePerf(
       'columns': _kCounterColumns,
       // Null rather than a map of zeros: "wind never registered a perf
       // resolver" and "wind counted nothing" are different findings.
-      'wind':
-          wind == null ? null : _counterSection(wind, 'wind', session, omitted),
+      'wind': wind == null
+          ? null
+          : _counterSection(wind, 'wind', session, omitted),
       'magic': _counterSection(extras, 'magic', session, omitted),
     };
   }
@@ -361,18 +361,19 @@ List<Map<String, Object?>> _routeTransitions(
   final List<Map<String, Object?>> rows = raw is List<Object?>
       ? raw.whereType<Map<String, Object?>>().toList()
       : const <Map<String, Object?>>[];
-  final List<Map<String, Object?>> transitions = rows
-      .map(
-        (Map<String, Object?> row) => <String, Object?>{
-          'route': row['route'],
-          'ms': microsToMs(_int(row['durationMicros'])),
-        },
-      )
-      .toList()
-    ..sort(
-      (Map<String, Object?> a, Map<String, Object?> b) =>
-          (b['ms']! as double).compareTo(a['ms']! as double),
-    );
+  final List<Map<String, Object?>> transitions =
+      rows
+          .map(
+            (Map<String, Object?> row) => <String, Object?>{
+              'route': row['route'],
+              'ms': microsToMs(_int(row['durationMicros'])),
+            },
+          )
+          .toList()
+        ..sort(
+          (Map<String, Object?> a, Map<String, Object?> b) =>
+              (b['ms']! as double).compareTo(a['ms']! as double),
+        );
   omitted['routeTransitions'] = _cut(transitions.length, limit);
   return transitions.take(limit ?? transitions.length).toList();
 }
@@ -404,13 +405,15 @@ Map<String, Object?> _counterSection(
     }
     if (value is! Map<Object?, Object?>) continue;
 
-    final List<MapEntry<String, num>> counts = <MapEntry<String, num>>[
-      for (final MapEntry<Object?, Object?> e in value.entries)
-        if (e.value is num) MapEntry<String, num>('${e.key}', e.value! as num),
-    ]..sort(
-        (MapEntry<String, num> a, MapEntry<String, num> b) =>
-            _descThenName(a.value, b.value, a.key, b.key),
-      );
+    final List<MapEntry<String, num>> counts =
+        <MapEntry<String, num>>[
+          for (final MapEntry<Object?, Object?> e in value.entries)
+            if (e.value is num)
+              MapEntry<String, num>('${e.key}', e.value! as num),
+        ]..sort(
+          (MapEntry<String, num> a, MapEntry<String, num> b) =>
+              _descThenName(a.value, b.value, a.key, b.key),
+        );
     omitted['$section.${entry.key}'] = _cut(counts.length, limit);
     out[entry.key] = counts
         .take(limit ?? counts.length)
@@ -477,22 +480,22 @@ Map<String, Object?> _coverage(_Session session, Map<String, Object?>? wind) {
 List<_Insight> _builtInInsights(
   _Session session,
   Map<String, Object?> coverage,
-) =>
-    <_Insight?>[
-      _overBudgetInsight(session),
-      _droppedFramesInsight(session),
-      if (session.mode == PerfMode.attribution) ...<_Insight?>[
-        _dominantBlockInsight(session),
-        _countOutlierInsight(session),
-      ],
-      _coverageInsight(session, coverage),
-    ].whereType<_Insight>().toList();
+) => <_Insight?>[
+  _overBudgetInsight(session),
+  _droppedFramesInsight(session),
+  if (session.mode == PerfMode.attribution) ...<_Insight?>[
+    _dominantBlockInsight(session),
+    _countOutlierInsight(session),
+  ],
+  _coverageInsight(session, coverage),
+].whereType<_Insight>().toList();
 
 /// Frames whose slower thread exceeded [kFrameBudgetMs].
 _Insight? _overBudgetInsight(_Session session) {
   final List<Map<String, Object?>> over = session.frames
       .where(
-          (Map<String, Object?> f) => frameCostMicros(f) > kFrameBudgetMicros)
+        (Map<String, Object?> f) => frameCostMicros(f) > kFrameBudgetMicros,
+      )
       .toList();
   if (over.isEmpty) return null;
 
@@ -509,7 +512,8 @@ _Insight? _overBudgetInsight(_Session session) {
   return _Insight(
     severity: share > _kErrorShare ? PerfSeverity.error : PerfSeverity.warn,
     title: '$count frames over the ${kFrameBudgetMs}ms budget',
-    summary: '$count painted frames took longer than ${kFrameBudgetMs}ms on '
+    summary:
+        '$count painted frames took longer than ${kFrameBudgetMs}ms on '
         'their slower thread ($onBuild over on build, $onRaster on raster). '
         'Their time past the budget totals ${microsToMs(excessMicros)}ms, '
         'the most a fix to these frames alone could win back.',
@@ -525,9 +529,9 @@ _Insight? _overBudgetInsight(_Session session) {
     savingsMs: microsToMs(excessMicros),
     nextStep: onBuild >= onRaster
         ? 'Build-bound: drill in for the worst frames and their self-time '
-            'blocks.'
+              'blocks.'
         : 'Raster-bound: look at what these frames paint (clips, opacity, '
-            'shadows, images), not at builds.',
+              'shadows, images), not at builds.',
     detail: <String, Object?>{
       'overBudgetBuild': onBuild,
       'overBudgetRaster': onRaster,
@@ -547,19 +551,18 @@ _Insight? _droppedFramesInsight(_Session session) {
   return _Insight(
     severity: share > _kErrorShare ? PerfSeverity.error : PerfSeverity.warn,
     title: '$dropped frames dropped in ${gaps.length} gaps',
-    summary: 'The frameNumber sequence skips $dropped numbers across '
+    summary:
+        'The frameNumber sequence skips $dropped numbers across '
         '${gaps.length} gaps: frames the engine numbered and never reported '
         'timings for, which is how a dropped scene shows on web.',
     evidence: _evidence(
       metric: 'framesDropped',
       value: dropped,
       perFrame: session.perFrame(dropped),
-      threshold: <String, Object?>{
-        'minGap': 2,
-        'errorShare': _kErrorShare,
-      },
+      threshold: <String, Object?>{'minGap': 2, 'errorShare': _kErrorShare},
     ),
-    nextStep: 'Drill in for the gaps; one right after a long frame is that '
+    nextStep:
+        'Drill in for the gaps; one right after a long frame is that '
         'frame\'s cost, not a second problem.',
     detail: <String, Object?>{
       'gaps': gaps.take(_kDetailGapLimit).toList(),
@@ -589,7 +592,8 @@ _Insight? _dominantBlockInsight(_Session session) {
         ? PerfSeverity.error
         : PerfSeverity.warn,
     title: '${top.name} owns $percent% of self time',
-    summary: '${top.name} ran ${top.count} times in ${top.frames} of '
+    summary:
+        '${top.name} ran ${top.count} times in ${top.frames} of '
         '${session.painted} painted frames and spent '
         '${microsToMs(top.selfMicros)}ms of its own time, children excluded: '
         '$percent% of all self time in the session. Build profiling inflates '
@@ -605,7 +609,8 @@ _Insight? _dominantBlockInsight(_Session session) {
       },
     ),
     savingsMs: microsToMs(top.selfMicros),
-    nextStep: 'Find why ${top.name} rebuilds or what its build does; confirm '
+    nextStep:
+        'Find why ${top.name} rebuilds or what its build does; confirm '
         'any fix with mode=timing.',
     detail: <String, Object?>{
       'block': <String, Object?>{
@@ -628,10 +633,11 @@ _Insight? _countOutlierInsight(_Session session) {
 
   final PerfBlockTotal top = session.byCount.first;
   final double perFrame = top.count / session.painted;
-  final List<double> rates = session.blocks
-      .map((PerfBlockTotal b) => b.count / session.painted)
-      .toList()
-    ..sort();
+  final List<double> rates =
+      session.blocks
+          .map((PerfBlockTotal b) => b.count / session.painted)
+          .toList()
+        ..sort();
   final double median = rates[rates.length ~/ 2];
   if (perFrame < _kOutlierMinPerFrame ||
       perFrame < _kOutlierMedianMultiple * median) {
@@ -641,7 +647,8 @@ _Insight? _countOutlierInsight(_Session session) {
   return _Insight(
     severity: PerfSeverity.warn,
     title: '${top.name} runs ${_round(perFrame)} times per painted frame',
-    summary: '${top.name} ran ${top.count} times over ${session.painted} '
+    summary:
+        '${top.name} ran ${top.count} times over ${session.painted} '
         'painted frames, ${_round(perFrame)} per frame against a median block '
         'rate of ${_round(median)}. A count this far above the rest usually '
         'means every row of a list rebuilding, or a listener firing per item.',
@@ -679,7 +686,8 @@ _Insight? _coverageInsight(_Session session, Map<String, Object?> coverage) {
     return _Insight(
       severity: PerfSeverity.warn,
       title: 'No frame could be placed in the session window',
-      summary: 'Frames carried vsync timestamps and none fell between '
+      summary:
+          'Frames carried vsync timestamps and none fell between '
           'perf_begin and perf_end, so the engine clock and '
           'FlutterTimeline.now disagree on this device. Every frame read was '
           'kept, including ones drawn before the session and the flush frame, '
@@ -690,7 +698,8 @@ _Insight? _coverageInsight(_Session session, Map<String, Object?> coverage) {
         perFrame: null,
         threshold: <String, Object?>{'minPlaced': 1},
       ),
-      nextStep: 'Treat this unit as unmeasured; tapir:perf_run leaves it out '
+      nextStep:
+          'Treat this unit as unmeasured; tapir:perf_run leaves it out '
           'of the series medians.',
       detail: coverage,
     );
@@ -700,7 +709,8 @@ _Insight? _coverageInsight(_Session session, Map<String, Object?> coverage) {
   final List<String> missing = coverage['missing']! as List<String>;
   if (unreported <= 0 && missing.isEmpty) return null;
 
-  final bool degraded = unreported > 0 ||
+  final bool degraded =
+      unreported > 0 ||
       missing.contains('blocks') ||
       missing.contains('blockSelfTime');
 
@@ -795,8 +805,9 @@ List<_Insight> _contributedInsights(Map<String, Object?> report) {
     final int number = k + 1;
     final List<_Insight> converted = <_Insight>[];
     try {
-      for (final Map<String, Object?> raw
-          in perfInsightContributors[k](report)) {
+      for (final Map<String, Object?> raw in perfInsightContributors[k](
+        report,
+      )) {
         final String? problem = _malformation(raw);
         if (problem != null) {
           converted
@@ -831,27 +842,30 @@ String? _malformation(Map<String, Object?> raw) {
 
 bool _isEvidence(Object? value) =>
     value is Map<String, Object?> &&
-    <String>['metric', 'value', 'perFrame', 'threshold']
-        .every(value.containsKey);
+    <String>[
+      'metric',
+      'value',
+      'perFrame',
+      'threshold',
+    ].every(value.containsKey);
 
 _Insight _contributorFailure(int number, String what) => _Insight(
-      severity: PerfSeverity.warn,
-      title: 'Insight contributor #$number failed',
-      summary: 'Contributor #$number $what. Its insights are missing from '
-          'this report; the built-in insights are unaffected.',
-      evidence: _evidence(
-        metric: 'contributorErrors',
-        value: 1,
-        perFrame: null,
-        threshold: null,
-      ),
-      nextStep: 'Fix contributor #$number in the host (magic_devtools), then '
-          'rerun the session.',
-      detail: <String, Object?>{
-        'contributor': number,
-        'error': what,
-      },
-    );
+  severity: PerfSeverity.warn,
+  title: 'Insight contributor #$number failed',
+  summary:
+      'Contributor #$number $what. Its insights are missing from '
+      'this report; the built-in insights are unaffected.',
+  evidence: _evidence(
+    metric: 'contributorErrors',
+    value: 1,
+    perFrame: null,
+    threshold: null,
+  ),
+  nextStep:
+      'Fix contributor #$number in the host (magic_devtools), then '
+      'rerun the session.',
+  detail: <String, Object?>{'contributor': number, 'error': what},
+);
 
 // ---------------------------------------------------------------------------
 // The insight record
@@ -893,23 +907,23 @@ final class _Insight {
   final Object? detail;
 
   Map<String, Object?> toReport() => <String, Object?>{
-        'id': id,
-        'severity': severity.name,
-        'title': title,
-        'evidence': evidence,
-        if (savingsMs != null) 'estimatedSavingsMs': savingsMs,
-        'nextStep': nextStep,
-      };
+    'id': id,
+    'severity': severity.name,
+    'title': title,
+    'evidence': evidence,
+    if (savingsMs != null) 'estimatedSavingsMs': savingsMs,
+    'nextStep': nextStep,
+  };
 
   Map<String, Object?> toDrillDown() => <String, Object?>{
-        'id': id,
-        'severity': severity.name,
-        'title': title,
-        'summary': summary,
-        'detail': detail ?? evidence,
-        'estimatedSavingsMs': savingsMs,
-        'nextStep': nextStep,
-      };
+    'id': id,
+    'severity': severity.name,
+    'title': title,
+    'summary': summary,
+    'detail': detail ?? evidence,
+    'estimatedSavingsMs': savingsMs,
+    'nextStep': nextStep,
+  };
 }
 
 /// Severity first, then the larger saving, then generation order.
@@ -926,13 +940,12 @@ Map<String, Object?> _evidence({
   required num value,
   required double? perFrame,
   required Map<String, Object?>? threshold,
-}) =>
-    <String, Object?>{
-      'metric': metric,
-      'value': value,
-      'perFrame': perFrame,
-      'threshold': threshold,
-    };
+}) => <String, Object?>{
+  'metric': metric,
+  'value': value,
+  'perFrame': perFrame,
+  'threshold': threshold,
+};
 
 // ---------------------------------------------------------------------------
 // Small helpers

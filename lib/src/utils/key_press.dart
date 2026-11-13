@@ -74,15 +74,14 @@ void deliverKeyPress({
     required LogicalKeyboardKey logical,
     required PhysicalKeyboardKey physical,
     String? character,
-  }) =>
-      ui.KeyData(
-        timeStamp: timeStamp,
-        type: type,
-        physical: physical.usbHidUsage,
-        logical: logical.keyId,
-        character: type == ui.KeyEventType.down ? character : null,
-        synthesized: true,
-      );
+  }) => ui.KeyData(
+    timeStamp: timeStamp,
+    type: type,
+    physical: physical.usbHidUsage,
+    logical: logical.keyId,
+    character: type == ui.KeyEventType.down ? character : null,
+    synthesized: true,
+  );
 
   // A modifier counts as held only once its down half went through, so the
   // release below never lets up a key the keyboard state never saw go down.
@@ -90,38 +89,41 @@ void deliverKeyPress({
 
   try {
     for (final KeyModifier modifier in modifiers) {
-      deliver(half(
-        ui.KeyEventType.down,
-        now,
-        logical: modifier.logical,
-        physical: modifier.physical,
-      ));
+      deliver(
+        half(
+          ui.KeyEventType.down,
+          now,
+          logical: modifier.logical,
+          physical: modifier.physical,
+        ),
+      );
       held.add(modifier);
     }
 
-    deliver(half(
-      ui.KeyEventType.down,
-      now,
-      logical: logical,
-      physical: physical,
-      character: character,
-    ));
-    deliver(half(
-      ui.KeyEventType.up,
-      later,
-      logical: logical,
-      physical: physical,
-    ));
+    deliver(
+      half(
+        ui.KeyEventType.down,
+        now,
+        logical: logical,
+        physical: physical,
+        character: character,
+      ),
+    );
+    deliver(
+      half(ui.KeyEventType.up, later, logical: logical, physical: physical),
+    );
   } finally {
     // A modifier left down would ride on every later key the app hears, real
     // or synthesized, until a real press of it comes along.
     for (final KeyModifier modifier in held.reversed) {
-      deliver(half(
-        ui.KeyEventType.up,
-        later,
-        logical: modifier.logical,
-        physical: modifier.physical,
-      ));
+      deliver(
+        half(
+          ui.KeyEventType.up,
+          later,
+          logical: modifier.logical,
+          physical: modifier.physical,
+        ),
+      );
     }
   }
 }

@@ -38,24 +38,26 @@ final class TapirResizeCommand extends DowelCommand {
     parser
       ..addOption(
         'width',
-        help: 'Viewport width in CSS pixels (e.g. 375). Required unless '
+        help:
+            'Viewport width in CSS pixels (e.g. 375). Required unless '
             '--reset.',
       )
       ..addOption(
         'height',
-        help: 'Viewport height in CSS pixels (e.g. 812). Required unless '
+        help:
+            'Viewport height in CSS pixels (e.g. 812). Required unless '
             '--reset.',
       )
       ..addOption(
         'dpr',
-        help: 'Device pixel ratio (e.g. 3.0). Default 1.0; pass actual device '
+        help:
+            'Device pixel ratio (e.g. 3.0). Default 1.0; pass actual device '
             'DPR for Retina simulation.',
         defaultsTo: '1.0',
       )
       ..addFlag(
         'mobile',
-        help:
-            'Enable mobile device profile (touch + viewport meta + text autosizing).',
+        help: 'Enable mobile device profile (touch + viewport meta + text autosizing).',
         defaultsTo: false,
       )
       ..addFlag(
@@ -65,7 +67,8 @@ final class TapirResizeCommand extends DowelCommand {
       )
       ..addFlag(
         'hold',
-        help: 'Keep the CDP session open so the override outlives this '
+        help:
+            'Keep the CDP session open so the override outlives this '
             'command: it lasts until Ctrl-C or until Chrome exits. Run it in '
             'the background.',
         defaultsTo: false,
@@ -114,9 +117,7 @@ final class TapirResizeCommand extends DowelCommand {
     try {
       client = await CdpClient.connect(port: cdpPort);
     } on TapirCdpException catch (e) {
-      ctx.output.error(
-        'Failed to connect to Chrome CDP on port $cdpPort: $e',
-      );
+      ctx.output.error('Failed to connect to Chrome CDP on port $cdpPort: $e');
       return 1;
     }
 
@@ -125,10 +126,9 @@ final class TapirResizeCommand extends DowelCommand {
       //    (user-agent first, touch second, metrics last).
       final bool isReset = (ctx.input.option('reset') as bool?) ?? false;
       if (isReset) {
-        await client.send(
-          'Emulation.setUserAgentOverride',
-          <String, dynamic>{'userAgent': ''},
-        );
+        await client.send('Emulation.setUserAgentOverride', <String, dynamic>{
+          'userAgent': '',
+        });
         await client.send(
           'Emulation.setTouchEmulationEnabled',
           <String, dynamic>{'enabled': false},
@@ -152,15 +152,12 @@ final class TapirResizeCommand extends DowelCommand {
       final bool touch = _readBool(ctx.input.option('touch'));
       final bool hold = _readBool(ctx.input.option('hold'));
 
-      await client.send(
-        'Emulation.setDeviceMetricsOverride',
-        <String, dynamic>{
-          'width': width,
-          'height': height,
-          'deviceScaleFactor': dpr,
-          'mobile': mobile,
-        },
-      );
+      await client.send('Emulation.setDeviceMetricsOverride', <String, dynamic>{
+        'width': width,
+        'height': height,
+        'deviceScaleFactor': dpr,
+        'mobile': mobile,
+      });
 
       if (touch) {
         await client.send(
@@ -182,8 +179,9 @@ final class TapirResizeCommand extends DowelCommand {
         return 0;
       }
 
-      ctx.output
-          .info('Holding the override; Ctrl-C or closing Chrome ends it.');
+      ctx.output.info(
+        'Holding the override; Ctrl-C or closing Chrome ends it.',
+      );
       await _holdWhileConnected(client);
       return 0;
     } on TapirCdpException catch (e) {
@@ -203,8 +201,9 @@ final class TapirResizeCommand extends DowelCommand {
       if (!released.isCompleted) released.complete();
     }
 
-    final StreamSubscription<ProcessSignal> interrupt =
-        ProcessSignal.sigint.watch().listen(release);
+    final StreamSubscription<ProcessSignal> interrupt = ProcessSignal.sigint
+        .watch()
+        .listen(release);
     final Timer poll = Timer.periodic(_kHoldPoll, (Timer _) {
       if (!client.isConnected) release();
     });

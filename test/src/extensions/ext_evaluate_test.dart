@@ -20,10 +20,10 @@ void main() {
     test('(a) missing expression param returns extensionError', () async {
       final developer.ServiceExtensionResponse response =
           await extTapirEvaluateHandler(
-        'ext.tapir.evaluate',
-        const <String, String>{},
-        evaluator: null,
-      );
+            'ext.tapir.evaluate',
+            const <String, String>{},
+            evaluator: null,
+          );
 
       expect(
         response.errorCode,
@@ -37,8 +37,9 @@ void main() {
         parseMessageFromErrorDetail(response.errorDetail!),
         contains('expression'),
       );
-      final Map<String, dynamic>? envelope =
-          parseEnvelopeFromErrorDetail(response.errorDetail!);
+      final Map<String, dynamic>? envelope = parseEnvelopeFromErrorDetail(
+        response.errorDetail!,
+      );
       expect(envelope, isNotNull);
       expect(envelope!['type'], equals('missing_param'));
     });
@@ -50,10 +51,10 @@ void main() {
     test('(b) simple expression returns correct envelope shape', () async {
       final developer.ServiceExtensionResponse response =
           await extTapirEvaluateHandler(
-        'ext.tapir.evaluate',
-        const <String, String>{'expression': '1 + 1'},
-        evaluator: (String expr) async => '2',
-      );
+            'ext.tapir.evaluate',
+            const <String, String>{'expression': '1 + 1'},
+            evaluator: (String expr) async => '2',
+          );
 
       expect(response.errorCode, isNull);
 
@@ -76,16 +77,16 @@ void main() {
         String? capturedExpr;
         final developer.ServiceExtensionResponse response =
             await extTapirEvaluateHandler(
-          'ext.tapir.evaluate',
-          const <String, String>{
-            'expression':
-                "Magic.find<MonitorController>().rxState.value.toString()",
-          },
-          evaluator: (String e) async {
-            capturedExpr = e;
-            return 'MonitorState{status: loaded}';
-          },
-        );
+              'ext.tapir.evaluate',
+              const <String, String>{
+                'expression':
+                    "Magic.find<MonitorController>().rxState.value.toString()",
+              },
+              evaluator: (String e) async {
+                capturedExpr = e;
+                return 'MonitorState{status: loaded}';
+              },
+            );
 
         expect(capturedExpr, equals(expr));
         expect(response.errorCode, isNull);
@@ -106,11 +107,11 @@ void main() {
       () async {
         final developer.ServiceExtensionResponse response =
             await extTapirEvaluateHandler(
-          'ext.tapir.evaluate',
-          const <String, String>{'expression': 'invalid dart !!syntax!!'},
-          evaluator: (_) async =>
-              throw Exception('CompilationError: unexpected token'),
-        );
+              'ext.tapir.evaluate',
+              const <String, String>{'expression': 'invalid dart !!syntax!!'},
+              evaluator: (_) async =>
+                  throw Exception('CompilationError: unexpected token'),
+            );
 
         expect(
           response.errorCode,
@@ -122,8 +123,9 @@ void main() {
           parseMessageFromErrorDetail(response.errorDetail!),
           contains('CompilationError'),
         );
-        final Map<String, dynamic>? envelope =
-            parseEnvelopeFromErrorDetail(response.errorDetail!);
+        final Map<String, dynamic>? envelope = parseEnvelopeFromErrorDetail(
+          response.errorDetail!,
+        );
         expect(envelope, isNotNull);
         expect(envelope!['type'], equals('unexpected'));
       },
@@ -144,19 +146,16 @@ void main() {
       () async {
         final developer.ServiceExtensionResponse response =
             await extTapirEvaluateHandler(
-          'ext.tapir.evaluate',
-          const <String, String>{'expression': 'someExpr()'},
-          // evaluator omitted → _sentinelEvaluator fires.
-        );
+              'ext.tapir.evaluate',
+              const <String, String>{'expression': 'someExpr()'},
+              // evaluator omitted → _sentinelEvaluator fires.
+            );
 
         expect(response.errorCode, isNull);
         final Map<String, dynamic> body =
             jsonDecode(response.result!) as Map<String, dynamic>;
         expect(body['expression'], equals('someExpr()'));
-        expect(
-          body['result'] as String,
-          contains('<eval-via-vm-service:'),
-        );
+        expect(body['result'] as String, contains('<eval-via-vm-service:'));
       },
     );
   });

@@ -44,10 +44,12 @@ const int kFrameBudgetMicros = 16700;
 /// frame at exactly the budget is not over it. An empty [frames] list returns
 /// zeros rather than dividing by zero.
 Map<String, Object?> summarizeFramePerf(List<Map<String, Object?>> frames) {
-  final List<int> buildMicros =
-      frames.map((Map<String, Object?> f) => _int(f['buildMicros'])).toList();
-  final List<int> rasterMicros =
-      frames.map((Map<String, Object?> f) => _int(f['rasterMicros'])).toList();
+  final List<int> buildMicros = frames
+      .map((Map<String, Object?> f) => _int(f['buildMicros']))
+      .toList();
+  final List<int> rasterMicros = frames
+      .map((Map<String, Object?> f) => _int(f['rasterMicros']))
+      .toList();
 
   int overBudget = 0;
   for (int i = 0; i < frames.length; i++) {
@@ -135,8 +137,9 @@ List<PerfBlockTotal> aggregateFrameBlocks(List<Map<String, Object?>> frames) {
   final Map<String, PerfBlockTotal> totals = <String, PerfBlockTotal>{};
 
   for (final Map<String, Object?> frame in frames) {
-    for (final MapEntry<String, Map<String, Object?>> entry
-        in blocksOfFrame(frame)) {
+    for (final MapEntry<String, Map<String, Object?>> entry in blocksOfFrame(
+      frame,
+    )) {
       final PerfBlockTotal total = totals.putIfAbsent(
         entry.key,
         () => PerfBlockTotal(entry.key),
@@ -162,23 +165,21 @@ List<Map<String, Object?>> worstFrames(
   int blocksPerFrame = 5,
 }) {
   final List<Map<String, Object?>> sorted =
-      List<Map<String, Object?>>.from(frames)
-        ..sort(
-          (Map<String, Object?> a, Map<String, Object?> b) =>
-              frameCostMicros(b).compareTo(frameCostMicros(a)),
-        );
+      List<Map<String, Object?>>.from(frames)..sort(
+        (Map<String, Object?> a, Map<String, Object?> b) =>
+            frameCostMicros(b).compareTo(frameCostMicros(a)),
+      );
 
   return sorted.take(count).map((Map<String, Object?> frame) {
     final List<MapEntry<String, Map<String, Object?>>> blocks =
-        blocksOfFrame(frame).toList()
-          ..sort(
-            (
-              MapEntry<String, Map<String, Object?>> a,
-              MapEntry<String, Map<String, Object?>> b,
-            ) =>
-                _int(b.value['selfMicros'])
-                    .compareTo(_int(a.value['selfMicros'])),
-          );
+        blocksOfFrame(frame).toList()..sort(
+          (
+            MapEntry<String, Map<String, Object?>> a,
+            MapEntry<String, Map<String, Object?>> b,
+          ) =>
+              _int(b.value['selfMicros'])
+                  .compareTo(_int(a.value['selfMicros'])),
+        );
     return <String, Object?>{
       'frameNumber': frame['frameNumber'],
       'buildMs': microsToMs(_int(frame['buildMicros'])),

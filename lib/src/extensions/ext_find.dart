@@ -92,7 +92,7 @@ Future<developer.ServiceExtensionResponse> extTapirFindHandler(
         'matched': false,
         // Only populated on the unresolvable-scope path; a plain no-match
         // has nothing to explain.
-        if (diagnostic != null) 'diagnostic': diagnostic,
+        'diagnostic': ?diagnostic,
       });
     }
 
@@ -181,7 +181,8 @@ RefEntry? resolveQuery(TapirQuery query) {
     // used to pass this guard and then have its detached subtree walked,
     // which still matches, so the caller got a hit from a screen that is no
     // longer there.
-    final bool live = scope != null &&
+    final bool live =
+        scope != null &&
         scope.element.mounted &&
         (scope.node?.attached ?? true);
     if (!live) {
@@ -207,8 +208,10 @@ RefEntry? resolveQuery(TapirQuery query) {
 
   // 1. Key-based match: Element tree walk. Cheapest, most specific.
   if (query.keyValue != null) {
-    final Element? element =
-        _findElementByKey(query.keyValue!, from: scopeElement);
+    final Element? element = _findElementByKey(
+      query.keyValue!,
+      from: scopeElement,
+    );
     if (element == null) return (null, 0, null);
     if (!_elementMatchesOtherPredicates(element, query)) return (null, 0, null);
     return (_entryFromElement(element), 1, null);
@@ -231,7 +234,7 @@ RefEntry? resolveQuery(TapirQuery query) {
     if (node == null) return (null, 0, null);
     final String? diagnostic = count > 1
         ? "label '${query.semanticsLabel}' matched $count nodes; "
-            'refine with --key, --text, or --contains'
+              'refine with --key, --text, or --contains'
         : null;
     return (_entryFromSemanticsNode(node), count, diagnostic);
   }
@@ -250,7 +253,7 @@ RefEntry? resolveQuery(TapirQuery query) {
     if (node != null) {
       final String? diagnostic = count > 1
           ? "label '${query.text}' matched $count nodes; "
-              'refine with --key, --text, or --contains'
+                'refine with --key, --text, or --contains'
           : null;
       return (_entryFromSemanticsNode(node), count, diagnostic);
     }
@@ -260,8 +263,10 @@ RefEntry? resolveQuery(TapirQuery query) {
     // here rather than falling through to a widget that merely reads the same,
     // which would reintroduce the substitution the index prevents.
     if (query.matchIndex != null) return (null, count, null);
-    final Element? element =
-        _findElementByTextData(query.text!, from: scopeElement);
+    final Element? element = _findElementByTextData(
+      query.text!,
+      from: scopeElement,
+    );
     if (element == null) return (null, 0, null);
     return (_entryFromElement(element), 1, null);
   }
@@ -279,8 +284,10 @@ RefEntry? resolveQuery(TapirQuery query) {
     if (node != null) {
       return (_entryFromSemanticsNode(node), 1, null);
     }
-    final Element? element =
-        _findElementByTextContains(query.containsText!, from: scopeElement);
+    final Element? element = _findElementByTextContains(
+      query.containsText!,
+      from: scopeElement,
+    );
     if (element == null) return (null, 0, null);
     return (_entryFromElement(element), 1, null);
   }
@@ -571,8 +578,8 @@ RefEntry? _entryFromSemanticsNode(SemanticsNode node) {
   // `renderObject` for the localToGlobal/size reads below.
   final RenderBox? box =
       renderObject is RenderBox && renderObject.attached && renderObject.hasSize
-          ? renderObject
-          : null;
+      ? renderObject
+      : null;
   final Rect resolvedRect = box != null
       ? box.localToGlobal(Offset.zero) & box.size
       : globalRectFromSemantics(node);
@@ -640,8 +647,12 @@ Rect globalRectFromSemantics(SemanticsNode node) {
   // compares against render-tree localToGlobal rects in LOGICAL pixels, so
   // divide the DPR back out; otherwise, on a DPR!=1 display, every tap that
   // falls back to this rect lands at N times the intended offset and misses.
-  final double dpr = WidgetsBinding
-          .instance.platformDispatcher.implicitView?.devicePixelRatio ??
+  final double dpr =
+      WidgetsBinding
+          .instance
+          .platformDispatcher
+          .implicitView
+          ?.devicePixelRatio ??
       1.0;
   if (dpr > 0 && dpr != 1.0) {
     rect = Rect.fromLTRB(

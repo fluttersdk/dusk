@@ -20,15 +20,26 @@ class TapirRightClickCommand extends DowelCommand {
   @override
   void configure(ArgParser parser) {
     addJsonFlag(parser);
-    parser.addOption('ref',
-        help: 'Widget ref token (e.g. e5).', mandatory: true);
-    parser.addFlag('includeSnapshot',
-        help: 'Embed the post-action snapshot in the response.',
-        defaultsTo: false);
-    parser.addFlag('checkStable',
-        help: 'Run the Stable actionability gate.', defaultsTo: true);
-    parser.addFlag('checkReceivesEvents',
-        help: 'Run the Receives-Events actionability gate.', defaultsTo: true);
+    parser.addOption(
+      'ref',
+      help: 'Widget ref token (e.g. e5).',
+      mandatory: true,
+    );
+    parser.addFlag(
+      'includeSnapshot',
+      help: 'Embed the post-action snapshot in the response.',
+      defaultsTo: false,
+    );
+    parser.addFlag(
+      'checkStable',
+      help: 'Run the Stable actionability gate.',
+      defaultsTo: true,
+    );
+    parser.addFlag(
+      'checkReceivesEvents',
+      help: 'Run the Receives-Events actionability gate.',
+      defaultsTo: true,
+    );
   }
 
   @override
@@ -57,7 +68,10 @@ class TapirRightClickCommand extends DowelCommand {
       ctx.output.writeln(jsonEncode(response));
     } else {
       emitEnvelope(
-          ctx, response, () => ctx.output.success('Right-clicked $ref'));
+        ctx,
+        response,
+        () => ctx.output.success('Right-clicked $ref'),
+      );
     }
     return 0;
   }

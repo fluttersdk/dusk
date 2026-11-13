@@ -1,5 +1,5 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_pointer.dart';
@@ -85,8 +85,9 @@ class _GuardedPopoverState extends State<_GuardedPopover> {
             onTapOutside: (_) => _handleTapOutside(),
             // Recorded only: WPopover wires no onTapUpOutside, this shows
             // what the up half of the hold would have done if it had.
-            onTapUpOutside: (_) => widget.events
-                .add('tapUpOutside(armed=$_suppressNextTapOutside)'),
+            onTapUpOutside: (_) => widget.events.add(
+              'tapUpOutside(armed=$_suppressNextTapOutside)',
+            ),
             child: const SizedBox(key: _panelKey, width: 200, height: 100),
           ),
         );
@@ -144,15 +145,12 @@ Future<void> _tapirTap(WidgetTester tester, Key key) async {
     isTextField: false,
   );
 
-  final Future<void> done = aiTestTapHandler(
-    'ext.tapir.tap',
-    <String, String>{
-      'ref': ref,
-      'checkStable': 'false',
-      'checkReceivesEvents': 'false',
-      'includeSnapshot': 'false',
-    },
-  );
+  final Future<void> done = aiTestTapHandler('ext.tapir.tap', <String, String>{
+    'ref': ref,
+    'checkStable': 'false',
+    'checkReceivesEvents': 'false',
+    'includeSnapshot': 'false',
+  });
   for (int i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 20));
   }
@@ -181,10 +179,7 @@ void main() {
 
         // The guard is disarmed by a frame that ran inside the hold, i.e.
         // BEFORE the pointer-up: the hypothesis premise holds.
-        expect(
-          events,
-          <String>['down(buttons=1)', 'open', 'disarm', 'up'],
-        );
+        expect(events, <String>['down(buttons=1)', 'open', 'disarm', 'up']);
         // The overlay TapRegion never saw the opening down (it did not exist
         // when that down was hit-tested), and WPopover reads only the down
         // half, so nothing closed the popover.
@@ -210,7 +205,9 @@ void main() {
         // The trigger shares the overlay's groupId, so its own up is inside
         // the group: not even onTapUpOutside fires for the opening gesture.
         expect(
-            events.where((String e) => e.startsWith('tapUpOutside')), isEmpty);
+          events.where((String e) => e.startsWith('tapUpOutside')),
+          isEmpty,
+        );
       },
     );
 
@@ -230,10 +227,7 @@ void main() {
         await _tapirTap(tester, _outsideKey);
         await tester.pump();
 
-        expect(
-          events,
-          <String>['tapOutside(armed=false)', 'close', 'up'],
-        );
+        expect(events, <String>['tapOutside(armed=false)', 'close', 'up']);
         expect(find.byKey(_panelKey), findsNothing);
       },
     );

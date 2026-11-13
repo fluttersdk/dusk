@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_find.dart';
@@ -20,8 +20,14 @@ Widget _shell() {
     home: Scaffold(
       body: Row(
         children: <Widget>[
-          _Region(label: 'sidebar', child: _Button(label: 'Monitors')),
-          _Region(label: 'content', child: _Button(label: 'Monitors')),
+          _Region(
+            label: 'sidebar',
+            child: _Button(label: 'Monitors'),
+          ),
+          _Region(
+            label: 'content',
+            child: _Button(label: 'Monitors'),
+          ),
         ],
       ),
     ),
@@ -44,7 +50,10 @@ Widget _keyedShell() {
               ],
             ),
           ),
-          _Region(label: 'content', child: _Button(label: 'Monitors')),
+          _Region(
+            label: 'content',
+            child: _Button(label: 'Monitors'),
+          ),
         ],
       ),
     ),
@@ -111,10 +120,9 @@ void main() {
       await tester.pumpWidget(_shell());
 
       final developer.ServiceExtensionResponse response =
-          await extTapirFindHandler(
-        'ext.tapir.find',
-        const <String, String>{'semanticsLabel': 'Monitors'},
-      );
+          await extTapirFindHandler('ext.tapir.find', const <String, String>{
+            'semanticsLabel': 'Monitors',
+          });
 
       final Map<String, dynamic> decoded =
           jsonDecode(response.result!) as Map<String, dynamic>;
@@ -132,10 +140,10 @@ void main() {
       final String contentRef = _refFor(snapshot, 'content');
 
       final developer.ServiceExtensionResponse response =
-          await extTapirFindHandler(
-        'ext.tapir.find',
-        <String, String>{'semanticsLabel': 'Monitors', 'within': contentRef},
-      );
+          await extTapirFindHandler('ext.tapir.find', <String, String>{
+            'semanticsLabel': 'Monitors',
+            'within': contentRef,
+          });
 
       final Map<String, dynamic> decoded =
           jsonDecode(response.result!) as Map<String, dynamic>;
@@ -154,10 +162,10 @@ void main() {
       await tester.pumpWidget(_shell());
 
       final developer.ServiceExtensionResponse response =
-          await extTapirFindHandler(
-        'ext.tapir.find',
-        const <String, String>{'semanticsLabel': 'Monitors', 'within': 'e999'},
-      );
+          await extTapirFindHandler('ext.tapir.find', const <String, String>{
+            'semanticsLabel': 'Monitors',
+            'within': 'e999',
+          });
 
       final Map<String, dynamic> decoded =
           jsonDecode(response.result!) as Map<String, dynamic>;
@@ -184,10 +192,10 @@ void main() {
       );
 
       final developer.ServiceExtensionResponse response =
-          await extTapirFindHandler(
-        'ext.tapir.find',
-        <String, String>{'semanticsLabel': 'Monitors', 'within': ref},
-      );
+          await extTapirFindHandler('ext.tapir.find', <String, String>{
+            'semanticsLabel': 'Monitors',
+            'within': ref,
+          });
 
       final Map<String, dynamic> decoded =
           jsonDecode(response.result!) as Map<String, dynamic>;
@@ -249,10 +257,10 @@ void main() {
       final String contentRef = _refFor(snapshot, 'content');
 
       final developer.ServiceExtensionResponse response =
-          await extTapirFindHandler(
-        'ext.tapir.find',
-        <String, String>{'key': 'sidebar-row', 'within': contentRef},
-      );
+          await extTapirFindHandler('ext.tapir.find', <String, String>{
+            'key': 'sidebar-row',
+            'within': contentRef,
+          });
 
       expect(
         (jsonDecode(response.result!) as Map<String, dynamic>)['matched'],
@@ -268,10 +276,10 @@ void main() {
       final String contentRef = _refFor(snapshot, 'content');
 
       final developer.ServiceExtensionResponse response =
-          await extTapirFindHandler(
-        'ext.tapir.find',
-        <String, String>{'contains': 'Sidebar copy', 'within': contentRef},
-      );
+          await extTapirFindHandler('ext.tapir.find', <String, String>{
+            'contains': 'Sidebar copy',
+            'within': contentRef,
+          });
 
       expect(
         (jsonDecode(response.result!) as Map<String, dynamic>)['matched'],
@@ -311,10 +319,9 @@ void main() {
       final String ref = await refFromReplacedScreen(tester);
 
       final developer.ServiceExtensionResponse response =
-          await tapirSnapHandler(
-        'ext.tapir.snap',
-        <String, String>{'within': ref},
-      );
+          await tapirSnapHandler('ext.tapir.snap', <String, String>{
+            'within': ref,
+          });
 
       expect(
         response.result,
@@ -335,10 +342,10 @@ void main() {
       final String ref = await refFromReplacedScreen(tester);
 
       final developer.ServiceExtensionResponse response =
-          await extTapirFindHandler(
-        'ext.tapir.find',
-        <String, String>{'semanticsLabel': 'Monitors', 'within': ref},
-      );
+          await extTapirFindHandler('ext.tapir.find', <String, String>{
+            'semanticsLabel': 'Monitors',
+            'within': ref,
+          });
 
       final Map<String, dynamic> decoded =
           jsonDecode(response.result!) as Map<String, dynamic>;

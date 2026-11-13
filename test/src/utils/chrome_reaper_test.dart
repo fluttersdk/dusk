@@ -29,12 +29,16 @@ ProcessRunner _stubRunner(
   Map<String, ProcessResult> table, {
   List<_RecordedRun>? recorder,
 }) {
-  return (String executable, List<String> arguments,
-      {Map<String, String>? environment}) async {
+  return (
+    String executable,
+    List<String> arguments, {
+    Map<String, String>? environment,
+  }) async {
     recorder?.add(_RecordedRun(executable, List<String>.of(arguments)));
     // 1. Build the lookup key from executable + first-argument flag.
-    final String key =
-        arguments.isEmpty ? executable : '$executable ${arguments.first}';
+    final String key = arguments.isEmpty
+        ? executable
+        : '$executable ${arguments.first}';
     return table[key] ??
         ProcessResult(0, 2, '', 'unmocked: $executable ${arguments.join(' ')}');
   };
@@ -57,12 +61,12 @@ void main() {
   tearDown(_resetReaperHooks);
 
   group('captureChromePid', () {
-    test('returns Chrome PID on POSIX when pgrep -P + ps marker match',
-        () async {
-      chromeReaperIsWindows = false;
-      final List<_RecordedRun> calls = <_RecordedRun>[];
-      chromeReaperRunner = _stubRunner(
-        <String, ProcessResult>{
+    test(
+      'returns Chrome PID on POSIX when pgrep -P + ps marker match',
+      () async {
+        chromeReaperIsWindows = false;
+        final List<_RecordedRun> calls = <_RecordedRun>[];
+        chromeReaperRunner = _stubRunner(<String, ProcessResult>{
           'pgrep -P': ProcessResult(0, 0, '12345\n67890\n', ''),
           'ps -p': ProcessResult(
             0,
@@ -72,69 +76,81 @@ void main() {
                 '--remote-debugging-port=12345',
             '',
           ),
-        },
-        recorder: calls,
-      );
+        }, recorder: calls);
 
-      final int? pid = await captureChromePid(parentPid: 999);
+        final int? pid = await captureChromePid(parentPid: 999);
 
-      expect(pid, equals(12345));
-      // pgrep call has the parent PID and 'chrome' filter token.
-      expect(calls.first.executable, equals('pgrep'));
-      expect(calls.first.arguments, contains('-P'));
-      expect(calls.first.arguments, contains('999'));
-    });
+        expect(pid, equals(12345));
+        // pgrep call has the parent PID and 'chrome' filter token.
+        expect(calls.first.executable, equals('pgrep'));
+        expect(calls.first.arguments, contains('-P'));
+        expect(calls.first.arguments, contains('999'));
+      },
+    );
 
-    test('returns null on POSIX when pgrep -P exits non-zero (no children)',
-        () async {
-      chromeReaperIsWindows = false;
-      chromeReaperRunner = _stubRunner(<String, ProcessResult>{
-        'pgrep -P': ProcessResult(0, 1, '', ''),
-      });
+    test(
+      'returns null on POSIX when pgrep -P exits non-zero (no children)',
+      () async {
+        chromeReaperIsWindows = false;
+        chromeReaperRunner = _stubRunner(<String, ProcessResult>{
+          'pgrep -P': ProcessResult(0, 1, '', ''),
+        });
 
-      final int? pid = await captureChromePid(parentPid: 999);
+        final int? pid = await captureChromePid(parentPid: 999);
 
-      expect(pid, isNull);
-    });
+        expect(pid, isNull);
+      },
+    );
 
-    test('returns null on POSIX when no child command line carries the marker',
-        () async {
-      chromeReaperIsWindows = false;
-      chromeReaperRunner = _stubRunner(<String, ProcessResult>{
-        'pgrep -P': ProcessResult(0, 0, '5555\n', ''),
-        'ps -p': ProcessResult(0, 0, '/usr/bin/some-other-tool --flag', ''),
-      });
+    test(
+      'returns null on POSIX when no child command line carries the marker',
+      () async {
+        chromeReaperIsWindows = false;
+        chromeReaperRunner = _stubRunner(<String, ProcessResult>{
+          'pgrep -P': ProcessResult(0, 0, '5555\n', ''),
+          'ps -p': ProcessResult(0, 0, '/usr/bin/some-other-tool --flag', ''),
+        });
 
-      final int? pid = await captureChromePid(parentPid: 999);
+        final int? pid = await captureChromePid(parentPid: 999);
 
-      expect(pid, isNull);
-    });
+        expect(pid, isNull);
+      },
+    );
 
-    test('returns null on Windows and logs the POSIX-only warning once',
-        () async {
-      chromeReaperIsWindows = true;
-      final List<String> logs = <String>[];
-      chromeReaperLogger = logs.add;
-      bool runnerCalled = false;
-      chromeReaperRunner = (String exe, List<String> args,
-          {Map<String, String>? environment}) async {
-        runnerCalled = true;
-        return ProcessResult(0, 0, '', '');
-      };
+    test(
+      'returns null on Windows and logs the POSIX-only warning once',
+      () async {
+        chromeReaperIsWindows = true;
+        final List<String> logs = <String>[];
+        chromeReaperLogger = logs.add;
+        bool runnerCalled = false;
+        chromeReaperRunner =
+            (
+              String exe,
+              List<String> args, {
+              Map<String, String>? environment,
+            }) async {
+              runnerCalled = true;
+              return ProcessResult(0, 0, '', '');
+            };
 
-      final int? first = await captureChromePid(parentPid: 1);
-      final int? second = await captureChromePid(parentPid: 2);
-      final int? third = await reapOrphans().then((_) => null);
+        final int? first = await captureChromePid(parentPid: 1);
+        final int? second = await captureChromePid(parentPid: 2);
+        final int? third = await reapOrphans().then((_) => null);
 
-      expect(first, isNull);
-      expect(second, isNull);
-      expect(third, isNull);
-      expect(runnerCalled, isFalse,
-          reason: 'no subprocess must spawn on Windows');
-      // The session-scoped guard fires exactly once.
-      expect(logs.length, equals(1));
-      expect(logs.single, contains('POSIX-only'));
-    });
+        expect(first, isNull);
+        expect(second, isNull);
+        expect(third, isNull);
+        expect(
+          runnerCalled,
+          isFalse,
+          reason: 'no subprocess must spawn on Windows',
+        );
+        // The session-scoped guard fires exactly once.
+        expect(logs.length, equals(1));
+        expect(logs.single, contains('POSIX-only'));
+      },
+    );
   });
 
   group('captureChromeProfileDir', () {
@@ -153,32 +169,35 @@ void main() {
 
       final String? dir = await captureChromeProfileDir(chromePid: 12345);
 
-      expect(
-        dir,
-        equals('/tmp/flutter_tools.X/flutter_tools_chrome_device.Y'),
-      );
+      expect(dir, equals('/tmp/flutter_tools.X/flutter_tools_chrome_device.Y'));
     });
 
-    test('returns null on POSIX when the command line lacks --user-data-dir',
-        () async {
-      chromeReaperIsWindows = false;
-      chromeReaperRunner = _stubRunner(<String, ProcessResult>{
-        'ps -p': ProcessResult(0, 0, '/usr/bin/chrome --headless', ''),
-      });
+    test(
+      'returns null on POSIX when the command line lacks --user-data-dir',
+      () async {
+        chromeReaperIsWindows = false;
+        chromeReaperRunner = _stubRunner(<String, ProcessResult>{
+          'ps -p': ProcessResult(0, 0, '/usr/bin/chrome --headless', ''),
+        });
 
-      final String? dir = await captureChromeProfileDir(chromePid: 12345);
+        final String? dir = await captureChromeProfileDir(chromePid: 12345);
 
-      expect(dir, isNull);
-    });
+        expect(dir, isNull);
+      },
+    );
 
     test('returns null on Windows without spawning a subprocess', () async {
       chromeReaperIsWindows = true;
       bool runnerCalled = false;
-      chromeReaperRunner = (String exe, List<String> args,
-          {Map<String, String>? environment}) async {
-        runnerCalled = true;
-        return ProcessResult(0, 0, '', '');
-      };
+      chromeReaperRunner =
+          (
+            String exe,
+            List<String> args, {
+            Map<String, String>? environment,
+          }) async {
+            runnerCalled = true;
+            return ProcessResult(0, 0, '', '');
+          };
 
       final String? dir = await captureChromeProfileDir(chromePid: 1);
 
@@ -188,8 +207,7 @@ void main() {
   });
 
   group('killChromeAndProfile', () {
-    test(
-        'sends SIGTERM, waits grace, sends SIGKILL when still alive, deletes '
+    test('sends SIGTERM, waits grace, sends SIGKILL when still alive, deletes '
         'the profile dir on POSIX', () async {
       chromeReaperIsWindows = false;
       chromeReaperGrace = Duration.zero;
@@ -217,12 +235,14 @@ void main() {
       expect(kills.first.signal, equals(ProcessSignal.sigterm));
       // The last kill in the cascade is SIGKILL.
       expect(kills.last.signal, equals(ProcessSignal.sigkill));
-      expect(tmp.existsSync(), isFalse,
-          reason: 'profile dir should be removed best-effort');
+      expect(
+        tmp.existsSync(),
+        isFalse,
+        reason: 'profile dir should be removed best-effort',
+      );
     });
 
-    test(
-        'stops at SIGTERM when the process is no longer alive during the '
+    test('stops at SIGTERM when the process is no longer alive during the '
         'liveness probe', () async {
       chromeReaperIsWindows = false;
       chromeReaperGrace = Duration.zero;
@@ -238,8 +258,9 @@ void main() {
 
       await killChromeAndProfile(chromePid: 4242, tmpProfileDir: null);
 
-      final bool sawSigkill =
-          kills.any((_RecordedKill k) => k.signal == ProcessSignal.sigkill);
+      final bool sawSigkill = kills.any(
+        (_RecordedKill k) => k.signal == ProcessSignal.sigkill,
+      );
       expect(sawSigkill, isFalse);
       expect(kills, hasLength(1));
       expect(kills.first.signal, equals(ProcessSignal.sigterm));
@@ -258,8 +279,7 @@ void main() {
       expect(killerCalled, isFalse);
     });
 
-    test(
-        'tolerates a missing or already-deleted tmpProfileDir without '
+    test('tolerates a missing or already-deleted tmpProfileDir without '
         'throwing', () async {
       chromeReaperIsWindows = false;
       chromeReaperGrace = Duration.zero;
@@ -275,23 +295,19 @@ void main() {
   });
 
   group('reapOrphans', () {
-    test(
-        'on POSIX runs pgrep -fl with the chrome marker and SIGKILLs every '
+    test('on POSIX runs pgrep -fl with the chrome marker and SIGKILLs every '
         'matched PID', () async {
       chromeReaperIsWindows = false;
       final List<_RecordedRun> calls = <_RecordedRun>[];
-      chromeReaperRunner = _stubRunner(
-        <String, ProcessResult>{
-          'pgrep -fl': ProcessResult(
-            0,
-            0,
-            '111 flutter_tools_chrome_device profile path-A\n'
-                '222 flutter_tools_chrome_device profile path-B\n',
-            '',
-          ),
-        },
-        recorder: calls,
-      );
+      chromeReaperRunner = _stubRunner(<String, ProcessResult>{
+        'pgrep -fl': ProcessResult(
+          0,
+          0,
+          '111 flutter_tools_chrome_device profile path-A\n'
+              '222 flutter_tools_chrome_device profile path-B\n',
+          '',
+        ),
+      }, recorder: calls);
 
       final List<_RecordedKill> kills = <_RecordedKill>[];
       chromeReaperKiller = (int pid, ProcessSignal signal) {
@@ -303,12 +319,11 @@ void main() {
 
       expect(calls.single.executable, equals('pgrep'));
       expect(calls.single.arguments, contains('-fl'));
+      expect(calls.single.arguments, contains('flutter_tools_chrome_device'));
       expect(
-        calls.single.arguments,
-        contains('flutter_tools_chrome_device'),
+        kills.map((_RecordedKill k) => k.pid).toList(),
+        equals(<int>[111, 222]),
       );
-      expect(kills.map((_RecordedKill k) => k.pid).toList(),
-          equals(<int>[111, 222]));
       expect(
         kills.every((_RecordedKill k) => k.signal == ProcessSignal.sigkill),
         isTrue,

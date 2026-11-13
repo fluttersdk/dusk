@@ -34,7 +34,8 @@ class TapirWaitForNetworkIdleCommand extends DowelCommand {
     );
     parser.addOption(
       'idleMs',
-      help: 'Contiguous-zero window the loop must observe before declaring '
+      help:
+          'Contiguous-zero window the loop must observe before declaring '
           'idle (default 500).',
       defaultsTo: '500',
     );

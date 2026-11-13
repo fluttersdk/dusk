@@ -31,8 +31,11 @@ class TapirCloseAppCommand extends DowelCommand {
       const <String, String>{},
     );
     reportFrameWarning(ctx, response);
-    emitEnvelope(ctx, response,
-        () => ctx.output.success('Close signal sent to the running app'));
+    emitEnvelope(
+      ctx,
+      response,
+      () => ctx.output.success('Close signal sent to the running app'),
+    );
     return 0;
   }
 }

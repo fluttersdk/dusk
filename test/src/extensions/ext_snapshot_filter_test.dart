@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_snapshot.dart';
@@ -69,12 +69,10 @@ class _Button extends StatelessWidget {
       button: true,
       label: label,
       child: SizedBox(
-          width: 200,
-          height: 40,
-          child: GestureDetector(
-            onTap: () {},
-            child: const SizedBox.expand(),
-          )),
+        width: 200,
+        height: 40,
+        child: GestureDetector(onTap: () {}, child: const SizedBox.expand()),
+      ),
     );
   }
 }
@@ -101,8 +99,9 @@ void main() {
     ) async {
       await tester.pumpWidget(_shell());
 
-      final Map<String, dynamic> payload =
-          await tapirSnapBuild(interactiveOnly: true);
+      final Map<String, dynamic> payload = await tapirSnapBuild(
+        interactiveOnly: true,
+      );
       final String snapshot = payload['snapshot'] as String;
 
       expect(snapshot, contains('Create monitor'));
@@ -134,8 +133,9 @@ void main() {
       final String full = (await tapirSnapBuild())['snapshot'] as String;
       final String contentRef = _refFor(full, 'content');
 
-      final Map<String, dynamic> payload =
-          await tapirSnapBuild(within: contentRef);
+      final Map<String, dynamic> payload = await tapirSnapBuild(
+        within: contentRef,
+      );
       final String snapshot = payload['snapshot'] as String;
 
       // "Monitors" exists in BOTH regions. Unscoped, an exact-label lookup
@@ -176,10 +176,10 @@ void main() {
       await tester.pumpWidget(_shell());
 
       final developer.ServiceExtensionResponse response =
-          await tapirSnapHandler(
-        'ext.tapir.snap',
-        const <String, String>{'interactiveOnly': 'true', 'grep': 'Create'},
-      );
+          await tapirSnapHandler('ext.tapir.snap', const <String, String>{
+            'interactiveOnly': 'true',
+            'grep': 'Create',
+          });
 
       final Map<String, dynamic> decoded =
           jsonDecode(response.result!) as Map<String, dynamic>;
@@ -196,13 +196,14 @@ void main() {
       await tester.pumpWidget(_shell());
 
       final developer.ServiceExtensionResponse response =
-          await tapirSnapHandler(
-        'ext.tapir.snap',
-        const <String, String>{'grep': '', 'within': ''},
-      );
+          await tapirSnapHandler('ext.tapir.snap', const <String, String>{
+            'grep': '',
+            'within': '',
+          });
 
-      final String snapshot = (jsonDecode(response.result!)
-          as Map<String, dynamic>)['snapshot'] as String;
+      final String snapshot =
+          (jsonDecode(response.result!) as Map<String, dynamic>)['snapshot']
+              as String;
       expect(snapshot, contains('sidebar'));
       expect(snapshot, contains('No monitors yet'));
     });
@@ -222,10 +223,9 @@ void main() {
       );
 
       final developer.ServiceExtensionResponse response =
-          await tapirSnapHandler(
-        'ext.tapir.snap',
-        <String, String>{'within': ref},
-      );
+          await tapirSnapHandler('ext.tapir.snap', <String, String>{
+            'within': ref,
+          });
 
       expect(response.errorDetail, contains('no semantics node'));
     });
@@ -236,10 +236,9 @@ void main() {
       await tester.pumpWidget(_shell());
 
       final developer.ServiceExtensionResponse response =
-          await tapirSnapHandler(
-        'ext.tapir.snap',
-        const <String, String>{'within': 'e999'},
-      );
+          await tapirSnapHandler('ext.tapir.snap', const <String, String>{
+            'within': 'e999',
+          });
 
       expect(response.errorDetail, contains('not found'));
     });

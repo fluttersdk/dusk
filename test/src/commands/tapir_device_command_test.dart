@@ -18,14 +18,14 @@ import '../cdp/fake_cdp_server.dart';
 /// it never calls [callExtension]. This stub satisfies the constructor
 /// contract without needing a live VM Service connection.
 class _StubContext extends DowelContext {
-  _StubContext({
-    required DowelInput input,
-    required DowelOutput output,
-  }) : super.bare(input, output);
+  _StubContext({required DowelInput input, required DowelOutput output})
+    : super.bare(input, output);
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     throw UnsupportedError('TapirDeviceCommand must not call ext.* methods');
   }
 }
@@ -149,74 +149,71 @@ void main() {
   });
 
   // (b) valid mobile preset sends the 3-call chain in the correct order.
-  test(
-    'valid mobile preset sends setDeviceMetricsOverride + setTouchEmulationEnabled + setUserAgentOverride',
-    () async {
-      final List<String> methodOrder = [];
-      Map<String, dynamic>? capturedMetrics;
-      Map<String, dynamic>? capturedTouch;
-      Map<String, dynamic>? capturedUA;
+  test('valid mobile preset sends setDeviceMetricsOverride + setTouchEmulationEnabled + setUserAgentOverride', () async {
+    final List<String> methodOrder = [];
+    Map<String, dynamic>? capturedMetrics;
+    Map<String, dynamic>? capturedTouch;
+    Map<String, dynamic>? capturedUA;
 
-      final server = await FakeCdpServer.start(
-        handlers: {
-          'Emulation.setDeviceMetricsOverride': (params) async {
-            methodOrder.add('Emulation.setDeviceMetricsOverride');
-            capturedMetrics = params;
-            return {};
-          },
-          'Emulation.setTouchEmulationEnabled': (params) async {
-            methodOrder.add('Emulation.setTouchEmulationEnabled');
-            capturedTouch = params;
-            return {};
-          },
-          'Emulation.setUserAgentOverride': (params) async {
-            methodOrder.add('Emulation.setUserAgentOverride');
-            capturedUA = params;
-            return {};
-          },
-          ..._browserWindowHandlers(),
+    final server = await FakeCdpServer.start(
+      handlers: {
+        'Emulation.setDeviceMetricsOverride': (params) async {
+          methodOrder.add('Emulation.setDeviceMetricsOverride');
+          capturedMetrics = params;
+          return {};
         },
-      );
-      StateFile.debugHomeOverride = tempDir.path;
-      await _writeStateJson(tempDir.path, cdpPort: server.port);
+        'Emulation.setTouchEmulationEnabled': (params) async {
+          methodOrder.add('Emulation.setTouchEmulationEnabled');
+          capturedTouch = params;
+          return {};
+        },
+        'Emulation.setUserAgentOverride': (params) async {
+          methodOrder.add('Emulation.setUserAgentOverride');
+          capturedUA = params;
+          return {};
+        },
+        ..._browserWindowHandlers(),
+      },
+    );
+    StateFile.debugHomeOverride = tempDir.path;
+    await _writeStateJson(tempDir.path, cdpPort: server.port);
 
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {'preset': 'iphone-x'}),
-        output: output,
-      );
+    final output = BufferedOutput();
+    final ctx = _StubContext(
+      input: MapInput(const {'preset': 'iphone-x'}),
+      output: output,
+    );
 
-      final exit = await TapirDeviceCommand().handle(ctx);
+    final exit = await TapirDeviceCommand().handle(ctx);
 
-      await server.stop();
+    await server.stop();
 
-      expect(exit, equals(0));
-      expect(
-        methodOrder,
-        equals([
-          'Emulation.setDeviceMetricsOverride',
-          'Emulation.setTouchEmulationEnabled',
-          'Emulation.setUserAgentOverride',
-        ]),
-      );
-      // Params must match the iphone-x preset values exactly.
-      expect(capturedMetrics, containsPair('width', 375));
-      expect(capturedMetrics, containsPair('height', 812));
-      expect(capturedMetrics, containsPair('deviceScaleFactor', 3.0));
-      expect(capturedMetrics, containsPair('mobile', true));
-      expect(capturedTouch, containsPair('enabled', true));
-      expect(capturedUA, isNotNull);
-      final ua = capturedUA!['userAgent'] as String;
-      expect(ua, isNotEmpty);
-      // Success message includes preset name and dimensions.
-      expect(output.content, contains('iphone-x'));
-      expect(output.content, contains('375x812'));
-      // The emulation dies with this command's CDP session; only the window
-      // bounds outlive it.
-      expect(output.content, contains('only as long as'));
-      expect(output.content, contains('CDP session'));
-    },
-  );
+    expect(exit, equals(0));
+    expect(
+      methodOrder,
+      equals([
+        'Emulation.setDeviceMetricsOverride',
+        'Emulation.setTouchEmulationEnabled',
+        'Emulation.setUserAgentOverride',
+      ]),
+    );
+    // Params must match the iphone-x preset values exactly.
+    expect(capturedMetrics, containsPair('width', 375));
+    expect(capturedMetrics, containsPair('height', 812));
+    expect(capturedMetrics, containsPair('deviceScaleFactor', 3.0));
+    expect(capturedMetrics, containsPair('mobile', true));
+    expect(capturedTouch, containsPair('enabled', true));
+    expect(capturedUA, isNotNull);
+    final ua = capturedUA!['userAgent'] as String;
+    expect(ua, isNotEmpty);
+    // Success message includes preset name and dimensions.
+    expect(output.content, contains('iphone-x'));
+    expect(output.content, contains('375x812'));
+    // The emulation dies with this command's CDP session; only the window
+    // bounds outlive it.
+    expect(output.content, contains('only as long as'));
+    expect(output.content, contains('CDP session'));
+  });
 
   // (c) desktop-1440 has no touch: setTouchEmulationEnabled must be skipped.
   test('desktop-1440 preset skips setTouchEmulationEnabled', () async {
@@ -260,66 +257,60 @@ void main() {
         'Emulation.setUserAgentOverride',
       ]),
     );
-    expect(
-      methodOrder,
-      isNot(contains('Emulation.setTouchEmulationEnabled')),
-    );
+    expect(methodOrder, isNot(contains('Emulation.setTouchEmulationEnabled')));
   });
 
   // (e) --reset delegates to the 3-call clear chain.
-  test(
-    '--reset sends setUserAgentOverride + setTouchEmulationEnabled(false) + clearDeviceMetricsOverride',
-    () async {
-      final List<String> methodOrder = [];
-      Map<String, dynamic>? resetUA;
-      Map<String, dynamic>? resetTouch;
+  test('--reset sends setUserAgentOverride + setTouchEmulationEnabled(false) + clearDeviceMetricsOverride', () async {
+    final List<String> methodOrder = [];
+    Map<String, dynamic>? resetUA;
+    Map<String, dynamic>? resetTouch;
 
-      final server = await FakeCdpServer.start(
-        handlers: {
-          'Emulation.setUserAgentOverride': (params) async {
-            methodOrder.add('Emulation.setUserAgentOverride');
-            resetUA = params;
-            return {};
-          },
-          'Emulation.setTouchEmulationEnabled': (params) async {
-            methodOrder.add('Emulation.setTouchEmulationEnabled');
-            resetTouch = params;
-            return {};
-          },
-          'Emulation.clearDeviceMetricsOverride': (params) async {
-            methodOrder.add('Emulation.clearDeviceMetricsOverride');
-            return {};
-          },
-          ..._browserWindowHandlers(),
+    final server = await FakeCdpServer.start(
+      handlers: {
+        'Emulation.setUserAgentOverride': (params) async {
+          methodOrder.add('Emulation.setUserAgentOverride');
+          resetUA = params;
+          return {};
         },
-      );
-      StateFile.debugHomeOverride = tempDir.path;
-      await _writeStateJson(tempDir.path, cdpPort: server.port);
+        'Emulation.setTouchEmulationEnabled': (params) async {
+          methodOrder.add('Emulation.setTouchEmulationEnabled');
+          resetTouch = params;
+          return {};
+        },
+        'Emulation.clearDeviceMetricsOverride': (params) async {
+          methodOrder.add('Emulation.clearDeviceMetricsOverride');
+          return {};
+        },
+        ..._browserWindowHandlers(),
+      },
+    );
+    StateFile.debugHomeOverride = tempDir.path;
+    await _writeStateJson(tempDir.path, cdpPort: server.port);
 
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {'reset': true}),
-        output: output,
-      );
+    final output = BufferedOutput();
+    final ctx = _StubContext(
+      input: MapInput(const {'reset': true}),
+      output: output,
+    );
 
-      final exit = await TapirDeviceCommand().handle(ctx);
+    final exit = await TapirDeviceCommand().handle(ctx);
 
-      await server.stop();
+    await server.stop();
 
-      expect(exit, equals(0));
-      expect(
-        methodOrder,
-        equals([
-          'Emulation.setUserAgentOverride',
-          'Emulation.setTouchEmulationEnabled',
-          'Emulation.clearDeviceMetricsOverride',
-        ]),
-      );
-      expect(resetUA, containsPair('userAgent', ''));
-      expect(resetTouch, containsPair('enabled', false));
-      expect(output.content, contains('reset'));
-    },
-  );
+    expect(exit, equals(0));
+    expect(
+      methodOrder,
+      equals([
+        'Emulation.setUserAgentOverride',
+        'Emulation.setTouchEmulationEnabled',
+        'Emulation.clearDeviceMetricsOverride',
+      ]),
+    );
+    expect(resetUA, containsPair('userAgent', ''));
+    expect(resetTouch, containsPair('enabled', false));
+    expect(output.content, contains('reset'));
+  });
 }
 
 /// Returns Browser.* CDP handlers that the device command's
@@ -327,7 +318,7 @@ void main() {
 /// Without these, the FakeCdpServer returns `Method not found` and the
 /// command exits with code 1 even though the Emulation chain succeeded.
 Map<String, Future<Map<String, dynamic>> Function(Map<String, dynamic>)>
-    _browserWindowHandlers() {
+_browserWindowHandlers() {
   return <String, Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{
     'Browser.getWindowForTarget': (Map<String, dynamic> _) async =>
         <String, dynamic>{'windowId': 1, 'bounds': <String, dynamic>{}},

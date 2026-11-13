@@ -5,20 +5,19 @@ import 'package:tapir/src/commands/tapir_drag_command.dart';
 
 /// Stubs [DowelContext.callExtension] so tests never hit a real VM Service.
 class _StubContext extends DowelContext {
-  _StubContext({
-    required DowelInput input,
-    required DowelOutput output,
-    Map<String, dynamic> response = const {},
-  })  : _response = response,
-        super.bare(input, output);
+  _StubContext({required DowelInput input, required DowelOutput output})
+    : _response = const {},
+      super.bare(input, output);
 
   final Map<String, dynamic> _response;
   String? lastMethod;
   Map<String, dynamic>? lastParams;
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     lastMethod = method;
     lastParams = params;
     return _response as T;
@@ -52,19 +51,21 @@ void main() {
       expect(ctx.lastParams, containsPair('endRef', 'e9'));
     });
 
-    test('handle returns 1 and prints error when startRef is missing',
-        () async {
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {'endRef': 'e9'}),
-        output: output,
-      );
+    test(
+      'handle returns 1 and prints error when startRef is missing',
+      () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'endRef': 'e9'}),
+          output: output,
+        );
 
-      final code = await TapirDragCommand().handle(ctx);
+        final code = await TapirDragCommand().handle(ctx);
 
-      expect(code, equals(1));
-      expect(output.content, contains('startRef'));
-    });
+        expect(code, equals(1));
+        expect(output.content, contains('startRef'));
+      },
+    );
 
     test('handle returns 1 and prints error when endRef is missing', () async {
       final output = BufferedOutput();
@@ -102,18 +103,23 @@ void main() {
       expect(ctx.lastParams, containsPair('endRef', 'e7'));
     });
 
-    test('handle prefers --fromRef over legacy --startRef when both supplied',
-        () async {
-      final ctx = _StubContext(
-        input:
-            MapInput(const {'fromRef': 'e9', 'startRef': 'e2', 'toRef': 'e10'}),
-        output: BufferedOutput(),
-      );
+    test(
+      'handle prefers --fromRef over legacy --startRef when both supplied',
+      () async {
+        final ctx = _StubContext(
+          input: MapInput(const {
+            'fromRef': 'e9',
+            'startRef': 'e2',
+            'toRef': 'e10',
+          }),
+          output: BufferedOutput(),
+        );
 
-      await TapirDragCommand().handle(ctx);
+        await TapirDragCommand().handle(ctx);
 
-      expect(ctx.lastParams, containsPair('startRef', 'e9'));
-      expect(ctx.lastParams, containsPair('endRef', 'e10'));
-    });
+        expect(ctx.lastParams, containsPair('startRef', 'e9'));
+        expect(ctx.lastParams, containsPair('endRef', 'e10'));
+      },
+    );
   });
 }

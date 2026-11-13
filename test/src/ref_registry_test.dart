@@ -147,8 +147,9 @@ void main() {
   });
 
   group('disposeAll', () {
-    testWidgets('clears every entry, query, and resets the counter',
-        (tester) async {
+    testWidgets('clears every entry, query, and resets the counter', (
+      tester,
+    ) async {
       await tester.pumpWidget(const SizedBox.shrink());
       final element = bareElement(tester);
 
@@ -216,8 +217,7 @@ void main() {
             BuildContext context,
             Animation<double> animation,
             Animation<double> secondaryAnimation,
-          ) =>
-              const SizedBox.shrink(),
+          ) => const SizedBox.shrink(),
         );
 
         RefRegistry.bind(
@@ -271,8 +271,9 @@ void main() {
             ],
           ),
         );
-        final List<Element> elements =
-            tester.elementList(find.byType(SizedBox)).toList();
+        final List<Element> elements = tester
+            .elementList(find.byType(SizedBox))
+            .toList();
         final String ref = mint(elements.first, groupId: 'snapshot-1');
 
         RefRegistry.rebind(

@@ -1,10 +1,28 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_checkbox.dart';
 import 'package:tapir/src/ref_registry.dart';
+
+/// `testWidgets` with the Semantics tree switched on: set_checkbox reads the
+/// checked state from it, as it does in a running app where a snapshot has
+/// already enabled semantics.
+void _testWithSemantics(
+  String description,
+  Future<void> Function(WidgetTester tester) body,
+) {
+  testWidgets(description, (WidgetTester tester) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    try {
+      await body(tester);
+    } finally {
+      // flutter_test checks for a leaked handle before any addTearDown runs.
+      handle.dispose();
+    }
+  });
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +34,7 @@ void main() {
     // (a) set-true-on-false — checkbox starts unchecked, toggled to checked.
     // -------------------------------------------------------------------------
 
-    testWidgets(
+    _testWithSemantics(
       '(a) set-true-on-false: toggles unchecked checkbox to checked',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
@@ -50,10 +68,7 @@ void main() {
 
         final future = aiTestSetCheckboxHandler(
           'ext.tapir.set_checkbox',
-          <String, String>{
-            'ref': ref,
-            'value': 'true',
-          },
+          <String, String>{'ref': ref, 'value': 'true'},
         );
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
@@ -74,7 +89,7 @@ void main() {
     // (b) set-false-on-true — checkbox starts checked, toggled to unchecked.
     // -------------------------------------------------------------------------
 
-    testWidgets(
+    _testWithSemantics(
       '(b) set-false-on-true: toggles checked checkbox to unchecked',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
@@ -108,10 +123,7 @@ void main() {
 
         final future = aiTestSetCheckboxHandler(
           'ext.tapir.set_checkbox',
-          <String, String>{
-            'ref': ref,
-            'value': 'false',
-          },
+          <String, String>{'ref': ref, 'value': 'false'},
         );
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
@@ -141,7 +153,7 @@ void main() {
     // (c) Idempotent — no toggle when current value already matches target.
     // -------------------------------------------------------------------------
 
-    testWidgets(
+    _testWithSemantics(
       '(c) idempotent: no toggle when checkbox already matches target value',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
@@ -176,10 +188,7 @@ void main() {
         // Ask to set to true when already true — should be a no-op.
         final response = await aiTestSetCheckboxHandler(
           'ext.tapir.set_checkbox',
-          <String, String>{
-            'ref': ref,
-            'value': 'true',
-          },
+          <String, String>{'ref': ref, 'value': 'true'},
         );
 
         expect(response.result, isNotNull);
@@ -195,22 +204,16 @@ void main() {
     // (d) Ref not found — returns not_found error envelope.
     // -------------------------------------------------------------------------
 
-    test(
-      '(d) ref not found returns not_found error envelope',
-      () async {
-        final response = await aiTestSetCheckboxHandler(
-          'ext.tapir.set_checkbox',
-          <String, String>{
-            'ref': 'e999',
-            'value': 'true',
-          },
-        );
+    test('(d) ref not found returns not_found error envelope', () async {
+      final response = await aiTestSetCheckboxHandler(
+        'ext.tapir.set_checkbox',
+        <String, String>{'ref': 'e999', 'value': 'true'},
+      );
 
-        expect(response.result, isNull);
-        final String detail = response.errorDetail ?? '';
-        expect(detail, contains('e999'));
-      },
-    );
+      expect(response.result, isNull);
+      final String detail = response.errorDetail ?? '';
+      expect(detail, contains('e999'));
+    });
 
     // -------------------------------------------------------------------------
     // (e) Missing value param — returns missing_param error envelope.
@@ -246,17 +249,14 @@ void main() {
       },
     );
 
-    test(
-      '(g) empty ref string returns missing_param error envelope',
-      () async {
-        final response = await aiTestSetCheckboxHandler(
-          'ext.tapir.set_checkbox',
-          const <String, String>{'ref': '', 'value': 'true'},
-        );
-        expect(response.result, isNull);
-        expect(response.errorDetail ?? '', contains('missing required param'));
-      },
-    );
+    test('(g) empty ref string returns missing_param error envelope', () async {
+      final response = await aiTestSetCheckboxHandler(
+        'ext.tapir.set_checkbox',
+        const <String, String>{'ref': '', 'value': 'true'},
+      );
+      expect(response.result, isNull);
+      expect(response.errorDetail ?? '', contains('missing required param'));
+    });
 
     test(
       '(h) empty value string returns missing_param error envelope',
@@ -275,7 +275,7 @@ void main() {
     //     so the Switch-specific value extraction path runs.
     // -------------------------------------------------------------------------
 
-    testWidgets(
+    _testWithSemantics(
       '(i) set-true-on-false on a Switch widget toggles correctly',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
@@ -318,6 +318,55 @@ void main() {
 
         expect(response.result, isNotNull);
         expect(switchValue, isTrue);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (j) A control no Material class draws: the state comes from Semantics.
+    // -------------------------------------------------------------------------
+
+    _testWithSemantics(
+      '(j) a hand-built control that is already checked is left alone',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        int taps = 0;
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Semantics(
+              container: true,
+              checked: true,
+              child: GestureDetector(
+                onTap: () => taps++,
+                child: const SizedBox(width: 40, height: 40),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(GestureDetector));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = RefRegistry.registerForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final response = await aiTestSetCheckboxHandler(
+          'ext.tapir.set_checkbox',
+          <String, String>{'ref': ref, 'value': 'true'},
+        );
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['previousValue'], isTrue);
+        expect(decoded['toggled'], isFalse);
+        expect(taps, 0);
       },
     );
   });

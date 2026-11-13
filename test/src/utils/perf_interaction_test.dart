@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show FlutterTimeline;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_perf.dart';
@@ -19,10 +19,9 @@ PerfInteraction? _zoneHandle() =>
 /// Opens a timing session: it flips no debug flag, which `testWidgets`
 /// would otherwise report as a leaked debug variable.
 Future<void> _openSession() async {
-  await tapirPerfBeginHandler(
-    'ext.tapir.perf_begin',
-    <String, String>{'mode': 'timing'},
-  );
+  await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+    'mode': 'timing',
+  });
   expect(perfSessionOpen, isTrue, reason: 'the session must open');
 }
 
@@ -55,9 +54,9 @@ void main() {
     RefRegistry.resetForTesting();
     resetPerfInteractionsForTesting();
     framePerfReader = () => <String, Object?>{
-          'frames': <Map<String, Object?>>[],
-          'livenessCounter': 0,
-        };
+      'frames': <Map<String, Object?>>[],
+      'livenessCounter': 0,
+    };
     perfSessionBeginHook = (PerfMode mode) {};
     perfSessionEndHook = () {};
   });
@@ -69,64 +68,66 @@ void main() {
 
   group('PerfInteraction', () {
     testWidgets(
-        'a tapped onTap hands the open handle to its Timer and its Future, '
-        'closes it at settle, and a later Timer reads it closed',
-        (WidgetTester tester) async {
-      PerfInteraction? fromTimer;
-      PerfInteraction? fromFuture;
-      PerfInteraction? fromLateTimer;
-      int? closedAtWhenLateTimerFired;
+      'a tapped onTap hands the open handle to its Timer and its Future, '
+      'closes it at settle, and a later Timer reads it closed',
+      (WidgetTester tester) async {
+        PerfInteraction? fromTimer;
+        PerfInteraction? fromFuture;
+        PerfInteraction? fromLateTimer;
+        int? closedAtWhenLateTimerFired;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Center(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                Timer(const Duration(milliseconds: 10), () {
-                  fromTimer = _zoneHandle();
-                });
-                Future<void>(() {
-                  fromFuture = _zoneHandle();
-                });
-                // A socket or poller opened during the tap keeps the zone for
-                // good; this one fires long after the interaction settled.
-                Timer(const Duration(seconds: 2), () {
-                  fromLateTimer = _zoneHandle();
-                  closedAtWhenLateTimerFired = fromLateTimer?.closedAtUs;
-                });
-              },
-              child: const SizedBox(width: 100, height: 100),
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  Timer(const Duration(milliseconds: 10), () {
+                    fromTimer = _zoneHandle();
+                  });
+                  Future<void>(() {
+                    fromFuture = _zoneHandle();
+                  });
+                  // A socket or poller opened during the tap keeps the zone for
+                  // good; this one fires long after the interaction settled.
+                  Timer(const Duration(seconds: 2), () {
+                    fromLateTimer = _zoneHandle();
+                    closedAtWhenLateTimerFired = fromLateTimer?.closedAtUs;
+                  });
+                },
+                child: const SizedBox(width: 100, height: 100),
+              ),
             ),
           ),
-        ),
-      );
-      await _openSession();
+        );
+        await _openSession();
 
-      await _tap(tester, find.byType(GestureDetector));
+        await _tap(tester, find.byType(GestureDetector));
 
-      final PerfInteraction? active = activeInteraction();
-      expect(active, isNotNull, reason: 'the tap must open an interaction');
-      expect(active!.verb, 'tap');
-      expect(active.closedAtUs, isNull, reason: 'still settling');
-      expect(fromTimer, same(active));
-      expect(fromFuture, same(active));
+        final PerfInteraction? active = activeInteraction();
+        expect(active, isNotNull, reason: 'the tap must open an interaction');
+        expect(active!.verb, 'tap');
+        expect(active.closedAtUs, isNull, reason: 'still settling');
+        expect(fromTimer, same(active));
+        expect(fromFuture, same(active));
 
-      // Nothing schedules a frame now, so the 300 ms quiet window closes it.
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(active.closedAtUs, isNotNull);
-      expect(active.closedAtUs, greaterThanOrEqualTo(active.startUs));
-      expect(activeInteraction(), isNull);
+        // Nothing schedules a frame now, so the 300 ms quiet window closes it.
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(active.closedAtUs, isNotNull);
+        expect(active.closedAtUs, greaterThanOrEqualTo(active.startUs));
+        expect(activeInteraction(), isNull);
 
-      await tester.pump(const Duration(seconds: 2));
-      expect(fromLateTimer, same(active));
-      expect(closedAtWhenLateTimerFired, isNotNull);
+        await tester.pump(const Duration(seconds: 2));
+        expect(fromLateTimer, same(active));
+        expect(closedAtWhenLateTimerFired, isNotNull);
 
-      resetPerfSessionForTesting();
-    });
+        resetPerfSessionForTesting();
+      },
+    );
 
-    testWidgets('opens nothing while no perf session is open',
-        (WidgetTester tester) async {
+    testWidgets('opens nothing while no perf session is open', (
+      WidgetTester tester,
+    ) async {
       Object? seen = 'unset';
       await tester.pumpWidget(
         MaterialApp(
@@ -147,8 +148,9 @@ void main() {
       expect(perfInteractionsBetween(0, 1 << 62), isEmpty);
     });
 
-    testWidgets('a verb dispatched inside another joins its interaction',
-        (WidgetTester tester) async {
+    testWidgets('a verb dispatched inside another joins its interaction', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(const SizedBox.shrink());
       await _openSession();
       PerfInteraction? outer;
@@ -171,41 +173,42 @@ void main() {
     });
 
     testWidgets(
-        'a frame-zone reader sees the open interaction through the slot',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(const SizedBox.shrink());
-      await _openSession();
-      PerfInteraction? seenInFrame;
-      Object? zoneInFrame = 'unset';
+      'a frame-zone reader sees the open interaction through the slot',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _openSession();
+        PerfInteraction? seenInFrame;
+        Object? zoneInFrame = 'unset';
 
-      await runPerfInteraction<void>('tap', 'e1', () async {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          seenInFrame = activeInteraction();
-          zoneInFrame = Zone.current[#tapir_interaction];
+        await runPerfInteraction<void>('tap', 'e1', () async {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            seenInFrame = activeInteraction();
+            zoneInFrame = Zone.current[#tapir_interaction];
+          });
+          WidgetsBinding.instance.scheduleFrame();
         });
-        WidgetsBinding.instance.scheduleFrame();
-      });
-      await tester.pump();
+        await tester.pump();
 
-      expect(seenInFrame, isNotNull);
-      expect(seenInFrame!.verb, 'tap');
-      expect(
-        zoneInFrame,
-        isNull,
-        reason: 'post-frame work runs in the frame zone, which is why the '
-            'slot exists',
-      );
+        expect(seenInFrame, isNotNull);
+        expect(seenInFrame!.verb, 'tap');
+        expect(
+          zoneInFrame,
+          isNull,
+          reason:
+              'post-frame work runs in the frame zone, which is why the '
+              'slot exists',
+        );
 
-      await tester.pump(const Duration(milliseconds: 500));
-      resetPerfSessionForTesting();
-    });
+        await tester.pump(const Duration(milliseconds: 500));
+        resetPerfSessionForTesting();
+      },
+    );
 
-    testWidgets('an app that never stops scheduling frames is closed at 5 s',
-        (WidgetTester tester) async {
+    testWidgets('an app that never stops scheduling frames is closed at 5 s', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Center(child: CircularProgressIndicator()),
-        ),
+        const MaterialApp(home: Center(child: CircularProgressIndicator())),
       );
       await _openSession();
 
@@ -226,12 +229,11 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('closing the session closes an interaction still settling',
-        (WidgetTester tester) async {
+    testWidgets('closing the session closes an interaction still settling', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Center(child: CircularProgressIndicator()),
-        ),
+        const MaterialApp(home: Center(child: CircularProgressIndicator())),
       );
       await _openSession();
       await runPerfInteraction<void>('tap', 'e1', () async {});
@@ -246,41 +248,43 @@ void main() {
     });
 
     testWidgets(
-        'perfInteractionAt names the interaction whose window holds a time',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(const SizedBox.shrink());
-      await _openSession();
+      'perfInteractionAt names the interaction whose window holds a time',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _openSession();
 
-      await runPerfInteraction<void>('tap', 'e1', () async {});
-      final PerfInteraction handle = activeInteraction()!;
-      expect(
-        perfInteractionAt(FlutterTimeline.now),
-        same(handle),
-        reason: 'an open interaction runs from its start to now',
-      );
-      expect(
-        perfInteractionAt(FlutterTimeline.now + 60000000),
-        isNull,
-        reason: 'the future is not inside anything yet',
-      );
+        await runPerfInteraction<void>('tap', 'e1', () async {});
+        final PerfInteraction handle = activeInteraction()!;
+        expect(
+          perfInteractionAt(FlutterTimeline.now),
+          same(handle),
+          reason: 'an open interaction runs from its start to now',
+        );
+        expect(
+          perfInteractionAt(FlutterTimeline.now + 60000000),
+          isNull,
+          reason: 'the future is not inside anything yet',
+        );
 
-      await tester.pump(const Duration(milliseconds: 500));
-      final int closedAt = handle.closedAtUs!;
+        await tester.pump(const Duration(milliseconds: 500));
+        final int closedAt = handle.closedAtUs!;
 
-      expect(perfInteractionAt(handle.startUs), same(handle));
-      expect(perfInteractionAt(closedAt), same(handle));
-      expect(perfInteractionAt(handle.startUs - 1), isNull);
-      expect(
-        perfInteractionAt(closedAt + 1),
-        isNull,
-        reason: 'a closed handle stops containing time once it settled',
-      );
+        expect(perfInteractionAt(handle.startUs), same(handle));
+        expect(perfInteractionAt(closedAt), same(handle));
+        expect(perfInteractionAt(handle.startUs - 1), isNull);
+        expect(
+          perfInteractionAt(closedAt + 1),
+          isNull,
+          reason: 'a closed handle stops containing time once it settled',
+        );
 
-      resetPerfSessionForTesting();
-    });
+        resetPerfSessionForTesting();
+      },
+    );
 
-    testWidgets('perfInteractionAt prefers the newest of overlapping ones',
-        (WidgetTester tester) async {
+    testWidgets('perfInteractionAt prefers the newest of overlapping ones', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(const SizedBox.shrink());
       await _openSession();
 
@@ -296,10 +300,12 @@ void main() {
       resetPerfSessionForTesting();
     });
 
-    test('the zone key is the public symbol a host in another library reads',
-        () {
-      expect(PerfInteraction.zoneKey, #tapir_interaction);
-      expect(PerfInteraction.zoneKey, const Symbol('tapir_interaction'));
-    });
+    test(
+      'the zone key is the public symbol a host in another library reads',
+      () {
+        expect(PerfInteraction.zoneKey, #tapir_interaction);
+        expect(PerfInteraction.zoneKey, const Symbol('tapir_interaction'));
+      },
+    );
   });
 }

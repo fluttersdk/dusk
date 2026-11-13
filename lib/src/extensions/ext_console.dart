@@ -41,7 +41,7 @@ const String kTapirConsoleMcpExtension = 'ext.tapir.console';
 /// so downstream tests asserting the missing-crumbs default do not see leaked
 /// bindings.
 List<Map<String, dynamic>> Function({int limit, String? minLevel})
-    recentLogsReader = ({int limit = 50, String? minLevel}) => const [];
+recentLogsReader = ({int limit = 50, String? minLevel}) => const [];
 
 // ---------------------------------------------------------------------------
 // Aggregator
@@ -97,8 +97,9 @@ Future<developer.ServiceExtensionResponse> aiTestConsoleHandler(
   try {
     // 1. Parse params — both are optional; fall back to defaults when absent.
     final int limit = _parseInt(params['limit']) ?? 50;
-    final String? minLevel =
-        params['minLevel']?.isNotEmpty == true ? params['minLevel'] : null;
+    final String? minLevel = params['minLevel']?.isNotEmpty == true
+        ? params['minLevel']
+        : null;
 
     // 2. Collect from both sources: in-package buffer (debugPrint capture) and
     //    the crumbs reader (when wired). Use a generous fetch so the merge
@@ -129,15 +130,13 @@ Future<developer.ServiceExtensionResponse> aiTestConsoleHandler(
       }
     }
 
-    final List<Map<String, dynamic>> logs =
-        merged.length > limit ? merged.sublist(0, limit) : merged;
+    final List<Map<String, dynamic>> logs = merged.length > limit
+        ? merged.sublist(0, limit)
+        : merged;
 
     // 4. Return the structured envelope — count lets callers skip iterating the
     //    list when only the total matters.
-    return tapirResult(<String, dynamic>{
-      'logs': logs,
-      'count': logs.length,
-    });
+    return tapirResult(<String, dynamic>{'logs': logs, 'count': logs.length});
   } catch (e, st) {
     developer.log(
       '[tapir] ext.tapir.console: unexpected error: $e\n$st',
@@ -145,10 +144,7 @@ Future<developer.ServiceExtensionResponse> aiTestConsoleHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.console: $e',
-        TapirErrorEnvelope.unexpected(),
-      ),
+      wrapErrorDetail('ext.tapir.console: $e', TapirErrorEnvelope.unexpected()),
     );
   }
 }

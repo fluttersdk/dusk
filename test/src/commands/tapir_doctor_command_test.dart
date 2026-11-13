@@ -48,13 +48,14 @@ void main() {
     });
 
     test(
-        'description is "Verify tapir plugin runtime + consumer wiring health"',
-        () {
-      expect(
-        TapirDoctorCommand().description,
-        equals('Verify tapir plugin runtime + consumer wiring health'),
-      );
-    });
+      'description is "Verify tapir plugin runtime + consumer wiring health"',
+      () {
+        expect(
+          TapirDoctorCommand().description,
+          equals('Verify tapir plugin runtime + consumer wiring health'),
+        );
+      },
+    );
 
     test('boot is CommandBoot.none (does not require a running app)', () {
       expect(TapirDoctorCommand().boot, equals(CommandBoot.none));
@@ -66,80 +67,86 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('Check 1: hot-restart staleness', () {
-    test(
-        'PASS when state.json is absent (nothing to compare; INFO row "Skipped (no Chrome attached)")',
-        () async {
+    test('PASS when state.json is absent (nothing to compare; INFO row "Skipped (no Chrome attached)")', () async {
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
-      expect(exit, equals(0),
-          reason: 'no Chrome to probe means no ERROR; exit 0');
+      expect(
+        exit,
+        equals(0),
+        reason: 'no Chrome to probe means no ERROR; exit 0',
+      );
       expect(output.content, contains('hot-restart staleness'));
       expect(output.content, contains('Skipped (no Chrome attached)'));
     });
 
     test(
-        'PASS when Chrome lstart matches state.json startedAt within 30s drift',
-        () async {
-      final DateTime startedAt = DateTime.utc(2026, 5, 19, 12, 0, 0);
-      TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'pid': 4242,
-            'startedAt': startedAt.toIso8601String(),
-          };
-      TapirDoctorCommand.chromePidProbe =
-          ({required int parentPid}) async => 9999;
-      // Drift = 15s ; under the 30s threshold.
-      TapirDoctorCommand.processStartTimeProbe =
-          (int pid) => startedAt.add(const Duration(seconds: 15));
+      'PASS when Chrome lstart matches state.json startedAt within 30s drift',
+      () async {
+        final DateTime startedAt = DateTime.utc(2026, 5, 19, 12, 0, 0);
+        TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
+          'pid': 4242,
+          'startedAt': startedAt.toIso8601String(),
+        };
+        TapirDoctorCommand.chromePidProbe = ({required int parentPid}) async =>
+            9999;
+        // Drift = 15s ; under the 30s threshold.
+        TapirDoctorCommand.processStartTimeProbe = (int pid) =>
+            startedAt.add(const Duration(seconds: 15));
 
-      final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+        final output = BufferedOutput();
+        final exit = await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
 
-      expect(exit, equals(0));
-      expect(output.content, contains('hot-restart staleness'));
-      // No WARN row for this check ; the marker is absence of the drift line.
-      expect(output.content, isNot(contains('hot-restart drift')));
-    });
-
-    test(
-        'WARN when Chrome lstart drifts more than 30s past state.json startedAt',
-        () async {
-      final DateTime startedAt = DateTime.utc(2026, 5, 19, 12, 0, 0);
-      TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'pid': 4242,
-            'startedAt': startedAt.toIso8601String(),
-          };
-      TapirDoctorCommand.chromePidProbe =
-          ({required int parentPid}) async => 9999;
-      // Drift = 120s ; far above the 30s threshold.
-      TapirDoctorCommand.processStartTimeProbe =
-          (int pid) => startedAt.add(const Duration(seconds: 120));
-
-      final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
-
-      // WARN never fails the command ; only ERROR does.
-      expect(exit, equals(0));
-      expect(output.content, contains('hot-restart drift'));
-    });
+        expect(exit, equals(0));
+        expect(output.content, contains('hot-restart staleness'));
+        // No WARN row for this check ; the marker is absence of the drift line.
+        expect(output.content, isNot(contains('hot-restart drift')));
+      },
+    );
 
     test(
-        'INFO "Skipped (no Chrome attached)" when state.json present but '
+      'WARN when Chrome lstart drifts more than 30s past state.json startedAt',
+      () async {
+        final DateTime startedAt = DateTime.utc(2026, 5, 19, 12, 0, 0);
+        TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
+          'pid': 4242,
+          'startedAt': startedAt.toIso8601String(),
+        };
+        TapirDoctorCommand.chromePidProbe = ({required int parentPid}) async =>
+            9999;
+        // Drift = 120s ; far above the 30s threshold.
+        TapirDoctorCommand.processStartTimeProbe = (int pid) =>
+            startedAt.add(const Duration(seconds: 120));
+
+        final output = BufferedOutput();
+        final exit = await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
+
+        // WARN never fails the command ; only ERROR does.
+        expect(exit, equals(0));
+        expect(output.content, contains('hot-restart drift'));
+      },
+    );
+
+    test('INFO "Skipped (no Chrome attached)" when state.json present but '
         'captureChromePid returns null', () async {
       final DateTime startedAt = DateTime.utc(2026, 5, 19, 12, 0, 0);
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'pid': 4242,
-            'startedAt': startedAt.toIso8601String(),
-          };
-      TapirDoctorCommand.chromePidProbe =
-          ({required int parentPid}) async => null;
+        'pid': 4242,
+        'startedAt': startedAt.toIso8601String(),
+      };
+      TapirDoctorCommand.chromePidProbe = ({required int parentPid}) async =>
+          null;
 
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
       expect(exit, equals(0));
       expect(output.content, contains('Skipped (no Chrome attached)'));
@@ -154,21 +161,21 @@ void main() {
     test('PASS when TAPIR_DISABLE is empty (runtime hooks active)', () async {
       TapirDoctorCommand.tapirDisableEnvReader = () => '';
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
       expect(exit, equals(0));
       expect(output.content, contains('TAPIR_DISABLE'));
       expect(output.content, isNot(contains('runtime hooks inactive')));
     });
 
-    test(
-        'WARN when TAPIR_DISABLE is set, with the actual value echoed in the message',
-        () async {
+    test('WARN when TAPIR_DISABLE is set, with the actual value echoed in the message', () async {
       TapirDoctorCommand.tapirDisableEnvReader = () => '1';
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
       expect(exit, equals(0), reason: 'WARN never fails the command');
       expect(
@@ -177,20 +184,24 @@ void main() {
       );
     });
 
-    test('WARN echoes a custom TAPIR_DISABLE value verbatim (e.g. "true")',
-        () async {
-      TapirDoctorCommand.tapirDisableEnvReader = () => 'true';
-      final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+    test(
+      'WARN echoes a custom TAPIR_DISABLE value verbatim (e.g. "true")',
+      () async {
+        TapirDoctorCommand.tapirDisableEnvReader = () => 'true';
+        final output = BufferedOutput();
+        final exit = await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
 
-      expect(exit, equals(0));
-      expect(
-        output.content,
-        contains(
-            'tapir disabled via TAPIR_DISABLE=true, runtime hooks inactive'),
-      );
-    });
+        expect(exit, equals(0));
+        expect(
+          output.content,
+          contains(
+            'tapir disabled via TAPIR_DISABLE=true, runtime hooks inactive',
+          ),
+        );
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -198,44 +209,53 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('Check 3: enricher list non-empty', () {
-    test('PASS when at least one enricher is registered (count echoed)',
-        () async {
-      TapirDoctorCommand.enrichersProbe = () => 2;
+    test(
+      'PASS when at least one enricher is registered (count echoed)',
+      () async {
+        TapirDoctorCommand.enrichersProbe = () => 2;
 
-      final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+        final output = BufferedOutput();
+        final exit = await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
 
-      expect(exit, equals(0));
-      expect(output.content, contains('enrichers registered: 2'));
-    });
+        expect(exit, equals(0));
+        expect(output.content, contains('enrichers registered: 2'));
+      },
+    );
 
-    test('INFO when TapirPlugin.enrichers is empty (enrichers are opt-in)',
-        () async {
-      TapirDoctorCommand.enrichersProbe = () => 0;
+    test(
+      'INFO when TapirPlugin.enrichers is empty (enrichers are opt-in)',
+      () async {
+        TapirDoctorCommand.enrichersProbe = () => 0;
 
-      final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+        final output = BufferedOutput();
+        final exit = await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
 
-      expect(exit, equals(0));
-      expect(
-        output.content,
-        contains('enrichers are opt-in; none registered'),
-      );
-    });
+        expect(exit, equals(0));
+        expect(
+          output.content,
+          contains('enrichers are opt-in; none registered'),
+        );
+      },
+    );
 
-    test('PASS with count = 1 when exactly one enricher is registered',
-        () async {
-      TapirDoctorCommand.enrichersProbe = () => 1;
+    test(
+      'PASS with count = 1 when exactly one enricher is registered',
+      () async {
+        TapirDoctorCommand.enrichersProbe = () => 1;
 
-      final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+        final output = BufferedOutput();
+        final exit = await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
 
-      expect(exit, equals(0));
-      expect(output.content, contains('enrichers registered: 1'));
-    });
+        expect(exit, equals(0));
+        expect(output.content, contains('enrichers registered: 1'));
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -247,8 +267,9 @@ void main() {
       TapirDoctorCommand.semanticsEnabledProbe = () => true;
 
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
       expect(exit, equals(0));
       expect(output.content, contains('Semantics tree forced on'));
@@ -258,17 +279,20 @@ void main() {
       );
     });
 
-    test(
-        'ERROR (exit != 0) when semanticsEnabled is false; message names '
+    test('ERROR (exit != 0) when semanticsEnabled is false; message names '
         'TapirPlugin.install', () async {
       TapirDoctorCommand.semanticsEnabledProbe = () => false;
 
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
-      expect(exit, isNot(equals(0)),
-          reason: 'ERROR-severity check must fail the command');
+      expect(
+        exit,
+        isNot(equals(0)),
+        reason: 'ERROR-severity check must fail the command',
+      );
       expect(
         output.content,
         contains(
@@ -277,18 +301,21 @@ void main() {
       );
     });
 
-    test('ERROR also rendered with the [ERROR] prefix in BufferedOutput',
-        () async {
-      TapirDoctorCommand.semanticsEnabledProbe = () => false;
+    test(
+      'ERROR also rendered with the [ERROR] prefix in BufferedOutput',
+      () async {
+        TapirDoctorCommand.semanticsEnabledProbe = () => false;
 
-      final output = BufferedOutput();
-      await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+        final output = BufferedOutput();
+        await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
 
-      // BufferedOutput prefixes errors with "[ERROR] " — that is the marker
-      // tests use to distinguish ERROR rows from WARN / PASS rows.
-      expect(output.content, contains('[ERROR]'));
-    });
+        // BufferedOutput prefixes errors with "[ERROR] " — that is the marker
+        // tests use to distinguish ERROR rows from WARN / PASS rows.
+        expect(output.content, contains('[ERROR]'));
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -296,8 +323,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('Check 5: Magic-init detection (INFO-only)', () {
-    test(
-        'INFO "Magic-stack detected, integration wired" when main.dart has '
+    test('INFO "Magic-stack detected, integration wired" when main.dart has '
         'both Magic.init( AND MagicTapirIntegration.install', () async {
       TapirDoctorCommand.mainDartReader = (String path) => '''
 import 'package:magic/magic.dart';
@@ -317,8 +343,9 @@ Future<void> main() async {
 ''';
 
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
       // INFO never fails.
       expect(exit, equals(0));
@@ -329,10 +356,11 @@ Future<void> main() async {
     });
 
     test(
-        'INFO "vanilla Flutter detected" when main.dart has neither Magic.init '
-        'nor MagicTapirIntegration.install', () async {
-      TapirDoctorCommand.mainDartReader = (String path) => '''
-import 'package:flutter/material.dart';
+      'INFO "vanilla Flutter detected" when main.dart has neither Magic.init '
+      'nor MagicTapirIntegration.install',
+      () async {
+        TapirDoctorCommand.mainDartReader = (String path) => '''
+import 'package:material_ui/material_ui.dart';
 import 'package:tapir/tapir.dart';
 
 void main() {
@@ -343,18 +371,21 @@ void main() {
 }
 ''';
 
-      final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+        final output = BufferedOutput();
+        final exit = await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
 
-      expect(exit, equals(0));
-      expect(output.content, contains('vanilla Flutter detected'));
-    });
+        expect(exit, equals(0));
+        expect(output.content, contains('vanilla Flutter detected'));
+      },
+    );
 
     test(
-        'INFO "Magic detected but MagicTapirIntegration missing" when main.dart '
-        'has Magic.init( but not the integration install call', () async {
-      TapirDoctorCommand.mainDartReader = (String path) => '''
+      'INFO "Magic detected but MagicTapirIntegration missing" when main.dart '
+      'has Magic.init( but not the integration install call',
+      () async {
+        TapirDoctorCommand.mainDartReader = (String path) => '''
 import 'package:magic/magic.dart';
 
 Future<void> main() async {
@@ -364,32 +395,37 @@ Future<void> main() async {
 }
 ''';
 
-      final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+        final output = BufferedOutput();
+        final exit = await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
 
-      expect(exit, equals(0));
-      expect(
-        output.content,
-        contains(
-          'Magic detected but MagicTapirIntegration missing — install via '
-          'tapir:install',
-        ),
-      );
-    });
+        expect(exit, equals(0));
+        expect(
+          output.content,
+          contains(
+            'Magic detected but MagicTapirIntegration missing — install via '
+            'tapir:install',
+          ),
+        );
+      },
+    );
 
-    test('INFO "Skipped (lib/main.dart unreadable)" when main.dart is absent',
-        () async {
-      TapirDoctorCommand.mainDartReader = (String path) => null;
+    test(
+      'INFO "Skipped (lib/main.dart unreadable)" when main.dart is absent',
+      () async {
+        TapirDoctorCommand.mainDartReader = (String path) => null;
 
-      final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+        final output = BufferedOutput();
+        final exit = await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
 
-      expect(exit, equals(0));
-      expect(output.content, contains('Magic-init detection'));
-      expect(output.content, contains('Skipped (lib/main.dart unreadable)'));
-    });
+        expect(exit, equals(0));
+        expect(output.content, contains('Magic-init detection'));
+        expect(output.content, contains('Skipped (lib/main.dart unreadable)'));
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -397,35 +433,38 @@ Future<void> main() async {
   // ---------------------------------------------------------------------------
 
   group('Output composition', () {
-    test('all five check labels appear in the output, in declaration order',
-        () async {
-      final output = BufferedOutput();
-      await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
-
-      final String content = output.content;
-      final int idx1 = content.indexOf('hot-restart staleness');
-      final int idx2 = content.indexOf('TAPIR_DISABLE');
-      final int idx3 = content.indexOf('enrichers');
-      final int idx4 = content.indexOf('Semantics tree');
-      final int idx5 = content.indexOf('Magic-init detection');
-
-      expect(idx1, greaterThanOrEqualTo(0));
-      expect(idx2, greaterThan(idx1));
-      expect(idx3, greaterThan(idx2));
-      expect(idx4, greaterThan(idx3));
-      expect(idx5, greaterThan(idx4));
-    });
-
     test(
-        'exit code is 0 when every check passes (defaults: empty enrichers '
+      'all five check labels appear in the output, in declaration order',
+      () async {
+        final output = BufferedOutput();
+        await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
+
+        final String content = output.content;
+        final int idx1 = content.indexOf('hot-restart staleness');
+        final int idx2 = content.indexOf('TAPIR_DISABLE');
+        final int idx3 = content.indexOf('enrichers');
+        final int idx4 = content.indexOf('Semantics tree');
+        final int idx5 = content.indexOf('Magic-init detection');
+
+        expect(idx1, greaterThanOrEqualTo(0));
+        expect(idx2, greaterThan(idx1));
+        expect(idx3, greaterThan(idx2));
+        expect(idx4, greaterThan(idx3));
+        expect(idx5, greaterThan(idx4));
+      },
+    );
+
+    test('exit code is 0 when every check passes (defaults: empty enrichers '
         'emit INFO, no errors)', () async {
       // With default seams (empty enrichers, no Chrome, no TAPIR_DISABLE,
       // semantics on, no main.dart) all checks pass with no ERROR rows,
       // so exit code is 0.
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
       expect(exit, equals(0));
     });
@@ -434,8 +473,9 @@ Future<void> main() async {
       TapirDoctorCommand.semanticsEnabledProbe = () => false;
 
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
       expect(exit, isNot(equals(0)));
     });
@@ -450,8 +490,7 @@ Future<void> main() async {
   // implementation.
   // =========================================================================
   group('TapirDoctorCommand default probes', () {
-    test(
-        '_defaultProcessStartTime resolves the test process PID via '
+    test('_defaultProcessStartTime resolves the test process PID via '
         '`ps -o lstart=` (POSIX) or wmic (Windows)', () {
       // Restore the production default after the suite-level setUp swapped
       // it out for a null-returning stub, then call it against the test
@@ -472,11 +511,11 @@ Future<void> main() async {
       expect(captured, isNotNull);
     });
 
-    test(
-        '_defaultMainDartReader returns file contents on present file and '
+    test('_defaultMainDartReader returns file contents on present file and '
         'null on missing path', () {
-      final Directory tmp =
-          Directory.systemTemp.createTempSync('tapir_doctor_reader_');
+      final Directory tmp = Directory.systemTemp.createTempSync(
+        'tapir_doctor_reader_',
+      );
       addTearDown(() {
         if (tmp.existsSync()) tmp.deleteSync(recursive: true);
       });
@@ -487,8 +526,9 @@ Future<void> main() async {
       expect(present, isNotNull);
       expect(present, contains('Magic.init'));
 
-      final String? absent =
-          TapirDoctorCommand.mainDartReader('${tmp.path}/missing.dart');
+      final String? absent = TapirDoctorCommand.mainDartReader(
+        '${tmp.path}/missing.dart',
+      );
       expect(absent, isNull);
     });
 
@@ -510,58 +550,57 @@ Future<void> main() async {
       expect(TapirDoctorCommand.mainDartReader, isNotNull);
     });
 
-    test(
-        'staleness check exits at the chromePid=null branch when state.json '
+    test('staleness check exits at the chromePid=null branch when state.json '
         'has pid+startedAt but the chrome probe returns null', () async {
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'pid': 12345,
-            'startedAt': DateTime.now().toIso8601String(),
-          };
-      TapirDoctorCommand.chromePidProbe =
-          ({required int parentPid}) async => null;
+        'pid': 12345,
+        'startedAt': DateTime.now().toIso8601String(),
+      };
+      TapirDoctorCommand.chromePidProbe = ({required int parentPid}) async =>
+          null;
 
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
       expect(exit, equals(0));
       expect(output.content, contains('Skipped (no Chrome attached)'));
     });
 
-    test(
-        'staleness check exits at the chromeStart=null branch when the '
+    test('staleness check exits at the chromeStart=null branch when the '
         'process start time probe returns null', () async {
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'pid': 12345,
-            'startedAt': DateTime.now().toIso8601String(),
-          };
-      TapirDoctorCommand.chromePidProbe =
-          ({required int parentPid}) async => 99999;
+        'pid': 12345,
+        'startedAt': DateTime.now().toIso8601String(),
+      };
+      TapirDoctorCommand.chromePidProbe = ({required int parentPid}) async =>
+          99999;
       TapirDoctorCommand.processStartTimeProbe = (int _) => null;
 
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
       expect(exit, equals(0));
       expect(output.content, contains('Skipped (no Chrome attached)'));
     });
 
-    test(
-        'staleness check skips when state.json is missing pid / startedAt '
+    test('staleness check skips when state.json is missing pid / startedAt '
         'entirely', () async {
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{};
 
       final output = BufferedOutput();
-      final exit = await TapirDoctorCommand()
-          .handle(DowelContext.bare(MapInput(const {}), output));
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
 
       expect(exit, equals(0));
       expect(output.content, contains('Skipped (no Chrome attached)'));
     });
 
-    test(
-        'defaultProcessStartTime resolves the test process PID and returns '
+    test('defaultProcessStartTime resolves the test process PID and returns '
         'a plausible DateTime', () {
       // Cross-platform: macOS / Linux run `ps -o lstart=`, Windows runs
       // `wmic`. Both should report a time within the last day-ish for the
@@ -572,24 +611,24 @@ Future<void> main() async {
         expect(sinceStart.inDays.abs(), lessThan(2));
       }
       // Negative path: bogus PID always returns null.
-      expect(
-        TapirDoctorCommand.defaultProcessStartTime(999999),
-        isNull,
-      );
+      expect(TapirDoctorCommand.defaultProcessStartTime(999999), isNull);
     });
 
-    test('parsePsLstartForTesting parses a canonical "ps -o lstart=" string',
-        () {
-      final DateTime? when = TapirDoctorCommand.parsePsLstartForTesting(
-          'Fri May 16 14:30:25 2026');
-      expect(when, isNotNull);
-      expect(when!.year, equals(2026));
-      expect(when.month, equals(5));
-      expect(when.day, equals(16));
-      expect(when.hour, equals(14));
-      expect(when.minute, equals(30));
-      expect(when.second, equals(25));
-    });
+    test(
+      'parsePsLstartForTesting parses a canonical "ps -o lstart=" string',
+      () {
+        final DateTime? when = TapirDoctorCommand.parsePsLstartForTesting(
+          'Fri May 16 14:30:25 2026',
+        );
+        expect(when, isNotNull);
+        expect(when!.year, equals(2026));
+        expect(when.month, equals(5));
+        expect(when.day, equals(16));
+        expect(when.hour, equals(14));
+        expect(when.minute, equals(30));
+        expect(when.second, equals(25));
+      },
+    );
 
     test('parsePsLstartForTesting handles every month abbreviation', () {
       const Map<String, int> expected = <String, int>{
@@ -620,15 +659,10 @@ Future<void> main() async {
         TapirDoctorCommand.parsePsLstartForTesting('not a real ps line'),
         isNull,
       );
-      expect(
-        TapirDoctorCommand.parsePsLstartForTesting(''),
-        isNull,
-      );
+      expect(TapirDoctorCommand.parsePsLstartForTesting(''), isNull);
       // Unknown month abbreviation → null.
       expect(
-        TapirDoctorCommand.parsePsLstartForTesting(
-          'Fri Foo 16 14:30:25 2026',
-        ),
+        TapirDoctorCommand.parsePsLstartForTesting('Fri Foo 16 14:30:25 2026'),
         isNull,
       );
     });
@@ -641,8 +675,8 @@ Future<void> main() async {
   group('TapirDoctorCommand session ownership', () {
     test('passes when state.json names this project', () async {
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'projectRoot': '/repos/uptizm',
-          };
+        'projectRoot': '/repos/uptizm',
+      };
       TapirDoctorCommand.currentDirectoryProbe = () => '/repos/uptizm';
 
       final output = BufferedOutput();
@@ -659,8 +693,8 @@ Future<void> main() async {
       // file mid-session and two tapir commands drove the wrong app, which
       // produced a screenshot of an entirely different product.
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'projectRoot': '/repos/depools',
-          };
+        'projectRoot': '/repos/depools',
+      };
       TapirDoctorCommand.currentDirectoryProbe = () => '/repos/uptizm';
 
       final output = BufferedOutput();
@@ -703,9 +737,9 @@ Future<void> main() async {
 
     test('warns when the recorded port is unreachable', () async {
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'cdpPort': 9333,
-            'webPort': 3100,
-          };
+        'cdpPort': 9333,
+        'webPort': 3100,
+      };
       TapirDoctorCommand.cdpSessionProbe = (int port, int? webPort) async =>
           const TapirCdpSessionReport(reachable: false);
 
@@ -724,14 +758,14 @@ Future<void> main() async {
       // with the old build and its own debug port, so every capture comes
       // back byte-identical and nothing says why.
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'cdpPort': 9333,
-            'webPort': 3100,
-          };
-      TapirDoctorCommand.cdpSessionProbe =
-          (int port, int? webPort) async => const TapirCdpSessionReport(
-                reachable: true,
-                pageUrls: <String>['http://localhost:9999/'],
-              );
+        'cdpPort': 9333,
+        'webPort': 3100,
+      };
+      TapirDoctorCommand.cdpSessionProbe = (int port, int? webPort) async =>
+          const TapirCdpSessionReport(
+            reachable: true,
+            pageUrls: <String>['http://localhost:9999/'],
+          );
 
       final output = BufferedOutput();
       await TapirDoctorCommand().handle(
@@ -745,15 +779,15 @@ Future<void> main() async {
 
     test('warns when the matching page is hidden', () async {
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'cdpPort': 9333,
-            'webPort': 3100,
-          };
-      TapirDoctorCommand.cdpSessionProbe =
-          (int port, int? webPort) async => const TapirCdpSessionReport(
-                reachable: true,
-                pageUrls: <String>['http://localhost:3100/'],
-                hidden: true,
-              );
+        'cdpPort': 9333,
+        'webPort': 3100,
+      };
+      TapirDoctorCommand.cdpSessionProbe = (int port, int? webPort) async =>
+          const TapirCdpSessionReport(
+            reachable: true,
+            pageUrls: <String>['http://localhost:3100/'],
+            hidden: true,
+          );
 
       final output = BufferedOutput();
       await TapirDoctorCommand().handle(
@@ -766,15 +800,15 @@ Future<void> main() async {
 
     test('passes when the page is visible and serves this run', () async {
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'cdpPort': 9333,
-            'webPort': 3100,
-          };
-      TapirDoctorCommand.cdpSessionProbe =
-          (int port, int? webPort) async => const TapirCdpSessionReport(
-                reachable: true,
-                pageUrls: <String>['http://localhost:3100/'],
-                hidden: false,
-              );
+        'cdpPort': 9333,
+        'webPort': 3100,
+      };
+      TapirDoctorCommand.cdpSessionProbe = (int port, int? webPort) async =>
+          const TapirCdpSessionReport(
+            reachable: true,
+            pageUrls: <String>['http://localhost:3100/'],
+            hidden: false,
+          );
 
       final output = BufferedOutput();
       await TapirDoctorCommand().handle(
@@ -805,8 +839,11 @@ Future<void> main() async {
     test('a live port reports the page URLs it serves', () async {
       final FakeCdpServer server = await FakeCdpServer.start(
         pageUrl: 'http://localhost:3210/',
-        handlers: <String,
-            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
+        handlers:
+            <
+              String,
+              Future<Map<String, dynamic>> Function(Map<String, dynamic>)
+            >{},
       );
       addTearDown(server.stop);
 
@@ -825,13 +862,19 @@ Future<void> main() async {
     test('a matching page has its document.hidden read', () async {
       final FakeCdpServer server = await FakeCdpServer.start(
         pageUrl: 'http://localhost:3210/',
-        handlers: <String,
-            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{
-          'Runtime.evaluate': (Map<String, dynamic> params) async =>
-              <String, dynamic>{
-                'result': <String, dynamic>{'type': 'boolean', 'value': true},
-              },
-        },
+        handlers:
+            <
+              String,
+              Future<Map<String, dynamic>> Function(Map<String, dynamic>)
+            >{
+              'Runtime.evaluate': (Map<String, dynamic> params) async =>
+                  <String, dynamic>{
+                    'result': <String, dynamic>{
+                      'type': 'boolean',
+                      'value': true,
+                    },
+                  },
+            },
       );
       addTearDown(server.stop);
 
@@ -848,8 +891,11 @@ Future<void> main() async {
       // "visible" would hide the exact failure the probe exists for.
       final FakeCdpServer server = await FakeCdpServer.start(
         pageUrl: 'http://localhost:3210/',
-        handlers: <String,
-            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
+        handlers:
+            <
+              String,
+              Future<Map<String, dynamic>> Function(Map<String, dynamic>)
+            >{},
       );
       addTearDown(server.stop);
 
@@ -863,8 +909,11 @@ Future<void> main() async {
     test('a webPort no page carries leaves visibility unread', () async {
       final FakeCdpServer server = await FakeCdpServer.start(
         pageUrl: 'http://localhost:3210/',
-        handlers: <String,
-            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
+        handlers:
+            <
+              String,
+              Future<Map<String, dynamic>> Function(Map<String, dynamic>)
+            >{},
       );
       addTearDown(server.stop);
 
@@ -887,14 +936,14 @@ Future<void> main() async {
 
     test('a probe that returns null renders a skipped row', () async {
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'pid': 1,
-            'cdpPort': 9333,
-            'webPort': 3210,
-            'projectRoot': Directory.current.path,
-            'startedAt': DateTime.now().toUtc().toIso8601String(),
-          };
-      TapirDoctorCommand.cdpSessionProbe =
-          (int port, int? webPort) async => null;
+        'pid': 1,
+        'cdpPort': 9333,
+        'webPort': 3210,
+        'projectRoot': Directory.current.path,
+        'startedAt': DateTime.now().toUtc().toIso8601String(),
+      };
+      TapirDoctorCommand.cdpSessionProbe = (int port, int? webPort) async =>
+          null;
 
       final output = BufferedOutput();
       await TapirDoctorCommand().handle(
@@ -909,12 +958,12 @@ Future<void> main() async {
       // the doctor that path plus a separator would otherwise have the
       // session reported as somebody else's.
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'pid': 1,
-            'projectRoot': Directory.current.path,
-            'startedAt': DateTime.now().toUtc().toIso8601String(),
-          };
-      TapirDoctorCommand.currentDirectoryProbe =
-          () => '${Directory.current.path}${Platform.pathSeparator}';
+        'pid': 1,
+        'projectRoot': Directory.current.path,
+        'startedAt': DateTime.now().toUtc().toIso8601String(),
+      };
+      TapirDoctorCommand.currentDirectoryProbe = () =>
+          '${Directory.current.path}${Platform.pathSeparator}';
 
       final output = BufferedOutput();
       await TapirDoctorCommand().handle(
@@ -931,17 +980,18 @@ Future<void> main() async {
       // dowel's own guard lets it through. Comparing paths exactly made
       // the doctor warn about a session dowel itself considers valid, so
       // the two tools disagreed about the same state file.
-      final Directory root =
-          Directory.systemTemp.createTempSync('tapir_doctor_root_');
+      final Directory root = Directory.systemTemp.createTempSync(
+        'tapir_doctor_root_',
+      );
       addTearDown(() => root.deleteSync(recursive: true));
       final Directory nested = Directory('${root.path}/packages/app');
       nested.createSync(recursive: true);
 
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'pid': 1,
-            'projectRoot': root.path,
-            'startedAt': DateTime.now().toUtc().toIso8601String(),
-          };
+        'pid': 1,
+        'projectRoot': root.path,
+        'startedAt': DateTime.now().toUtc().toIso8601String(),
+      };
       TapirDoctorCommand.currentDirectoryProbe = () => nested.path;
 
       final output = BufferedOutput();
@@ -954,20 +1004,22 @@ Future<void> main() async {
     });
 
     test('a sibling project is still reported as foreign', () async {
-      final Directory mine =
-          Directory.systemTemp.createTempSync('tapir_doctor_mine_');
-      final Directory sibling =
-          Directory.systemTemp.createTempSync('tapir_doctor_sibling_');
+      final Directory mine = Directory.systemTemp.createTempSync(
+        'tapir_doctor_mine_',
+      );
+      final Directory sibling = Directory.systemTemp.createTempSync(
+        'tapir_doctor_sibling_',
+      );
       addTearDown(() {
         mine.deleteSync(recursive: true);
         sibling.deleteSync(recursive: true);
       });
 
       TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
-            'pid': 1,
-            'projectRoot': sibling.path,
-            'startedAt': DateTime.now().toUtc().toIso8601String(),
-          };
+        'pid': 1,
+        'projectRoot': sibling.path,
+        'startedAt': DateTime.now().toUtc().toIso8601String(),
+      };
       TapirDoctorCommand.currentDirectoryProbe = () => mine.path;
 
       final output = BufferedOutput();
@@ -985,8 +1037,10 @@ Future<void> main() async {
       // The check's own docblock names this case: the recorded port has been
       // taken over by something else. Decoding outside the guard turned the
       // diagnosis into a crash of the whole doctor run.
-      final HttpServer server =
-          await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final HttpServer server = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
       addTearDown(() => server.close(force: true));
       unawaited(
         server.forEach((HttpRequest request) async {

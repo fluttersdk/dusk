@@ -23,8 +23,7 @@ void main() {
       expect(run.boot, CommandBoot.connected);
     });
 
-    test(
-        'contains every alpha-2 ship command (3 alpha-1 + install + 6 verbs + '
+    test('contains every alpha-2 ship command (3 alpha-1 + install + 6 verbs + '
         'doctor + 7 CLI/MCP-symmetry pass + Step 3.4 network-idle waiter + '
         'Step 3.5 console + exceptions + dblclick + set_checkbox + Step 4.1 '
         'observe + Step 4.2 hot_reload_and_snap)', () {
@@ -164,87 +163,98 @@ void main() {
       // handler itself.
       expect(find.inputSchema.containsKey('required'), isFalse);
       final properties = find.inputSchema['properties'] as Map<String, dynamic>;
-      expect(properties.keys,
-          containsAll(<String>['text', 'semanticsLabel', 'key']));
+      expect(
+        properties.keys,
+        containsAll(<String>['text', 'semanticsLabel', 'key']),
+      );
     });
 
     // -------------------------------------------------------------------------
     // Extension methods
     // -------------------------------------------------------------------------
 
-    test('each descriptor maps to the correct ext.tapir.* extension method',
-        () {
-      final byName = {for (final t in tools) t.name: t.extensionMethod};
+    test(
+      'each descriptor maps to the correct ext.tapir.* extension method',
+      () {
+        final byName = {for (final t in tools) t.name: t.extensionMethod};
 
-      // Original 6.
-      expect(byName['tapir_snap'], equals('ext.tapir.snap'));
-      expect(byName['tapir_tap'], equals('ext.tapir.tap'));
-      expect(byName['tapir_screenshot'], equals('ext.tapir.screenshot'));
-      expect(byName['tapir_hover'], equals('ext.tapir.hover'));
-      expect(byName['tapir_drag'], equals('ext.tapir.drag'));
-      expect(byName['tapir_type'], equals('ext.tapir.type'));
-      // 10 new.
-      expect(byName['tapir_scroll'], equals('ext.tapir.scroll'));
-      expect(byName['tapir_wait_for'], equals('ext.tapir.wait_for'));
-      expect(
-          byName['tapir_dismiss_modals'], equals('ext.tapir.dismiss_modals'));
-      expect(byName['tapir_navigate'], equals('ext.tapir.navigate'));
-      expect(byName['tapir_navigate_back'], equals('ext.tapir.navigate_back'));
-      expect(byName['tapir_get_routes'], equals('ext.tapir.get_routes'));
-      expect(byName['tapir_press_key'], equals('ext.tapir.press_key'));
-      expect(byName['tapir_select_option'], equals('ext.tapir.select_option'));
-      expect(byName['tapir_evaluate'], equals('ext.tapir.evaluate'));
-      expect(byName['tapir_close_app'], equals('ext.tapir.close_app'));
-      // Step 16.
-      expect(byName['tapir_find'], equals('ext.tapir.find'));
-      // Step 3.4.
-      expect(
-        byName['tapir_wait_for_network_idle'],
-        equals('ext.tapir.wait_for_network_idle'),
-      );
-      // Step 3.5.
-      expect(byName['tapir_console'], equals('ext.tapir.console'));
-      expect(byName['tapir_exceptions'], equals('ext.tapir.exceptions'));
-      expect(byName['tapir_dblclick'], equals('ext.tapir.dblclick'));
-      expect(byName['tapir_set_checkbox'], equals('ext.tapir.set_checkbox'));
-      // Step 4.1.
-      expect(byName['tapir_observe'], equals('ext.tapir.observe'));
-      // Step 4.2. NO VM extension surface: hot reload cannot fire from
-      // inside the running isolate. The descriptor routes through the
-      // `dowel:` dispatch prefix so the MCP server runs the CLI command
-      // in-process instead of calling a VM Service extension.
-      expect(
-        byName['tapir_hot_reload_and_snap'],
-        equals('dowel:tapir:hot_reload_and_snap'),
-      );
-      // Wave 4 CDP tools. Both route via dowel: dispatch prefix to CLI
-      // commands instead of VM Service extensions (CDP is orchestrator-side,
-      // not inside the running Flutter app).
-      expect(
-        byName['tapir_resize_viewport'],
-        equals('dowel:tapir:resize'),
-      );
-      expect(
-        byName['tapir_device_profile'],
-        equals('dowel:tapir:device'),
-      );
-      // D7.
-      expect(byName['tapir_fill'], equals('ext.tapir.fill'));
-      expect(
-          byName['tapir_reset_overlays'], equals('ext.tapir.reset_overlays'));
-      // Perf session pair.
-      expect(byName['tapir_perf_begin'], equals('ext.tapir.perf_begin'));
-      expect(byName['tapir_perf_end'], equals('ext.tapir.perf_end'));
-      expect(byName['tapir_perf_insight'], equals('ext.tapir.perf_insight'));
-      // Host-side: the run, the compare and the file write happen in the
-      // MCP server's process, so all three route through the substrate.
-      expect(byName['tapir_perf_run'], equals('dowel:tapir:perf_run'));
-      expect(byName['tapir_perf_compare'], equals('dowel:tapir:perf_compare'));
-      expect(byName['tapir_perf_trace'], equals('dowel:tapir:perf_trace'));
-      // The batch runs every step's command in the MCP server's process on
-      // its one VM Service connection.
-      expect(byName['tapir_run'], equals('dowel:tapir:run'));
-    });
+        // Original 6.
+        expect(byName['tapir_snap'], equals('ext.tapir.snap'));
+        expect(byName['tapir_tap'], equals('ext.tapir.tap'));
+        expect(byName['tapir_screenshot'], equals('ext.tapir.screenshot'));
+        expect(byName['tapir_hover'], equals('ext.tapir.hover'));
+        expect(byName['tapir_drag'], equals('ext.tapir.drag'));
+        expect(byName['tapir_type'], equals('ext.tapir.type'));
+        // 10 new.
+        expect(byName['tapir_scroll'], equals('ext.tapir.scroll'));
+        expect(byName['tapir_wait_for'], equals('ext.tapir.wait_for'));
+        expect(
+          byName['tapir_dismiss_modals'],
+          equals('ext.tapir.dismiss_modals'),
+        );
+        expect(byName['tapir_navigate'], equals('ext.tapir.navigate'));
+        expect(
+          byName['tapir_navigate_back'],
+          equals('ext.tapir.navigate_back'),
+        );
+        expect(byName['tapir_get_routes'], equals('ext.tapir.get_routes'));
+        expect(byName['tapir_press_key'], equals('ext.tapir.press_key'));
+        expect(
+          byName['tapir_select_option'],
+          equals('ext.tapir.select_option'),
+        );
+        expect(byName['tapir_evaluate'], equals('ext.tapir.evaluate'));
+        expect(byName['tapir_close_app'], equals('ext.tapir.close_app'));
+        // Step 16.
+        expect(byName['tapir_find'], equals('ext.tapir.find'));
+        // Step 3.4.
+        expect(
+          byName['tapir_wait_for_network_idle'],
+          equals('ext.tapir.wait_for_network_idle'),
+        );
+        // Step 3.5.
+        expect(byName['tapir_console'], equals('ext.tapir.console'));
+        expect(byName['tapir_exceptions'], equals('ext.tapir.exceptions'));
+        expect(byName['tapir_dblclick'], equals('ext.tapir.dblclick'));
+        expect(byName['tapir_set_checkbox'], equals('ext.tapir.set_checkbox'));
+        // Step 4.1.
+        expect(byName['tapir_observe'], equals('ext.tapir.observe'));
+        // Step 4.2. NO VM extension surface: hot reload cannot fire from
+        // inside the running isolate. The descriptor routes through the
+        // `dowel:` dispatch prefix so the MCP server runs the CLI command
+        // in-process instead of calling a VM Service extension.
+        expect(
+          byName['tapir_hot_reload_and_snap'],
+          equals('dowel:tapir:hot_reload_and_snap'),
+        );
+        // Wave 4 CDP tools. Both route via dowel: dispatch prefix to CLI
+        // commands instead of VM Service extensions (CDP is orchestrator-side,
+        // not inside the running Flutter app).
+        expect(byName['tapir_resize_viewport'], equals('dowel:tapir:resize'));
+        expect(byName['tapir_device_profile'], equals('dowel:tapir:device'));
+        // D7.
+        expect(byName['tapir_fill'], equals('ext.tapir.fill'));
+        expect(
+          byName['tapir_reset_overlays'],
+          equals('ext.tapir.reset_overlays'),
+        );
+        // Perf session pair.
+        expect(byName['tapir_perf_begin'], equals('ext.tapir.perf_begin'));
+        expect(byName['tapir_perf_end'], equals('ext.tapir.perf_end'));
+        expect(byName['tapir_perf_insight'], equals('ext.tapir.perf_insight'));
+        // Host-side: the run, the compare and the file write happen in the
+        // MCP server's process, so all three route through the substrate.
+        expect(byName['tapir_perf_run'], equals('dowel:tapir:perf_run'));
+        expect(
+          byName['tapir_perf_compare'],
+          equals('dowel:tapir:perf_compare'),
+        );
+        expect(byName['tapir_perf_trace'], equals('dowel:tapir:perf_trace'));
+        // The batch runs every step's command in the MCP server's process on
+        // its one VM Service connection.
+        expect(byName['tapir_run'], equals('dowel:tapir:run'));
+      },
+    );
 
     test('tapir_run requires a steps string array and takes continue', () {
       final run = tools.firstWhere((t) => t.name == 'tapir_run');
@@ -280,10 +290,7 @@ void main() {
       );
       // Every file with `variants` needs one picked; the tool's arguments
       // reach tapir:perf_run's MapInput under the same key.
-      expect(
-        (properties['variant'] as Map<String, dynamic>)['type'],
-        'string',
-      );
+      expect((properties['variant'] as Map<String, dynamic>)['type'], 'string');
     });
 
     test('tapir_perf_compare requires a and b', () {
@@ -303,10 +310,10 @@ void main() {
       final begin = tools.firstWhere((t) => t.name == 'tapir_perf_begin');
       final properties =
           begin.inputSchema['properties'] as Map<String, dynamic>;
-      expect(
-        (properties['mode'] as Map<String, dynamic>)['enum'],
-        <String>['attribution', 'timing'],
-      );
+      expect((properties['mode'] as Map<String, dynamic>)['enum'], <String>[
+        'attribution',
+        'timing',
+      ]);
     });
 
     test('tapir_perf_insight requires id and takes an optional token', () {
@@ -342,30 +349,35 @@ void main() {
       expect(required, containsAll(<String>['ref', 'text']));
     });
 
-    test('tapir_tap, tapir_fill and tapir_navigate take a snapshot mode enum',
-        () {
-      for (final String name in <String>[
-        'tapir_tap',
-        'tapir_fill',
-        'tapir_navigate',
-      ]) {
-        final tool = tools.firstWhere((t) => t.name == name);
-        final properties = tool.inputSchema['properties'] as Map;
-        final snapshot = properties['snapshot'] as Map?;
-        expect(snapshot, isNotNull, reason: '$name has no snapshot property');
-        expect(snapshot!['type'], 'string');
-        expect(snapshot['enum'], <String>['full', 'diff', 'none']);
-        expect(tool.description, contains('`snapshot: "diff"`'), reason: name);
-      }
-    });
+    test(
+      'tapir_tap, tapir_fill and tapir_navigate take a snapshot mode enum',
+      () {
+        for (final String name in <String>[
+          'tapir_tap',
+          'tapir_fill',
+          'tapir_navigate',
+        ]) {
+          final tool = tools.firstWhere((t) => t.name == name);
+          final properties = tool.inputSchema['properties'] as Map;
+          final snapshot = properties['snapshot'] as Map?;
+          expect(snapshot, isNotNull, reason: '$name has no snapshot property');
+          expect(snapshot!['type'], 'string');
+          expect(snapshot['enum'], <String>['full', 'diff', 'none']);
+          expect(
+            tool.description,
+            contains('`snapshot: "diff"`'),
+            reason: name,
+          );
+        }
+      },
+    );
 
     test('tapir_reset_overlays does not declare required params', () {
       final reset = tools.firstWhere((t) => t.name == 'tapir_reset_overlays');
       expect(reset.inputSchema.containsKey('required'), isFalse);
     });
 
-    test(
-        'the CDP emulation tools say the override lasts only for the call\'s '
+    test('the CDP emulation tools say the override lasts only for the call\'s '
         'session', () {
       // Chrome drops an Emulation.* override when the DevTools session that
       // sent it detaches, and each call opens and closes its own session.
@@ -378,11 +390,13 @@ void main() {
       expect(resize.description, contains('--hold'));
     });
 
-    test('no two descriptors share an extensionMethod (no overlap, no gap)',
-        () {
-      final methods = tools.map((t) => t.extensionMethod).toList();
-      expect(methods.toSet(), hasLength(tools.length));
-    });
+    test(
+      'no two descriptors share an extensionMethod (no overlap, no gap)',
+      () {
+        final methods = tools.map((t) => t.extensionMethod).toList();
+        expect(methods.toSet(), hasLength(tools.length));
+      },
+    );
 
     // -------------------------------------------------------------------------
     // Input schemas — JSON round-trip
@@ -407,7 +421,8 @@ void main() {
         expect(
           tool.description.length,
           lessThan(2048),
-          reason: '${tool.name}.description is ${tool.description.length} '
+          reason:
+              '${tool.name}.description is ${tool.description.length} '
               'chars (cap 2048)',
         );
       }

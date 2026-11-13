@@ -15,10 +15,7 @@ class HotReloadResult {
   /// Builds an immutable result. [success] is mandatory; [error] is
   /// populated only on the compile-error path and surfaces to the caller as
   /// the `error` field on the response envelope.
-  const HotReloadResult({
-    required this.success,
-    this.error,
-  });
+  const HotReloadResult({required this.success, this.error});
 
   /// Whether the VM accepted the reload. Maps to `ReloadReport.success`.
   final bool success;
@@ -85,7 +82,7 @@ class TapirHotReloadAndSnapCommand extends DowelCommand {
   /// code constructs the command with no arguments; tests inject a fake
   /// reloadFn so the command can be exercised without a live VM Service.
   TapirHotReloadAndSnapCommand({HotReloadFn? reloadFn})
-      : _reloadFn = reloadFn ?? _defaultReload;
+    : _reloadFn = reloadFn ?? _defaultReload;
 
   final HotReloadFn _reloadFn;
 
@@ -109,7 +106,8 @@ class TapirHotReloadAndSnapCommand extends DowelCommand {
   void configure(ArgParser parser) {
     parser.addFlag(
       'screenshot',
-      help: 'Capture a screenshot after the reload (default true). Pass '
+      help:
+          'Capture a screenshot after the reload (default true). Pass '
           '`--no-screenshot` to skip the screenshot step entirely.',
       defaultsTo: true,
     );
@@ -147,8 +145,8 @@ class TapirHotReloadAndSnapCommand extends DowelCommand {
 
     // 3. Success: capture the post-reload snapshot. Snap failure aborts the
     //    round-trip because there is nothing useful to return without it.
-    final Map<String, dynamic> snap =
-        await ctx.callExtension<Map<String, dynamic>>('ext.tapir.snap');
+    final Map<String, dynamic> snap = await ctx
+        .callExtension<Map<String, dynamic>>('ext.tapir.snap');
     reportFrameWarning(ctx, snap);
     final String snapshot = snap['snapshot'] as String? ?? jsonEncode(snap);
 
@@ -197,8 +195,8 @@ class TapirHotReloadAndSnapCommand extends DowelCommand {
   /// payload always lands.
   Future<List<dynamic>> _safeExceptions(DowelContext ctx) async {
     try {
-      final Map<String, dynamic> resp =
-          await ctx.callExtension<Map<String, dynamic>>('ext.tapir.exceptions');
+      final Map<String, dynamic> resp = await ctx
+          .callExtension<Map<String, dynamic>>('ext.tapir.exceptions');
       reportFrameWarning(ctx, resp);
       final List<dynamic>? list = resp['exceptions'] as List<dynamic>?;
       return list ?? const <dynamic>[];
@@ -231,8 +229,7 @@ Future<HotReloadResult> _defaultReload(DowelContext ctx) async {
   if (pipePath == null) {
     return const HotReloadResult(
       success: false,
-      error:
-          'state.json has no stdinPipe entry; restart the app via `dowel restart`.',
+      error: 'state.json has no stdinPipe entry; restart the app via `dowel restart`.',
     );
   }
   if (!File(pipePath).existsSync()) {
@@ -249,7 +246,8 @@ Future<HotReloadResult> _defaultReload(DowelContext ctx) async {
   // reloads (0 libraries changed) — and `hot_reload_and_snap` is most
   // useful precisely when the caller wants to FORCE a reassemble without
   // editing files.
-  final String? logPath = state['logPath'] as String? ??
+  final String? logPath =
+      state['logPath'] as String? ??
       state['log'] as String? ??
       _defaultLogPath();
   final File logFile = logPath == null ? File('') : File(logPath);
@@ -276,10 +274,12 @@ Future<HotReloadResult> _defaultReload(DowelContext ctx) async {
     //    [baselineLogLength]. flutter_tools always emits this line on a
     //    successful reload (even when N==0); a compile error emits
     //    "Try again after fixing the above error(s)." instead.
-    final RegExp successMarker =
-        RegExp(r'Reloaded \d+( of \d+)? librar(y|ies) in \d+ms');
-    final RegExp failureMarker =
-        RegExp(r'Try again after fixing the above error');
+    final RegExp successMarker = RegExp(
+      r'Reloaded \d+( of \d+)? librar(y|ies) in \d+ms',
+    );
+    final RegExp failureMarker = RegExp(
+      r'Try again after fixing the above error',
+    );
     final Stopwatch deadline = Stopwatch()..start();
     const Duration timeout = Duration(seconds: 10);
     while (deadline.elapsed < timeout) {

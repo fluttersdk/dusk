@@ -34,7 +34,8 @@ class TapirTapCommand extends DowelCommand {
     parser.addOption(
       'snapshot',
       allowed: <String>['full', 'diff', 'none'],
-      help: 'Print the post-tap snapshot after the summary: the whole tree, '
+      help:
+          'Print the post-tap snapshot after the summary: the whole tree, '
           'only the lines changed since the last snapshot, or nothing. '
           'Overrides --includeSnapshot.',
     );
@@ -50,13 +51,15 @@ class TapirTapCommand extends DowelCommand {
     );
     parser.addFlag(
       'retarget',
-      help: 'Send a tap on a merged boundary to its labelled control. '
+      help:
+          'Send a tap on a merged boundary to its labelled control. '
           '--no-retarget taps the boundary centre instead.',
       defaultsTo: true,
     );
     parser.addOption(
       'until',
-      help: 'After the tap, poll the live tree for a Text equal to this value '
+      help:
+          'After the tap, poll the live tree for a Text equal to this value '
           'and add an `untilMatched` boolean to the response.',
     );
     parser.addOption(
@@ -75,7 +78,8 @@ class TapirTapCommand extends DowelCommand {
       return 1;
     }
     final snapshotMode = ctx.input.option('snapshot') as String?;
-    final includeSnapshot = snapshotMode == null &&
+    final includeSnapshot =
+        snapshotMode == null &&
         ((ctx.input.option('includeSnapshot') as bool?) ?? false);
     final checkStable = (ctx.input.option('checkStable') as bool?) ?? true;
     final checkReceivesEvents =

@@ -19,6 +19,7 @@ import '../utils/key_press.dart';
 import '../utils/perf_interaction.dart';
 import 'ext_pointer.dart';
 import 'ext_snapshot.dart' show tapirSnapBuild, snapshotForAction;
+
 import 'package:dowel/dowel.dart';
 
 /// Parses the optional `'true' | 'false'` flag [params] field [name],
@@ -272,10 +273,7 @@ class TestRefRegistry {
 @immutable
 final class TextFieldTarget {
   /// Creates a target for [state], picked by [match].
-  const TextFieldTarget({
-    required this.state,
-    required this.match,
-  });
+  const TextFieldTarget({required this.state, required this.match});
 
   /// The editable that is written.
   final EditableTextState state;
@@ -311,11 +309,10 @@ final class TextFieldTarget {
 TextFieldTarget? resolveTextFieldTarget({
   required RefEntry? entry,
   required Element element,
-}) =>
-    _resolveTarget(
-      element: element,
-      targetRect: _localToGlobalRectForNode(entry?.node) ?? entry?.rect,
-    );
+}) => _resolveTarget(
+  element: element,
+  targetRect: _localToGlobalRectForNode(entry?.node) ?? entry?.rect,
+);
 
 /// The error a text verb answers for a ref whose node is an interactive
 /// control that is not a text field, or null when the ref may be written.
@@ -391,8 +388,9 @@ TextFieldTarget? _resolveTarget({
   required Element element,
   required Rect? targetRect,
 }) {
-  final TextFieldTarget? byRect =
-      targetRect != null ? _findEditableTextStateByRect(targetRect) : null;
+  final TextFieldTarget? byRect = targetRect != null
+      ? _findEditableTextStateByRect(targetRect)
+      : null;
   if (byRect != null) return byRect;
 
   final EditableTextState? walked = _resolveEditableTextState(element);
@@ -688,10 +686,16 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     if (entry != null) {
       // Step 3.1: stable + receives-events gates default on; opt-out via
       // params for tests with synthetic rect.
-      final bool checkStable =
-          _parseBoolFlag(params, 'checkStable', defaultValue: true);
-      final bool checkReceivesEvents =
-          _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+      final bool checkStable = _parseBoolFlag(
+        params,
+        'checkStable',
+        defaultValue: true,
+      );
+      final bool checkReceivesEvents = _parseBoolFlag(
+        params,
+        'checkReceivesEvents',
+        defaultValue: true,
+      );
       try {
         gate = await ensureActionable(
           entry,
@@ -744,8 +748,9 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     //    echo that reverts the value a frame later would otherwise verify.
     //    `text` stays for callers that read it. A field gone by then cannot
     //    be read back, so it reports null rather than the earlier read.
-    final String? settled =
-        field.state.mounted ? field.state.textEditingValue.text : null;
+    final String? settled = field.state.mounted
+        ? field.state.textEditingValue.text
+        : null;
     final Map<String, dynamic> payload = <String, dynamic>{
       'text': text,
       'effect': textEffect(
@@ -1081,10 +1086,7 @@ TextFieldTarget? _rankedTarget(
 /// purpose, and there the filter alone would leave no candidate and send every
 /// write to the first field in the tree.
 ({EditableTextState? overlap, EditableTextState? nearest})
-    _rankEditableTextStates(
-  Rect targetRect, {
-  required bool skipMuted,
-}) {
+_rankEditableTextStates(Rect targetRect, {required bool skipMuted}) {
   final Element? root = WidgetsBinding.instance.rootElement;
   if (root == null) return (overlap: null, nearest: null);
   final Offset target = targetRect.center;

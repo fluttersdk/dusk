@@ -12,9 +12,8 @@ class _StubContext extends DowelContext {
   _StubContext({
     required DowelInput input,
     required DowelOutput output,
-    Map<String, dynamic> response = const {},
-  })  : _response = response,
-        super.bare(input, output);
+    this._response = const {},
+  }) : super.bare(input, output);
 
   final Map<String, dynamic> _response;
   String? lastMethod;
@@ -22,8 +21,10 @@ class _StubContext extends DowelContext {
   int calls = 0;
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     lastMethod = method;
     lastParams = params;
     calls++;
@@ -58,9 +59,8 @@ void main() {
       addTearDown(server.stop);
       final Directory stateDir = Directory('${tempDir.path}/.dowel');
       await stateDir.create(recursive: true);
-      await File('${stateDir.path}/state.json').writeAsString(
-        jsonEncode({'cdpPort': server.port, 'webPort': 5123}),
-      );
+      await File('${stateDir.path}/state.json')
+          .writeAsString(jsonEncode({'cdpPort': server.port, 'webPort': 5123}));
       StateFile.debugHomeOverride = tempDir.path;
 
       final output = BufferedOutput();
@@ -125,26 +125,30 @@ void main() {
     test('configure declares --until and --untilTimeoutMs options', () {
       final parser = ArgParser();
       TapirTapCommand().configure(parser);
-      expect(parser.options.keys,
-          containsAll(<String>['until', 'untilTimeoutMs']));
+      expect(
+        parser.options.keys,
+        containsAll(<String>['until', 'untilTimeoutMs']),
+      );
     });
 
-    test('handle forwards --until and --untilTimeoutMs to ext.tapir.tap',
-        () async {
-      final ctx = _StubContext(
-        input: MapInput(const {
-          'ref': 'e5',
-          'until': 'Welcome back',
-          'untilTimeoutMs': '5000',
-        }),
-        output: BufferedOutput(),
-        response: const {'ref': 'e5', 'untilMatched': true},
-      );
-      final exit = await TapirTapCommand().handle(ctx);
-      expect(exit, equals(0));
-      expect(ctx.lastParams, containsPair('until', 'Welcome back'));
-      expect(ctx.lastParams, containsPair('untilTimeoutMs', '5000'));
-    });
+    test(
+      'handle forwards --until and --untilTimeoutMs to ext.tapir.tap',
+      () async {
+        final ctx = _StubContext(
+          input: MapInput(const {
+            'ref': 'e5',
+            'until': 'Welcome back',
+            'untilTimeoutMs': '5000',
+          }),
+          output: BufferedOutput(),
+          response: const {'ref': 'e5', 'untilMatched': true},
+        );
+        final exit = await TapirTapCommand().handle(ctx);
+        expect(exit, equals(0));
+        expect(ctx.lastParams, containsPair('until', 'Welcome back'));
+        expect(ctx.lastParams, containsPair('untilTimeoutMs', '5000'));
+      },
+    );
 
     test('handle omits until params when --until is absent', () async {
       final ctx = _StubContext(
@@ -210,30 +214,32 @@ void main() {
       expect(output.content, contains('no observable change'));
     });
 
-    test('handle surfaces the frame-production banner beside the success line',
-        () async {
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {'ref': 'e7'}),
-        output: output,
-        response: const {
-          'ref': 'e7',
-          'warnings': {
-            'framesEnabled': false,
-            'lifecycleState': 'hidden',
-            'hint': 'The engine is not producing frames...',
+    test(
+      'handle surfaces the frame-production banner beside the success line',
+      () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e7'}),
+          output: output,
+          response: const {
+            'ref': 'e7',
+            'warnings': {
+              'framesEnabled': false,
+              'lifecycleState': 'hidden',
+              'hint': 'The engine is not producing frames...',
+            },
           },
-        },
-      );
+        );
 
-      final exit = await TapirTapCommand().handle(ctx);
+        final exit = await TapirTapCommand().handle(ctx);
 
-      expect(exit, equals(0));
-      // The default path prints `✓ Tapped e7` and discards the envelope, so
-      // a tap that could not possibly land would otherwise read as a success.
-      expect(output.content, contains('Tapped e7'));
-      expect(output.content, contains('not producing frames'));
-    });
+        expect(exit, equals(0));
+        // The default path prints `✓ Tapped e7` and discards the envelope, so
+        // a tap that could not possibly land would otherwise read as a success.
+        expect(output.content, contains('Tapped e7'));
+        expect(output.content, contains('not producing frames'));
+      },
+    );
 
     test('a tap point outside the control prints one warning line', () async {
       final output = BufferedOutput();
@@ -247,7 +253,7 @@ void main() {
               'left': 216.0,
               'top': 80.0,
               'width': 72.0,
-              'height': 28.0
+              'height': 28.0,
             },
             'point': {'x': 150.0, 'y': 60.0},
           },
@@ -263,35 +269,37 @@ void main() {
       expect(output.content, contains('216.0, 80.0, 72.0x28.0'));
     });
 
-    test('a retargeted tap says it went to the control, not the centre',
-        () async {
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {'ref': 'e7'}),
-        output: output,
-        response: const {
-          'ref': 'e7',
-          'retargeted': {
-            'from': {'x': 400.0, 'y': 300.0},
-            'to': {'x': 716.0, 'y': 556.0},
-            'ownerRect': {
-              'left': 656.0,
-              'top': 536.0,
-              'width': 120.0,
-              'height': 40.0
+    test(
+      'a retargeted tap says it went to the control, not the centre',
+      () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e7'}),
+          output: output,
+          response: const {
+            'ref': 'e7',
+            'retargeted': {
+              'from': {'x': 400.0, 'y': 300.0},
+              'to': {'x': 716.0, 'y': 556.0},
+              'ownerRect': {
+                'left': 656.0,
+                'top': 536.0,
+                'width': 120.0,
+                'height': 40.0,
+              },
             },
           },
-        },
-      );
+        );
 
-      final exit = await TapirTapCommand().handle(ctx);
+        final exit = await TapirTapCommand().handle(ctx);
 
-      expect(exit, equals(0));
-      expect(output.content, contains('Tapped e7 on its control'));
-      expect(output.content, contains('(716.0, 556.0)'));
-      expect(output.content, contains('(400.0, 300.0)'));
-      expect(output.content, isNot(contains('outside the control')));
-    });
+        expect(exit, equals(0));
+        expect(output.content, contains('Tapped e7 on its control'));
+        expect(output.content, contains('(716.0, 556.0)'));
+        expect(output.content, contains('(400.0, 300.0)'));
+        expect(output.content, isNot(contains('outside the control')));
+      },
+    );
 
     test('a retargeted tap over a handled centre names the opt-out', () async {
       final output = BufferedOutput();
@@ -307,7 +315,7 @@ void main() {
               'left': 656.0,
               'top': 536.0,
               'width': 120.0,
-              'height': 40.0
+              'height': 40.0,
             },
             'centreHandled': true,
           },
@@ -360,10 +368,11 @@ void main() {
       test('configure offers full, diff and none', () {
         final parser = ArgParser();
         TapirTapCommand().configure(parser);
-        expect(
-          parser.options['snapshot']!.allowed,
-          <String>['full', 'diff', 'none'],
-        );
+        expect(parser.options['snapshot']!.allowed, <String>[
+          'full',
+          'diff',
+          'none',
+        ]);
       });
 
       test('passes the mode through and drops includeSnapshot', () async {
@@ -385,7 +394,8 @@ void main() {
           output: output,
           response: const {
             'ref': 'e5',
-            'snapshot': '- - button "Counter: 0" [ref=e5]\n'
+            'snapshot':
+                '- - button "Counter: 0" [ref=e5]\n'
                 '+ - button "Counter: 1" [ref=e5]\n'
                 '(2 of 9 lines changed)',
             'snapshotMode': 'diff',

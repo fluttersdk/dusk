@@ -85,12 +85,11 @@ class TapirErrorEnvelope {
   factory TapirErrorEnvelope.notFound({
     required String ref,
     Iterable<String> candidates = const <String>[],
-  }) =>
-      TapirErrorEnvelope(
-        type: 'not_found',
-        widgetPath: ref,
-        suggestions: fuzzyMatch(ref, candidates),
-      );
+  }) => TapirErrorEnvelope(
+    type: 'not_found',
+    widgetPath: ref,
+    suggestions: fuzzyMatch(ref, candidates),
+  );
 
   /// Envelope for a `TapirActionabilityException` failure. [reason] is the
   /// raw substring from the exception (`"not enabled"`, `"zero rect"`,
@@ -126,10 +125,10 @@ class TapirErrorEnvelope {
   /// Envelope for a `TapirStaleHandleException`: the `qN` handle's stored
   /// predicates no longer match anything in the live tree.
   factory TapirErrorEnvelope.stale(String ref) => TapirErrorEnvelope(
-        type: 'stale',
-        widgetPath: ref,
-        suggestions: const <String>[],
-      );
+    type: 'stale',
+    widgetPath: ref,
+    suggestions: const <String>[],
+  );
 
   /// Envelope for a missing required parameter. [paramName] is included
   /// purely for documentation; the [type] field is what agents branch on.
@@ -202,8 +201,9 @@ String _capMessage(String message) {
   const int maxChars = 2048;
   final List<String> lines = message.split('\n');
   final bool exceededLines = lines.length > maxLines;
-  final List<String> head =
-      exceededLines ? lines.take(maxLines).toList() : lines;
+  final List<String> head = exceededLines
+      ? lines.take(maxLines).toList()
+      : lines;
   String result = head.join('\n');
   if (exceededLines) {
     result += '\n(... ${lines.length - maxLines} more lines truncated)';
@@ -338,8 +338,10 @@ List<String> fuzzyMatch(
   // 2. Sort ascending by distance — stable enough; ties break by insertion
   //    order via Dart's stable sort.
   final List<MapEntry<String, int>> sorted = seen.entries.toList()
-    ..sort((MapEntry<String, int> a, MapEntry<String, int> b) =>
-        a.value.compareTo(b.value));
+    ..sort(
+      (MapEntry<String, int> a, MapEntry<String, int> b) =>
+          a.value.compareTo(b.value),
+    );
 
   // 3. Take top N.
   return sorted
