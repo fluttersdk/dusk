@@ -363,7 +363,6 @@ void main() {
         // list to exercise the same code path the production gate uses.
         final RefEntry entry = RefEntry(
           rect: const Rect.fromLTWH(2000, 2000, 50, 50),
-          // ignore: invalid_use_of_visible_for_testing_member
           element: _StubElement(),
           groupId: 'g',
           isTextField: false,

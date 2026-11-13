@@ -493,15 +493,19 @@ class RefRegistry {
   /// construct entries without running the snapshot extension.
   ///
   /// The returned ref string is identical in format to production refs (`eN`).
+  /// Pass [node] to mirror a snapshot ref, which always carries the
+  /// Semantics node it was minted from.
   static String registerForTesting({
     required Rect rect,
     required Element element,
     required String groupId,
     required bool isTextField,
+    SemanticsNode? node,
   }) => register(
     rect: rect,
     element: element,
     groupId: groupId,
     isTextField: isTextField,
+    node: node,
   );
 }

@@ -19,7 +19,7 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- **`tapir:set_checkbox` reads the checked state from Semantics.** It used to test the widget type (`is Checkbox`, `is Switch` from `flutter/material`), so a control from `material_ui`, `wind_kit` or any hand-built `Semantics(checked: ...)` read as "unknown, assume unchecked", and setting a checked box to checked toggled it off. The state now comes from the checked or toggled flag of the ref's Semantics node, which every library sets. (`lib/src/extensions/ext_checkbox.dart`)
+- **`tapir:set_checkbox` reads the checked state from Semantics.** It used to test the widget type (`is Checkbox`, `is Switch` from `flutter/material`), so a control from `material_ui`, `wind_kit` or any hand-built `Semantics(checked: ...)` read as "unknown, assume unchecked", and setting a checked box to checked toggled it off. The state now comes from the checked or toggled flag of the ref's Semantics node, which every library sets. A ref without a checked or toggled state is refused instead of assumed unchecked, and a mixed checkbox is always tapped. (`lib/src/extensions/ext_checkbox.dart`)
 
 ### Removed
 
@@ -543,7 +543,7 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.23...HEAD
+[Unreleased]: https://github.com/anilcancakir/tapir/compare/0.0.23...HEAD
 [0.0.23]: https://github.com/fluttersdk/dusk/compare/0.0.22...0.0.23
 [0.0.22]: https://github.com/fluttersdk/dusk/compare/0.0.21...0.0.22
 [0.0.21]: https://github.com/fluttersdk/dusk/compare/0.0.20...0.0.21

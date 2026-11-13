@@ -82,6 +82,13 @@ void main() {
         expect(decoded['toggled'], isTrue);
         expect(decoded['value'], equals(true));
         expect(decoded['previousValue'], equals(false));
+
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['kind'], equals('checked'));
+        expect(effect['before'], isFalse);
+        expect(effect['after'], isTrue);
+        expect(effect['verified'], isTrue);
       },
     );
 
@@ -271,8 +278,8 @@ void main() {
     );
 
     // -------------------------------------------------------------------------
-    // (i) Switch widget — exercises _checkboxValueFromElement's Switch branch
-    //     so the Switch-specific value extraction path runs.
+    // (i) Switch widget: a switch reports the toggled flag, not checked, so
+    //     this runs the toggled branch of the Semantics read.
     // -------------------------------------------------------------------------
 
     _testWithSemantics(
@@ -318,6 +325,15 @@ void main() {
 
         expect(response.result, isNotNull);
         expect(switchValue, isTrue);
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['kind'], equals('checked'));
+        expect(effect['before'], isFalse);
+        expect(effect['after'], isTrue);
+        expect(effect['verified'], isTrue);
       },
     );
 
@@ -367,6 +383,279 @@ void main() {
         expect(decoded['previousValue'], isTrue);
         expect(decoded['toggled'], isFalse);
         expect(taps, 0);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (k) A snapshot ref carries its Semantics node: the read uses it.
+    // -------------------------------------------------------------------------
+
+    _testWithSemantics(
+      '(k) a ref registered with its node reads the state and stays idempotent',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        int changes = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Checkbox(value: true, onChanged: (_) => changes++),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Checkbox));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = RefRegistry.registerForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+          node: tester.getSemantics(find.byType(Checkbox)),
+        );
+
+        final response = await aiTestSetCheckboxHandler(
+          'ext.tapir.set_checkbox',
+          <String, String>{'ref': ref, 'value': 'true'},
+        );
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['previousValue'], isTrue);
+        expect(decoded['value'], isTrue);
+        expect(decoded['toggled'], isFalse);
+        expect(changes, 0);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (l) A mixed checkbox is neither checked nor unchecked: always tapped.
+    // -------------------------------------------------------------------------
+
+    for (final String target in <String>['true', 'false']) {
+      _testWithSemantics(
+        '(l) a mixed checkbox is tapped once for target $target',
+        (WidgetTester tester) async {
+          tester.view.physicalSize = const Size(800, 600);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          int changes = 0;
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Checkbox(
+                  tristate: true,
+                  value: null,
+                  onChanged: (_) => changes++,
+                ),
+              ),
+            ),
+          );
+
+          final Element element = tester.element(find.byType(Checkbox));
+          final RenderBox box = element.findRenderObject()! as RenderBox;
+          final String ref = RefRegistry.registerForTesting(
+            rect: box.localToGlobal(Offset.zero) & box.size,
+            element: element,
+            groupId: 'g',
+            isTextField: false,
+            node: tester.getSemantics(find.byType(Checkbox)),
+          );
+
+          final future = aiTestSetCheckboxHandler(
+            'ext.tapir.set_checkbox',
+            <String, String>{'ref': ref, 'value': target},
+          );
+          await tester.pump(const Duration(milliseconds: 100));
+          await tester.pump();
+          await tester.pump();
+          final response = await future;
+
+          final Map<String, dynamic> decoded =
+              jsonDecode(response.result!) as Map<String, dynamic>;
+          expect(decoded['previousValue'], isNull);
+          expect(decoded['toggled'], isTrue);
+          expect(changes, 1);
+          final Map<String, dynamic> effect =
+              decoded['effect'] as Map<String, dynamic>;
+          expect(effect['before'], isNull);
+        },
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // (m) A labelled container that does not merge: the control inside it.
+    // -------------------------------------------------------------------------
+
+    _testWithSemantics(
+      '(m) a ref on a labelled container reads the checked control inside it',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        int taps = 0;
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Semantics(
+              container: true,
+              label: 'Accept terms',
+              child: Semantics(
+                container: true,
+                checked: true,
+                child: GestureDetector(
+                  onTap: () => taps++,
+                  child: const SizedBox(width: 40, height: 40),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Finder wrapper = find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Semantics && widget.properties.label == 'Accept terms',
+        );
+        final Element element = tester.element(wrapper);
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = RefRegistry.registerForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+          node: tester.getSemantics(wrapper),
+        );
+
+        // Pumped so a wrong read that taps still completes and fails on the
+        // assertions below rather than hanging on the tap's delay.
+        final future = aiTestSetCheckboxHandler(
+          'ext.tapir.set_checkbox',
+          <String, String>{'ref': ref, 'value': 'true'},
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['previousValue'], isTrue);
+        expect(decoded['toggled'], isFalse);
+        expect(taps, 0);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (n) A ref with no checkable state is refused, never guessed at.
+    // -------------------------------------------------------------------------
+
+    _testWithSemantics(
+      '(n) a ref on plain text is refused and nothing is tapped',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        int taps = 0;
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: GestureDetector(
+              onTap: () => taps++,
+              child: const Text('Terms of service'),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.text('Terms of service'));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = RefRegistry.registerForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestSetCheckboxHandler(
+          'ext.tapir.set_checkbox',
+          <String, String>{'ref': ref, 'value': 'true'},
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.result, isNull);
+        final Map<String, dynamic> detail =
+            jsonDecode(response.errorDetail!) as Map<String, dynamic>;
+        expect(
+          detail['message'],
+          contains('has no checked or toggled state in its Semantics node'),
+        );
+        expect(taps, 0);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (o) A ref without a node of its own never borrows a sibling's state.
+    // -------------------------------------------------------------------------
+
+    _testWithSemantics(
+      '(o) a ref whose nearest node is an ancestor ignores a checked sibling',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        const Key decorationKey = ValueKey<String>('decoration');
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Column(
+              children: <Widget>[
+                const SizedBox(key: decorationKey, width: 40, height: 40),
+                Semantics(
+                  container: true,
+                  checked: true,
+                  child: const SizedBox(width: 40, height: 40),
+                ),
+              ],
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byKey(decorationKey));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = RefRegistry.registerForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestSetCheckboxHandler(
+          'ext.tapir.set_checkbox',
+          <String, String>{'ref': ref, 'value': 'false'},
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.result, isNull);
+        expect(
+          response.errorDetail,
+          contains('has no checked or toggled state in its Semantics node'),
+        );
       },
     );
   });

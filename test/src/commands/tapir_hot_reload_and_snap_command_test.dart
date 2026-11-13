@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -437,13 +438,14 @@ void main() {
       // Append the success marker shortly after handle() starts polling.
       // 120ms gives the printf write time to complete; the loop polls
       // every 50ms so the marker is seen within ~one extra cycle.
-      // ignore: unawaited_futures
-      Future<void>.delayed(const Duration(milliseconds: 120), () {
-        logFile.writeAsStringSync(
-          'Reloaded 0 of 1 libraries in 50ms (compile: 5 ms, reload: 0 ms).\n',
-          mode: FileMode.append,
-        );
-      });
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 120), () {
+          logFile.writeAsStringSync(
+            'Reloaded 0 of 1 libraries in 50ms (compile: 5 ms, reload: 0 ms).\n',
+            mode: FileMode.append,
+          );
+        }),
+      );
 
       final cmd = TapirHotReloadAndSnapCommand();
       final ctx = _StubContext(
@@ -479,13 +481,14 @@ void main() {
       StateFile.pathOverride = '${sessionDir.path}/state.json';
       addTearDown(() => StateFile.pathOverride = null);
 
-      // ignore: unawaited_futures
-      Future<void>.delayed(const Duration(milliseconds: 120), () {
-        logFile.writeAsStringSync(
-          'Reloaded 0 of 1 libraries in 50ms (compile: 5 ms, reload: 0 ms).\n',
-          mode: FileMode.append,
-        );
-      });
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 120), () {
+          logFile.writeAsStringSync(
+            'Reloaded 0 of 1 libraries in 50ms (compile: 5 ms, reload: 0 ms).\n',
+            mode: FileMode.append,
+          );
+        }),
+      );
 
       final cmd = TapirHotReloadAndSnapCommand();
       final ctx = _StubContext(
@@ -518,14 +521,15 @@ void main() {
         }),
       );
 
-      // ignore: unawaited_futures
-      Future<void>.delayed(const Duration(milliseconds: 120), () {
-        logFile.writeAsStringSync(
-          "lib/main.dart:5:1: Error: expected ';'\n"
-          'Try again after fixing the above error(s).\n',
-          mode: FileMode.append,
-        );
-      });
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 120), () {
+          logFile.writeAsStringSync(
+            "lib/main.dart:5:1: Error: expected ';'\n"
+            'Try again after fixing the above error(s).\n',
+            mode: FileMode.append,
+          );
+        }),
+      );
 
       final cmd = TapirHotReloadAndSnapCommand();
       final ctx = _StubContext(

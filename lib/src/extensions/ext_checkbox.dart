@@ -122,25 +122,34 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
     );
   }
 
-  // 3. Read the current checked state from the ref's Semantics node.
-  final bool? currentValue = _readCheckedState(entry);
-  if (currentValue == null) {
-    // Fall back to false when no checkbox state is detectable so the handler
-    // stays non-crashing; the tap below will then toggle the widget.
+  // 3. Read the current checked state from the ref's Semantics node. A ref
+  //    with no checkable state is refused: tapping it on a guess toggles
+  //    whatever sits under the rect and reports a state nobody read.
+  final _CheckedRead current = _readCheckedState(entry);
+  if (!current.found) {
+    return developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.extensionError,
+      wrapErrorDetail(
+        'ext.tapir.set_checkbox: ref "$ref" has no checked or toggled state '
+        'in its Semantics node; pass the ref of a checkbox, switch or radio',
+        TapirErrorEnvelope.unexpected(widgetPath: ref),
+      ),
+    );
   }
-  final bool effectiveCurrent = currentValue ?? false;
+  final bool? currentValue = current.value;
 
   // 4. Idempotent: no-op when the current value already matches the target.
-  if (effectiveCurrent == targetValue) {
+  //    A mixed control (null) matches neither target, so it is always tapped.
+  if (currentValue == targetValue) {
     return tapirResult(<String, dynamic>{
       'ref': ref,
-      'previousValue': effectiveCurrent,
-      'value': effectiveCurrent,
+      'previousValue': currentValue,
+      'value': currentValue,
       'toggled': false,
       'effect': checkedEffect(
         expected: targetValue,
-        before: effectiveCurrent,
-        after: effectiveCurrent,
+        before: currentValue,
+        after: currentValue,
       ),
     });
   }
@@ -176,16 +185,16 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
   //    control whose parent rejects the change, or one whose tap landed on
   //    an overlay, keeps its old state, and `value: targetValue` would call
   //    that a success.
-  final bool? settledValue = _readCheckedState(entry);
+  final bool? settledValue = _readCheckedState(entry).value;
 
   return tapirResult(<String, dynamic>{
     'ref': ref,
-    'previousValue': effectiveCurrent,
+    'previousValue': currentValue,
     'value': targetValue,
     'toggled': true,
     'effect': checkedEffect(
       expected: targetValue,
-      before: effectiveCurrent,
+      before: currentValue,
       after: settledValue,
     ),
   });
@@ -195,38 +204,80 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
 // Private helpers
 // ---------------------------------------------------------------------------
 
-/// Reads the checked (checkbox) or toggled (switch) state of the control that
-/// [entry] names, from its Semantics node.
+/// A checked-state read: [found] is false when no checkable state was
+/// detectable; [value] is null with [found] true for a mixed checkbox, which
+/// is neither checked nor unchecked.
+typedef _CheckedRead = ({bool found, bool? value});
+
+const _CheckedRead _notFound = (found: false, value: null);
+
+/// Reads the checked (checkbox, radio) or toggled (switch) state of the
+/// control that [entry] names, from its Semantics node.
 ///
 /// The Semantics flags are the one place every checkable widget reports its
 /// state, whichever library built it (`flutter/material`, `material_ui`,
 /// `wind_kit`, a hand-built `Semantics`). The node is the one the ref was
 /// minted from; an entry without one (the Element-tree walk behind
 /// `find_by_text`) falls back to the nearest node at or above its render
-/// object. A mixed checkbox reads as unchecked.
+/// object.
 ///
-/// Returns `null` when the node carries neither flag, or when Semantics is off.
-bool? _readCheckedState(RefEntry entry) {
+/// Returns [_notFound] when no flag is reachable, or when Semantics is off.
+_CheckedRead _readCheckedState(RefEntry entry) {
   // 1. Find the node: the one the ref was minted from, else the closest
-  //    ancestor render object that owns one.
+  //    ancestor render object that owns one. `owned` records whether the
+  //    node belongs to the ref itself rather than to a container above it.
+  final RenderObject? start = entry.renderObject ?? entry.element.renderObject;
   SemanticsNode? node = entry.node;
-  RenderObject? render = entry.renderObject ?? entry.element.renderObject;
+  bool owned = node != null;
+  RenderObject? render = start;
   while (node == null && render != null) {
     node = render.debugSemantics;
+    owned = node != null && identical(render, start);
     render = render.parent;
   }
-  if (node == null) return null;
+  if (node == null) return _notFound;
 
   // 2. The merged data carries the flags of every descendant folded into the
-  //    node, which is how a labelled tile reports its inner checkbox.
+  //    node, which is how a merging tile reports its inner checkbox.
+  final _CheckedRead? own = _flagsOf(node);
+  if (own != null) return own;
+
+  // 3. A labelled container that does not merge keeps the control in a
+  //    child node. Only the ref's own node is searched: an ancestor's
+  //    subtree holds siblings, and borrowing their state is a guess.
+  if (!owned) return _notFound;
+  return _searchDescendants(node) ?? _notFound;
+}
+
+/// The checked or toggled state [node] itself reports, or null when it has
+/// neither flag.
+_CheckedRead? _flagsOf(SemanticsNode node) {
   final SemanticsFlags flags = node.getSemanticsData().flagsCollection;
   if (flags.isChecked != CheckedState.none) {
-    return flags.isChecked == CheckedState.isTrue;
+    return (
+      found: true,
+      value: switch (flags.isChecked) {
+        CheckedState.mixed => null,
+        CheckedState.isTrue => true,
+        _ => false,
+      },
+    );
   }
   if (flags.isToggled != Tristate.none) {
-    return flags.isToggled == Tristate.isTrue;
+    return (found: true, value: flags.isToggled == Tristate.isTrue);
   }
   return null;
+}
+
+/// Depth-first search of [node]'s descendants for the first one with a
+/// checked or toggled flag.
+_CheckedRead? _searchDescendants(SemanticsNode node) {
+  _CheckedRead? hit;
+  node.visitChildren((SemanticsNode child) {
+    hit = _flagsOf(child) ?? _searchDescendants(child);
+    return hit == null;
+  });
+  return hit;
 }
 
 /// Injects a tap sequence (Down + 50ms + Up) at [center] in logical pixels,

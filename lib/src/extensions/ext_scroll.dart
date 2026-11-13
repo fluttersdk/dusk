@@ -496,10 +496,8 @@ bool aiTestSelectOptionInElement(
     // the runtime type name check followed by a dynamic dispatch.
     if (widget.runtimeType.toString().startsWith('DropdownButton')) {
       // Retrieve onChanged via dynamic — the generated getter is public.
-      // ignore: avoid_dynamic_calls
       final dynamic onChanged = (widget as dynamic).onChanged;
       if (onChanged != null) {
-        // ignore: avoid_dynamic_calls
         onChanged(value);
         invoked = true;
         return;
@@ -534,7 +532,6 @@ String? _readSelectedValue(BuildContext? context) {
     if (element.widget.runtimeType.toString().startsWith('DropdownButton')) {
       // Same dynamic dispatch the invoke path uses: DropdownButton<T> cannot
       // be cast to DropdownButton<dynamic> under covariant generics.
-      // ignore: avoid_dynamic_calls
       final dynamic current = (element.widget as dynamic).value;
       if (current != null) {
         found = current.toString();
@@ -565,10 +562,8 @@ bool _selectOptionInTree(String value) {
     final Widget widget = element.widget;
 
     if (widget.runtimeType.toString().startsWith('DropdownButton')) {
-      // ignore: avoid_dynamic_calls
       final dynamic onChanged = (widget as dynamic).onChanged;
       if (onChanged != null) {
-        // ignore: avoid_dynamic_calls
         onChanged(value);
         invoked = true;
         return;

@@ -121,11 +121,11 @@ class TapirDowelProvider extends DowelServiceProvider {
     // CLI symmetry pass: every E2E-driver MCP tool has a matching
     // CLI command so the two surfaces expose identical capabilities.
     // Seven verbs land alongside their pre-existing ext.tapir.*
-    // handlers + tapir_* MCP descriptors. tapir_evaluate intentionally
-    // stays MCP-only: magic_tinker (the dedicated REPL package) owns
-    // the actual evaluate-via-VM-Service implementation and ships
-    // `tinker --eval` as the CLI surface; duplicating it under
-    // `tapir:` would split the evaluate contract across two packages.
+    // handlers + tapir_* MCP descriptors. tapir_evaluate stays MCP-only:
+    // dowel's MCP server answers it with the VM Service `evaluate` RPC in
+    // the app's root library, and `ext.tapir.evaluate` is a debug-only
+    // sentinel that never evaluates by itself, so a `tapir:` command
+    // would have nothing to call.
     TapirNavigateCommand(),
     TapirNavigateBackCommand(),
     TapirGetRoutesCommand(),
@@ -962,27 +962,27 @@ class TapirDowelProvider extends DowelServiceProvider {
       extensionMethod: 'ext.tapir.select_option',
     ),
     // ---------------------------------------------------------------------
-    // 15. Evaluate: runs a Dart expression through the Tinker bridge.
+    // 15. Evaluate: dowel's MCP server runs the VM Service evaluate RPC.
     // ---------------------------------------------------------------------
     McpToolDescriptor(
       name: 'tapir_evaluate',
       description:
           'Evaluate a Dart expression in the running app isolate.\n'
           '\n'
-          'Forwards `expression` to the Tinker bridge '
-          '(`ext.tinker.evaluate`) and returns the stringified result. '
-          'Useful for inspecting controller state, asserting an '
-          'invariant from the model layer, or reading a private '
-          'getter that has no UI surface. Reaches anything visible '
-          'to the Magic facade autocomplete (Auth, Http, Cache, '
-          'controllers via `Magic.find<T>()`).\n'
+          'The MCP server answers this tool itself with the VM Service '
+          '`evaluate` RPC in the app\'s root library, wrapping an '
+          'expression that contains `await` in `(() async => ...)()`, '
+          'and returns the stringified result. Useful for inspecting '
+          'controller state or reading a value that has no UI surface. '
+          'The `ext.tapir.evaluate` handler in the app is a debug-only '
+          'sentinel that never evaluates by itself.\n'
           '\n'
           'Usage:\n'
           '- Pass a single Dart expression (no statements, no '
-          'semicolons). Example: `Magic.find<MonitorController>().'
-          'rxState.value.length`.\n'
-          '- Errors when the Tinker plugin is not installed (returns '
-          'an MCP error result, never crashes the app).\n'
+          'semicolons); names resolve against the root library\'s '
+          'imports.\n'
+          '- A runtime exception, a compile error or a stale isolate '
+          'comes back as an MCP error result, never a crash.\n'
           '- For UI assertions prefer tapir_snap; this tool is for '
           'state inspection that lives below the Semantics tree.',
       inputSchema: <String, dynamic>{
@@ -1339,27 +1339,28 @@ class TapirDowelProvider extends DowelServiceProvider {
       extensionMethod: 'ext.tapir.dblclick',
     ),
     // ---------------------------------------------------------------------
-    // 22. Set checkbox: read + conditionally toggle a Checkbox or Switch.
+    // 22. Set checkbox: read + conditionally toggle a checkable control.
     // ---------------------------------------------------------------------
     McpToolDescriptor(
       name: 'tapir_set_checkbox',
       description:
-          'Set the checked state of a Checkbox or Switch widget '
-          'by ref.\n'
+          'Set the checked state of a checkbox, switch or radio by ref.\n'
           '\n'
-          'Reads the widget\'s current checked state via an element/Semantics '
-          'walk. When the current value already matches `value` the call '
-          'returns an idempotent success without tapping (safe to call '
-          'speculatively). When the current value differs, injects a tap '
-          'at the widget\'s center to toggle it.\n'
+          'Reads the checked or toggled flag of the ref\'s Semantics node '
+          '(or of the control inside it), so a checkable control from any '
+          'widget library works. When the current value already matches '
+          '`value` the call returns an idempotent success without tapping. '
+          'When it differs, or the control is mixed, injects one tap at '
+          'the widget\'s centre. A ref with no checked or toggled state is '
+          'refused with an error, never guessed at.\n'
           '\n'
           'Usage:\n'
-          '- Call tapir_snap first to get a ref token for the target '
-          'Checkbox or Switch widget.\n'
+          '- Call tapir_snap first to get a ref token for the control.\n'
           '- Pass `value: "true"` to check or `value: "false"` to uncheck.\n'
-          '- Returns `{ref, previousValue, value, toggled: bool}` — use '
-          '`toggled` to confirm whether a tap was actually issued.\n'
-          '- Re-snap after a toggle to see the updated Semantics tree.\n'
+          '- Returns `{ref, previousValue, value, toggled, effect}`: '
+          '`toggled` says whether a tap was issued, `previousValue` is null '
+          'for a mixed control, and `effect.after` and `effect.verified` '
+          'report the state read back after the tap.\n'
           '\n'
           'Example: `{ "ref": "e4", "value": "true" }`',
       inputSchema: <String, dynamic>{

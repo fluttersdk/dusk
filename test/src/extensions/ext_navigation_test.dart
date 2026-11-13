@@ -1,5 +1,6 @@
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
@@ -244,11 +245,12 @@ void main() {
         // dismissAllModals + adapter await. We don't await the full
         // handler future — the URL-verify poll past this point requires
         // a router that this test doesn't mount.
-        // ignore: unawaited_futures
-        extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
-          'route': '/settings',
-          'includeSnapshot': 'false',
-        });
+        unawaited(
+          extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
+            'route': '/settings',
+            'includeSnapshot': 'false',
+          }),
+        );
         await tester.pump();
         await tester.pump();
 
@@ -297,11 +299,12 @@ void main() {
       addTearDown(() => TapirPlugin.registerNavigateAdapter(null));
 
       // 3. Drive the handler.
-      // ignore: unawaited_futures
-      extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
-        'route': '/adapter-wins-target',
-        'includeSnapshot': 'false',
-      });
+      unawaited(
+        extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
+          'route': '/adapter-wins-target',
+          'includeSnapshot': 'false',
+        }),
+      );
       await tester.pump();
       await tester.pump();
 

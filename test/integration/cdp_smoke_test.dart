@@ -268,8 +268,7 @@ void main() {
     } on TimeoutException {
       // Start subprocess hung; the post-stop assertion above already
       // proves the cleanup branch worked. Surface as a non-fatal warning.
-      // ignore: avoid_print
-      print(
+      stderr.writeln(
         '[smoke] dowel start subprocess did not exit within 5s after '
         'stop; tearDown will reap it.',
       );
