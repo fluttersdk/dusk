@@ -121,7 +121,8 @@ dependency_overrides:
   });
 
   test(
-    'mcp:serve advertises exactly 31 tapir_* tools via tools/list',
+    'mcp:serve advertises every tapir_* tool the provider registers via '
+    'tools/list',
     () async {
       // Collect stdout lines concurrently to avoid pipe backpressure deadlock.
       final List<String> stdoutLines = <String>[];
