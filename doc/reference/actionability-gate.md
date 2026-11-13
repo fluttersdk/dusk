@@ -1,5 +1,15 @@
 # Actionability gate
 
+- [Overview](#overview)
+- [Precondition chain](#precondition-chain)
+- [Live-rect dispatch (post-gate, pre-dispatch)](#live-rect-dispatch-post-gate-pre-dispatch)
+- [What the gate could not prove](#what-the-gate-could-not-prove)
+- [Failure reason substrings](#failure-reason-substrings)
+- [Opt-out flags](#opt-out-flags)
+- [Intentional gate skips](#intentional-gate-skips)
+- [Cross-package implications](#cross-package-implications)
+
+<a name="overview"></a>
 ## Overview
 
 The actionability gate is the precondition check the four direct-action handlers
@@ -17,6 +27,7 @@ scroll, wait, or abort.
 
 [src]: ../../lib/src/utils/actionability_gate.dart
 
+<a name="precondition-chain"></a>
 ## Precondition chain
 
 The gate evaluates six preconditions in evaluation order (Step 0 defunct preflight + Steps 1-5 ordered checks). **The order is
@@ -68,6 +79,7 @@ substring, so adding, removing, or reordering checks is a breaking change.
    hit-tests through a snapshot view that does not mirror the live element
    subtree). Opt out via `checkReceivesEvents: false`.
 
+<a name="live-rect-dispatch-post-gate-pre-dispatch"></a>
 ## Live-rect dispatch (post-gate, pre-dispatch)
 
 After the gate passes and BEFORE the pointer is synthesised, every pointer verb
@@ -92,6 +104,7 @@ smallest achievable without a frame lock); the `effect` block on every
 `ext.tapir.tap` response reports whether the tap produced an observable effect,
 so the residual window is visible rather than silent.
 
+<a name="what-the-gate-could-not-prove"></a>
 ## What the gate could not prove
 
 The gate throws on a precondition it can DISPROVE. Step 5 has a third
@@ -136,6 +149,7 @@ hit-test exists and why these are candidates.
 
 The block is absent on the healthy path, so its presence is the signal.
 
+<a name="failure-reason-substrings"></a>
 ## Failure reason substrings
 
 The thrown message has the shape
@@ -157,6 +171,7 @@ maximum side delta (`not stable (rect changed by X.Xpx)`); the obscured reason
 carries the obscurer's runtime type (`obscured by other widget (top=...)`).
 Match on the leading substring shown above, not the trailing detail.
 
+<a name="opt-out-flags"></a>
 ## Opt-out flags
 
 `ensureActionable` exposes two opt-out parameters; both default to `true` to
@@ -179,6 +194,7 @@ Future<void> ensureActionable(
 Action handlers in production never override the defaults; only widget tests
 of the gate itself flip these flags.
 
+<a name="intentional-gate-skips"></a>
 ## Intentional gate skips
 
 Three action handlers do NOT route through the actionability gate. The skips
@@ -197,6 +213,7 @@ here so contributors do not add the gate "for symmetry":
 Promoting these skips to gated handlers is a deferred candidate; see the
 CHANGELOG `### Known gaps` section.
 
+<a name="cross-package-implications"></a>
 ## Cross-package implications
 
 The four gated actions share a common error envelope. `TapirActionabilityException`

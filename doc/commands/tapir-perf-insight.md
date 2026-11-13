@@ -2,17 +2,11 @@
 
 Drill into one insight of the report `tapir:perf_end` last produced: its title, a summary in prose, the raw rows behind it, the estimated savings and the next step. The report stays small because these rows live here; ask for the one insight you are acting on.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Returns](#returns)
 - [Errors](#errors)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -105,8 +99,8 @@ dart run tapir tapir:perf_insight --id=I1 --token=perf-1 --json | jq '.detail.wo
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:perf_end](tapir-perf-end.md): the report whose ids this reads, and the rules behind each insight.
 - [tapir:perf_begin](tapir-perf-begin.md): attribution versus timing mode.

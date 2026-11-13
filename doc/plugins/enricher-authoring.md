@@ -6,6 +6,14 @@
 can register one. This guide walks through the typedef, the four-clause
 contract, the registration surface, and a ~30-line worked example.
 
+- [The typedef](#the-typedef)
+- [The four-clause contract](#the-four-clause-contract)
+- [Registration](#registration)
+- [Worked example: Riverpod provider value enricher](#worked-example-riverpod-provider-value-enricher)
+- [Testing your enricher](#testing-your-enricher)
+- [Further reading](#further-reading)
+
+<a name="the-typedef"></a>
 ## The typedef
 
 ```dart
@@ -25,6 +33,7 @@ alpha-2 patch release. Any change requires a coordinated bump across
 `MagicTapirIntegration`), and `wind` (which ships the six-core-field
 `windClassNameEnricher`). Treat it as a load-bearing cross-repo contract.
 
+<a name="the-four-clause-contract"></a>
 ## The four-clause contract
 
 Every enricher implementation MUST honour these clauses:
@@ -49,6 +58,7 @@ element by reference; capturing it in a closure, a static field, or any
 external collection produces a leak and can silently widen the actionability
 gate's view of the live tree on the next snap.
 
+<a name="registration"></a>
 ## Registration
 
 Enrichers register against the `TapirPlugin.enrichers` list, mutated in
@@ -77,6 +87,7 @@ bridge, read by tapir at snap time without an enricher); pick the enricher
 pattern when your data is per-element and the bridge pattern when your
 data is a global registry the consumer installs once.
 
+<a name="worked-example-riverpod-provider-value-enricher"></a>
 ## Worked example: Riverpod provider value enricher
 
 Surface the current value of a `StateProvider<int>` (e.g. a session
@@ -141,6 +152,7 @@ A few details worth noting:
   still walks the element tree, which keeps the line attached to the
   correct ref in the YAML output.
 
+<a name="testing-your-enricher"></a>
 ## Testing your enricher
 
 Drive the enricher directly from a widget test, the same way `magic` and
@@ -170,6 +182,7 @@ For tests that exercise the enricher inside the full snapshot pipeline,
 trigger a real `tapir:snap` via the VM Service extension (see the tapir
 extension tests under `test/extensions/` for the pattern).
 
+<a name="further-reading"></a>
 ## Further reading
 
 - [Magic integration](magic-integration): the canonical multi-enricher

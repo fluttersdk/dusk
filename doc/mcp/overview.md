@@ -8,18 +8,13 @@ When the consumer registers the provider in `bin/dowel.dart` (or via the auto-di
 `initialize` time and surfaces them alongside its own 10 substrate tools, so the AI client
 sees a single unified catalog.
 
-<a name="toc"></a>
-
 - [Substrate MCP server, tapir tool descriptors](#substrate-and-descriptors)
 - [The 33 tapir tools](#tool-catalog)
 - [Dispatch surfaces: `ext.tapir.*` vs. `dowel:tapir:*`](#dispatch-surfaces)
 - [Lifecycle: state file, lazy reconnect, snap-act loop](#lifecycle)
-- [Related](#related)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="substrate-and-descriptors"></a>
-
 ## Substrate MCP server, tapir tool descriptors
 
 The substrate MCP server is surfaced through the tapir wrapper binary. Running `dart run tapir mcp:serve` speaks stdio JSON-RPC, reads `~/.dowel/state.json` to find the
@@ -37,7 +32,6 @@ matrix. Running `dart run tapir mcp:serve` directly (without scaffolded fastcli)
 ---
 
 <a name="tool-catalog"></a>
-
 ## The 33 tapir tools
 
 `TapirDowelProvider.mcpTools()` returns the following 33 descriptors. The list is sorted
@@ -85,7 +79,6 @@ Renames break agent prompts and pinned consumer scripts.
 ---
 
 <a name="dispatch-surfaces"></a>
-
 ## Dispatch surfaces: `ext.tapir.*` vs. `dowel:tapir:*`
 
 The substrate MCP server inspects each descriptor's `extensionMethod` field to choose a
@@ -112,7 +105,6 @@ and out-of-isolate CLI drivers without a second binary.
 ---
 
 <a name="lifecycle"></a>
-
 ## Lifecycle: state file, lazy reconnect, snap-act loop
 
 Tapir inherits the substrate's lifecycle. The MCP server stays online even when no Flutter
@@ -139,9 +131,8 @@ action call so they survive rebuilds as long as the predicates still match.
 
 ---
 
-<a name="related"></a>
-
-## Related
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [setup.md](setup.md): per-client install matrix (Claude Code, Cursor, Windsurf, VS Code,
   etc.) plus the reconnect ritual after editing `.mcp.json` or `.dowel/mcp.json`.

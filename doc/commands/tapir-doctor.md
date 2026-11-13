@@ -4,18 +4,12 @@ Verify the `tapir` runtime and the consumer-side wiring health in a single pure-
 
 Five lightweight checks run in order, each emitting one row via the `DowelOutput` facade (colored `[ok]` / `[warn]` / `[error]` / `[info]` tokens in TTY mode, plain text under buffered or null output).
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [The seven checks](#the-seven-checks)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -163,8 +157,8 @@ The doctor cannot directly detect missing `TapirPlugin.install()` from CLI conte
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:install](tapir-install.md): the bootstrap command. Re-run `tapir:install` when check 5 reports missing integration glue.
 - [Reference: Actionability gate](../reference/actionability-gate.md): the runtime gate that snapshot consumers rely on; not checked by the doctor today.

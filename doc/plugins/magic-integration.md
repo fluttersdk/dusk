@@ -27,6 +27,13 @@ controller flags, route parameters, broadcast connection state, recent
 gate results, and the crumbs HTTP / log / exception ring buffers; read
 the dartdoc on `MagicTapirIntegration` for those.
 
+- [When to call install](#when-to-call-install)
+- [The five core enrichers](#the-five-core-enrichers)
+- [Example snapshot output](#example-snapshot-output)
+- [Test-only reset](#test-only-reset)
+- [Frozen contract](#frozen-contract)
+
+<a name="when-to-call-install"></a>
 ## When to call install
 
 `MagicTapirIntegration.install()` must run **after** `Magic.init()` has
@@ -57,6 +64,7 @@ void main() async {
 after the first call, matching `TapirPlugin.install()` semantics. Release
 builds tree-shake the entire `!kReleaseMode` branch.
 
+<a name="the-five-core-enrichers"></a>
 ## The five core enrichers
 
 ### magicControllerEnricher
@@ -102,6 +110,7 @@ surfaced by `Auth.user()`. Falls back to `magicAuthUser: <id>` (no trailing
 colon) when `display_name` is null, missing, or empty. Returns null when
 the session is a guest.
 
+<a name="example-snapshot-output"></a>
 ## Example snapshot output
 
 A typical snapshot fragment for a `MonitorListView` rendered inside a
@@ -132,6 +141,7 @@ insertion order and concatenates non-null returns; if two enrichers ever
 emit the same key, the **first** insertion wins (per the
 `TapirSnapshotEnricher` first-write-wins contract).
 
+<a name="test-only-reset"></a>
 ## Test-only reset
 
 `MagicTapirIntegration.resetForTesting()` removes every enricher from
@@ -140,6 +150,7 @@ subscription, and clears the idempotency guard. Pair it with
 `TapirPlugin`'s reset hook in `tearDown` so consecutive widget tests start
 with a clean enricher chain.
 
+<a name="frozen-contract"></a>
 ## Frozen contract
 
 Every Magic enricher honours the `TapirSnapshotEnricher` typedef contract:

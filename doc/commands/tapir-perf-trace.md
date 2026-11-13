@@ -2,8 +2,10 @@
 
 Write the last closed perf session as a Chrome Trace JSON file and print only its path. The file opens as is in [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing`.
 
----
+- [Synopsis](#synopsis)
+- [Related Documentation](#related-documentation)
 
+<a name="synopsis"></a>
 ## Synopsis
 
 ```
@@ -25,6 +27,7 @@ The file carries `traceEvents`, `displayTimeUnit` and `otherData` (the session t
 | `1` | `--out` missing. |
 | non-zero | The extension refused: no closed session, a stale token, or a session still open. |
 
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:perf_run](tapir-perf-run.md), [tapir:perf_end](tapir-perf-end.md).

@@ -10,19 +10,13 @@ Interactive nodes inside a currently-overflowing render ancestor carry an additi
 
 Text fields collapse to a single typeable ref. A field such as a wind `WInput` produces two nested `textbox` Semantics nodes (the outer wrapper plus the `RenderEditable` leaf that always owns its own node). `tapir:snap` suppresses the inner duplicate when its render object is a render-tree descendant of the outer `textbox` node's render object, emitting one ref for the surviving node and tagging it with an additive `typeable: true` sub-line. Collapse is by render-object containment only, so two sibling fields sharing the same label stay two distinct refs. Target the node carrying `typeable: true` when typing: `tapir:type` resolves the inner `EditableText` from it.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
-- [Narrowing](#narrowing)
+- [Narrowing, and why the full tree is usually the wrong answer](#narrowing)
 - [Returns](#returns)
 - [Enricher fragments](#enricher-fragments)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -250,8 +244,8 @@ Expected output (illustrative):
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:tap](tapir-tap.md): consume an `eN` token to synthesise a tap.
 - [tapir:find](tapir-find.md): mint a long-lived `qN` handle that survives rebuilds.

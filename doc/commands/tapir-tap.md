@@ -4,18 +4,12 @@ Synthesise a tap at the widget identified by a snapshot ref token. `tapir:tap` i
 
 The handler routes through the actionability gate (enabled, zero-rect, off-viewport) before the pointer event leaves the VM. A gate failure throws `TapirActionabilityException` and surfaces as a structured error; the agent re-snaps or re-finds rather than silently retrying.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [Actionability gate](#actionability-gate)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -196,8 +190,8 @@ After the tap, the handler polls the element tree for a `Text("Welcome back")` u
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:snap](tapir-snap.md): produce the `eN` refs that `tapir:tap` consumes.
 - [tapir:find](tapir-find.md): mint a re-resolvable `qN` handle that survives rebuilds; pass it as `--ref=q1`.

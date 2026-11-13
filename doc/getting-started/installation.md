@@ -1,15 +1,15 @@
 # Installation
+Getting `tapir` running requires adding the package, calling
+`TapirPlugin.install()` inside a `!kReleaseMode` guard in your app's `main.dart`, and
+(optionally) wiring the MCP server so your AI client can reach the tapir tools.
 
 - [Requirements](#requirements)
 - [Add the package](#add-the-package)
 - [Wire TapirPlugin](#wire-tapirplugin)
 - [Optional integrations](#optional-integrations)
+- [Register with dowel (automatic)](#register-with-dowel)
 - [Wire MCP tools](#wire-mcp-tools)
 - [Verify installation](#verify-installation)
-
-Getting `tapir` running requires adding the package, calling
-`TapirPlugin.install()` inside a `!kReleaseMode` guard in your app's `main.dart`, and
-(optionally) wiring the MCP server so your AI client can reach the tapir tools.
 
 <a name="requirements"></a>
 ## Requirements

@@ -5,6 +5,16 @@ The tapir MCP tools ride on the substrate MCP server shipped inside
 substrate's `.mcp.json` plus a one-line provider registration: install the substrate,
 register `TapirDowelProvider`, and the 33 `tapir_*` tools surface automatically.
 
+- [Prerequisites](#prerequisites)
+- [Automated install (recommended)](#automated-install-recommended)
+- [Canonical `.mcp.json` entry](#canonical-mcpjson-entry)
+- [Fallback invocations](#fallback-invocations)
+- [Per-client install](#per-client-install)
+- [Reconnect ritual](#reconnect-ritual)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
+
+<a name="prerequisites"></a>
 ## Prerequisites
 
 Before wiring any client config:
@@ -19,6 +29,7 @@ Before wiring any client config:
 The MCP server stays online with zero apps running. Plugin tool calls lazy-reconnect to the
 VM Service URI recorded in `~/.dowel/state.json` on first call.
 
+<a name="automated-install-recommended"></a>
 ## Automated install (recommended)
 
 `dowel` ships a built-in MCP installer that writes the canonical `.mcp.json`
@@ -47,6 +58,7 @@ To remove the entry later:
 dart run tapir mcp:uninstall
 ```
 
+<a name="canonical-mcpjson-entry"></a>
 ## Canonical `.mcp.json` entry
 
 When writing the file by hand (or wiring a client whose path is not yet covered by
@@ -68,6 +80,7 @@ The `cwd` field must point at the project root (the directory that contains the 
 `pubspec.yaml`). The server binary is the substrate's `bin/mcp.dart`; the tapir descriptors
 ride on it.
 
+<a name="fallback-invocations"></a>
 ## Fallback invocations
 
 `mcp:install` picks the `.mcp.json` command/args payload based on the consumer's scaffold state. Three precedence levels, highest first:
@@ -88,6 +101,7 @@ ride on it.
 
 Trade-off: the fastcli path (level 1) requires the `./bin/dowel` AOT binary to be pre-compiled and present on the file system, but offers the fastest MCP server startup. The `dart run` path (level 2) works everywhere Dart is on PATH with no pre-compilation, at the cost of ~3s cold-start per agent session.
 
+<a name="per-client-install"></a>
 ## Per-client install
 
 | Client | Config path | After edit |
@@ -123,6 +137,7 @@ transport type):
 }
 ```
 
+<a name="reconnect-ritual"></a>
 ## Reconnect ritual
 
 Claude Code, Continue, and Windsurf do NOT auto-reconnect when `.mcp.json` or
@@ -137,6 +152,7 @@ Claude Code, Continue, and Windsurf do NOT auto-reconnect when `.mcp.json` or
 The substrate MCP server stays online during a reconnect; the client simply re-runs
 `initialize` and reads the refreshed tool catalog.
 
+<a name="troubleshooting"></a>
 ## Troubleshooting
 
 **The server is online but no app is running.** This is normal. The substrate MCP server
@@ -156,7 +172,8 @@ WebSocket to the VM Service URI on demand. Subsequent calls reuse the cached con
 `.dowel/mcp.json` to add the tool name under `tools.deny`. Deny always wins over allow.
 Run the reconnect ritual after editing.
 
-## Related
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [overview.md](overview.md): tool catalog, dispatch surfaces (`ext.tapir.*` vs.
   `dowel:tapir:*`), lifecycle.

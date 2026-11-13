@@ -2,17 +2,11 @@
 
 Return the app to a known clean screen by dismissing every modal, pressing Escape, and tapping a Cancel/Dismiss affordance as a fallback. `tapir:reset_overlays` promotes the manual overlay-reset dance (dismiss + Escape + Cancel-tap) into one idempotent command, so an agent can reliably clear stuck dialogs, bottom sheets, dropdown menus, and barrier modals between flows without composing the steps by hand.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Layers](#layers)
 - [Returns](#returns)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -86,8 +80,8 @@ Safe to call even when nothing is open; the no-op path returns `popped: 0`.
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:dismiss_modals](index.md): the underlying dismiss-modals path; `tapir:reset_overlays` adds Escape + Cancel-tap fallback on top.
 - [tapir:tap](tapir-tap.md): tap a specific Cancel button by ref when you want precise control.

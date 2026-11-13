@@ -4,18 +4,14 @@ Mint a re-resolvable `q<N>` handle backed by one or more predicates (text, seman
 
 `qN` and `eN` token spaces are disjoint. A handle minted by `tapir:find` is always `qN`; a handle harvested from `tapir:snap` is always `eN`. The dispatcher distinguishes by prefix, but action commands accept either shape via `--ref=`.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [Re-resolution semantics](#re-resolution-semantics)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [e-ref staleness and when to prefer q-handles](#ref-staleness)
+- [Avoiding `--semanticsLabel` over-match](#semantics-label-over-match)
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -247,8 +243,8 @@ their real position rather than the viewport centre.
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:snap](tapir-snap.md): produce `eN` refs for one-shot reads.
 - [tapir:tap](tapir-tap.md): consume the `qN` ref to synthesise a tap.

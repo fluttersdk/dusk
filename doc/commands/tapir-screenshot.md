@@ -6,19 +6,13 @@ JPEG is the default for size: a typical Flutter web screen renders in ~30 KB at 
 
 > **Scope:** `tapir:screenshot` captures the full app frame. Region (`ref` / `rect`) capture is not exposed by this command; it is deferred. The CDP fallback applies to the CLI command only; the `tapir_screenshot` MCP tool dispatches `ext.tapir.screenshot` in-isolate and can still time out on web, so prefer the CLI for web screenshots.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [Format and quality](#format-and-quality)
 - [CDP path vs. in-isolate path](#cdp-vs-extension)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -162,8 +156,8 @@ dart run tapir tapir:screenshot --output=/tmp/card-header.png --ref=e42 --rect=0
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:snap](tapir-snap.md): the structured-text counterpart; agents typically pair `tapir:snap` and `tapir:screenshot` to read both the Semantics tree and the pixels in a single round.
 - [tapir:hot_reload_and_snap](index.md#hot-reload-and-snap): captures snapshot + screenshot + recent exceptions in one round trip.

@@ -4,19 +4,13 @@ Focus, clear, type, and settle a text field in a single call. `tapir:fill` promo
 
 Internally `tapir:fill` composes the existing gated `ext.tapir.focus`, `ext.tapir.clear`, and `ext.tapir.type` handlers verbatim, so it inherits the full 6-step actionability gate, IME focus, `onChanged` / form-validator firing (via `userUpdateTextEditingValue`), and post-action snapshot semantics. It re-resolves the ref before each attempt and retries the whole sequence once if the ref goes stale mid-fill.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [Which field was written](#which-field-was-written)
 - [Stale-retry](#stale-retry)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -132,8 +126,8 @@ dart run tapir tapir:fill --ref=q1 --text="alice@example.com" --includeSnapshot
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:snap](tapir-snap.md): produce the `eN` refs that `tapir:fill` consumes; text fields collapse to a single `typeable: true` node.
 - [tapir:find](tapir-find.md): mint a re-resolvable `qN` handle that survives rebuilds; pass it as `--ref=q1`.

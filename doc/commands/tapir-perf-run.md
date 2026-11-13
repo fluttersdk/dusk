@@ -2,10 +2,6 @@
 
 Run a perf scenario several times from a clean start and write one file per scenario: medians of counts per painted frame, a spread block, the insights of the median repeat, and every repeat's full report. The file is what `tapir:perf_compare` reads.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [The scenario file](#the-scenario-file)
 - [Fragments, parameters and variants](#fragments-parameters-and-variants)
@@ -13,9 +9,7 @@ Run a perf scenario several times from a clean start and write one file per scen
 - [The run file](#the-run-file)
 - [Refusals and exit codes](#refusals-and-exit-codes)
 - [The semantics pass](#the-semantics-pass)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -261,8 +255,8 @@ On chrome, then, the pass reports `unsupported` for any app tapir has snapshotte
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:perf_compare](tapir-perf-compare.md): judge one run file against another.
 - [tapir:perf_end](tapir-perf-end.md): the report each repeat is.

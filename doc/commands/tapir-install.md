@@ -14,18 +14,12 @@ dart run tapir tapir:install
 
 After the second command, `./bin/dowel list` surfaces all 42 `tapir:*` commands and `./bin/dowel mcp:serve` exposes the 40 MCP tools.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [Anchor modes](#anchor-modes)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -150,8 +144,8 @@ void main() async {
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [Getting Started: Installation](../getting-started/installation.md): step-by-step walkthrough from `dart pub add` to first snapshot.
 - [tapir:doctor](tapir-doctor.md): verify the post-install wiring is healthy and the running session can be reached.

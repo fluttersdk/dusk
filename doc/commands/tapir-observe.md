@@ -8,18 +8,12 @@ A control wrapped in `MergeSemantics` is listed once, as its boundary node: the 
 
 The CLI surface is mostly for debugging; the MCP descriptor is the primary surface for agent integrations.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
 - [Observe-once-act-many](#observe-once-act-many)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -148,8 +142,8 @@ No re-observe between the two actions; both `qN` handles re-resolve against the 
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:snap](tapir-snap.md): the raw Semantics-tree YAML; richer than `tapir:observe` but with `eN` refs that go stale on rebuild.
 - [tapir:find](tapir-find.md): mint a single `qN` handle from a known predicate; pair with `tapir:observe` when the agent already knows what to look for.

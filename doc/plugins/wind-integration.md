@@ -7,6 +7,14 @@ Tapir reads `WindDebugRegistry.current?.resolve(element)` inside `ext_snapshot.d
 ahead of the enricher loop, so no tapir-side install call is required for wind metadata to appear.
 The 6 core fields still appear under the `wind:` block of every W-prefixed widget's snapshot ref.
 
+- [Host integration](#host-integration)
+- [The six core fields](#the-six-core-fields)
+- [Example snapshot output](#example-snapshot-output)
+- [Provenance opt-in](#provenance-opt-in)
+- [Test-only reset](#test-only-reset)
+- [Cross-package coupling](#cross-package-coupling)
+
+<a name="host-integration"></a>
 ## Host integration
 
 Call `Wind.installDebugResolver()` inside the host's `!kReleaseMode` branch, after `TapirPlugin.install()`.
@@ -27,6 +35,7 @@ void main() {
 Both calls are idempotent. Release builds tree-shake the entire `!kReleaseMode` branch on dart2js (web) and
 dart2native (mobile and desktop AOT).
 
+<a name="the-six-core-fields"></a>
 ## The six core fields
 
 Tapir emits a `wind:` YAML block under each W-widget ref by resolving the element through
@@ -44,6 +53,7 @@ evaluated. The first four (`breakpoint`, `brightness`, `platform`, `states`) are
 | `bgColor` | `style.decoration?.color` | 6-char RGB hex (alpha dropped, uppercase). |
 | `textColor` | `style.color` | 6-char RGB hex (alpha dropped, uppercase). |
 
+<a name="example-snapshot-output"></a>
 ## Example snapshot output
 
 A `WButton` rendered on web at the `md` breakpoint with a hover state active:
@@ -68,6 +78,7 @@ A `WButton` rendered on web at the `md` breakpoint with a hover state active:
     fontWeight: 600
 ```
 
+<a name="provenance-opt-in"></a>
 ## Provenance opt-in
 
 <!-- TODO: confirm provenance API in wind 1.0.0-alpha.10+ -->
@@ -82,6 +93,7 @@ The `TapirSnapshotEnricher` typedef is frozen at `String? Function(Element, RefR
 argument through the call would break the contract. See [enricher-authoring](enricher-authoring) for the
 frozen contract details.
 
+<a name="test-only-reset"></a>
 ## Test-only reset
 
 <!-- TODO: confirm exact reset API in wind 1.0.0-alpha.10+ -->
@@ -90,6 +102,7 @@ The per-test reset helper was removed along with the integration class in wind 1
 Tests that previously relied on it should reset via `WindDebugRegistry.resetForTesting()` on the contracts
 bridge instead. Production code never calls any reset method.
 
+<a name="cross-package-coupling"></a>
 ## Cross-package coupling
 
 The `wind_kit_diagnostics_contracts` package is a hosted dependency for both `tapir` and

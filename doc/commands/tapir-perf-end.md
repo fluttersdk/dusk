@@ -2,18 +2,12 @@
 
 Close the measurement session opened by `tapir:perf_begin` and read a bounded report: frame percentiles against a stated budget, blocks ranked by self time and by count per painted frame, wind and magic counters, and ranked insights you can drill into with `tapir:perf_insight`. It also restores every profiling flag the session changed, so a session you forget to close is the one that taxes every later frame.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Returns](#returns)
 - [Insights](#insights)
 - [The refusal](#the-refusal)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -150,8 +144,8 @@ dart run tapir tapir:perf_end
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:perf_begin](tapir-perf-begin.md): opens the session, picks the mode, records the liveness baseline.
 - [tapir:perf_insight](tapir-perf-insight.md): the rows behind one insight.

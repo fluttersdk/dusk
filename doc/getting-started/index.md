@@ -3,6 +3,15 @@
 Everything you need to add `tapir` to your project, capture your first
 snapshot, and drive real user gestures from an AI agent or CLI session.
 
+- [Pick your path](#pick-your-path)
+- [What is tapir?](#what-is-tapir)
+- [What problem does it solve?](#what-problem-does-it-solve)
+- [When to use it](#when-to-use-it)
+- [Requirements](#requirements)
+- [High-level workflow](#high-level-workflow)
+- [Next steps](#next-steps)
+
+<a name="pick-your-path"></a>
 ## Pick your path
 
 - [**Installation**](installation): Wire TapirPlugin into a Flutter app and connect
@@ -15,6 +24,7 @@ snapshot, and drive real user gestures from an AI agent or CLI session.
   recurring traps in real-app E2E sessions (stale refs, nested text fields,
   cumulative exceptions, stuck overlays) and the workaround each one has built in.
 
+<a name="what-is-tapir"></a>
 ## What is tapir?
 
 `tapir` is a Flutter E2E driver that gives an AI agent (or a CLI session)
@@ -31,6 +41,7 @@ the user sees: real platform chrome, real routing, real auth state. This makes i
 suitable for exploratory workflows where the agent does not know the widget tree in
 advance and needs to discover it interactively.
 
+<a name="what-problem-does-it-solve"></a>
 ## What problem does it solve?
 
 Writing Flutter integration tests requires knowing the widget tree structure upfront,
@@ -45,6 +56,7 @@ tokens. The agent reads the snapshot, locates the target element by semantic rol
 label, and passes the ref token to an action extension. No test harness setup, no
 build step, no `flutter drive` orchestration needed.
 
+<a name="when-to-use-it"></a>
 ## When to use it
 
 - **AI agent walkthroughs**: give Claude Code, Cursor, or Windsurf hands-on control
@@ -57,6 +69,7 @@ build step, no `flutter drive` orchestration needed.
 - **CI smoke checks**: run a small set of dowel commands in CI to confirm critical
   paths render without crash, complementing (not replacing) widget unit tests.
 
+<a name="requirements"></a>
 ## Requirements
 
 | Dependency | Minimum Version | Notes |
@@ -70,6 +83,7 @@ it synthesizes pointer events against a live widget tree and walks the Semantics
 at runtime. The `dowel` CLI is the recommended host for the MCP server
 and all tapir CLI commands; install it before adding `tapir`.
 
+<a name="high-level-workflow"></a>
 ## High-level workflow
 
 The typical agent session follows three phases:
@@ -96,6 +110,7 @@ After an action the agent re-snaps to observe the updated UI and continues the l
 Screenshot requests can be inserted at any point to capture a PNG of the current
 viewport.
 
+<a name="next-steps"></a>
 ## Next steps
 
 - New here? Start with [Installation](installation).

@@ -4,10 +4,6 @@ Run several tapir verbs against the running app in one call. Every step is a ver
 
 `tapir:run` runs each step through the verb's own command class, so a step accepts exactly the options the standalone command accepts. The steps share the one VM Service connection of the call.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Step grammar](#step-grammar)
 - [Output](#output)
@@ -15,9 +11,7 @@ Run several tapir verbs against the running app in one call. Every step is a ver
 - [MCP form](#mcp-form)
 - [Working with refs](#working-with-refs)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -149,8 +143,8 @@ All three steps run. The exit code is the first failing step's, or `0`.
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [Commands index](index.md): every verb a step may name.
 - [tapir:snap](tapir-snap.md): the usual last step.

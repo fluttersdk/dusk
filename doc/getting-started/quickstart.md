@@ -104,8 +104,9 @@ Screenshot saved to counter_after_tap.png (1280x800)
 Open the file to confirm the counter reads 1 after the tap in step 2. You now have
 the full snap-tap-screenshot loop working end-to-end.
 
----
+- [What's next?](#whats-next)
 
+<a name="whats-next"></a>
 ## What's next?
 
 - Read the [commands catalog](../commands/) to see all 32 tapir CLI commands and their

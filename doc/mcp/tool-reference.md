@@ -12,6 +12,51 @@ Sections are ordered alphabetically. Every section names the dispatch surface
 example payloads show the `params.arguments` object inside the `tools/call` JSON-RPC
 request; the substrate MCP server wraps the response as `CallToolResult` text content.
 
+- [Universal response fields: `framesForced`, `warnings`, `reresolved`](#universal-response-fields-framesforced-warnings-reresolved)
+- [Universal response field: `effect`](#universal-response-field-effect)
+- [tapir_blur](#tapir_blur)
+- [tapir_clear](#tapir_clear)
+- [tapir_close_app](#tapir_close_app)
+- [tapir_console](#tapir_console)
+- [tapir_dblclick](#tapir_dblclick)
+- [tapir_device_profile](#tapir_device_profile)
+- [tapir_dismiss_modals](#tapir_dismiss_modals)
+- [tapir_drag](#tapir_drag)
+- [tapir_evaluate](#tapir_evaluate)
+- [tapir_exceptions](#tapir_exceptions)
+- [tapir_fill](#tapir_fill)
+- [tapir_find](#tapir_find)
+- [tapir_focus](#tapir_focus)
+- [tapir_get_routes](#tapir_get_routes)
+- [tapir_hot_reload_and_snap](#tapir_hot_reload_and_snap)
+- [tapir_hover](#tapir_hover)
+- [tapir_navigate](#tapir_navigate)
+- [tapir_navigate_back](#tapir_navigate_back)
+- [tapir_observe](#tapir_observe)
+- [tapir_perf_begin](#tapir_perf_begin)
+- [tapir_perf_end](#tapir_perf_end)
+- [tapir_perf_compare](#tapir_perf_compare)
+- [tapir_perf_insight](#tapir_perf_insight)
+- [tapir_perf_run](#tapir_perf_run)
+- [tapir_perf_trace](#tapir_perf_trace)
+- [tapir_press_key](#tapir_press_key)
+- [tapir_reset_overlays](#tapir_reset_overlays)
+- [tapir_resize_viewport](#tapir_resize_viewport)
+- [tapir_right_click](#tapir_right_click)
+- [tapir_run](#tapir_run)
+- [tapir_screenshot](#tapir_screenshot)
+- [tapir_scroll](#tapir_scroll)
+- [tapir_select_option](#tapir_select_option)
+- [tapir_set_checkbox](#tapir_set_checkbox)
+- [tapir_snap](#tapir_snap)
+- [tapir_tap](#tapir_tap)
+- [tapir_triple_click](#tapir_triple_click)
+- [tapir_type](#tapir_type)
+- [tapir_wait_for](#tapir_wait_for)
+- [tapir_wait_for_network_idle](#tapir_wait_for_network_idle)
+- [Related Documentation](#related-documentation)
+
+<a name="universal-response-fields-framesforced-warnings-reresolved"></a>
 ## Universal response fields: `framesForced`, `warnings`, `reresolved`
 
 A hidden or minimised desktop window and a backgrounded browser tab stop the app producing
@@ -49,6 +94,7 @@ full picture and the fallback.
 A call that relocated a stale `e<N>` ref to the control that replaced it adds
 `"reresolved": ["e5"]`. See [`tapir_tap`](#tapir_tap).
 
+<a name="universal-response-field-effect"></a>
 ## Universal response field: `effect`
 
 Every side-effect verb reports what the widget HOLDS afterwards, not what it was asked to
@@ -70,51 +116,7 @@ That example is the real case it exists for: a fill against a number field repor
 text it had been handed while the widget kept nothing, and the resulting defect-shaped
 story survived two rewrites of the widget before anyone read the field back.
 
-## Table of contents
-
-- [`tapir_blur`](#tapir_blur)
-- [`tapir_clear`](#tapir_clear)
-- [`tapir_close_app`](#tapir_close_app)
-- [`tapir_console`](#tapir_console)
-- [`tapir_dblclick`](#tapir_dblclick)
-- [`tapir_device_profile`](#tapir_device_profile)
-- [`tapir_dismiss_modals`](#tapir_dismiss_modals)
-- [`tapir_drag`](#tapir_drag)
-- [`tapir_evaluate`](#tapir_evaluate)
-- [`tapir_exceptions`](#tapir_exceptions)
-- [`tapir_fill`](#tapir_fill)
-- [`tapir_find`](#tapir_find)
-- [`tapir_focus`](#tapir_focus)
-- [`tapir_get_routes`](#tapir_get_routes)
-- [`tapir_hot_reload_and_snap`](#tapir_hot_reload_and_snap)
-- [`tapir_hover`](#tapir_hover)
-- [`tapir_navigate`](#tapir_navigate)
-- [`tapir_navigate_back`](#tapir_navigate_back)
-- [`tapir_observe`](#tapir_observe)
-- [`tapir_perf_begin`](#tapir_perf_begin)
-- [`tapir_perf_end`](#tapir_perf_end)
-- [`tapir_perf_compare`](#tapir_perf_compare)
-- [`tapir_perf_insight`](#tapir_perf_insight)
-- [`tapir_perf_run`](#tapir_perf_run)
-- [`tapir_perf_trace`](#tapir_perf_trace)
-- [`tapir_press_key`](#tapir_press_key)
-- [`tapir_reset_overlays`](#tapir_reset_overlays)
-- [`tapir_resize_viewport`](#tapir_resize_viewport)
-- [`tapir_right_click`](#tapir_right_click)
-- [`tapir_run`](#tapir_run)
-- [`tapir_screenshot`](#tapir_screenshot)
-- [`tapir_scroll`](#tapir_scroll)
-- [`tapir_select_option`](#tapir_select_option)
-- [`tapir_set_checkbox`](#tapir_set_checkbox)
-- [`tapir_snap`](#tapir_snap)
-- [`tapir_tap`](#tapir_tap)
-- [`tapir_triple_click`](#tapir_triple_click)
-- [`tapir_type`](#tapir_type)
-- [`tapir_wait_for`](#tapir_wait_for)
-- [`tapir_wait_for_network_idle`](#tapir_wait_for_network_idle)
-
----
-
+<a name="tapir_blur"></a>
 ## tapir_blur
 
 Dispatch: `ext.tapir.blur`
@@ -149,6 +151,7 @@ Response:
 
 ---
 
+<a name="tapir_clear"></a>
 ## tapir_clear
 
 Dispatch: `ext.tapir.clear`
@@ -185,6 +188,7 @@ Response:
 
 ---
 
+<a name="tapir_close_app"></a>
 ## tapir_close_app
 
 Dispatch: `ext.tapir.close_app`
@@ -210,6 +214,7 @@ Success: an empty object `{}`. After the call the VM Service URI is gone, so the
 
 ---
 
+<a name="tapir_console"></a>
 ## tapir_console
 
 Dispatch: `ext.tapir.console`
@@ -238,6 +243,7 @@ Error: never; missing crumbs is treated as the empty-entries success path.
 
 ---
 
+<a name="tapir_dblclick"></a>
 ## tapir_dblclick
 
 Dispatch: `ext.tapir.dblclick`
@@ -272,6 +278,7 @@ error when the ref is unknown.
 
 ---
 
+<a name="tapir_device_profile"></a>
 ## tapir_device_profile
 
 Dispatch: `dowel:tapir:device`
@@ -307,6 +314,7 @@ not configured.
 
 ---
 
+<a name="tapir_dismiss_modals"></a>
 ## tapir_dismiss_modals
 
 Dispatch: `ext.tapir.dismiss_modals`
@@ -333,6 +341,7 @@ Error: never; safe to call speculatively.
 
 ---
 
+<a name="tapir_drag"></a>
 ## tapir_drag
 
 Dispatch: `ext.tapir.drag`
@@ -365,6 +374,7 @@ Error: actionability gate failure on either ref, or stale-handle on either.
 
 ---
 
+<a name="tapir_evaluate"></a>
 ## tapir_evaluate
 
 Dispatch: `ext.tapir.evaluate`
@@ -399,6 +409,7 @@ Response:
 
 ---
 
+<a name="tapir_exceptions"></a>
 ## tapir_exceptions
 
 Dispatch: `ext.tapir.exceptions`
@@ -432,6 +443,7 @@ count: <int> }`. `stackHead` is the first 3 lines of the stack trace. `fatal` is
 
 ---
 
+<a name="tapir_fill"></a>
 ## tapir_fill
 
 Dispatch: `ext.tapir.fill`
@@ -472,6 +484,7 @@ field`. On a permanently stale handle (after the single retry) the response is a
 
 ---
 
+<a name="tapir_find"></a>
 ## tapir_find
 
 Dispatch: `ext.tapir.find`
@@ -510,6 +523,7 @@ handle (`"stale handle"`); the agent must re-find or re-snap, never silently ret
 
 ---
 
+<a name="tapir_focus"></a>
 ## tapir_focus
 
 Dispatch: `ext.tapir.focus`
@@ -536,6 +550,7 @@ Success: `{ ref: "<ref>", focused: true }`.
 
 ---
 
+<a name="tapir_get_routes"></a>
 ## tapir_get_routes
 
 Dispatch: `ext.tapir.get_routes`
@@ -572,6 +587,7 @@ Response:
 
 ---
 
+<a name="tapir_hot_reload_and_snap"></a>
 ## tapir_hot_reload_and_snap
 
 Dispatch: `dowel:tapir:hot_reload_and_snap`
@@ -603,6 +619,7 @@ call is returned as an error result, so a client never reads a compile failure a
 
 ---
 
+<a name="tapir_hover"></a>
 ## tapir_hover
 
 Dispatch: `ext.tapir.hover`
@@ -634,6 +651,7 @@ Error: actionability gate failure, or stale-handle.
 
 ---
 
+<a name="tapir_navigate"></a>
 ## tapir_navigate
 
 Dispatch: `ext.tapir.navigate`
@@ -667,6 +685,7 @@ re-snap after; refs from a prior snapshot are invalidated.
 
 ---
 
+<a name="tapir_navigate_back"></a>
 ## tapir_navigate_back
 
 Dispatch: `ext.tapir.navigate_back`
@@ -706,6 +725,7 @@ so the call did nothing; read
 
 ---
 
+<a name="tapir_observe"></a>
 ## tapir_observe
 
 Dispatch: `ext.tapir.observe`
@@ -747,6 +767,7 @@ default.
 
 ---
 
+<a name="tapir_perf_begin"></a>
 ## tapir_perf_begin
 
 Dispatch: `ext.tapir.perf_begin`
@@ -786,6 +807,7 @@ milliseconds only between `timing` sessions.
 
 ---
 
+<a name="tapir_perf_end"></a>
 ## tapir_perf_end
 
 Dispatch: `ext.tapir.perf_end`
@@ -867,6 +889,7 @@ same response, because `SchedulerBinding.framesEnabled` was measured reporting
 
 ---
 
+<a name="tapir_perf_compare"></a>
 ## tapir_perf_compare
 
 Dispatch: `dowel:tapir:perf_compare` (runs the CLI command in the MCP server's
@@ -900,6 +923,7 @@ error-level regression, or when a run has no measured repeat.
 
 ---
 
+<a name="tapir_perf_insight"></a>
 ## tapir_perf_insight
 
 Dispatch: `ext.tapir.perf_insight`
@@ -935,6 +959,7 @@ which points at `perf_end`'s `insights[]`.
 
 ---
 
+<a name="tapir_perf_run"></a>
 ## tapir_perf_run
 
 Dispatch: `dowel:tapir:perf_run` (runs the CLI command in the MCP server's
@@ -982,6 +1007,7 @@ medians; the call fails when every repeat refused. See
 
 ---
 
+<a name="tapir_perf_trace"></a>
 ## tapir_perf_trace
 
 Dispatch: `dowel:tapir:perf_trace` (runs the CLI command in the MCP server's
@@ -1010,6 +1036,7 @@ The absolute path of the written file.
 
 ---
 
+<a name="tapir_press_key"></a>
 ## tapir_press_key
 
 Dispatch: `ext.tapir.press_key`
@@ -1041,6 +1068,7 @@ Success: `{ key: "<label>", modifiers: [...] }`.
 
 ---
 
+<a name="tapir_reset_overlays"></a>
 ## tapir_reset_overlays
 
 Dispatch: `ext.tapir.reset_overlays`
@@ -1069,6 +1097,7 @@ three indicate no work was done, confirming idempotency.
 
 ---
 
+<a name="tapir_resize_viewport"></a>
 ## tapir_resize_viewport
 
 Dispatch: `dowel:tapir:resize`
@@ -1109,6 +1138,7 @@ nor `reset` is given. An argument the schema does not list, such as the old
 
 ---
 
+<a name="tapir_right_click"></a>
 ## tapir_right_click
 
 Dispatch: `ext.tapir.right_click`
@@ -1141,6 +1171,7 @@ Error: actionability gate failure, or stale-handle.
 
 ---
 
+<a name="tapir_run"></a>
 ## tapir_run
 
 Dispatch: `dowel:tapir:run` (substrate-routed)
@@ -1175,6 +1206,7 @@ snapshot.
 
 ---
 
+<a name="tapir_screenshot"></a>
 ## tapir_screenshot
 
 Dispatch: `ext.tapir.screenshot` (in-isolate, all targets). The CDP `Page.captureScreenshot` web fallback is implemented in the CLI command `tapir:screenshot --output=<path>`, NOT in this MCP tool.
@@ -1231,6 +1263,7 @@ the pixels instead.
 
 ---
 
+<a name="tapir_scroll"></a>
 ## tapir_scroll
 
 Dispatch: `ext.tapir.scroll`
@@ -1267,6 +1300,7 @@ once Flutter builds them.
 
 ---
 
+<a name="tapir_select_option"></a>
 ## tapir_select_option
 
 Dispatch: `ext.tapir.select_option`
@@ -1296,6 +1330,7 @@ Error: option not found, or actionability gate failure on the dropdown itself.
 
 ---
 
+<a name="tapir_set_checkbox"></a>
 ## tapir_set_checkbox
 
 Dispatch: `ext.tapir.set_checkbox`
@@ -1323,6 +1358,7 @@ state already matched.
 
 ---
 
+<a name="tapir_snap"></a>
 ## tapir_snap
 
 Dispatch: `ext.tapir.snap`
@@ -1409,6 +1445,7 @@ stack traces.
 
 ---
 
+<a name="tapir_tap"></a>
 ## tapir_tap
 
 Dispatch: `ext.tapir.tap`
@@ -1475,6 +1512,7 @@ the same route could match.
 
 ---
 
+<a name="tapir_triple_click"></a>
 ## tapir_triple_click
 
 Dispatch: `ext.tapir.triple_click`
@@ -1505,6 +1543,7 @@ Success: `{ ref: "<ref>" }`. The actionability gate runs once before the first t
 
 ---
 
+<a name="tapir_type"></a>
 ## tapir_type
 
 Dispatch: `ext.tapir.type`
@@ -1536,6 +1575,7 @@ Success: `{ ref, text }`. Multi-line text uses `\n` line breaks.
 
 ---
 
+<a name="tapir_wait_for"></a>
 ## tapir_wait_for
 
 Dispatch: `ext.tapir.wait_for`
@@ -1570,6 +1610,7 @@ three keys the call errors; with several it uses the first of `text`, `textGone`
 
 ---
 
+<a name="tapir_wait_for_network_idle"></a>
 ## tapir_wait_for_network_idle
 
 Dispatch: `ext.tapir.wait_for_network_idle`
@@ -1601,7 +1642,8 @@ count observed: <int>" }`.
 
 ---
 
-## Related
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [overview.md](overview.md): tool catalog, dispatch surfaces, lifecycle.
 - [setup.md](setup.md): per-client install matrix and reconnect ritual.

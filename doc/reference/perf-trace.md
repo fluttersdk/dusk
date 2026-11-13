@@ -2,17 +2,11 @@
 
 Inside a perf session, every gesture tapir dispatches opens an **interaction**: a handle that says which verb caused the work that follows. `ext.tapir.perf_trace` exports the closed session's interactions, frames and the host's timeline rows as Chrome Trace Event JSON, which opens as is in [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing`.
 
----
-
-## Table of contents
-
 - [Interactions](#interactions)
 - [Reaching an interaction from app code](#reaching-an-interaction-from-app-code)
 - [ext.tapir.perf_trace](#ext-tapir-perf-trace)
 - [Host timeline rows](#host-timeline-rows)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="interactions"></a>
 ## Interactions
@@ -109,8 +103,8 @@ Times are `FlutterTimeline.now` microseconds, the clock tapir stamps interaction
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:perf_begin](../commands/tapir-perf-begin.md): opens the session interactions are recorded in.
 - [tapir:perf_end](../commands/tapir-perf-end.md): closes it; the trace exports that session.

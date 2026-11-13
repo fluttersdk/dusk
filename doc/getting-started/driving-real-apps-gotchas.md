@@ -5,20 +5,15 @@ re-discovers the hard way. This page collects them, with the workaround each one
 now has built into `tapir`. Read it once before driving a non-trivial
 app; it will save you a dozen dead-end round trips.
 
----
-
-## Table of contents
-
 - [1. Refs go stale on rebuild](#1-refs-go-stale-on-rebuild)
 - [2. Text fields may snapshot nested](#2-text-fields-may-snapshot-nested)
-- [3. tapir:console needs (less than) you think](#3-tapirconsole)
+- [3. tapir:console captures debugPrint in-package now](#3-tapirconsole)
 - [4. tapir:exceptions is cumulative](#4-tapirexceptions-is-cumulative)
 - [5. restart preserves the CDP port](#5-restart-preserves-the-cdp-port)
 - [6. Overlays get stuck](#6-overlays-get-stuck)
 - [7. A green tick is dispatch, not effect](#7-a-green-tick-is-dispatch-not-effect)
 - [8. A hidden desktop app](#8-a-hidden-desktop-app)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="1-refs-go-stale-on-rebuild"></a>
 ## 1. Refs go stale on rebuild
@@ -177,7 +172,8 @@ not specific to a browser tab.
 
 ---
 
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:fill](../commands/tapir-fill.md), [tapir:reset_overlays](../commands/tapir-reset-overlays.md)
 - [tapir:tap](../commands/tapir-tap.md) (`effect`, `--until`)

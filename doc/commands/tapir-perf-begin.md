@@ -2,18 +2,12 @@
 
 Open a performance measurement session around an interaction you are about to drive. `tapir:perf_begin` zeroes the frame buffer and the wind and magic counters and records the liveness baseline that `tapir:perf_end` judges the run against. In `attribution` mode (the default) it also switches Flutter's build profiling on; in `timing` mode it touches no profiling flag at all. Nothing is measured until you call it, and the instrumentation costs real time, so keep every session tight: begin, drive one interaction, end.
 
----
-
-## Table of contents
-
 - [Synopsis](#synopsis)
 - [Modes](#modes)
 - [What it turns on](#what-it-turns-on)
 - [Returns](#returns)
 - [Examples](#examples)
-- [See also](#see-also)
-
----
+- [Related Documentation](#related-documentation)
 
 <a name="synopsis"></a>
 ## Synopsis
@@ -112,8 +106,8 @@ dart run tapir tapir:perf_end --json | jq '.summary.frames'
 
 ---
 
-<a name="see-also"></a>
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:perf_end](tapir-perf-end.md): closes the session, reports ranked insights, restores every flag.
 - [tapir:perf_insight](tapir-perf-insight.md): the rows behind one insight.

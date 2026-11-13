@@ -2,8 +2,11 @@
 
 `TapirPlugin.install()` takes a semantics handle for the whole process, because every snapshot, `q<N>` handle and actionability check reads the semantics tree. The cost is that every frame of a tapir-driven app also builds that tree, which an app without tapir (and without a screen reader) does not. `ext.tapir.semantics_hold` lets `tapir:perf_run --semantics-pass` measure the app without it, for one timed window.
 
----
+- [ext.tapir.semantics_hold](#exttapirsemantics_hold)
+- [Driving while the tree is released](#driving-while-the-tree-is-released)
+- [Related Documentation](#related-documentation)
 
+<a name="exttapirsemantics_hold"></a>
 ## ext.tapir.semantics_hold
 
 | Param | Meaning |
@@ -22,6 +25,7 @@ The caller owns the pairing: acquire after `perf_end`, so the acquire's full tre
 
 ---
 
+<a name="driving-while-the-tree-is-released"></a>
 ## Driving while the tree is released
 
 Anything that resolves a target reads the tree, so while it is released nothing may: `ext.tapir.find`, a `q<N>` action and a snapshot would all see no nodes, and a transient handle taken to look would rebuild the tree inside the window being measured. Resolve first, with the tree on, then dispatch by coordinates:
@@ -42,7 +46,8 @@ A coordinate dispatch has no element, so none of the actionability gate's checks
 
 ---
 
-## See also
+<a name="related-documentation"></a>
+## Related Documentation
 
 - [tapir:perf_run](../commands/tapir-perf-run.md#the-semantics-pass), which drives the pass.
 - [The actionability gate](actionability-gate.md).
