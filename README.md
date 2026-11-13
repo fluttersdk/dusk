@@ -74,7 +74,7 @@ dart run tapir tapir:snap --interactiveOnly
 
 | Token | Minted by | Lifetime |
 |---|---|---|
-| `e<N>` | `tapir:snap` | The same Semantics node keeps its token across snapshots, and a token outlives its widget. A ref whose element left the tree is relocated by label when the count still matches (`reresolved` on the response), otherwise it fails as `defunct` |
+| `e<N>` | `tapir:snap` | The same Semantics node keeps its token across snapshots, and a token outlives its widget. A ref whose element left the tree is relocated by label (`reresolved` on the response) only when the snapshot recorded a binding for it, the live tree has the same number of nodes with that label and the match sits on the route the ref was minted on; otherwise it fails as `defunct` and you re-snap |
 | `q<N>` | `tapir:find`, `tapir:observe` | Re-resolved against the live tree on every action, like a Playwright Locator; survives rebuilds |
 
 Narrow a read with `--within=<eN>`, `--interactiveOnly` and `--grep=<regex>`; they compose. `--includeEnrichers` adds Wind state (the host calls `Wind.installDebugResolver()` from `wind_kit`, read through `wind_kit_diagnostics_contracts`) and Magic state (`MagicTapirIntegration.install()` from `magic_devtools`, after `Magic.init()`; see [Magic integration](https://anilcancakir.com/tapir/docs/plugins/magic-integration)). A ref line ending in `[offscreen]` or `[occluded]` names why an action would fail before you try it.
@@ -97,7 +97,7 @@ Gestures (`tap`, `hover`, `drag`, `scroll`, `dblclick`, `right_click`, `triple_c
 | Stable across two frames | `not stable` | Wait for the animation; `--no-checkStable` |
 | Receives events (hit test) | `obscured by` | Dismiss the overlay (`tapir:reset_overlays`); `--no-checkReceivesEvents` |
 
-A green tick is dispatch, not effect. Add `--json` to print the whole response and read the `effect` block: `effect.changed` for `tap` and `scroll`, `effect.verified` and `effect.value` for `type`, `fill` and `clear`. When the hit test could not answer (routine on a web debug build) the response carries a `checks` block with `receivesEvents: indeterminate` instead of a silent pass. `tapir:run "tap --ref=e5" "snap --grep Counter"` batches verbs into one round trip.
+A green tick is dispatch, not effect. Add `--json` to print the whole response and read the `effect` block: `effect.changed` for `tap` and `scroll`, `effect.verified` and `effect.value` for `type`, `fill` and `clear`. When the hit test could not answer (routine on a web debug build) the response of a gated verb such as `tap` or `type` carries a `checks` block with `receivesEvents: indeterminate` instead of a silent pass; `fill` reports only its `effect`. `tapir:run "tap --ref=e5" "snap --grep Counter"` batches verbs into one round trip.
 
 ## Waiting and observing
 
