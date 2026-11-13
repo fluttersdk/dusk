@@ -2,7 +2,7 @@
 
 A three-step walkthrough from zero to driving the bundled `example/` Flutter app with a snapshot, a tap and a screenshot through the tapir CLI.
 
-Prerequisites: a Flutter `>= 3.22.0` SDK and a clone of the repository. The `example/` app already calls `TapirPlugin.install()` inside `!kReleaseMode` and resolves `tapir` from the parent directory. To drive your own app instead, follow [Installation](installation.md) first.
+Prerequisites: a Flutter SDK that ships Dart 3.12 or newer for the example app (its `pubspec.yaml` declares `sdk: ^3.12.0`) and a clone of the repository. The `example/` app already calls `TapirPlugin.install()` inside `!kReleaseMode` and resolves `tapir` from the parent directory. To drive your own app instead, follow [Installation](installation.md) first.
 
 - [1. Start the example app and capture a snapshot](#1-start-the-example-app)
 - [2. Tap a widget using its ref token](#2-tap-a-widget)
@@ -35,7 +35,7 @@ The command connects to the running app via the VM Service and prints the snapsh
 - button "Counter: 0" [ref=e1]
 ```
 
-Each interactive node carries a `[ref=eN]` token (here `e1`). Tokens are frozen to that snapshot: every fresh `tapir:snap` mints new ones, and they are what you pass to action commands in the next step.
+Each interactive node carries a `[ref=eN]` token (here `e1`). Tokens are tied to the snapshot that issued them: a node that appears again in a later `tapir:snap` may keep its token, a node that was rebuilt gets a new one, so read the refs from the latest snapshot. They are what you pass to action commands in the next step.
 
 ---
 
@@ -64,7 +64,7 @@ If the widget fails the actionability gate, the command exits with an error mess
 Widget ref=e1 is not actionable: not enabled
 ```
 
-Re-snap after a tap to confirm the UI updated. The refreshed snapshot shows the button as `Counter: 1`, under a new ref:
+Re-snap after a tap to confirm the UI updated. The refreshed snapshot shows the button as `Counter: 1`; read its ref again, because it may or may not match the earlier one:
 
 ```bash
 dart run tapir tapir:snap --grep=Counter
@@ -99,9 +99,9 @@ Open the file to confirm the button reads `Counter: 1`. You now have the full sn
 | Mistake | Fix |
 |:--------|:----|
 | Running `flutter run` by hand, then `tapir:snap` finds no app. | Start the app with `dart run tapir start`, which records the session the `tapir:*` commands dial. |
-| Tapping an `eN` ref from an earlier snapshot after the screen changed. | Re-snap and use the fresh ref, or mint a `qN` handle with `tapir:find` that survives rebuilds. |
+| Tapping an `eN` ref from an earlier snapshot after the screen changed. | Re-snap and use the ref from that snapshot, or mint a `qN` handle with `tapir:find` that survives rebuilds. |
 | The web screenshot hangs or returns an error. | Start with `--cdp-port=<port>` so the CLI captures through Chrome DevTools Protocol. |
-| The tap printed `no observable change`. | The gate accepted the tap but the widget did not react: re-snap and check the result before relying on it. |
+| The tap printed `no observable change`. | Nothing changed in the target's own subtree or the route; that does not prove the handler did not fire. Re-snap and check the intended result before retrying. |
 
 <a name="related-documentation"></a>
 ## Related Documentation

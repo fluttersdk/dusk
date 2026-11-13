@@ -50,7 +50,7 @@ The two foundational read commands. `tapir:snap` walks the Semantics tree and em
 <a name="gestures"></a>
 ## Gestures
 
-Pointer-driven actions that synthesise touch, mouse, or pen events at a widget located by ref token. All four route through the actionability gate (see [Reference: Actionability gate](../reference/actionability-gate.md)) before the event leaves the VM.
+Pointer-driven actions that synthesise touch, mouse, or pen events at a widget located by ref token. `tapir:tap`, `tapir:hover` and `tapir:drag` route through the actionability gate (see [Reference: Actionability gate](../reference/actionability-gate.md)) before the event leaves the VM. `tapir:scroll` skips the gate on purpose: it acts on the parent scrollable, so it can bring an off-viewport target into view (see [Intentional gate skips](../reference/actionability-gate.md#intentional-gate-skips)).
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
@@ -183,11 +183,11 @@ The Stagehand observe-once-act-many surface. Returns a structured candidate list
 <a name="hot-reload-and-snap"></a>
 ## Hot reload and snap
 
-The single-round-trip composite that hot-reloads the running app and then captures snapshot, screenshot, and recent exceptions in one shot. Dispatched via the `dowel:` substrate routing prefix to avoid a same-isolate deadlock.
+The single-round-trip composite that hot-reloads the running app and then captures snapshot, screenshot, and recent exceptions in one shot. Dispatched via the `dowel:` substrate routing prefix to avoid a same-isolate deadlock. The reload itself is a keystroke, not a VM Service `reloadSources` call: the command writes `r` to the stdin FIFO recorded in the session state and waits for the "Reloaded N libraries" line in the `flutter run` log. A session started by `dart run tapir start` has that FIFO; one started by plain `flutter run` does not, and the command reports it as missing.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `tapir:hot_reload_and_snap` | Hot reload the running app, then capture snapshot + screenshot + recent exceptions in a single round-trip. | connected | VM Service `reloadSources`, then `ext.tapir.snap`, `ext.tapir.screenshot`, `ext.tapir.exceptions` |
+| `tapir:hot_reload_and_snap` | Hot reload the running app, then capture snapshot + screenshot + recent exceptions in a single round-trip. | connected | `r` written to the `flutter run` stdin FIFO, then `ext.tapir.snap`, `ext.tapir.screenshot`, `ext.tapir.exceptions` |
 
 <a name="batch"></a>
 ## Batch

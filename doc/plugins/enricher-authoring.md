@@ -44,9 +44,9 @@ Every enricher implementation MUST honour these clauses:
    `TapirPlugin.enrichers` in insertion order; later-registered enrichers
    see the same `Element` as earlier ones. An enricher must not mutate
    shared state in a way that affects siblings later in the chain.
-3. **First-write-wins on output keys.** When two enrichers emit
-   overlapping YAML keys for the same ref, the FIRST one in the chain
-   wins. Registration order is therefore precedence order.
+3. **Keep output keys distinct.** When two enrichers emit overlapping
+   YAML keys for the same ref, the snapshot writes both fragments; neither
+   wins, and a reader cannot rely on registration order as precedence.
 4. **Null means skip.** Return `null` when the element is not relevant
    (no matching widget type, no ancestor context, no data available).
    The dispatcher silently drops null returns.

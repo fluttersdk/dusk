@@ -8,7 +8,9 @@ a package both `wind_kit` and `tapir` depend on without depending on each other.
 ahead of the enricher loop, so no tapir-side install call is required for wind metadata to
 appear. The `wind:` block shows under the ref of every W-prefixed widget that has a `className`,
 in a snapshot taken with `includeEnrichers` on (`tapir:snap --includeEnrichers`, or the
-`includeEnrichers` flag of `tapir_snap` and `tapir_observe`).
+`includeEnrichers` flag of `tapir_snap` and `tapir_observe`). `tapir_observe` projects the block:
+its default and `"true"` modes return only `breakpoint` and `states`, and `className`, `brightness`,
+`platform` and the colours need `includeEnrichers: "full"`.
 
 - [Host integration](#host-integration)
 - [The core fields](#the-core-fields)

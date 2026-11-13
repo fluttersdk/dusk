@@ -106,8 +106,10 @@ dispatch path. Tapir uses two:
   (`tapir:hot_reload_and_snap`), `tapir_resize_viewport` (`tapir:resize`),
   `tapir_device_profile` (`tapir:device`), `tapir_perf_run` (`tapir:perf_run`),
   `tapir_perf_compare` (`tapir:perf_compare`), `tapir_perf_trace` (`tapir:perf_trace`) and
-  `tapir_run` (`tapir:run`). `tapir_hot_reload_and_snap` triggers `vm.reloadSources`
-  against the very isolate that would be servicing the call (deadlock), and
+  `tapir_run` (`tapir:run`). `tapir_hot_reload_and_snap` reloads the app and then reads it back, which
+  from inside the target isolate would deadlock. It reloads by writing `r` to the `flutter run`
+  stdin FIFO and tail-polling the log for the reload marker, so it needs a session started by
+  `dart run tapir start` (plain `flutter run` has no FIFO). And
   `tapir_resize_viewport` / `tapir_device_profile` drive Chrome DevTools Protocol on the
   host's Chromium subprocess. The substrate routes them through the CLI command instead so
   the orchestration runs outside the target isolate.

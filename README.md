@@ -32,7 +32,7 @@
 | Import | `package:tapir/tapir.dart` (`TapirPlugin.install()`, behind `if (!kReleaseMode)`) |
 | Entry points | `dart run tapir <command>`, `./bin/dowel <command>`, `TapirPlugin.install()`, `TapirPlugin.enrichers`, `TapirDowelProvider` (`package:tapir/cli.dart`), `dart run tapir mcp:serve` |
 | Platforms | Any Flutter target that exposes a VM Service in a debug or profile build: Android, iOS, web, macOS, Windows, Linux; viewport and device emulation need Chrome with a CDP port |
-| Requires | Dart 3.13, Flutter 3.47; a plugin of [`dowel`](https://pub.dev/packages/dowel) (`^0.0.21`) |
+| Requires | Dart 3.4, Flutter 3.22; a plugin of [`dowel`](https://pub.dev/packages/dowel) (`^0.0.21`) |
 | Dependencies | `dowel`, `image`, `meta`, `wind_kit_diagnostics_contracts`, `yaml`, the Flutter SDK |
 | License | MIT |
 
@@ -74,7 +74,7 @@ dart run tapir tapir:snap --interactiveOnly
 
 | Token | Minted by | Lifetime |
 |---|---|---|
-| `e<N>` | `tapir:snap` | Frozen to that snapshot; the next snap clears the registry. A ref whose element left the tree is relocated by label when the count still matches (`reresolved` on the response), otherwise it fails as `defunct` |
+| `e<N>` | `tapir:snap` | The same Semantics node keeps its token across snapshots, and a token outlives its widget. A ref whose element left the tree is relocated by label when the count still matches (`reresolved` on the response), otherwise it fails as `defunct` |
 | `q<N>` | `tapir:find`, `tapir:observe` | Re-resolved against the live tree on every action, like a Playwright Locator; survives rebuilds |
 
 Narrow a read with `--within=<eN>`, `--interactiveOnly` and `--grep=<regex>`; they compose. `--includeEnrichers` adds Wind state (the host calls `Wind.installDebugResolver()` from `wind_kit`, read through `wind_kit_diagnostics_contracts`) and Magic state (`MagicTapirIntegration.install()` from `magic_devtools`, after `Magic.init()`; see [Magic integration](https://anilcancakir.com/tapir/docs/plugins/magic-integration)). A ref line ending in `[offscreen]` or `[occluded]` names why an action would fail before you try it.
@@ -83,7 +83,7 @@ Narrow a read with `--within=<eN>`, `--interactiveOnly` and `--grep=<regex>`; th
 
 ```bash
 dart run tapir tapir:tap --ref=e2 --snapshot=diff
-dart run tapir tapir:fill --ref=e1 --text="ada@example.com"
+dart run tapir tapir:fill --ref=e1 --text="ada@example.com" --json
 ```
 
 Gestures (`tap`, `hover`, `drag`, `scroll`, `dblclick`, `right_click`, `triple_click`) and text verbs (`type`, `clear`, `fill`, `press_key`) dispatch real pointer and key events into the widget tree. `tap`, `hover`, `drag`, the click variants, `type`, `clear` and `fill` first pass the gate, in a fixed order, and a refusal names the reason an agent can branch on:
@@ -97,7 +97,7 @@ Gestures (`tap`, `hover`, `drag`, `scroll`, `dblclick`, `right_click`, `triple_c
 | Stable across two frames | `not stable` | Wait for the animation; `--no-checkStable` |
 | Receives events (hit test) | `obscured by` | Dismiss the overlay (`tapir:reset_overlays`); `--no-checkReceivesEvents` |
 
-A green tick is dispatch, not effect. Read the `effect` block: `effect.changed` for `tap` and `scroll`, `effect.verified` and `effect.value` for `type`, `fill` and `clear`. When the hit test could not answer (routine on a web debug build) the response carries a `checks` block with `receivesEvents: indeterminate` instead of a silent pass. `tapir:run "tap --ref=e5" "snap --grep Counter"` batches verbs into one round trip.
+A green tick is dispatch, not effect. Add `--json` to print the whole response and read the `effect` block: `effect.changed` for `tap` and `scroll`, `effect.verified` and `effect.value` for `type`, `fill` and `clear`. When the hit test could not answer (routine on a web debug build) the response carries a `checks` block with `receivesEvents: indeterminate` instead of a silent pass. `tapir:run "tap --ref=e5" "snap --grep Counter"` batches verbs into one round trip.
 
 ## Waiting and observing
 
@@ -185,7 +185,7 @@ The `tapir_*` tools ride on the `dowel` MCP server, so the client config key is 
 
 ## Dependencies
 
-`dowel` for the CLI, the MCP server and the VM Service connection; `wind_kit_diagnostics_contracts` to read Wind state without depending on Wind; `image` for screenshot encoding; `yaml` and `meta`. The rest is the Flutter SDK; tapir imports no Material library.
+`dowel` for the CLI, the MCP server and the VM Service connection; `wind_kit_diagnostics_contracts` to read Wind state without depending on Wind; `image` for screenshot encoding; `yaml` and `meta`. The rest is the Flutter SDK.
 
 ## Links
 

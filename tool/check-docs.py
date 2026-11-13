@@ -19,7 +19,7 @@ Surfaces checked:
    `<a name>` anchor or a heading slug in the target page.
 4. Explicit anchors are reachable from the page's own Table of Contents.
 5. Absolute raw-markdown docs URLs on the docs site map to a doc page that
-   exists.
+   exists, and any fragment they carry resolves on that page.
 
 The script is a port of wind_kit's `tool/check-docs.py` without the demo
 gallery checks (`<x-preview>` tags). A package copying it changes the
@@ -91,6 +91,10 @@ def blank_fences(text: str) -> str:
     for line in text.splitlines():
         match = FENCE.match(line)
         if opening is None:
+            # CommonMark forbids a backtick in a backtick fence's info string,
+            # so a line such as ```example``` is a code span, not an opener.
+            if match and match.group(1)[0] == '`' and '`' in match.group(2):
+                match = None
             if match:
                 opening = (match.group(1)[0], len(match.group(1)))
             lines.append('' if match else line)
@@ -318,15 +322,26 @@ def check_anchor_reachability(path: Path, body: str) -> list[Issue]:
     ]
 
 
-def check_site_urls(path: Path, body: str) -> list[Issue]:
-    """Resolve absolute raw-markdown docs URLs against the doc tree."""
+def check_site_urls(path: Path, body: str, fragments: dict[Path, set[str]]) -> list[Issue]:
+    """Resolve absolute docs URLs against the doc tree, fragment included."""
     issues: list[Issue] = []
 
     for number, line in enumerate(body.splitlines(), 1):
         for url in SITE_URL.findall(line):
-            target = site_url_to_doc(url.rstrip('.,);'))
-            if target is not None and not target.is_file():
+            url = url.rstrip('.,);')
+            target = site_url_to_doc(url)
+            if target is None:
+                continue
+
+            if not target.is_file():
                 issues.append(Issue(path, number, f'{url} has no source page ({target} is missing)'))
+                continue
+
+            fragment = unquote(urlsplit(url).fragment)
+            if target not in fragments:
+                fragments[target] = collect_fragments(target)
+            if fragment and fragment not in fragments[target]:
+                issues.append(Issue(path, number, f'fragment #{fragment} does not exist in {target}'))
 
     return issues
 
@@ -349,7 +364,7 @@ def main() -> int:
         if path not in fragments:
             fragments[path] = collect_fragments(path)
         issues += check_links(path, body, fragments)
-        issues += check_site_urls(path, body)
+        issues += check_site_urls(path, body, fragments)
 
     # 3. The doc-only surfaces: layout, title shape and anchor reachability.
     for path in doc_pages:

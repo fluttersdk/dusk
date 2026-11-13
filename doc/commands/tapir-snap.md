@@ -4,7 +4,7 @@ Capture the Semantics tree of the running Flutter app as YAML, tagging every int
 
 `tapir:snap` is the foundational read command: every action command (`tapir:tap`, `tapir:type`, `tapir:drag`, etc.) consumes one of its `eN` refs to locate the target widget.
 
-The `eN` namespace is snapshot-frozen: every fresh `tapir:snap` clears the registry and mints new tokens. For long-lived handles that survive rebuilds, use `tapir:find` (which mints `qN` tokens) or `tapir:observe`.
+The `eN` namespace belongs to snapshots: a snapshot reuses the token of a Semantics node it has seen before and mints new tokens for the rest, and a token outlives its widget (an `eN` whose element left the tree is relocated by label when the count still matches, otherwise it fails as `defunct`). For long-lived handles that survive rebuilds, use `tapir:find` (which mints `qN` tokens) or `tapir:observe`.
 
 An `eN` ref also recovers from a rebuild on its own, within limits. Each snapshot binds a label-and-index query, plus the number of nodes carrying that label, to every labelled ref. When the element behind the ref has left the tree, the action relocates the control by that query, but only if the live tree still has the same number of nodes with that label; the response then lists the ref under `reresolved` (for example `"reresolved": ["e5"]`). With a different count the ref fails as `defunct (element no longer mounted)` and you re-snap. The query has no role, so a node of another role with the same label in the same position could be matched.
 

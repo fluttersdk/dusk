@@ -93,7 +93,7 @@ claiming a plain success:
 
 `changed` is `true` when the target's route or its own semantics subtree differed after the tap, `false` when nothing observable changed. The signal is deliberately scoped to the TARGET rather than the whole tree, so unrelated background churn does not read as "something happened", and a counter button whose own label increments does.
 
-`changed: false` is the classic false success: a button the gate accepted, whose `onTap` never fired.
+`changed: false` means nothing changed within that measured scope (the target's own semantics subtree and the route). It is not proof that the handler did not fire: a handler that updates state elsewhere on the screen, or one that has no semantic effect, also reads `false`. Check the intended result with `tapir:snap` before retrying, because a tap is not safe to repeat blindly.
 
 **Stale `eN` refs.** When the widget behind an `eN` ref was rebuilt since the snapshot, the tap relocates it by the label and index the snapshot bound to the ref, provided the live tree has the same number of nodes with that label. The response then lists the ref: `"reresolved": ["e2"]`. With a different count the ref fails as `defunct (element no longer mounted)` and the agent re-snaps. The bound query has no role, so a node of another role with the same label in the same position could be matched.
 

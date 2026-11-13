@@ -141,9 +141,9 @@ ability:
 
 The enrichers populate the lines under each ref in the order
 they were registered. The dispatcher iterates `TapirPlugin.enrichers` in
-insertion order and concatenates non-null returns; if two enrichers ever
-emit the same key, the **first** insertion wins (per the
-`TapirSnapshotEnricher` first-write-wins contract).
+insertion order and writes every non-null fragment under the ref. Nothing
+deduplicates keys: if two enrichers emit the same key, the snapshot carries
+both lines, so keep enricher keys distinct.
 
 <a name="test-only-reset"></a>
 ## Test-only reset

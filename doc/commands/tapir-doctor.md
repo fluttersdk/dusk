@@ -54,7 +54,7 @@ Reads the session's `state.json`, locates the live Chrome PID via `captureChrome
 
 ### 2. TAPIR_DISABLE env-var
 
-Reads the compile-time `--dart-define=TAPIR_DISABLE=<value>` constant. Non-empty values WARN with the actual value echoed back so the operator can confirm where the kill switch came from (a stale `.env` export, a CI flag, etc.). Empty value passes with a `✓` row.
+Reads the compile-time `--dart-define=TAPIR_DISABLE=<value>` constant of the doctor process itself, not of the running app: the doctor is a separate Dart process, so a define passed to `flutter run` or `dart run tapir start` is invisible to it. The check therefore confirms the define only when it was also passed to the doctor (`dart run --define=TAPIR_DISABLE=<value> tapir doctor`). Non-empty values WARN with the actual value echoed back. Empty value passes with a `✓` row, which says nothing about how the app was built.
 
 ### 3. Enricher list non-empty
 

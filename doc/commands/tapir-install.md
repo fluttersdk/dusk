@@ -14,7 +14,12 @@ flutter pub add tapir
 dart run tapir tapir:install
 ```
 
-After the second command, `./bin/dowel list` surfaces every `tapir:*` command and `./bin/dowel mcp:serve` exposes every `tapir_*` MCP tool.
+When Phase 2 succeeded, `./bin/dowel list` surfaces every `tapir:*` command and `./bin/dowel mcp:serve` exposes every `tapir_*` MCP tool. A Phase 2 subprocess that fails does not change the exit code: the installer still exits `0`, prints a warning, and leaves the dispatcher or the plugin registration missing, so check that `bin/dispatcher.dart` exists and `./bin/dowel list` shows the `tapir:*` commands. To retry, run the commands the warning names:
+
+```bash
+dart run tapir install
+dart run tapir plugin:install tapir
+```
 
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
@@ -53,7 +58,7 @@ dart run tapir tapir:install
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | Success. `lib/main.dart` was either updated with the required snippets or already contained them. The command prints a `tapir:install complete` success line. |
+| `0` | Success. `lib/main.dart` was either updated with the required snippets or already contained them. The command prints a `tapir:install complete` success line, including when a Phase 2 subprocess failed (that case prints a warning above it). |
 | `1` | `lib/main.dart` not found at the resolved path. The command prints an error advising the operator to run `tapir:install` from a Flutter project root. |
 
 No structured payload is emitted. Status flows through `DowelOutput.info` / `success` / `error` so it surfaces with the same `ℹ` / `✓` / `✗` symbols as every other dowel command.

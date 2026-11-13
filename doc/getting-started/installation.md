@@ -192,7 +192,7 @@ release build tree-shakes tapir, so no `ext.tapir.*` extension registers). Stop 
 | `MagicTapirIntegration.install()` runs before `Magic.init(...)`. | Call it after `Magic.init(...)`: it queries `Magic.find<X>()`, which only resolves once the container is ready. `tapir:install` places it correctly. |
 | The app was started with a plain `flutter run`, and `tapir:snap` finds no app. | Start it with `dart run tapir start`, which records the session the `tapir:*` commands dial. |
 | `./bin/dowel` is missing after `tapir:install`. | Phase 2 was skipped with a warning. Run `dart run tapir install` and `dart run tapir plugin:install tapir`; `dart run tapir <cmd>` works meanwhile. |
-| The snapshot has no `wind:` block. | Call `Wind.installDebugResolver()` inside the same `!kReleaseMode` block; `tapir:install` does not add it. |
+| The snapshot has no `wind:` block. | Call `Wind.installDebugResolver()` inside the same `!kReleaseMode` block (`tapir:install` does not add it), then snap with `dart run tapir tapir:snap --includeEnrichers`: enrichers are off by default, so a plain snapshot never carries the block. |
 | `.mcp.json` points at the wrong launcher. | Re-run `dart run tapir mcp:install` rather than editing the file; it picks `./bin/dowel mcp:serve` or `dart run tapir mcp:serve` from the scaffold state. |
 
 <a name="related-documentation"></a>

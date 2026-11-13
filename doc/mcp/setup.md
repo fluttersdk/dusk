@@ -167,11 +167,15 @@ starts without requiring the session file. Every `tapir_*` tool call returns an
 actionable error (`No Flutter app detected`) until you run `dart run tapir start`. Once the
 session file exists the next tool call lazy-reconnects.
 
-**`tapir_*` tools missing from the catalogue.** The provider is not registered. Verify by
-running `dart run tapir list` and confirming the `tapir:*` command block. If
-the block is empty, run `dart run tapir plugin:install tapir`, or
-`dart run tapir plugins:refresh` to regenerate the `lib/app/_plugins.g.dart`
-auto-discovery barrel.
+**`tapir_*` tools missing from the catalogue.** The provider is not registered with the
+executable `.mcp.json` starts. Check that executable, not the wrapper: when `.mcp.json`
+starts `./bin/dowel`, run `./bin/dowel list`, because `dart run tapir list` registers
+`TapirDowelProvider` itself and shows the `tapir:*` block even when the scaffolded
+`./bin/dowel` lacks the provider (for example after a failed Phase 2 of `tapir:install`).
+When the block is missing, run `dart run tapir plugin:install tapir`, then
+`./bin/dowel list` again. `dart run tapir plugins:refresh` regenerates the
+`lib/app/_plugins.g.dart` auto-discovery barrel. When `.mcp.json` starts
+`dart run tapir mcp:serve`, `dart run tapir list` is the right check.
 
 **Lazy-reconnect on first `tools/call` is slow (~1s).** Expected; the substrate opens a
 WebSocket to the VM Service URI on demand. Subsequent calls reuse the cached connection.

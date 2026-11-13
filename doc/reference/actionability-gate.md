@@ -99,6 +99,13 @@ reuses the same `_liveRectOf(entry.element)` helper the stable check (step 4)
 measures, guarded by the `renderObject.attached` precondition Flutter's
 `localToGlobal` asserts.
 
+One exception: `tap` can retarget a merged semantics boundary. When exactly one
+labelled control owns the merged label and a hit test at its centre reaches it,
+the pointer goes to that control instead of the live centre (the response carries
+`retargeted`). It is the default; `retarget: false` (`--no-retarget` on the CLI)
+taps the live centre. `hover`, `dblclick`, `right_click`, `triple_click` and `drag`
+always use the live centre. See [tapir:tap](../commands/tapir-tap.md).
+
 This is purely additive to the FROZEN gate: it runs after the gate passes and
 before dispatch, so it touches neither the evaluation order nor any
 failure-reason substring. It fixes the false-success class where a host rebuilt
@@ -221,15 +228,18 @@ are deliberate and listed here so contributors do not add the gate "for symmetry
 
 The gated actions share a common error shape. `TapirActionabilityException`
 is caught by the VM-Service handler and re-emitted via
-`ServiceExtensionResponse.error(extensionError, exception.message)`. The wire
-error is the flat message string; consuming agents (Claude Code, Cursor,
-Windsurf via the MCP tool surface) branch on the reason substring.
+`ServiceExtensionResponse.error(extensionError, wrapErrorDetail(...))`. The wire
+error detail is a JSON string with a `message` field (the flat message, reason
+included) and an `envelope` field (a machine-readable `type`, `widget_path` and
+`suggestions`). Substring matching on the reason still works because the reason
+sits verbatim inside `message`; consuming agents (Claude Code, Cursor,
+Windsurf via the MCP tool surface) branch on it.
 
 The contract guarantee is:
 
 - The reason substrings are frozen and listed above.
 - The evaluation order is frozen so substring branching stays deterministic.
-- The exception is always typed; the wire format is always the flat string.
+- The exception is always typed; the wire format is always the JSON string described above.
 - Agents re-snap or re-find on failure. The gate never silently retries; the
   cost of a silent retry on an animating or obscured widget is a flaky test
   the agent cannot diagnose.
