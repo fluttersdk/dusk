@@ -85,3 +85,15 @@ migrate_working_dir/
 .mcp.json
 CLAUDE.md
 CLAUDE.local.md
+.worktreeinclude
+# Local sibling-package path wiring (dev only); gitignored, so it has to be
+# repeated here for the same reason as every other entry in this file.
+pubspec_overrides.yaml
+
+# ---------------------------------------------------------------------------
+# Repository tooling, not package content. doc/, llms.txt and example/lib stay
+# in the archive; the agent skill reaches users through the skill registry.
+# ---------------------------------------------------------------------------
+skills/
+tool/
+.github/

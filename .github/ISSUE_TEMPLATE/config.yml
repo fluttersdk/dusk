@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Question / Discussion
-    url: https://github.com/anilcancakir/tapir/discussions
-    about: Ask questions and discuss tapir with the community
-  - name: Documentation
-    url: https://anilcancakir.com/tapir
-    about: Browse the canonical documentation site
+  - name: Report a security vulnerability
+    url: https://github.com/anilcancakir/tapir/security/advisories/new
+    about: Private vulnerability reporting. Do not open a public issue for a security problem.
+  - name: API reference
+    url: https://pub.dev/documentation/tapir/latest/
+    about: Classes, commands and extensions, generated from the source.

@@ -6,16 +6,21 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  contents: read
+
 jobs:
   analyze-and-test:
     name: Lint & Test
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           cache: true
@@ -23,15 +28,18 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib/ test/ bin/
-
       - name: Analyze code
-        run: dart analyze lib/ test/ bin/
+        run: flutter analyze --no-fatal-infos
 
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      # The integration tests need Chrome and run by hand (CLAUDE.md, Commands).
       - name: Run tests with coverage
         run: flutter test --coverage --exclude-tags=integration --timeout=30s
 
+      # codecov.yml and CLAUDE.md name the same 80% floor; the build fails here
+      # rather than waiting for Codecov to judge the upload.
       - name: Enforce 80% line coverage floor
         run: |
           lcov_path="coverage/lcov.info"
@@ -44,10 +52,7 @@ jobs:
           awk -v p="$pct" 'BEGIN{ if (p+0 < 80.0) { print "FAIL: coverage below 80% floor"; exit 1 } else { print "PASS: coverage at or above 80% floor" } }'
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: coverage/lcov.info
           fail_ci_if_error: false
-
-      - name: Validate publish archive
-        run: dart pub publish --dry-run

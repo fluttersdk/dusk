@@ -1,0 +1,21 @@
+# URL patterns lychee skips when checking links in doc/, llms.txt and *.md.
+# Every line is a REGULAR EXPRESSION, not a glob.
+#
+# Add a host here only when it is auth-walled, rate-limited, or a placeholder in
+# a code sample. Real rot belongs in the report, not in this file.
+
+# GitHub auth wall: the login redirect answers with a 404 to an unauthenticated
+# CI runner.
+^https://github\.com/login
+
+# A private vulnerability report needs a signed-in session.
+^https://github\.com/anilcancakir/tapir/security/advisories/new
+
+# The package landing is published with the docs site; until then it answers 404.
+# Added 2026-11-14: remove this line once the docs site serves /tapir.
+^https://anilcancakir\.com/tapir(?:[/?#]|$)
+
+# Placeholder hosts inside example code.
+^https?://([a-z0-9-]+\.)*example\.com
+^https?://localhost
+^https?://127\.0\.0\.1

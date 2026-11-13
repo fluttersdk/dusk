@@ -4,17 +4,53 @@ on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+*'
-  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
+    outputs:
+      notes: ${{ steps.notes.outputs.body }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # pub.dev trusts every tag that matches the pattern, so a tag pushed from
+      # an unmerged branch would publish code that skipped the pull request and
+      # its checks. Release from the merge commit on master.
+      - name: Require the tag to sit on master
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "::error::Tag $GITHUB_REF_NAME is not on master; tag the merge commit." >&2
+            exit 1
+          fi
+
+      # The tag, pubspec.yaml and the MCP registry manifest must name one
+      # version, or pub.dev and the registry would each carry a different one.
+      # The MCP handshake string is checked by a unit test. The skill keeps its
+      # own version, independent of the package (REPO_SPEC section 3).
+      - name: Check version stamps
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          pubspec="$(awk '/^version:/ { print $2 }' pubspec.yaml)"
+          manifest="$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' server.json | head -n 1)"
+          if [ "$TAG" != "$pubspec" ] || [ "$TAG" != "$manifest" ]; then
+            echo "::error::Version mismatch: tag $TAG, pubspec.yaml $pubspec, server.json $manifest." >&2
+            exit 1
+          fi
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           cache: true
@@ -22,59 +58,87 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib/ test/ bin/
-
       - name: Analyze code
-        run: dart analyze lib/ test/ bin/
+        run: flutter analyze --no-fatal-infos
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
 
       - name: Run tests
-        run: flutter test --exclude-tags=integration
+        run: flutter test --exclude-tags=integration --timeout=30s
 
       - name: Validate publish archive
-        run: dart pub publish --dry-run
+        run: flutter pub publish --dry-run
+
+      # pub.dev scores 160 points and a release that loses any of them stops
+      # here, before the irreversible publish. A repository URL that does not
+      # match the default branch's pubspec.yaml costs the 10 points of "valid
+      # pubspec"; an unreachable homepage only warns.
+      - name: Require full pub.dev points (pana)
+        run: |
+          dart pub global activate pana 0.23.13
+          dart pub global run pana --no-warning --exit-code-threshold 0 .
+
+      # Runs before the irreversible publish: a tag without a `## [<version>]`
+      # section in CHANGELOG.md stops here instead of shipping a version with
+      # no GitHub Release.
+      - name: Extract changelog section
+        id: notes
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          notes="$(awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { flag = 1; next }
+            flag && /^## / { exit }
+            flag { print }
+          ' CHANGELOG.md)"
+          if [ -z "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
+            echo "::error::No CHANGELOG.md section found for $VERSION; refusing to publish a version without release notes." >&2
+            exit 1
+          fi
+          {
+            echo 'body<<CHANGELOG_EOF'
+            printf '%s\n' "$notes"
+            echo 'CHANGELOG_EOF'
+          } >> "$GITHUB_OUTPUT"
 
   publish:
     needs: validate
     permissions:
       id-token: write # Required for authentication using OIDC
-    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
 
   github-release:
-    name: Create GitHub Release
-    needs: publish
+    name: GitHub Release
+    needs: [validate, publish]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # Required to create the GitHub Release
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Extract release notes from CHANGELOG
-        id: extract
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/}"
-          awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md > /tmp/release-notes.md
-          if [ ! -s /tmp/release-notes.md ]; then
-            echo "No CHANGELOG section found for [$VERSION]; falling back to a stub." >&2
-            echo "Release $VERSION. See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/master/CHANGELOG.md) for details." > /tmp/release-notes.md
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          name: ${{ steps.extract.outputs.version }}
-          body_path: /tmp/release-notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+          NOTES: ${{ needs.validate.outputs.notes }}
+        run: |
+          case "$VERSION" in
+            *-*) FLAG="--prerelease" ;;
+            *) FLAG="--latest" ;;
+          esac
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --notes "$NOTES" \
+            --verify-tag \
+            "$FLAG"
 
-  # Called here rather than triggered by `release: [published]`, which is what
-  # dispatch-to-registry.yml used to declare. The release above is created by
-  # softprops/action-gh-release under the default GITHUB_TOKEN, and GitHub does
-  # not start workflow runs from events raised by that token, so that trigger
-  # could never fire. Sequencing it after github-release also keeps the registry
-  # version tracking releases pub.dev has actually accepted.
+  # Mirrors skills/tapir/ into the skill registry (anilcancakir/ai) after a
+  # stable release. Pre-releases are not mirrored. It runs only after the GitHub
+  # Release job, so the registry never gets a skill whose release failed.
   registry:
     name: Sync skill to registry
     needs: github-release
+    if: ${{ !contains(github.ref_name, '-') }}
     uses: ./.github/workflows/dispatch-to-registry.yml
     secrets:
       REGISTRY_BOT_APP_ID: ${{ secrets.REGISTRY_BOT_APP_ID }}
