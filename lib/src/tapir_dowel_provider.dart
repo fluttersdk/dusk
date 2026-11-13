@@ -95,36 +95,28 @@ const Map<String, dynamic> _kCheckReceivesEventsProperty = <String, dynamic>{
 /// };
 /// ```
 ///
-/// Alpha-2 ships 11 CLI commands (snap / tap / screenshot from alpha-1 +
-/// install + type / scroll / wait / hover / drag / modal added in Wave 2 +
-/// doctor added in Wave 4b Step 21).
-///
-/// MCP tools: 17 descriptors. The original 6 from alpha-1 (snap / tap /
-/// screenshot / hover / drag / type) are preserved verbatim; the 10 new
-/// descriptors (scroll / wait_for / dismiss_modals / navigate /
-/// navigate_back / get_routes / press_key / select_option / evaluate /
-/// close_app) come from Wave 2's handler steps; tapir_find (Step 16) adds
-/// the Playwright-Locator-style query-handle resolver as the 17th.
+/// The `tapir:*` commands and `tapir_*` MCP tool descriptors it registers are
+/// asserted in `test/tapir_dowel_provider_mcp_tools_test.dart`.
 class TapirDowelProvider extends DowelServiceProvider {
   @override
   String get providerName => 'tapir';
 
   @override
   List<DowelCommand> commands() => <DowelCommand>[
-    // Alpha-1.
+    // Snapshot, tap, screenshot.
     TapirSnapCommand(),
     TapirTapCommand(),
     TapirScreenshotCommand(),
-    // Alpha-2 Step 11.
+    // Installer.
     TapirInstallCommand(),
-    // Alpha-2 Step 12 (six standard verbs).
+    // Type, scroll, wait, hover, drag, modal.
     TapirTypeCommand(),
     TapirScrollCommand(),
     TapirWaitCommand(),
     TapirHoverCommand(),
     TapirDragCommand(),
     TapirModalCommand(),
-    // Alpha-2 Step 21.
+    // Diagnostics.
     TapirDoctorCommand(),
     // CLI symmetry pass: every E2E-driver MCP tool has a matching
     // CLI command so the two surfaces expose identical capabilities.

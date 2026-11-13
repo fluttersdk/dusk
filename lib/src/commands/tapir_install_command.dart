@@ -140,7 +140,7 @@ class TapirInstallCommand extends DowelCommand {
       }
     }
 
-    // 2b. Register tapir as a dowel plugin so its 32 commands surface
+    // 2b. Register tapir as a dowel plugin so its commands surface
     //     through ./bin/dowel <cmd> + the MCP server. Skip when the
     //     `.dowel/installed/tapir.json` marker is already
     //     present (dowel's own idempotency record).

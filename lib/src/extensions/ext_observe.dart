@@ -400,7 +400,7 @@ void _mergeEnricherFields(
   // Wind registers a WindDebugResolver at app boot (Wind.installDebugResolver);
   // observe reads it here without ever importing wind types. Mirrors the
   // additive walk in ext_snapshot.dart so the `wind:` block survives in
-  // observe output after alpha-10's enricher removal.
+  // observe output without any enricher registration.
   final WindDebugResolver? resolver = WindDebugRegistry.current;
   if (resolver != null) {
     final Map<String, Object?> windData = resolver.resolve(element);

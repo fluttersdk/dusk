@@ -10,7 +10,7 @@ import 'package:tapir/src/tapir_plugin.dart';
 import 'package:tapir/src/extensions/ext_navigation.dart';
 import 'package:tapir/src/extensions/ext_snapshot.dart';
 
-/// Tests for the navigation extensions (Step 6 of tapir-alpha-2 plan).
+/// Tests for the navigation extensions.
 ///
 /// Covers:
 /// 1. `extTapirNavigateHandler` — route param validation + success envelope.

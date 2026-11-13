@@ -12,8 +12,8 @@ import 'package:wind_kit_diagnostics_contracts/wind_kit_diagnostics_contracts.da
 import '../../_support/merged_stage.dart';
 
 /// Fake resolver that emits the 6 core wind fields for any Element.
-/// Used to assert the new `WindDebugRegistry` walk in `_mergeEnricherFields`
-/// (wind alpha-10 replaces the enricher-list contribution).
+/// Used to assert the `WindDebugRegistry` walk in `_mergeEnricherFields`
+/// (wind contributes through the registry, not the enricher list).
 class _FakeWindResolver implements WindDebugResolver {
   @override
   Map<String, Object?> resolve(Element element) {

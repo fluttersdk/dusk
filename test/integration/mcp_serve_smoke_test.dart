@@ -214,12 +214,11 @@ dependency_overrides:
           'Got: $tapirToolNames',
     );
 
-    // 6. Verify a sample of canonical alpha-1 tool names are present.
+    // 6. Verify a sample of the original tool names are present.
     expect(
       tapirToolNames,
       containsAll(<String>['tapir_snap', 'tapir_tap', 'tapir_screenshot']),
-      reason:
-          'Alpha-1 canonical tool names must be present in the tapir_* slice.',
+      reason: 'The original tool names must be present in the tapir_* slice.',
     );
   }, timeout: const Timeout(Duration(seconds: 30)));
 }

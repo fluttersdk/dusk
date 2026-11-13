@@ -23,28 +23,25 @@ void main() {
       expect(run.boot, CommandBoot.connected);
     });
 
-    test('contains every alpha-2 ship command (3 alpha-1 + install + 6 verbs + '
-        'doctor + 7 CLI/MCP-symmetry pass + Step 3.4 network-idle waiter + '
-        'Step 3.5 console + exceptions + dblclick + set_checkbox + Step 4.1 '
-        'observe + Step 4.2 hot_reload_and_snap)', () {
+    test('contains every shipped command', () {
       final names = cmds.map((c) => c.runtimeType.toString()).toSet();
       expect(
         names,
         containsAll(<String>[
-          // Alpha-1.
+          // Snapshot, tap, screenshot.
           'TapirSnapCommand',
           'TapirTapCommand',
           'TapirScreenshotCommand',
-          // Alpha-2 Step 11.
+          // Installer.
           'TapirInstallCommand',
-          // Alpha-2 Step 12.
+          // Type, scroll, wait, hover, drag, modal.
           'TapirTypeCommand',
           'TapirScrollCommand',
           'TapirWaitCommand',
           'TapirHoverCommand',
           'TapirDragCommand',
           'TapirModalCommand',
-          // Alpha-2 Step 21.
+          // Diagnostics.
           'TapirDoctorCommand',
           // CLI/MCP symmetry pass.
           'TapirNavigateCommand',

@@ -7,8 +7,8 @@
 /// Every `frames` argument is `List<Map<String, Object?>>` shaped like
 /// `FramePerfRecord.toJson()` (crumbs repo): `frameNumber`, `buildMicros`,
 /// `rasterMicros`, `blocks` (`{name: {micros, selfMicros, count}}`), `atUs`.
-/// tapir cannot import crumbs's record type (frozen contract #10), so the
-/// input is the plain map shape rather than the typed record, and every read
+/// crumbs is not a tapir dependency, so its record type cannot be imported;
+/// the input is the plain map shape rather than the typed record, and every read
 /// tolerates a missing or mistyped key: the maps are built in another
 /// repository, so a renamed key does not fail to compile, and one malformed
 /// row must cost that row rather than the whole report.

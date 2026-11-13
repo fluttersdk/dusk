@@ -4,12 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/register_tapir_extensions.dart';
 
-/// Asserts that `registerAllTapirExtensions()` wires the three alpha-2
-/// aggregator entries added in Wave 2 (Steps 6 / 9 / 10) — navigation,
-/// evaluate, close_app — alongside the alpha-1 entries. Steps 7 (press_key)
-/// and 8 (select_option) register inside the pre-existing
+/// Asserts that `registerAllTapirExtensions()` wires the navigation,
+/// evaluate and close_app aggregator entries alongside the older ones.
+/// press_key and select_option register inside
 /// `registerTextInputExtensions()` / `registerScrollExtensions()` so they do
-/// NOT surface as new aggregator calls.
+/// NOT surface as separate aggregator calls.
 ///
 /// Implemented as a grep-the-source test because the alternative (symbol
 /// resolution) would re-register the VM Service extensions inside the test
@@ -99,7 +98,7 @@ void main() {
       },
     );
 
-    test('preserves the pre-existing alpha-1 aggregator calls', () {
+    test('preserves the pre-existing aggregator calls', () {
       expect(source, contains('registerSnapExtension();'));
       expect(source, contains('registerPointerExtensions();'));
       expect(source, contains('registerTextInputExtensions();'));

@@ -15,9 +15,8 @@ import 'package:tapir/src/tapir_dowel_provider.dart';
 /// Proxies the full dowel command surface (start / stop / status / doctor /
 /// logs / restart / reload / hot-restart / tinker / make:* / mcp:* /
 /// plugin:* / consumer:scaffold / etc.) AND registers
-/// [TapirDowelProvider] so the 3 tapir CLI commands
-/// (`tapir:snap`, `tapir:tap`, `tapir:screenshot`) plus the 6
-/// `tapir_*` MCP tools surface in the same `list` output.
+/// [TapirDowelProvider] so the `tapir:*` CLI commands
+/// and the `tapir_*` MCP tools surface in the same `list` output.
 ///
 /// When forwarding `mcp:install`, [injectInvocationForMcpInstall] appends
 /// `--invocation=tapir` so the substrate writes the correct
