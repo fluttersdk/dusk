@@ -1,10 +1,10 @@
 # Commands
 
-Catalog of every user-facing command shipped by `fluttersdk_dusk`. Forty-two commands, grouped by intent.
+Catalog of every user-facing command shipped by `tapir`. Forty-two commands, grouped by intent.
 
-Every command is invoked as `dart run fluttersdk_dusk <name>` (Flutter-free wrapper at `bin/fluttersdk_dusk.dart`), or via the consumer-side artisan dispatcher (`./bin/fsa <name>` / `dart run artisan <name>`) once the project has run `dusk:install`. Commands are auto-discovered through `DuskArtisanProvider`; nothing wires by hand.
+Every command is invoked as `dart run tapir <name>` (Flutter-free wrapper at `bin/tapir.dart`), or via the consumer-side dowel dispatcher (`./bin/dowel <name>` / `dart run dowel <name>`) once the project has run `tapir:install`. Commands are auto-discovered through `TapirDowelProvider`; nothing wires by hand.
 
-Need a quick reminder of what a command does without leaving the terminal? Run `dart run artisan list` for the full registry grouped by namespace, or `dart run artisan help <name>` for the per-command flag surface. This page exists for the deeper view: the boot mode, the backing VM Service extension, and the grouping rationale.
+Need a quick reminder of what a command does without leaving the terminal? Run `dart run dowel list` for the full registry grouped by namespace, or `dart run dowel help <name>` for the per-command flag surface. This page exists for the deeper view: the boot mode, the backing VM Service extension, and the grouping rationale.
 
 ## Table of contents
 
@@ -28,21 +28,21 @@ Need a quick reminder of what a command does without leaving the terminal? Run `
 
 Each group section ships a single table with four columns:
 
-- **Command** is the canonical name you type after `dart run fluttersdk_dusk` (or via the artisan dispatcher).
-- **Description** is the one-line summary returned by the command's `description` getter; the same string surfaces in `dart run artisan list`.
-- **Boot Mode** is the `CommandBoot` value the dispatcher reads before invoking `handle()`. `none` means pure CLI: no VM Service connection. `connected` means the command dials `~/.artisan/state.json` and fails fast if no app is running.
-- **VM Extension** is the `ext.dusk.*` method the command calls over the VM Service. `none` for commands that operate purely on the consumer filesystem.
+- **Command** is the canonical name you type after `dart run tapir` (or via the dowel dispatcher).
+- **Description** is the one-line summary returned by the command's `description` getter; the same string surfaces in `dart run dowel list`.
+- **Boot Mode** is the `CommandBoot` value the dispatcher reads before invoking `handle()`. `none` means pure CLI: no VM Service connection. `connected` means the command dials `~/.dowel/state.json` and fails fast if no app is running.
+- **VM Extension** is the `ext.tapir.*` method the command calls over the VM Service. `none` for commands that operate purely on the consumer filesystem.
 
-Deep-dive pages exist for the seventeen commands whose flag surface, return shape, or composition rules outgrow a single table row. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.
+Deep-dive pages exist for the seventeen commands whose flag surface, return shape, or composition rules outgrow a single table row. The remaining twenty-five commands share this index page; reach for `dart run dowel help <name>` for their full flag surface.
 
 ## Snapshot and screenshot
 
-The two foundational read commands. `dusk:snap` walks the Semantics tree and emits YAML with `[ref=eN]` tokens that every subsequent action command consumes. `dusk:screenshot` captures the rendered pixel buffer over Chrome DevTools Protocol (web) or `RepaintBoundary.toImage` (desktop, mobile).
+The two foundational read commands. `tapir:snap` walks the Semantics tree and emits YAML with `[ref=eN]` tokens that every subsequent action command consumes. `tapir:screenshot` captures the rendered pixel buffer over Chrome DevTools Protocol (web) or `RepaintBoundary.toImage` (desktop, mobile).
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:snap`](dusk-snap.md) | Capture Semantics tree YAML of the running Flutter app with [ref=eN] tokens. | connected | ext.dusk.snap |
-| [`dusk:screenshot`](dusk-screenshot.md) | Capture a screenshot of the running Flutter app to a file. | connected | ext.dusk.screenshot |
+| [`tapir:snap`](tapir-snap.md) | Capture Semantics tree YAML of the running Flutter app with [ref=eN] tokens. | connected | ext.tapir.snap |
+| [`tapir:screenshot`](tapir-screenshot.md) | Capture a screenshot of the running Flutter app to a file. | connected | ext.tapir.screenshot |
 
 ## Gestures
 
@@ -50,38 +50,38 @@ Pointer-driven actions that synthesise touch, mouse, or pen events at a widget l
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:tap`](dusk-tap.md) | Tap a widget by ref token (from prior dusk:snap). | connected | ext.dusk.tap |
-| `dusk:hover` | Hover the pointer over a widget by ref token (from prior dusk:snap). | connected | ext.dusk.hover |
-| `dusk:drag` | Drag from one widget to another using ref tokens from a prior dusk:snap. | connected | ext.dusk.drag |
-| `dusk:scroll` | Scroll inside a scrollable widget by ref token from a prior dusk:snap. | connected | ext.dusk.scroll |
+| [`tapir:tap`](tapir-tap.md) | Tap a widget by ref token (from prior tapir:snap). | connected | ext.tapir.tap |
+| `tapir:hover` | Hover the pointer over a widget by ref token (from prior tapir:snap). | connected | ext.tapir.hover |
+| `tapir:drag` | Drag from one widget to another using ref tokens from a prior tapir:snap. | connected | ext.tapir.drag |
+| `tapir:scroll` | Scroll inside a scrollable widget by ref token from a prior tapir:snap. | connected | ext.tapir.scroll |
 
 ## Inputs
 
-Keyboard-shaped actions. `dusk:type` emits a character sequence; `dusk:press_key` synthesises a single hardware-key event; `dusk:clear` empties the focused text field; `dusk:select_option` drives `DropdownButton` / `PopupMenuButton`; `dusk:set_checkbox` drives `Checkbox` / `Switch`.
+Keyboard-shaped actions. `tapir:type` emits a character sequence; `tapir:press_key` synthesises a single hardware-key event; `tapir:clear` empties the focused text field; `tapir:select_option` drives `DropdownButton` / `PopupMenuButton`; `tapir:set_checkbox` drives `Checkbox` / `Switch`.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `dusk:type` | Type text into a focused widget by ref token. | connected | ext.dusk.type |
-| [`dusk:fill`](dusk-fill.md) | Focus, clear, type, and settle a text field by ref in one call (retries once on a stale handle). | connected | ext.dusk.fill |
-| `dusk:press_key` | Synthesise a hardware-key event on the currently focused widget. | connected | ext.dusk.press_key |
-| `dusk:clear` | Empty the text content of the focused widget by ref. | connected | ext.dusk.clear |
-| `dusk:select_option` | Select an option in a DropdownButton or PopupMenuButton by ref token. | connected | ext.dusk.select_option |
-| `dusk:set_checkbox` | Set the checked state of a Checkbox or Switch widget by ref. | connected | ext.dusk.set_checkbox |
-| `dusk:wait` | Wait for a text, text-gone, or expression condition in the running app. | connected | ext.dusk.wait_for |
-| `dusk:wait_for_network_idle` | Wait until the running app reports zero in-flight HTTP requests for a contiguous idleMs window. | connected | ext.dusk.wait_for_network_idle |
+| `tapir:type` | Type text into a focused widget by ref token. | connected | ext.tapir.type |
+| [`tapir:fill`](tapir-fill.md) | Focus, clear, type, and settle a text field by ref in one call (retries once on a stale handle). | connected | ext.tapir.fill |
+| `tapir:press_key` | Synthesise a hardware-key event on the currently focused widget. | connected | ext.tapir.press_key |
+| `tapir:clear` | Empty the text content of the focused widget by ref. | connected | ext.tapir.clear |
+| `tapir:select_option` | Select an option in a DropdownButton or PopupMenuButton by ref token. | connected | ext.tapir.select_option |
+| `tapir:set_checkbox` | Set the checked state of a Checkbox or Switch widget by ref. | connected | ext.tapir.set_checkbox |
+| `tapir:wait` | Wait for a text, text-gone, or expression condition in the running app. | connected | ext.tapir.wait_for |
+| `tapir:wait_for_network_idle` | Wait until the running app reports zero in-flight HTTP requests for a contiguous idleMs window. | connected | ext.tapir.wait_for_network_idle |
 
 ## Navigation
 
-Route-table manipulation against the active `Navigator`. `dusk:modal` dismisses any open modal, sheet, or dialog. `dusk:close_app` ends the session via `SystemNavigator.pop()`.
+Route-table manipulation against the active `Navigator`. `tapir:modal` dismisses any open modal, sheet, or dialog. `tapir:close_app` ends the session via `SystemNavigator.pop()`.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `dusk:navigate` | Navigate the running app to a named route via the active Navigator. | connected | ext.dusk.navigate |
-| `dusk:navigate_back` | Pop the topmost route off the active Navigator (mirrors browser back). | connected | ext.dusk.navigate_back |
-| `dusk:get_routes` | Print the mounted Router's location (`uri`), the top page name and a title hint as JSON. | connected | ext.dusk.get_routes |
-| `dusk:modal` | Dismiss all open modals, bottom sheets, and dialogs in the running app. | connected | ext.dusk.dismiss_modals |
-| [`dusk:reset_overlays`](dusk-reset-overlays.md) | Reset to a clean screen: dismiss modals + Escape + Cancel-tap fallback (idempotent). | connected | ext.dusk.reset_overlays |
-| `dusk:close_app` | Gracefully close the running app via SystemNavigator.pop(). | connected | ext.dusk.close_app |
+| `tapir:navigate` | Navigate the running app to a named route via the active Navigator. | connected | ext.tapir.navigate |
+| `tapir:navigate_back` | Pop the topmost route off the active Navigator (mirrors browser back). | connected | ext.tapir.navigate_back |
+| `tapir:get_routes` | Print the mounted Router's location (`uri`), the top page name and a title hint as JSON. | connected | ext.tapir.get_routes |
+| `tapir:modal` | Dismiss all open modals, bottom sheets, and dialogs in the running app. | connected | ext.tapir.dismiss_modals |
+| [`tapir:reset_overlays`](tapir-reset-overlays.md) | Reset to a clean screen: dismiss modals + Escape + Cancel-tap fallback (idempotent). | connected | ext.tapir.reset_overlays |
+| `tapir:close_app` | Gracefully close the running app via SystemNavigator.pop(). | connected | ext.tapir.close_app |
 
 ## Find
 
@@ -89,7 +89,7 @@ The Playwright Locator surface: mint a re-resolvable `q<N>` handle backed by tex
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:find`](dusk-find.md) | Mint a re-resolvable q-handle by text / semanticsLabel / key (Playwright Locator pattern). | connected | ext.dusk.find |
+| [`tapir:find`](tapir-find.md) | Mint a re-resolvable q-handle by text / semanticsLabel / key (Playwright Locator pattern). | connected | ext.tapir.find |
 
 ## Diagnostics
 
@@ -97,15 +97,15 @@ Pure-CLI checks that verify the consumer wiring and the running session health. 
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:doctor`](dusk-doctor.md) | Verify dusk plugin runtime + consumer wiring health | none | none |
+| [`tapir:doctor`](tapir-doctor.md) | Verify tapir plugin runtime + consumer wiring health | none | none |
 
 ## Install
 
-The one-shot bootstrap. Injects three lines into the consumer's `lib/main.dart` and is otherwise idempotent. No `bin/artisan.dart` scaffold; `fluttersdk_dusk` ships its own Flutter-free CLI entry point.
+The one-shot bootstrap. Injects three lines into the consumer's `lib/main.dart` and is otherwise idempotent. No `bin/dowel.dart` scaffold; `tapir` ships its own Flutter-free CLI entry point.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:install`](dusk-install.md) | Wire DuskPlugin.install() into lib/main.dart AND chain artisan install + plugin:install so ./bin/fsa surfaces all 42 dusk:* commands (idempotent on re-run; Phase 2 chain is best-effort). | none | none |
+| [`tapir:install`](tapir-install.md) | Wire TapirPlugin.install() into lib/main.dart AND chain dowel install + plugin:install so ./bin/dowel surfaces all 42 tapir:* commands (idempotent on re-run; Phase 2 chain is best-effort). | none | none |
 
 ## CDP
 
@@ -113,8 +113,8 @@ Chrome DevTools Protocol commands that manipulate the browser viewport directly.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `dusk:device` | Emulate a device profile (viewport + DPR + touch + user agent) via Chrome DevTools Protocol. The emulation lasts only as long as the command's CDP session, which closes on exit; only the window size stays. | none | none (CDP direct) |
-| `dusk:resize` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. Chrome drops the override when the command exits; `--hold` keeps it until Ctrl-C or Chrome exits. | none | none (CDP direct) |
+| `tapir:device` | Emulate a device profile (viewport + DPR + touch + user agent) via Chrome DevTools Protocol. The emulation lasts only as long as the command's CDP session, which closes on exit; only the window size stays. | none | none (CDP direct) |
+| `tapir:resize` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. Chrome drops the override when the command exits; `--hold` keeps it until Ctrl-C or Chrome exits. | none | none (CDP direct) |
 
 ## Click variants
 
@@ -122,41 +122,41 @@ Pointer gestures that go beyond the primary tap. All four route through the acti
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `dusk:dblclick` | Fire a double-click at the widget identified by a snapshot ref. | connected | ext.dusk.tap |
-| `dusk:triple_click` | Fire three primary clicks (~100ms apart) at the widget identified by --ref. | connected | ext.dusk.tap |
-| `dusk:right_click` | Fire a right (secondary mouse button) click at the widget identified by --ref. | connected | ext.dusk.tap |
+| `tapir:dblclick` | Fire a double-click at the widget identified by a snapshot ref. | connected | ext.tapir.tap |
+| `tapir:triple_click` | Fire three primary clicks (~100ms apart) at the widget identified by --ref. | connected | ext.tapir.tap |
+| `tapir:right_click` | Fire a right (secondary mouse button) click at the widget identified by --ref. | connected | ext.tapir.tap |
 
 ## Focus and blur
 
-Keyboard-focus shaping. `dusk:focus` requests focus on a ref; `dusk:blur` releases the currently focused widget.
+Keyboard-focus shaping. `tapir:focus` requests focus on a ref; `tapir:blur` releases the currently focused widget.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `dusk:focus` | Request keyboard focus on the widget identified by --ref. | connected | ext.dusk.focus |
-| `dusk:blur` | Remove keyboard focus from the currently-focused widget. | connected | ext.dusk.blur |
+| `tapir:focus` | Request keyboard focus on the widget identified by --ref. | connected | ext.tapir.focus |
+| `tapir:blur` | Remove keyboard focus from the currently-focused widget. | connected | ext.tapir.blur |
 
 ## Console and exceptions
 
-Diagnostics readers backed by dusk's own in-package capture plus an optional telescope augmentation.
+Diagnostics readers backed by tapir's own in-package capture plus an optional crumbs augmentation.
 
-`dusk:console` reads from dusk's in-package `debugPrint` ring buffer (populated by `installLogCapture()`,
-wired by `DuskPlugin.install()`). This buffer captures every call that routes through the `debugPrint` global
+`tapir:console` reads from tapir's in-package `debugPrint` ring buffer (populated by `installLogCapture()`,
+wired by `TapirPlugin.install()`). This buffer captures every call that routes through the `debugPrint` global
 callback (`debugPrint(...)`, `print(...)`, and any Flutter framework path that calls `debugPrint`). It does NOT
-capture direct `dart:developer` `log()` calls that bypass `debugPrint`; those require `fluttersdk_telescope`'s
-`LogWatcher`. When telescope is wired the two sources are merged and deduped; telescope also adds `package:logging`
+capture direct `dart:developer` `log()` calls that bypass `debugPrint`; those require `crumbs`'s
+`LogWatcher`. When crumbs is wired the two sources are merged and deduped; crumbs also adds `package:logging`
 (`Logger.root.onRecord`) and any other watcher it ships.
 
-`dusk:exceptions` is similar: dusk's own `FlutterError.onError` capture (non-fatal errors including overflow)
-is always present; telescope augments when wired.
+`tapir:exceptions` is similar: tapir's own `FlutterError.onError` capture (non-fatal errors including overflow)
+is always present; crumbs augments when wired.
 
-The `--since=<iso8601>` flag on `dusk:exceptions` (and the matching `since` param on `dusk_exceptions` MCP)
+The `--since=<iso8601>` flag on `tapir:exceptions` (and the matching `since` param on `tapir_exceptions` MCP)
 lets agents compute true before/after deltas: record the time before an action, then call
-`dusk:exceptions --since=<time>` afterwards to see only exceptions raised by that action.
+`tapir:exceptions --since=<time>` afterwards to see only exceptions raised by that action.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `dusk:console` | Read recent log entries (in-package debugPrint capture; augmented by telescope when wired). | connected | ext.dusk.console |
-| `dusk:exceptions [--limit=<n>] [--since=<iso8601>]` | Read recent exception entries (in-package FlutterError capture + telescope when wired). Optionally filter to entries strictly after `--since`. | connected | ext.dusk.exceptions |
+| `tapir:console` | Read recent log entries (in-package debugPrint capture; augmented by crumbs when wired). | connected | ext.tapir.console |
+| `tapir:exceptions [--limit=<n>] [--since=<iso8601>]` | Read recent exception entries (in-package FlutterError capture + crumbs when wired). Optionally filter to entries strictly after `--since`. | connected | ext.tapir.exceptions |
 
 ## Observe
 
@@ -164,40 +164,40 @@ The Stagehand observe-once-act-many surface. Returns a structured candidate list
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:observe`](dusk-observe.md) | Return a structured candidate list of every interactive widget on screen (Stagehand observe-once-act-many; no server-side LLM). | connected | ext.dusk.observe |
+| [`tapir:observe`](tapir-observe.md) | Return a structured candidate list of every interactive widget on screen (Stagehand observe-once-act-many; no server-side LLM). | connected | ext.tapir.observe |
 
 ## Hot reload and snap
 
-The single-round-trip composite that hot-reloads the running app and then captures snapshot, screenshot, and recent exceptions in one shot. Dispatched via the `artisan:` substrate routing prefix to avoid a same-isolate deadlock.
+The single-round-trip composite that hot-reloads the running app and then captures snapshot, screenshot, and recent exceptions in one shot. Dispatched via the `dowel:` substrate routing prefix to avoid a same-isolate deadlock.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `dusk:hot_reload_and_snap` | Hot reload the running app, then capture snapshot + screenshot + recent exceptions in a single round-trip. | connected | artisan:reload + ext.dusk.snap |
+| `tapir:hot_reload_and_snap` | Hot reload the running app, then capture snapshot + screenshot + recent exceptions in a single round-trip. | connected | dowel:reload + ext.tapir.snap |
 
 ## Batch
 
-One call, several verbs. `dusk:run` takes each step as a verb line, runs them in order on the one VM connection, and prints a summary line per step plus the last step's output. Steps may be any connected-boot verb except `dusk:run` itself.
+One call, several verbs. `tapir:run` takes each step as a verb line, runs them in order on the one VM connection, and prints a summary line per step plus the last step's output. Steps may be any connected-boot verb except `tapir:run` itself.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:run`](dusk-run.md) | Run several dusk verbs in one call, e.g. dusk:run "tap --ref=e5" "snap --grep Counter". | connected | each step's own extension |
+| [`tapir:run`](tapir-run.md) | Run several tapir verbs in one call, e.g. tapir:run "tap --ref=e5" "snap --grep Counter". | connected | each step's own extension |
 
 ## Performance
 
-One measurement session and its drill-down. `dusk:perf_begin` opens it (`--mode=attribution` profiles builds, `--mode=timing` touches no flag), you drive one interaction, `dusk:perf_end` closes it with a bounded report of ranked insights, and `dusk:perf_insight` returns the rows behind one of them. `dusk:perf_run` repeats a scenario from a clean start and writes the medians to a file, `dusk:perf_compare` judges one such file against another, and `dusk:perf_trace` writes a session's timeline for Perfetto. `dusk:perf_campaign` runs a whole campaign of scenarios, each from a cold start.
+One measurement session and its drill-down. `tapir:perf_begin` opens it (`--mode=attribution` profiles builds, `--mode=timing` touches no flag), you drive one interaction, `tapir:perf_end` closes it with a bounded report of ranked insights, and `tapir:perf_insight` returns the rows behind one of them. `tapir:perf_run` repeats a scenario from a clean start and writes the medians to a file, `tapir:perf_compare` judges one such file against another, and `tapir:perf_trace` writes a session's timeline for Perfetto. `tapir:perf_campaign` runs a whole campaign of scenarios, each from a cold start.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`dusk:perf_begin`](dusk-perf-begin.md) | Open a performance measurement session: zero the frame, wind and magic counters and, in attribution mode, switch on build profiling. | connected | ext.dusk.perf_begin |
-| [`dusk:perf_end`](dusk-perf-end.md) | Close the performance measurement session and report frames, ranked blocks, counters and insights. | connected | ext.dusk.perf_end |
-| [`dusk:perf_insight`](dusk-perf-insight.md) | Drill into one insight of the last perf_end report: title, summary, the rows behind it, estimated savings and the next step. | connected | ext.dusk.perf_insight |
-| [`dusk:perf_run`](dusk-perf-run.md) | Run a perf scenario N times from a clean start and write medians, spread, insights and every repeat to <out>/<scenario>-<label>.json. | connected | ext.dusk.perf_begin + perf_end (+ semantics_hold) |
-| [`dusk:perf_compare`](dusk-perf-compare.md) | Compare two dusk:perf_run files on counts per painted frame (and timing-mode ms) and print a verdict table. | none | none |
-| [`dusk:perf_trace`](dusk-perf-trace.md) | Write the last closed perf session as a Chrome Trace JSON file (ui.perfetto.dev, chrome://tracing) and print its path. | connected | ext.dusk.perf_trace |
-| [`dusk:perf_campaign`](dusk-perf-campaign.md) | Run every scenario of a perf campaign on one platform, each from a cold start (hooks, Android preparation, after_start, dusk:perf_run, retries), and summarise which passed. | none | none (starts the app through artisan) |
+| [`tapir:perf_begin`](tapir-perf-begin.md) | Open a performance measurement session: zero the frame, wind and magic counters and, in attribution mode, switch on build profiling. | connected | ext.tapir.perf_begin |
+| [`tapir:perf_end`](tapir-perf-end.md) | Close the performance measurement session and report frames, ranked blocks, counters and insights. | connected | ext.tapir.perf_end |
+| [`tapir:perf_insight`](tapir-perf-insight.md) | Drill into one insight of the last perf_end report: title, summary, the rows behind it, estimated savings and the next step. | connected | ext.tapir.perf_insight |
+| [`tapir:perf_run`](tapir-perf-run.md) | Run a perf scenario N times from a clean start and write medians, spread, insights and every repeat to <out>/<scenario>-<label>.json. | connected | ext.tapir.perf_begin + perf_end (+ semantics_hold) |
+| [`tapir:perf_compare`](tapir-perf-compare.md) | Compare two tapir:perf_run files on counts per painted frame (and timing-mode ms) and print a verdict table. | none | none |
+| [`tapir:perf_trace`](tapir-perf-trace.md) | Write the last closed perf session as a Chrome Trace JSON file (ui.perfetto.dev, chrome://tracing) and print its path. | connected | ext.tapir.perf_trace |
+| [`tapir:perf_campaign`](tapir-perf-campaign.md) | Run every scenario of a perf campaign on one platform, each from a cold start (hooks, Android preparation, after_start, tapir:perf_run, retries), and summarise which passed. | none | none (starts the app through dowel) |
 
 ## Boot mode and deep-dives
 
-Six of forty-two commands run with `CommandBoot.none` (`dusk:install`, `dusk:doctor`, `dusk:perf_compare`, `dusk:perf_campaign`, `dusk:device`, `dusk:resize`; the last two dial Chrome DevTools Protocol directly rather than the VM Service). Every other command is `CommandBoot.connected`: it dials the VM Service URI in `~/.artisan/state.json` and fails fast when the running app cannot be reached.
+Six of forty-two commands run with `CommandBoot.none` (`tapir:install`, `tapir:doctor`, `tapir:perf_compare`, `tapir:perf_campaign`, `tapir:device`, `tapir:resize`; the last two dial Chrome DevTools Protocol directly rather than the VM Service). Every other command is `CommandBoot.connected`: it dials the VM Service URI in `~/.dowel/state.json` and fails fast when the running app cannot be reached.
 
-Seventeen commands earn their own pages: [dusk:install](dusk-install.md), [dusk:run](dusk-run.md), [dusk:snap](dusk-snap.md), [dusk:tap](dusk-tap.md), [dusk:fill](dusk-fill.md), [dusk:reset_overlays](dusk-reset-overlays.md), [dusk:screenshot](dusk-screenshot.md), [dusk:find](dusk-find.md), [dusk:doctor](dusk-doctor.md), [dusk:observe](dusk-observe.md), [dusk:perf_begin](dusk-perf-begin.md), [dusk:perf_end](dusk-perf-end.md), [dusk:perf_insight](dusk-perf-insight.md), [dusk:perf_run](dusk-perf-run.md), [dusk:perf_compare](dusk-perf-compare.md), [dusk:perf_trace](dusk-perf-trace.md), [dusk:perf_campaign](dusk-perf-campaign.md). Slug rule: the URL replaces the `:` separator with `-`. The remaining twenty-five commands share this index page; reach for `dart run artisan help <name>` for their full flag surface.
+Seventeen commands earn their own pages: [tapir:install](tapir-install.md), [tapir:run](tapir-run.md), [tapir:snap](tapir-snap.md), [tapir:tap](tapir-tap.md), [tapir:fill](tapir-fill.md), [tapir:reset_overlays](tapir-reset-overlays.md), [tapir:screenshot](tapir-screenshot.md), [tapir:find](tapir-find.md), [tapir:doctor](tapir-doctor.md), [tapir:observe](tapir-observe.md), [tapir:perf_begin](tapir-perf-begin.md), [tapir:perf_end](tapir-perf-end.md), [tapir:perf_insight](tapir-perf-insight.md), [tapir:perf_run](tapir-perf-run.md), [tapir:perf_compare](tapir-perf-compare.md), [tapir:perf_trace](tapir-perf-trace.md), [tapir:perf_campaign](tapir-perf-campaign.md). Slug rule: the URL replaces the `:` separator with `-`. The remaining twenty-five commands share this index page; reach for `dart run dowel help <name>` for their full flag surface.

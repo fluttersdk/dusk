@@ -6,7 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
-import 'dusk_exceptions.dart';
+import 'tapir_exceptions.dart';
 import 'frame_sync.dart';
 import 'viewport_visibility.dart';
 
@@ -97,7 +97,7 @@ void stampChecks(Map<String, dynamic> payload, ActionabilityReport report) {
 /// stamp `report.toPayload()` onto the response under `checks` and it is
 /// null on the fully-confirmed path.
 ///
-/// Throws [DuskActionabilityException] when ANY of the following hold (checked
+/// Throws [TapirActionabilityException] when ANY of the following hold (checked
 /// in this exact order; agents branch on the substring inside [reason]):
 ///
 /// 1. **Not enabled** — the entry's [RefEntry.node] is non-null AND its
@@ -114,7 +114,7 @@ void stampChecks(Map<String, dynamic> payload, ActionabilityReport report) {
 ///    `viewInsets`, so the area under a soft keyboard does not count). A
 ///    target whose center is outside it is first scrolled into view when a
 ///    `Scrollable` ancestor exists; the agent should call
-///    `dusk_scroll_to_ref` before retrying.
+///    `tapir_scroll_to_ref` before retrying.
 /// 4. **Not stable** — the entry's bounding box, sampled twice from
 ///    [RefEntry.element]'s live [RenderBox], shifted by more than 0.5
 ///    logical pixels on any side between two consecutive frames. Animated
@@ -181,7 +181,7 @@ Future<ActionabilityReport> ensureActionableForViews(
   try {
     final RenderObject? probe = entry.element.findRenderObject();
     if (probe == null) {
-      throw DuskActionabilityException(
+      throw TapirActionabilityException(
         ref: ref,
         reason: 'defunct (element no longer attached to a render object)',
       );
@@ -189,7 +189,7 @@ Future<ActionabilityReport> ensureActionableForViews(
   } on FlutterError catch (e) {
     if (e.message.contains('inactive element') ||
         e.message.contains('_ElementLifecycle.defunct')) {
-      throw DuskActionabilityException(
+      throw TapirActionabilityException(
         ref: ref,
         reason: 'defunct (element no longer mounted)',
       );
@@ -204,14 +204,14 @@ Future<ActionabilityReport> ensureActionableForViews(
   //    treated as a failure.
   final SemanticsNode? node = entry.node;
   if (node != null && node.flagsCollection.isEnabled == Tristate.isFalse) {
-    throw DuskActionabilityException(ref: ref, reason: 'not enabled');
+    throw TapirActionabilityException(ref: ref, reason: 'not enabled');
   }
 
   // 2. Zero-area rect — width OR height of zero means pointer dispatch at
   //    rect.center would land outside the widget's hit area.
   final Rect rect = entry.rect;
   if (rect.width == 0 || rect.height == 0) {
-    throw DuskActionabilityException(ref: ref, reason: 'zero rect');
+    throw TapirActionabilityException(ref: ref, reason: 'zero rect');
   }
 
   // 3. Off-viewport check — re-derive the logical viewport on every call so
@@ -268,7 +268,7 @@ Future<ActionabilityReport> ensureActionableForViews(
       }
     }
     if (!currentRect.overlaps(viewport)) {
-      throw DuskActionabilityException(
+      throw TapirActionabilityException(
         ref: ref,
         reason: 'off-viewport (rect=$currentRect, viewport=$viewport)',
       );
@@ -293,7 +293,7 @@ Future<ActionabilityReport> ensureActionableForViews(
       final double delta = _maxSideDelta(baseline, liveRect);
       if (delta > 0.5) {
         final String formatted = delta.toStringAsFixed(1);
-        throw DuskActionabilityException(
+        throw TapirActionabilityException(
           ref: ref,
           reason: 'not stable (rect changed by ${formatted}px)',
         );
@@ -357,7 +357,7 @@ Future<ActionabilityReport> ensureActionableForViews(
     // rather than the target, so the action would miss it.
     case HitVerdict.ancestorOnly:
     case HitVerdict.covered:
-      throw DuskActionabilityException(
+      throw TapirActionabilityException(
         ref: ref,
         reason: 'obscured by other widget (top=${probe.top.runtimeType})',
       );

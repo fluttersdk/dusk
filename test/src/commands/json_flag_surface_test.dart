@@ -1,7 +1,7 @@
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/dusk_artisan_provider.dart';
+import 'package:tapir/src/tapir_dowel_provider.dart';
 
 /// Verifies which commands offer `--json`, across the whole provider rather
 /// than one command at a time.
@@ -19,39 +19,39 @@ void main() {
   /// Verbs that print a one-line human summary and therefore need the
   /// escape hatch to the full envelope.
   const Set<String> summarising = <String>{
-    'dusk:snap',
-    'dusk:tap',
-    'dusk:hover',
-    'dusk:drag',
-    'dusk:dblclick',
-    'dusk:right_click',
-    'dusk:triple_click',
-    'dusk:type',
-    'dusk:fill',
-    'dusk:clear',
-    'dusk:press_key',
-    'dusk:focus',
-    'dusk:blur',
-    'dusk:scroll',
-    'dusk:select_option',
-    'dusk:set_checkbox',
-    'dusk:navigate',
-    'dusk:navigate_back',
-    'dusk:close_app',
-    'dusk:wait',
-    'dusk:wait_for_network_idle',
-    'dusk:perf_begin',
-    'dusk:perf_end',
-    'dusk:perf_insight',
-    'dusk:perf_run',
-    'dusk:perf_compare',
-    'dusk:perf_campaign',
+    'tapir:snap',
+    'tapir:tap',
+    'tapir:hover',
+    'tapir:drag',
+    'tapir:dblclick',
+    'tapir:right_click',
+    'tapir:triple_click',
+    'tapir:type',
+    'tapir:fill',
+    'tapir:clear',
+    'tapir:press_key',
+    'tapir:focus',
+    'tapir:blur',
+    'tapir:scroll',
+    'tapir:select_option',
+    'tapir:set_checkbox',
+    'tapir:navigate',
+    'tapir:navigate_back',
+    'tapir:close_app',
+    'tapir:wait',
+    'tapir:wait_for_network_idle',
+    'tapir:perf_begin',
+    'tapir:perf_end',
+    'tapir:perf_insight',
+    'tapir:perf_run',
+    'tapir:perf_compare',
+    'tapir:perf_campaign',
   };
 
-  group('DuskArtisanProvider --json surface', () {
+  group('TapirDowelProvider --json surface', () {
     test('every summarising verb declares --json', () {
       final List<String> missing = <String>[];
-      for (final ArtisanCommand command in DuskArtisanProvider().commands()) {
+      for (final DowelCommand command in TapirDowelProvider().commands()) {
         if (!summarising.contains(command.name)) continue;
         final ArgParser parser = ArgParser();
         command.configure(parser);
@@ -62,7 +62,7 @@ void main() {
     });
 
     test('--json defaults to off so a terminal still reads a sentence', () {
-      for (final ArtisanCommand command in DuskArtisanProvider().commands()) {
+      for (final DowelCommand command in TapirDowelProvider().commands()) {
         if (!summarising.contains(command.name)) continue;
         final ArgParser parser = ArgParser();
         command.configure(parser);
@@ -78,25 +78,25 @@ void main() {
       // Adding it there would imply the default is something else, which
       // is the confusion the flag exists to remove.
       final Map<String, bool> declared = <String, bool>{};
-      for (final ArtisanCommand command in DuskArtisanProvider().commands()) {
+      for (final DowelCommand command in TapirDowelProvider().commands()) {
         final ArgParser parser = ArgParser();
         command.configure(parser);
         declared[command.name] = parser.options.containsKey('json');
       }
 
-      expect(declared['dusk:find'], isFalse);
-      expect(declared['dusk:observe'], isFalse);
-      expect(declared['dusk:exceptions'], isFalse);
-      expect(declared['dusk:screenshot'], isFalse);
+      expect(declared['tapir:find'], isFalse);
+      expect(declared['tapir:observe'], isFalse);
+      expect(declared['tapir:exceptions'], isFalse);
+      expect(declared['tapir:screenshot'], isFalse);
       // Prints only the path of the file it wrote.
-      expect(declared['dusk:perf_trace'], isFalse);
+      expect(declared['tapir:perf_trace'], isFalse);
     });
 
     test('the summarising set covers every verb that declares the flag', () {
       // Catches the reverse drift: a new verb that adds --json without
       // being listed here would otherwise never be asserted on.
       final List<String> unlisted = <String>[];
-      for (final ArtisanCommand command in DuskArtisanProvider().commands()) {
+      for (final DowelCommand command in TapirDowelProvider().commands()) {
         final ArgParser parser = ArgParser();
         command.configure(parser);
         if (parser.options.containsKey('json') &&

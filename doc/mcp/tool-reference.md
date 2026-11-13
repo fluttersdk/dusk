@@ -1,10 +1,10 @@
-# Dusk MCP Tool Reference
+# Tapir MCP Tool Reference
 
-Per-tool input schema, return shape, and example payload for every `dusk_*` MCP tool
-contributed by `DuskArtisanProvider`. 40 tools total: 33 dispatch through `ext.dusk.*` VM
-Service extensions and 7 (`dusk_hot_reload_and_snap`, `dusk_resize_viewport`,
-`dusk_device_profile`, `dusk_perf_run`, `dusk_perf_compare`, `dusk_perf_trace`, `dusk_run`)
-route through the `artisan:dusk:*` substrate path to a CLI command because the orchestration
+Per-tool input schema, return shape, and example payload for every `tapir_*` MCP tool
+contributed by `TapirDowelProvider`. 40 tools total: 33 dispatch through `ext.tapir.*` VM
+Service extensions and 7 (`tapir_hot_reload_and_snap`, `tapir_resize_viewport`,
+`tapir_device_profile`, `tapir_perf_run`, `tapir_perf_compare`, `tapir_perf_trace`, `tapir_run`)
+route through the `dowel:tapir:*` substrate path to a CLI command because the orchestration
 cannot run inside the target isolate.
 
 Sections are ordered alphabetically. Every section names the dispatch surface
@@ -16,16 +16,16 @@ request; the substrate MCP server wraps the response as `CallToolResult` text co
 
 A hidden or minimised desktop window and a backgrounded browser tab stop the app producing
 frames, and a snapshot then reads as empty while an action reports a success that could not
-have landed. Dusk wakes a hidden or paused app at the entry of every `ext.dusk.*` verb
+have landed. Tapir wakes a hidden or paused app at the entry of every `ext.tapir.*` verb
 except the perf verbs, `boot_id`, `close_app`, `console`, `exceptions`, `semantics_hold`
 and `evaluate`, and a response that had to wake it carries `"framesForced": true`. The app's
 lifecycle observers see `resumed` while that happens;
-`--dart-define=DUSK_FORCE_FRAMES=false` turns it off. A browser tab is the exception: Chrome
-withholds animation frames from a hidden tab, so dusk does not attempt the wake on web and
+`--dart-define=TAPIR_FORCE_FRAMES=false` turns it off. A browser tab is the exception: Chrome
+withholds animation frames from a hidden tab, so tapir does not attempt the wake on web and
 the `warnings` block stays. The CLI (not the MCP tool) covers that case itself when the
 session has a `cdpPort`: see [Frame production](../reference/frame-production.md).
 
-When dusk could not force frames (the opt-out, a `detached` lifecycle, or a wake that produced
+When tapir could not force frames (the opt-out, a `detached` lifecycle, or a wake that produced
 no frame) the success payload
 gains a `warnings` block instead:
 
@@ -47,20 +47,20 @@ presence is the signal. See [Frame production](../reference/frame-production.md)
 full picture and the fallback.
 
 A call that relocated a stale `e<N>` ref to the control that replaced it adds
-`"reresolved": ["e5"]`. See [`dusk_tap`](#dusk_tap).
+`"reresolved": ["e5"]`. See [`tapir_tap`](#tapir_tap).
 
 ## Universal response field: `effect`
 
 Every side-effect verb reports what the widget HOLDS afterwards, not what it was asked to
-do. A dusk action confirms that it DISPATCHED; the `effect` block is what confirms the
+do. A tapir action confirms that it DISPATCHED; the `effect` block is what confirms the
 widget received.
 
 | Verb | `kind` | Fields |
 |---|---|---|
-| `dusk_tap` | `treeChanged` | `changed` |
-| `dusk_type`, `dusk_clear`, `dusk_fill` | `text` | `verified`, `value` (read back off the live controller after the settle), `target` (`matchKind`, `label`, `rect`: which field was written) |
-| `dusk_scroll` | `scrollOffset` | `changed`, `before`, `after` |
-| `dusk_set_checkbox` | `checked` | `verified`, `before`, `after` |
+| `tapir_tap` | `treeChanged` | `changed` |
+| `tapir_type`, `tapir_clear`, `tapir_fill` | `text` | `verified`, `value` (read back off the live controller after the settle), `target` (`matchKind`, `label`, `rect`: which field was written) |
+| `tapir_scroll` | `scrollOffset` | `changed`, `before`, `after` |
+| `tapir_set_checkbox` | `checked` | `verified`, `before`, `after` |
 
 ```json
 { "ref": "e5", "effect": { "kind": "text", "verified": false, "value": "" } }
@@ -72,52 +72,52 @@ story survived two rewrites of the widget before anyone read the field back.
 
 ## Table of contents
 
-- [`dusk_blur`](#dusk_blur)
-- [`dusk_clear`](#dusk_clear)
-- [`dusk_close_app`](#dusk_close_app)
-- [`dusk_console`](#dusk_console)
-- [`dusk_dblclick`](#dusk_dblclick)
-- [`dusk_device_profile`](#dusk_device_profile)
-- [`dusk_dismiss_modals`](#dusk_dismiss_modals)
-- [`dusk_drag`](#dusk_drag)
-- [`dusk_evaluate`](#dusk_evaluate)
-- [`dusk_exceptions`](#dusk_exceptions)
-- [`dusk_fill`](#dusk_fill)
-- [`dusk_find`](#dusk_find)
-- [`dusk_focus`](#dusk_focus)
-- [`dusk_get_routes`](#dusk_get_routes)
-- [`dusk_hot_reload_and_snap`](#dusk_hot_reload_and_snap)
-- [`dusk_hover`](#dusk_hover)
-- [`dusk_navigate`](#dusk_navigate)
-- [`dusk_navigate_back`](#dusk_navigate_back)
-- [`dusk_observe`](#dusk_observe)
-- [`dusk_perf_begin`](#dusk_perf_begin)
-- [`dusk_perf_end`](#dusk_perf_end)
-- [`dusk_perf_compare`](#dusk_perf_compare)
-- [`dusk_perf_insight`](#dusk_perf_insight)
-- [`dusk_perf_run`](#dusk_perf_run)
-- [`dusk_perf_trace`](#dusk_perf_trace)
-- [`dusk_press_key`](#dusk_press_key)
-- [`dusk_reset_overlays`](#dusk_reset_overlays)
-- [`dusk_resize_viewport`](#dusk_resize_viewport)
-- [`dusk_right_click`](#dusk_right_click)
-- [`dusk_run`](#dusk_run)
-- [`dusk_screenshot`](#dusk_screenshot)
-- [`dusk_scroll`](#dusk_scroll)
-- [`dusk_select_option`](#dusk_select_option)
-- [`dusk_set_checkbox`](#dusk_set_checkbox)
-- [`dusk_snap`](#dusk_snap)
-- [`dusk_tap`](#dusk_tap)
-- [`dusk_triple_click`](#dusk_triple_click)
-- [`dusk_type`](#dusk_type)
-- [`dusk_wait_for`](#dusk_wait_for)
-- [`dusk_wait_for_network_idle`](#dusk_wait_for_network_idle)
+- [`tapir_blur`](#tapir_blur)
+- [`tapir_clear`](#tapir_clear)
+- [`tapir_close_app`](#tapir_close_app)
+- [`tapir_console`](#tapir_console)
+- [`tapir_dblclick`](#tapir_dblclick)
+- [`tapir_device_profile`](#tapir_device_profile)
+- [`tapir_dismiss_modals`](#tapir_dismiss_modals)
+- [`tapir_drag`](#tapir_drag)
+- [`tapir_evaluate`](#tapir_evaluate)
+- [`tapir_exceptions`](#tapir_exceptions)
+- [`tapir_fill`](#tapir_fill)
+- [`tapir_find`](#tapir_find)
+- [`tapir_focus`](#tapir_focus)
+- [`tapir_get_routes`](#tapir_get_routes)
+- [`tapir_hot_reload_and_snap`](#tapir_hot_reload_and_snap)
+- [`tapir_hover`](#tapir_hover)
+- [`tapir_navigate`](#tapir_navigate)
+- [`tapir_navigate_back`](#tapir_navigate_back)
+- [`tapir_observe`](#tapir_observe)
+- [`tapir_perf_begin`](#tapir_perf_begin)
+- [`tapir_perf_end`](#tapir_perf_end)
+- [`tapir_perf_compare`](#tapir_perf_compare)
+- [`tapir_perf_insight`](#tapir_perf_insight)
+- [`tapir_perf_run`](#tapir_perf_run)
+- [`tapir_perf_trace`](#tapir_perf_trace)
+- [`tapir_press_key`](#tapir_press_key)
+- [`tapir_reset_overlays`](#tapir_reset_overlays)
+- [`tapir_resize_viewport`](#tapir_resize_viewport)
+- [`tapir_right_click`](#tapir_right_click)
+- [`tapir_run`](#tapir_run)
+- [`tapir_screenshot`](#tapir_screenshot)
+- [`tapir_scroll`](#tapir_scroll)
+- [`tapir_select_option`](#tapir_select_option)
+- [`tapir_set_checkbox`](#tapir_set_checkbox)
+- [`tapir_snap`](#tapir_snap)
+- [`tapir_tap`](#tapir_tap)
+- [`tapir_triple_click`](#tapir_triple_click)
+- [`tapir_type`](#tapir_type)
+- [`tapir_wait_for`](#tapir_wait_for)
+- [`tapir_wait_for_network_idle`](#tapir_wait_for_network_idle)
 
 ---
 
-## dusk_blur
+## tapir_blur
 
-Dispatch: `ext.dusk.blur`
+Dispatch: `ext.tapir.blur`
 
 Clear keyboard focus from whatever currently holds it (Playwright
 `locator.blur()` / `document.activeElement.blur()` parity).
@@ -138,7 +138,7 @@ Error: returned via MCP `isError: true` when the focus-tree walk fails internall
 ### Example call
 
 ```json
-{ "name": "dusk_blur", "arguments": { "includeSnapshot": false } }
+{ "name": "tapir_blur", "arguments": { "includeSnapshot": false } }
 ```
 
 Response:
@@ -149,9 +149,9 @@ Response:
 
 ---
 
-## dusk_clear
+## tapir_clear
 
-Dispatch: `ext.dusk.clear`
+Dispatch: `ext.tapir.clear`
 
 Empty the `TextEditingController` backing the resolved text field (Playwright
 `locator.clear()` parity).
@@ -167,14 +167,14 @@ Empty the `TextEditingController` backing the resolved text field (Playwright
 
 Success: `{ ref: "e<N>", text: "" }`.
 
-Error: `DuskActionabilityException` (when the gate fails) or `DuskStaleHandleException`
+Error: `TapirActionabilityException` (when the gate fails) or `TapirStaleHandleException`
 (when the ref is unknown / stale) surfaced as the wire error string `"Widget ref=<ref> is
 not actionable: <reason>"`.
 
 ### Example call
 
 ```json
-{ "name": "dusk_clear", "arguments": { "ref": "e5" } }
+{ "name": "tapir_clear", "arguments": { "ref": "e5" } }
 ```
 
 Response:
@@ -185,9 +185,9 @@ Response:
 
 ---
 
-## dusk_close_app
+## tapir_close_app
 
-Dispatch: `ext.dusk.close_app`
+Dispatch: `ext.tapir.close_app`
 
 Request a graceful shutdown of the running Flutter app via `SystemNavigator.pop()`. On
 mobile + desktop this terminates the app; on web the call is a no-op (browsers do not
@@ -200,22 +200,22 @@ No parameters.
 ### Returns
 
 Success: an empty object `{}`. After the call the VM Service URI is gone, so the next
-`dusk_*` tool returns a VM-Service-unreachable error.
+`tapir_*` tool returns a VM-Service-unreachable error.
 
 ### Example call
 
 ```json
-{ "name": "dusk_close_app", "arguments": {} }
+{ "name": "tapir_close_app", "arguments": {} }
 ```
 
 ---
 
-## dusk_console
+## tapir_console
 
-Dispatch: `ext.dusk.console`
+Dispatch: `ext.tapir.console`
 
-Read recent log entries from the running app's telescope store. Missing-telescope graceful:
-returns an empty list when the host has not set telescope up.
+Read recent log entries from the running app's crumbs store. Missing-crumbs graceful:
+returns an empty list when the host has not set crumbs up.
 
 ### Input schema
 
@@ -228,19 +228,19 @@ returns an empty list when the host has not set telescope up.
 
 Success: `{ entries: [ { level, message, time, logger }, ... ] }`.
 
-Error: never; missing telescope is treated as the empty-entries success path.
+Error: never; missing crumbs is treated as the empty-entries success path.
 
 ### Example call
 
 ```json
-{ "name": "dusk_console", "arguments": { "limit": 10, "minLevel": "ERROR" } }
+{ "name": "tapir_console", "arguments": { "limit": 10, "minLevel": "ERROR" } }
 ```
 
 ---
 
-## dusk_dblclick
+## tapir_dblclick
 
-Dispatch: `ext.dusk.dblclick`
+Dispatch: `ext.tapir.dblclick`
 
 Double-click a widget by ref. Synthesizes two pointer Down+50ms+Up sequences at the
 widget's center with ~100ms between them (Playwright double-click model). Triggers
@@ -250,7 +250,7 @@ widget's center with ~100ms between them (Playwright double-click model). Trigge
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `ref` | string | yes | Widget ref from a prior `dusk_snap`. Shape `e<N>` or `q<N>`. |
+| `ref` | string | yes | Widget ref from a prior `tapir_snap`. Shape `e<N>` or `q<N>`. |
 | `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
 | `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
 | `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
@@ -267,20 +267,20 @@ error when the ref is unknown.
 ### Example call
 
 ```json
-{ "name": "dusk_dblclick", "arguments": { "ref": "e7" } }
+{ "name": "tapir_dblclick", "arguments": { "ref": "e7" } }
 ```
 
 ---
 
-## dusk_device_profile
+## tapir_device_profile
 
-Dispatch: `artisan:dusk:device`
+Dispatch: `dowel:tapir:device`
 
 Emulate a named device profile (viewport + DPR + touch + user agent) via Chrome DevTools
 Protocol. Requires the substrate to have been started with `--cdp-port`. The emulated
 viewport, DPR, touch and user agent last only as long as the CDP session the call opens,
 which closes when it returns; only the Chrome window size it sets stays. For a viewport
-that lasts, run the CLI `dusk:resize --hold` in the background.
+that lasts, run the CLI `tapir:resize --hold` in the background.
 
 ### Input schema
 
@@ -302,14 +302,14 @@ not configured.
 ### Example call
 
 ```json
-{ "name": "dusk_device_profile", "arguments": { "preset": "iphone-x" } }
+{ "name": "tapir_device_profile", "arguments": { "preset": "iphone-x" } }
 ```
 
 ---
 
-## dusk_dismiss_modals
+## tapir_dismiss_modals
 
-Dispatch: `ext.dusk.dismiss_modals`
+Dispatch: `ext.tapir.dismiss_modals`
 
 Pop every modal route (dialog, bottom sheet, popup) currently above the first persistent
 route. Idempotent.
@@ -328,14 +328,14 @@ Error: never; safe to call speculatively.
 ### Example call
 
 ```json
-{ "name": "dusk_dismiss_modals", "arguments": {} }
+{ "name": "tapir_dismiss_modals", "arguments": {} }
 ```
 
 ---
 
-## dusk_drag
+## tapir_drag
 
-Dispatch: `ext.dusk.drag`
+Dispatch: `ext.tapir.drag`
 
 Drag from one widget to another by ref tokens. Synthesizes pointer Down + 5x intermediate
 Move events + Up sequence from `startRef`'s center to `endRef`'s center.
@@ -360,14 +360,14 @@ Error: actionability gate failure on either ref, or stale-handle on either.
 ### Example call
 
 ```json
-{ "name": "dusk_drag", "arguments": { "startRef": "e12", "endRef": "e18" } }
+{ "name": "tapir_drag", "arguments": { "startRef": "e12", "endRef": "e18" } }
 ```
 
 ---
 
-## dusk_evaluate
+## tapir_evaluate
 
-Dispatch: `ext.dusk.evaluate`
+Dispatch: `ext.tapir.evaluate`
 
 Evaluate a Dart expression in the running app isolate via the Tinker bridge
 (`ext.tinker.evaluate`). MCP-only: `magic_tinker` owns the connected REPL surface.
@@ -388,7 +388,7 @@ app.
 ### Example call
 
 ```json
-{ "name": "dusk_evaluate", "arguments": { "expression": "Auth.user?.email" } }
+{ "name": "tapir_evaluate", "arguments": { "expression": "Auth.user?.email" } }
 ```
 
 Response:
@@ -399,17 +399,17 @@ Response:
 
 ---
 
-## dusk_exceptions
+## tapir_exceptions
 
-Dispatch: `ext.dusk.exceptions`
+Dispatch: `ext.tapir.exceptions`
 
 Read recent exceptions recorded by the running app, including non-fatal `FlutterError`s.
 Returns the merged union of two sources: the in-package non-fatal `FlutterError.onError`
-capture buffer (installed by `DuskPlugin.install()`) and the telescope exception watcher
-(when `fluttersdk_telescope` is present). Entries are deduped by
+capture buffer (installed by `TapirPlugin.install()`) and the crumbs exception watcher
+(when `crumbs` is present). Entries are deduped by
 `(type, message, stackHead)`, sorted newest-first, and clipped to `limit`. RenderFlex
-overflow errors appear with `type: "overflow"`. Missing-telescope graceful: the in-package
-buffer ensures non-fatal errors are visible even without telescope.
+overflow errors appear with `type: "overflow"`. Missing-crumbs graceful: the in-package
+buffer ensures non-fatal errors are visible even without crumbs.
 
 ### Input schema
 
@@ -427,17 +427,17 @@ count: <int> }`. `stackHead` is the first 3 lines of the stack trace. `fatal` is
 ### Example call
 
 ```json
-{ "name": "dusk_exceptions", "arguments": { "limit": 5, "since": "2024-01-01T10:00:00.000Z" } }
+{ "name": "tapir_exceptions", "arguments": { "limit": 5, "since": "2024-01-01T10:00:00.000Z" } }
 ```
 
 ---
 
-## dusk_fill
+## tapir_fill
 
-Dispatch: `ext.dusk.fill`
+Dispatch: `ext.tapir.fill`
 
 Fill a text field by ref in one call: focus, clear, type, settle. Composes the gated
-`ext.dusk.focus`, `ext.dusk.clear`, and `ext.dusk.type` handlers (so the actionability
+`ext.tapir.focus`, `ext.tapir.clear`, and `ext.tapir.type` handlers (so the actionability
 gate, IME focus, and `onChanged`/validator firing all run) and retries the whole sequence
 once when the ref goes stale mid-fill. Replaces the manual focus + clear + type dance.
 
@@ -445,12 +445,12 @@ once when the ref goes stale mid-fill. Replaces the manual focus + clear + type 
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `ref` | string | yes | Text-field ref token (`e<N>` or `q<N>`) from a prior `dusk_snap` / `dusk_find`. |
+| `ref` | string | yes | Text-field ref token (`e<N>` or `q<N>`) from a prior `tapir_snap` / `tapir_find`. |
 | `text` | string | yes | Value to set. Replaces existing content. Pass `""` to clear. |
 | `includeSnapshot` | boolean | no | Embed the post-fill snapshot (default `true`). |
 | `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
 | `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
-| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. `diff` returns only the snapshot lines the fill changed since your last unfiltered snapshot (see [`dusk_tap`](#dusk_tap)). |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. `diff` returns only the snapshot lines the fill changed since your last unfiltered snapshot (see [`tapir_tap`](#tapir_tap)). |
 
 ### Returns
 
@@ -467,14 +467,14 @@ field`. On a permanently stale handle (after the single retry) the response is a
 ### Example call
 
 ```json
-{ "name": "dusk_fill", "arguments": { "ref": "e7", "text": "alice@example.com" } }
+{ "name": "tapir_fill", "arguments": { "ref": "e7", "text": "alice@example.com" } }
 ```
 
 ---
 
-## dusk_find
+## tapir_find
 
-Dispatch: `ext.dusk.find`
+Dispatch: `ext.tapir.find`
 
 Find a widget by semantic query (text / semanticsLabel / key) and return a re-resolvable
 `q<N>` handle. Unlike snapshot-frozen `e<N>` refs, `q<N>` re-executes the tree walk on
@@ -505,14 +505,14 @@ handle (`"stale handle"`); the agent must re-find or re-snap, never silently ret
 ### Example call
 
 ```json
-{ "name": "dusk_find", "arguments": { "text": "Submit" } }
+{ "name": "tapir_find", "arguments": { "text": "Submit" } }
 ```
 
 ---
 
-## dusk_focus
+## tapir_focus
 
-Dispatch: `ext.dusk.focus`
+Dispatch: `ext.tapir.focus`
 
 Request keyboard focus on the widget identified by `ref` (Playwright `locator.focus()`
 parity). Walks to the nearest `Focus` ancestor and calls `requestFocus()`.
@@ -531,17 +531,17 @@ Success: `{ ref: "<ref>", focused: true }`.
 ### Example call
 
 ```json
-{ "name": "dusk_focus", "arguments": { "ref": "e5" } }
+{ "name": "tapir_focus", "arguments": { "ref": "e5" } }
 ```
 
 ---
 
-## dusk_get_routes
+## tapir_get_routes
 
-Dispatch: `ext.dusk.get_routes`
+Dispatch: `ext.tapir.get_routes`
 
 Report where the running app is: the mounted Router's location, the top page's name and a
-title hint. Read it to confirm a `dusk_navigate` landed or to see where a redirect took the
+title hint. Read it to confirm a `tapir_navigate` landed or to see where a redirect took the
 app; it does not list the declared routes.
 
 ### Input schema
@@ -554,14 +554,14 @@ Success: `{ location, title, uri }`.
 
 | Field | Meaning |
 |---|---|
-| `uri` | The first mounted `Router`'s location, the value `dusk_navigate` verifies against. `null` while no Router is mounted, as on a loading screen right after a restart. |
+| `uri` | The first mounted `Router`'s location, the value `tapir_navigate` verifies against. `null` while no Router is mounted, as on a loading screen right after a restart. |
 | `location` | The root Navigator's top page name. A Router-based app (go_router, MagicRouter) names no page, so it reads `""` on every screen there; read `uri`. |
 | `title` | A location hint from the platform's default route name; `""` when there is none. |
 
 ### Example call
 
 ```json
-{ "name": "dusk_get_routes", "arguments": {} }
+{ "name": "tapir_get_routes", "arguments": {} }
 ```
 
 Response:
@@ -572,9 +572,9 @@ Response:
 
 ---
 
-## dusk_hot_reload_and_snap
+## tapir_hot_reload_and_snap
 
-Dispatch: `artisan:dusk:hot_reload_and_snap`
+Dispatch: `dowel:tapir:hot_reload_and_snap`
 
 Hot reload the running Flutter app, then capture a snapshot, screenshot, and recent
 exceptions in one round-trip. Routes through the CLI command because an in-isolate handler
@@ -598,14 +598,14 @@ call is returned as an error result, so a client never reads a compile failure a
 ### Example call
 
 ```json
-{ "name": "dusk_hot_reload_and_snap", "arguments": { "screenshot": false } }
+{ "name": "tapir_hot_reload_and_snap", "arguments": { "screenshot": false } }
 ```
 
 ---
 
-## dusk_hover
+## tapir_hover
 
-Dispatch: `ext.dusk.hover`
+Dispatch: `ext.tapir.hover`
 
 Hover a mouse cursor over a widget by ref. Mouse-only (no touch equivalent). Synthesizes a
 `PointerHoverEvent` of `PointerDeviceKind.mouse` at the widget's center.
@@ -629,14 +629,14 @@ Error: actionability gate failure, or stale-handle.
 ### Example call
 
 ```json
-{ "name": "dusk_hover", "arguments": { "ref": "e8" } }
+{ "name": "tapir_hover", "arguments": { "ref": "e8" } }
 ```
 
 ---
 
-## dusk_navigate
+## tapir_navigate
 
-Dispatch: `ext.dusk.navigate`
+Dispatch: `ext.tapir.navigate`
 
 Navigate the running Flutter app to a route path. Resolves through `MagicRoute.to(...)`
 when Magic is installed, falling back to `Navigator.of(root).pushNamed(...)`.
@@ -662,14 +662,14 @@ re-snap after; refs from a prior snapshot are invalidated.
 ### Example call
 
 ```json
-{ "name": "dusk_navigate", "arguments": { "route": "/login" } }
+{ "name": "tapir_navigate", "arguments": { "route": "/login" } }
 ```
 
 ---
 
-## dusk_navigate_back
+## tapir_navigate_back
 
-Dispatch: `ext.dusk.navigate_back`
+Dispatch: `ext.tapir.navigate_back`
 
 Pop the top route off the active navigator stack. Equivalent to pressing the system Back
 button. No-op when no Navigator has a page to leave.
@@ -696,19 +696,19 @@ left (a subtree under `Offstage(offstage: true)`, `TickerMode(enabled: false)` o
 Success: `{ navigatedBack, popped, snapshot? }`. `navigatedBack` equals `popped`. `popped`
 is `false` when no Navigator had a page to leave (the bottom of every stack, the root route),
 so the call did nothing; read
-`dusk_get_routes` `uri`, or the snapshot, to see where the app is.
+`tapir_get_routes` `uri`, or the snapshot, to see where the app is.
 
 ### Example call
 
 ```json
-{ "name": "dusk_navigate_back", "arguments": {} }
+{ "name": "tapir_navigate_back", "arguments": {} }
 ```
 
 ---
 
-## dusk_observe
+## tapir_observe
 
-Dispatch: `ext.dusk.observe`
+Dispatch: `ext.tapir.observe`
 
 Return a structured candidate list of every interactive widget on screen. Implements
 Stagehand's observe-once-act-many pattern (no server-side LLM). Each candidate carries a
@@ -735,25 +735,25 @@ reaches a widget painted above the candidate instead of the candidate itself (`f
 a candidate that is not visible, since it has no centre worth probing). `isVisible` keeps
 its meaning: non-empty bounds that overlap the viewport. A merged candidate whose bounds'
 centre is not on its own control also carries `tapOwner: {x, y, w, h}` (the control's rect,
-which a `dusk_tap` goes to); every other candidate omits it. The enricher subset projects
+which a `tapir_tap` goes to); every other candidate omits it. The enricher subset projects
 `magicFormField`, `magicRoute`, `magicGateResult`, `wind.breakpoint`, `wind.states` by
 default.
 
 ### Example call
 
 ```json
-{ "name": "dusk_observe", "arguments": { "intent": "login form", "roles": "textbox,button", "limit": 20 } }
+{ "name": "tapir_observe", "arguments": { "intent": "login form", "roles": "textbox,button", "limit": 20 } }
 ```
 
 ---
 
-## dusk_perf_begin
+## tapir_perf_begin
 
-Dispatch: `ext.dusk.perf_begin`
+Dispatch: `ext.tapir.perf_begin`
 
 Open a performance measurement session around an interaction you are about to
 drive. Zeroes the frame buffer and the wind and magic counters and records the
-liveness baseline `dusk_perf_end` judges the run against. In `attribution` mode
+liveness baseline `tapir_perf_end` judges the run against. In `attribution` mode
 it also switches `FlutterTimeline` collection and Flutter's build profiling on;
 that instrumentation costs real time, so keep the session tight: begin, drive
 one interaction, end.
@@ -781,14 +781,14 @@ milliseconds only between `timing` sessions.
 ### Example call
 
 ```json
-{ "name": "dusk_perf_begin", "arguments": { "mode": "timing" } }
+{ "name": "tapir_perf_begin", "arguments": { "mode": "timing" } }
 ```
 
 ---
 
-## dusk_perf_end
+## tapir_perf_end
 
-Dispatch: `ext.dusk.perf_end`
+Dispatch: `ext.tapir.perf_end`
 
 Close the session and read a bounded report (about 6 KB at most) with ranked
 insights. Restores every profiling flag to the value it had BEFORE the session,
@@ -796,7 +796,7 @@ not to `false`.
 
 ### Input schema
 
-No parameters. Requires a prior `dusk_perf_begin`; without one the call returns
+No parameters. Requires a prior `tapir_perf_begin`; without one the call returns
 a typed error rather than an empty report.
 
 ### Returns
@@ -808,8 +808,8 @@ is given raw and per painted frame.
 - `env`: `{platform, isWeb, buildMode, renderer, semanticsEnabled, phases}`,
   read in the app. `buildMode` comes from `kProfileMode` / `kDebugMode`;
   `renderer` is `canvaskit` or `skwasm` on web and `unknown` elsewhere unless a
-  host assigns `rendererReader`; `semanticsEnabled` is `true` whenever dusk is
-  installed, because dusk holds a semantics handle for the whole process.
+  host assigns `rendererReader`; `semanticsEnabled` is `true` whenever tapir is
+  installed, because tapir holds a semantics handle for the whole process.
 - `coverage`: `{framesDrawn, framesSummarized, framesOutsideSession, complete,
   missing}`. `framesDrawn` is the liveness counter's advance;
   `framesSummarized` counts the frame records Flutter delivered inside the
@@ -862,17 +862,17 @@ same response, because `SchedulerBinding.framesEnabled` was measured reporting
 ### Example call
 
 ```json
-{ "name": "dusk_perf_end", "arguments": {} }
+{ "name": "tapir_perf_end", "arguments": {} }
 ```
 
 ---
 
-## dusk_perf_compare
+## tapir_perf_compare
 
-Dispatch: `artisan:dusk:perf_compare` (runs the CLI command in the MCP server's
+Dispatch: `dowel:tapir:perf_compare` (runs the CLI command in the MCP server's
 process; reads two files, needs no app)
 
-Judge run `b` against run `a`, both `dusk_perf_run` files. Gates on counts per
+Judge run `b` against run `a`, both `tapir_perf_run` files. Gates on counts per
 painted frame, never raw counts; milliseconds only from timing-mode medians;
 emulator raster ms are info. A change inside either run's repeat-to-repeat
 range is `unchanged`. Thresholds: warn +10%, error +25%, or the scenario's.
@@ -895,16 +895,16 @@ error-level regression, or when a run has no measured repeat.
 ### Example call
 
 ```json
-{ "name": "dusk_perf_compare", "arguments": { "a": "build/perf/list-before.json", "b": "build/perf/list-after.json", "json": true } }
+{ "name": "tapir_perf_compare", "arguments": { "a": "build/perf/list-before.json", "b": "build/perf/list-after.json", "json": true } }
 ```
 
 ---
 
-## dusk_perf_insight
+## tapir_perf_insight
 
-Dispatch: `ext.dusk.perf_insight`
+Dispatch: `ext.tapir.perf_insight`
 
-Drill into one insight of the report `dusk_perf_end` last returned. Only the
+Drill into one insight of the report `tapir_perf_end` last returned. Only the
 most recent closed session is kept.
 
 ### Input schema
@@ -930,14 +930,14 @@ which points at `perf_end`'s `insights[]`.
 ### Example call
 
 ```json
-{ "name": "dusk_perf_insight", "arguments": { "id": "I1", "token": "perf-3" } }
+{ "name": "tapir_perf_insight", "arguments": { "id": "I1", "token": "perf-3" } }
 ```
 
 ---
 
-## dusk_perf_run
+## tapir_perf_run
 
-Dispatch: `artisan:dusk:perf_run` (runs the CLI command in the MCP server's
+Dispatch: `dowel:tapir:perf_run` (runs the CLI command in the MCP server's
 process: it restarts the app, drives Chrome DevTools and writes files)
 
 Run a scenario YAML several times from a clean start: setup (its hot restart,
@@ -955,7 +955,7 @@ resolved on the live screen, `perf_end` with `full=true`. Writes
 | `out` | string | no | Output directory, default `build/perf`. |
 | `repeat` | integer | no | Repeats per series; overrides the scenario's. |
 | `platform` | string | no | `chrome`, `android` or `ios`; read from the session when omitted. |
-| `timing` | boolean | no | Interleaved timing-mode repeats, the ms `dusk_perf_compare` gates on. |
+| `timing` | boolean | no | Interleaved timing-mode repeats, the ms `tapir_perf_compare` gates on. |
 | `against` | string | no | Baseline scenario run in the same rounds, one file each. |
 | `semantics-pass` | boolean | no | Also measure with the semantics tree released (`semanticsOff`). |
 | `json` | boolean | no | Return the run file minus `repeats[]`, plus `path`. |
@@ -968,27 +968,27 @@ The run file: `scenario`, `label`, `env` (the app's own plus `target`,
 `timing` with `--timing`), `insights` of the median repeat, `repeats[]`, and
 with the semantics pass `semanticsPass` plus `semanticsOff` or
 `semanticsPassReason`. `semanticsPass` is `unsupported` when a release leaves
-semantics on, which on chrome is every app dusk has snapshotted (the web
+semantics on, which on chrome is every app tapir has snapshotted (the web
 engine keeps semantics on once it has received a tree); the reason names the
 platform and what holds it. A refused repeat is recorded and left out of the
 medians; the call fails when every repeat refused. See
-[dusk:perf_run](../commands/dusk-perf-run.md).
+[tapir:perf_run](../commands/tapir-perf-run.md).
 
 ### Example call
 
 ```json
-{ "name": "dusk_perf_run", "arguments": { "scenario": "tool/perf/scenarios/list.yaml", "variant": "1440", "label": "before", "timing": true, "json": true } }
+{ "name": "tapir_perf_run", "arguments": { "scenario": "tool/perf/scenarios/list.yaml", "variant": "1440", "label": "before", "timing": true, "json": true } }
 ```
 
 ---
 
-## dusk_perf_trace
+## tapir_perf_trace
 
-Dispatch: `artisan:dusk:perf_trace` (runs the CLI command in the MCP server's
+Dispatch: `dowel:tapir:perf_trace` (runs the CLI command in the MCP server's
 process, so the trace goes to a file and only the path comes back)
 
-Write the last closed session's `ext.dusk.perf_trace` export as a Chrome Trace
-JSON file. Export before the next `dusk_perf_begin`, which clears the frames
+Write the last closed session's `ext.tapir.perf_trace` export as a Chrome Trace
+JSON file. Export before the next `tapir_perf_begin`, which clears the frames
 the trace reads.
 
 ### Input schema
@@ -1005,20 +1005,20 @@ The absolute path of the written file.
 ### Example call
 
 ```json
-{ "name": "dusk_perf_trace", "arguments": { "out": "build/perf/list.trace.json" } }
+{ "name": "tapir_perf_trace", "arguments": { "out": "build/perf/list.trace.json" } }
 ```
 
 ---
 
-## dusk_press_key
+## tapir_press_key
 
-Dispatch: `ext.dusk.press_key`
+Dispatch: `ext.tapir.press_key`
 
 Press a hardware key (optionally with modifiers). Delivers `KeyDownEvent` +
 `KeyUpEvent` through the binding's `onKeyData`, the path real key data takes, so
 `Focus.onKeyEvent`, `Shortcuts` and `CallbackShortcuts` hear the key as they
 would a real press. A single letter or digit presses the key that carries
-that character; text entry still goes through `dusk_type`.
+that character; text entry still goes through `tapir_type`.
 
 ### Input schema
 
@@ -1036,14 +1036,14 @@ Success: `{ key: "<label>", modifiers: [...] }`.
 ### Example call
 
 ```json
-{ "name": "dusk_press_key", "arguments": { "key": "S", "modifiers": ["control"] } }
+{ "name": "tapir_press_key", "arguments": { "key": "S", "modifiers": ["control"] } }
 ```
 
 ---
 
-## dusk_reset_overlays
+## tapir_reset_overlays
 
-Dispatch: `ext.dusk.reset_overlays`
+Dispatch: `ext.tapir.reset_overlays`
 
 Reset the app to a clean screen via three escalating, idempotent layers: (1) pop every
 `PopupRoute` (dialogs, bottom sheets, popups) without touching the page stack; (2) an
@@ -1064,19 +1064,19 @@ three indicate no work was done, confirming idempotency.
 ### Example call
 
 ```json
-{ "name": "dusk_reset_overlays", "arguments": {} }
+{ "name": "tapir_reset_overlays", "arguments": {} }
 ```
 
 ---
 
-## dusk_resize_viewport
+## tapir_resize_viewport
 
-Dispatch: `artisan:dusk:resize`
+Dispatch: `dowel:tapir:resize`
 
 Resize the running Flutter web app viewport via Chrome DevTools Protocol. Requires
-artisan to have been started with `--cdp-port`. Chrome drops the override when the
+dowel to have been started with `--cdp-port`. Chrome drops the override when the
 DevTools session that sent it detaches, so through this tool it ends when the call
-returns; the CLI's `--hold` flag (`dusk:resize --hold`, run in the background) keeps
+returns; the CLI's `--hold` flag (`tapir:resize --hold`, run in the background) keeps
 the session open and is the way to drive the app at the new size.
 
 ### Input schema
@@ -1104,14 +1104,14 @@ nor `reset` is given. An argument the schema does not list, such as the old
 ### Example call
 
 ```json
-{ "name": "dusk_resize_viewport", "arguments": { "width": 375, "height": 812, "dpr": 3.0, "mobile": true, "touch": true } }
+{ "name": "tapir_resize_viewport", "arguments": { "width": 375, "height": 812, "dpr": 3.0, "mobile": true, "touch": true } }
 ```
 
 ---
 
-## dusk_right_click
+## tapir_right_click
 
-Dispatch: `ext.dusk.right_click`
+Dispatch: `ext.tapir.right_click`
 
 Fire a right (secondary mouse) click (Playwright `locator.click({ button: "right" })`
 parity). Injects `PointerDownEvent` + 50ms hold + `PointerUpEvent` (mouse kind,
@@ -1136,19 +1136,19 @@ Error: actionability gate failure, or stale-handle.
 ### Example call
 
 ```json
-{ "name": "dusk_right_click", "arguments": { "ref": "e5" } }
+{ "name": "tapir_right_click", "arguments": { "ref": "e5" } }
 ```
 
 ---
 
-## dusk_run
+## tapir_run
 
-Dispatch: `artisan:dusk:run` (substrate-routed)
+Dispatch: `dowel:tapir:run` (substrate-routed)
 
-Run several dusk verbs against the running app in one call. Each step is a CLI verb line
-without the `dusk:` prefix, tokenised like a shell (quotes and backslash escapes), and takes
+Run several tapir verbs against the running app in one call. Each step is a CLI verb line
+without the `tapir:` prefix, tokenised like a shell (quotes and backslash escapes), and takes
 the same options as the standalone command. Saves a round trip per step when the next refs
-are already known. See [dusk:run](../commands/dusk-run.md) for the step grammar.
+are already known. See [tapir:run](../commands/tapir-run.md) for the step grammar.
 
 ### Input schema
 
@@ -1162,7 +1162,7 @@ are already known. See [dusk:run](../commands/dusk-run.md) for the step grammar.
 Text: one line per step (`[1/3] tap --ref=e5 ok: <first output line, cut to 120
 characters>`), then the last step's full output. The batch stops at the first failing step
 and returns `step N failed (exit C): <step>` with that step's output; with `continue: true`
-it runs every step and reports the first failure. A step cannot be another `dusk_run`, nor a
+it runs every step and reports the first failure. A step cannot be another `tapir_run`, nor a
 verb that does not run on the connected app (resize, device, install, doctor). Use `--text`,
 `--key` or `q<N>` handles between steps that change the screen: `e<N>` refs belong to one
 snapshot.
@@ -1170,21 +1170,21 @@ snapshot.
 ### Example call
 
 ```json
-{ "name": "dusk_run", "arguments": { "steps": ["tap --ref=e5", "fill --ref=q1 --text=\"a b\"", "snap --grep Total"] } }
+{ "name": "tapir_run", "arguments": { "steps": ["tap --ref=e5", "fill --ref=q1 --text=\"a b\"", "snap --grep Total"] } }
 ```
 
 ---
 
-## dusk_screenshot
+## tapir_screenshot
 
-Dispatch: `ext.dusk.screenshot` (in-isolate, all targets). The CDP `Page.captureScreenshot` web fallback is implemented in the CLI command `dusk:screenshot --output=<path>`, NOT in this MCP tool.
+Dispatch: `ext.tapir.screenshot` (in-isolate, all targets). The CDP `Page.captureScreenshot` web fallback is implemented in the CLI command `tapir:screenshot --output=<path>`, NOT in this MCP tool.
 
 Capture a screenshot of the running Flutter app as a base64-encoded image. This MCP tool
-always dispatches the in-isolate `ext.dusk.screenshot` extension.
+always dispatches the in-isolate `ext.tapir.screenshot` extension.
 
 **Web limitation:** the in-isolate path can hang under CanvasKit+DWDS (the `toImage()`
 future never completes). For reliable web screenshots, use the CLI command
-`dusk:screenshot --output=<path>`: when artisan was started with `--cdp-port`, the CLI
+`tapir:screenshot --output=<path>`: when dowel was started with `--cdp-port`, the CLI
 falls back to CDP `Page.captureScreenshot`, honouring `--ref` / `--rect` there too. That
 fallback is CLI-only and does not apply to this MCP tool.
 
@@ -1194,7 +1194,7 @@ fallback is CLI-only and does not apply to this MCP tool.
 |---|---|---|---|
 | `format` | string | no | `jpeg` or `png`. Default `jpeg`. |
 | `quality` | integer | no | JPEG quality 0-100 (higher is better). Default `70`. Ignored when format is `png`. |
-| `ref` | string | no | Capture only this widget: an `e<N>` from `dusk_snap` or a `q<N>` from `dusk_find`. Omit for the whole viewport. |
+| `ref` | string | no | Capture only this widget: an `e<N>` from `tapir_snap` or a `q<N>` from `tapir_find`. Omit for the whole viewport. |
 | `rect` | string | no | Sub-rect `"x,y,w,h"` in logical pixels, relative to the ref's top-left. Requires `ref`. |
 
 Reach for `ref` whenever the question is about one component. A full-screen capture of a
@@ -1226,14 +1226,14 @@ the pixels instead.
 ### Example call
 
 ```json
-{ "name": "dusk_screenshot", "arguments": { "ref": "e42", "format": "png" } }
+{ "name": "tapir_screenshot", "arguments": { "ref": "e42", "format": "png" } }
 ```
 
 ---
 
-## dusk_scroll
+## tapir_scroll
 
-Dispatch: `ext.dusk.scroll`
+Dispatch: `ext.tapir.scroll`
 
 Drive a `Scrollable` widget by ref. The extension walks up to the nearest `Scrollable`
 ancestor of the widget identified by `ref`.
@@ -1262,14 +1262,14 @@ once Flutter builds them.
 ### Example call
 
 ```json
-{ "name": "dusk_scroll", "arguments": { "ref": "e12", "direction": "down", "pixels": 500 } }
+{ "name": "tapir_scroll", "arguments": { "ref": "e12", "direction": "down", "pixels": 500 } }
 ```
 
 ---
 
-## dusk_select_option
+## tapir_select_option
 
-Dispatch: `ext.dusk.select_option`
+Dispatch: `ext.tapir.select_option`
 
 Select an option in a `DropdownButton` / `DropdownButtonFormField` by ref + value. Opens
 the dropdown, finds the matching item, and taps it.
@@ -1291,14 +1291,14 @@ Error: option not found, or actionability gate failure on the dropdown itself.
 ### Example call
 
 ```json
-{ "name": "dusk_select_option", "arguments": { "ref": "e7", "value": "GET" } }
+{ "name": "tapir_select_option", "arguments": { "ref": "e7", "value": "GET" } }
 ```
 
 ---
 
-## dusk_set_checkbox
+## tapir_set_checkbox
 
-Dispatch: `ext.dusk.set_checkbox`
+Dispatch: `ext.tapir.set_checkbox`
 
 Read + conditionally toggle a `Checkbox` or `Switch` widget by ref. Idempotent: when the
 current value already matches `value`, the call returns without tapping.
@@ -1318,14 +1318,14 @@ state already matched.
 ### Example call
 
 ```json
-{ "name": "dusk_set_checkbox", "arguments": { "ref": "e4", "value": "true" } }
+{ "name": "tapir_set_checkbox", "arguments": { "ref": "e4", "value": "true" } }
 ```
 
 ---
 
-## dusk_snap
+## tapir_snap
 
-Dispatch: `ext.dusk.snap`
+Dispatch: `ext.tapir.snap`
 
 Capture a YAML snapshot of the running Flutter app's Semantics tree with stable
 `[ref=eN]` tokens. Call this FIRST, then pass the returned ref tokens to subsequent
@@ -1333,7 +1333,7 @@ action calls.
 
 Interactive nodes inside a currently-overflowing render ancestor carry an additive
 `overflow: true` sub-line (live `RenderFlex.toStringShort()` check). This is a
-current-state signal; call `dusk_exceptions` for the full non-fatal error history.
+current-state signal; call `tapir_exceptions` for the full non-fatal error history.
 
 Text fields collapse to a single ref. A field that produces two nested `textbox`
 Semantics nodes (an outer wrapper plus the `RenderEditable` leaf that always owns its
@@ -1341,7 +1341,7 @@ own node) emits one ref for the outer node, tagged with an additive `typeable: t
 sub-line; the inner duplicate is suppressed when its render object is a render-tree
 descendant of the outer node's render object. Collapse is by render-object containment
 only, so two sibling fields sharing a label stay two distinct refs. Target the node
-carrying `typeable: true` when calling `dusk_type`.
+carrying `typeable: true` when calling `tapir_type`.
 
 A control wrapped in `MergeSemantics` (a magic_starter `MSSwitch` row, a wind `WAnchor`)
 is listed once. Flutter keeps each absorbed descendant in the tree as its own node
@@ -1377,7 +1377,7 @@ A ref line may end with ` [offscreen]` (the widget lies outside the viewport) an
 occlusion, and a node with no area carries neither marker.
 
 A merged node whose centre is not on its own control also gets an indented
-`tapOwner: {"x":..,"y":..,"w":..,"h":..}` sub-line (the control's rect); a `dusk_tap` on that
+`tapOwner: {"x":..,"y":..,"w":..,"h":..}` sub-line (the control's rect); a `tapir_tap` on that
 ref goes to the control.
 
 When non-fatal render or build `FlutterError`s are in the capture buffer (for example a
@@ -1391,27 +1391,27 @@ response:
   "renderErrors": {
     "count": 1,
     "recent": [ { "type": "FlutterError", "message": "Incorrect use of ParentDataWidget." } ],
-    "hint": "Run dusk:exceptions for full messages + stack traces."
+    "hint": "Run tapir:exceptions for full messages + stack traces."
   }
 }
 ```
 
 `renderErrors` is omitted entirely when the screen is clean. `recent` contains at most 3
 entries, each with `type` (string) and `message` (first line of the error). `count` reflects
-the full buffer depth, which may exceed 3. Use `dusk_exceptions` to retrieve full messages and
+the full buffer depth, which may exceed 3. Use `tapir_exceptions` to retrieve full messages and
 stack traces.
 
 ### Example call
 
 ```json
-{ "name": "dusk_snap", "arguments": { "depth": 8 } }
+{ "name": "tapir_snap", "arguments": { "depth": 8 } }
 ```
 
 ---
 
-## dusk_tap
+## tapir_tap
 
-Dispatch: `ext.dusk.tap`
+Dispatch: `ext.tapir.tap`
 
 Tap a widget by ref. Synthesizes a pointer Down + 50ms hold + Up sequence at the widget's
 LIVE center. Triggers `GestureDetector.onTap`, `InkWell.onTap`, button `onPressed`. For
@@ -1420,14 +1420,14 @@ LIVE center. Triggers `GestureDetector.onTap`, `InkWell.onTap`, button `onPresse
 The pointer dispatches at the target's live rect, re-resolved immediately after the
 actionability gate passes (it falls back to the cached snapshot rect only for slivers /
 detached render objects). A button whose host rebuilt it into a shifted slot between
-`dusk_snap` and `dusk_tap` is still hit correctly.
+`tapir_snap` and `tapir_tap` is still hit correctly.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `ref` | string | yes | Widget ref (`e<N>`). |
-| `snapshot` | string | no | Post-tap snapshot: `full` (the default), `diff` or `none`. `diff` returns only the lines the tap changed since your last unfiltered snapshot (a `dusk_snap` or an earlier action): a changed row is `- <old line>` then `+ <new line>`, an added row `+ `, a removed row `- `, then a `(K of N lines changed)` footer, and the payload adds `snapshotMode: "diff"`. With no baseline yet the full text comes back. A filtered `dusk_snap` (`grep`, `within`, `depth`, `interactiveOnly`) never records the baseline, and a hot restart clears it. |
+| `snapshot` | string | no | Post-tap snapshot: `full` (the default), `diff` or `none`. `diff` returns only the lines the tap changed since your last unfiltered snapshot (a `tapir_snap` or an earlier action): a changed row is `- <old line>` then `+ <new line>`, an added row `+ `, a removed row `- `, then a `(K of N lines changed)` footer, and the payload adds `snapshotMode: "diff"`. With no baseline yet the full text comes back. A filtered `tapir_snap` (`grep`, `within`, `depth`, `interactiveOnly`) never records the baseline, and a hot restart clears it. |
 | `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
 | `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
 | `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
@@ -1451,9 +1451,9 @@ at its centre reaches it inside the viewport, the pointer goes there and the res
 (`centreHandled: true` when the centre has a tap handler of its own). Pass `retarget: false` to
 tap the centre instead. When retargeting is not safe (several candidates, or the control is
 covered or off screen) the tap stays at the centre and the response adds
-`tapPointOutsideOwner: {ownerRect, point}`. The gate is unchanged. `dusk_snap` and
-`dusk_observe` show the control's rect ahead of time as `tapOwner` (with `retargets: false`
-when a tap cannot go there). Only `dusk_tap` retargets.
+`tapPointOutsideOwner: {ownerRect, point}`. The gate is unchanged. `tapir_snap` and
+`tapir_observe` show the control's rect ahead of time as `tapOwner` (with `retargets: false`
+when a tap cannot go there). Only `tapir_tap` retargets.
 
 Error: actionability gate failure (`"not enabled"` / `"zero rect"` / `"off-viewport"`) or
 stale-handle.
@@ -1470,14 +1470,14 @@ the same route could match.
 ### Example call
 
 ```json
-{ "name": "dusk_tap", "arguments": { "ref": "e5" } }
+{ "name": "tapir_tap", "arguments": { "ref": "e5" } }
 ```
 
 ---
 
-## dusk_triple_click
+## tapir_triple_click
 
-Dispatch: `ext.dusk.triple_click`
+Dispatch: `ext.tapir.triple_click`
 
 Fire three primary clicks (~100ms apart) at the widget identified by `ref` (Playwright
 `locator.click({ clickCount: 3 })` parity). In Material text fields this selects an entire
@@ -1500,14 +1500,14 @@ Success: `{ ref: "<ref>" }`. The actionability gate runs once before the first t
 ### Example call
 
 ```json
-{ "name": "dusk_triple_click", "arguments": { "ref": "e5" } }
+{ "name": "tapir_triple_click", "arguments": { "ref": "e5" } }
 ```
 
 ---
 
-## dusk_type
+## tapir_type
 
-Dispatch: `ext.dusk.type`
+Dispatch: `ext.tapir.type`
 
 Type text into a `TextField` widget by ref. Fires `userUpdateTextEditingValue` so
 `onChanged` callbacks fire and form validators run. Replaces existing text (does not
@@ -1531,14 +1531,14 @@ Success: `{ ref, text }`. Multi-line text uses `\n` line breaks.
 ### Example call
 
 ```json
-{ "name": "dusk_type", "arguments": { "ref": "e9", "text": "hello@example.com" } }
+{ "name": "tapir_type", "arguments": { "ref": "e9", "text": "hello@example.com" } }
 ```
 
 ---
 
-## dusk_wait_for
+## tapir_wait_for
 
-Dispatch: `ext.dusk.wait_for`
+Dispatch: `ext.tapir.wait_for`
 
 Wait until a UI condition is satisfied or the timeout expires. Polls at 200ms; returns as
 soon as the condition flips.
@@ -1549,7 +1549,7 @@ soon as the condition flips.
 |---|---|---|---|
 | `text` | string | no | Wait until a `Text` with this exact data exists. |
 | `textGone` | string | no | Wait until no such `Text` exists. |
-| `expression` | string | no | Matched as text, exactly like `text`; it is not evaluated as Dart (use `dusk_evaluate` for that). |
+| `expression` | string | no | Matched as text, exactly like `text`; it is not evaluated as Dart (use `tapir_evaluate` for that). |
 | `timeoutMs` | integer | no | Wait timeout in milliseconds. Default `5000`. |
 
 Pass one of `text`, `textGone`, `expression`; the handler errors when none is passed.
@@ -1559,24 +1559,24 @@ Pass one of `text`, `textGone`, `expression`; the handler errors when none is pa
 Match: `{ matched: true, elapsedMs: <int> }`.
 
 Timeout: a normal result, `{ matched: false, reason: "timeout" }`, not an MCP error, so check
-`matched` before continuing (the CLI, `dusk:wait`, exits 1 in that case). With none of the
+`matched` before continuing (the CLI, `tapir:wait`, exits 1 in that case). With none of the
 three keys the call errors; with several it uses the first of `text`, `textGone`, `expression`.
 
 ### Example call
 
 ```json
-{ "name": "dusk_wait_for", "arguments": { "text": "Welcome", "timeoutMs": 3000 } }
+{ "name": "tapir_wait_for", "arguments": { "text": "Welcome", "timeoutMs": 3000 } }
 ```
 
 ---
 
-## dusk_wait_for_network_idle
+## tapir_wait_for_network_idle
 
-Dispatch: `ext.dusk.wait_for_network_idle`
+Dispatch: `ext.tapir.wait_for_network_idle`
 
 Wait until the running app reports zero in-flight HTTP requests for a contiguous `idleMs`
-window. Playwright `waitForLoadState` network-idle semantics. Missing-telescope graceful:
-returns idle immediately when telescope is not set up.
+window. Playwright `waitForLoadState` network-idle semantics. Missing-crumbs graceful:
+returns idle immediately when crumbs is not set up.
 
 ### Input schema
 
@@ -1596,7 +1596,7 @@ count observed: <int>" }`.
 ### Example call
 
 ```json
-{ "name": "dusk_wait_for_network_idle", "arguments": { "timeoutMs": 8000, "idleMs": 750 } }
+{ "name": "tapir_wait_for_network_idle", "arguments": { "timeoutMs": 8000, "idleMs": 750 } }
 ```
 
 ---
@@ -1605,5 +1605,5 @@ count observed: <int>" }`.
 
 - [overview.md](overview.md): tool catalog, dispatch surfaces, lifecycle.
 - [setup.md](setup.md): per-client install matrix and reconnect ritual.
-- [`lib/src/dusk_artisan_provider.dart`](../../lib/src/dusk_artisan_provider.dart): the
+- [`lib/src/tapir_dowel_provider.dart`](../../lib/src/tapir_dowel_provider.dart): the
   source-of-truth `McpToolDescriptor` list.

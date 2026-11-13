@@ -5,31 +5,31 @@ import 'dart:ui' show CheckedState, FlutterView;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
-import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
+import 'package:wind_kit_diagnostics_contracts/wind_kit_diagnostics_contracts.dart';
 
-import '../dusk_error_capture.dart';
-import '../dusk_plugin.dart';
+import '../tapir_error_capture.dart';
+import '../tapir_plugin.dart';
 import '../ref_registry.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/snapshot_diff.dart';
 import '../utils/tap_owner.dart';
 import '../utils/viewport_visibility.dart';
 
-/// `ext.dusk.snap` — Playwright-MCP-shaped accessibility snapshot.
+/// `ext.tapir.snap` — Playwright-MCP-shaped accessibility snapshot.
 ///
 /// Walks the live [SemanticsOwner] tree and emits a YAML snapshot. Each
 /// interactive node receives an `[ref=eN]` token minted via [RefRegistry];
-/// subsequent ref-based extensions (`ext.dusk.tap`, `ext.dusk.type`, ...)
+/// subsequent ref-based extensions (`ext.tapir.tap`, `ext.tapir.type`, ...)
 /// call [RefRegistry.lookup] to resolve a token back to its hit point
 /// or focus target.
 ///
 /// After minting a token, every enricher registered on
-/// [DuskPlugin.enrichers] is invoked with the element + ref registry.
+/// [TapirPlugin.enrichers] is invoked with the element + ref registry.
 /// Non-null returns are appended as indented child lines beneath the ref
-/// entry. Magic ships its enrichers via `MagicDuskIntegration.install()`.
-/// Wind diagnostics flow through `fluttersdk_wind_diagnostics_contracts.WindDebugRegistry`
+/// entry. Magic ships its enrichers via `MagicTapirIntegration.install()`.
+/// Wind diagnostics flow through `wind_kit_diagnostics_contracts.WindDebugRegistry`
 /// (registered by `Wind.installDebugResolver()`) and are emitted as a
 /// `wind:` sub-block above the enricher loop.
 ///
@@ -60,24 +60,24 @@ import '../utils/viewport_visibility.dart';
 ///
 /// When non-fatal render/build FlutterErrors have been captured (ParentDataWidget
 /// misuse, overflow, etc.), a `renderErrors` block is added so a silently-broken
-/// widget is visible without a separate `ext.dusk.exceptions` call. Omitted when
+/// widget is visible without a separate `ext.tapir.exceptions` call. Omitted when
 /// clean:
 ///
 /// ```json
 /// { "snapshot": "<yaml>", "groupId": "...",
 ///   "renderErrors": { "count": 1,
 ///     "recent": [ { "type": "FlutterError", "message": "Incorrect use of ..." } ],
-///     "hint": "Run dusk:exceptions (CLI) or dusk_exceptions (MCP) for full messages + stack traces." } }
+///     "hint": "Run tapir:exceptions (CLI) or tapir_exceptions (MCP) for full messages + stack traces." } }
 /// ```
 
 void registerSnapExtension() {
   // Profile builds carry it so a profile-mode perf session can still be
   // driven; release tree-shakes it.
   if (kReleaseMode) return;
-  registerDuskExtension('ext.dusk.snap', duskSnapHandler);
+  registerTapirExtension('ext.tapir.snap', tapirSnapHandler);
 }
 
-Future<developer.ServiceExtensionResponse> duskSnapHandler(
+Future<developer.ServiceExtensionResponse> tapirSnapHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -97,35 +97,35 @@ Future<developer.ServiceExtensionResponse> duskSnapHandler(
     final bool interactiveOnly = params['interactiveOnly'] == 'true';
     final String? grep = params['grep'];
 
-    final Map<String, dynamic> payload = await duskSnapBuild(
+    final Map<String, dynamic> payload = await tapirSnapBuild(
       maxDepth: depth,
       includeEnrichers: includeEnrichers,
       within: (within != null && within.isNotEmpty) ? within : null,
       interactiveOnly: interactiveOnly,
       grep: (grep != null && grep.isEmpty) ? null : grep,
     );
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.snap error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] ext.tapir.snap error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
 
-/// Builds the same `{snapshot, groupId}` payload that `ext.dusk.snap` emits.
+/// Builds the same `{snapshot, groupId}` payload that `ext.tapir.snap` emits.
 ///
 /// Production callers in this package (action handlers in Step 3.2) reuse
 /// this to embed a fresh accessibility snapshot in their action responses
 /// (Playwright `setIncludeSnapshot()` parity). Behaves identically to a
-/// direct call to [duskSnapHandler]: walks the live Semantics tree, mints
+/// direct call to [tapirSnapHandler]: walks the live Semantics tree, mints
 /// `eN` ref tokens via [RefRegistry], invokes every enricher registered on
-/// [DuskPlugin.enrichers], and serialises to YAML.
-Future<Map<String, dynamic>> duskSnapBuild({
+/// [TapirPlugin.enrichers], and serialises to YAML.
+Future<Map<String, dynamic>> tapirSnapBuild({
   int? maxDepth,
   bool includeEnrichers = false,
   String? within,
@@ -193,7 +193,7 @@ Future<Map<String, dynamic>> duskSnapBuild({
     // build time can render partially and stay invisible in the semantics tree,
     // so an action against it silently no-ops. Including a renderErrors summary
     // here means a broken screen is impossible to miss without remembering to
-    // call ext.dusk.exceptions separately. Omitted entirely when there are none.
+    // call ext.tapir.exceptions separately. Omitted entirely when there are none.
     final List<Map<String, dynamic>> captured =
         recentCapturedExceptions(limit: 50);
 
@@ -223,7 +223,7 @@ Future<Map<String, dynamic>> duskSnapBuild({
                         (e['message'] as String? ?? '').split('\n').first,
                   })
               .toList(),
-          'hint': 'Run dusk:exceptions (CLI) or dusk_exceptions (MCP) for '
+          'hint': 'Run tapir:exceptions (CLI) or tapir_exceptions (MCP) for '
               'full messages + stack traces.',
         },
     };
@@ -258,7 +258,7 @@ void resetSnapshotBaselineForTesting() {
 /// (default on): the full text under `snapshot`, or nothing.
 ///
 /// `diff` answers the lines that changed since the last unfiltered snapshot
-/// (a `dusk:snap` or an earlier action), with `snapshotMode: "diff"` beside
+/// (a `tapir:snap` or an earlier action), with `snapshotMode: "diff"` beside
 /// it; with no baseline yet the full text comes back. The baseline is read
 /// before the post-action build because that build replaces it.
 ///
@@ -275,11 +275,11 @@ Future<Map<String, dynamic>> snapshotForAction(
     case 'none':
       return <String, dynamic>{};
     case 'full':
-      final Map<String, dynamic> snap = await duskSnapBuild();
+      final Map<String, dynamic> snap = await tapirSnapBuild();
       return <String, dynamic>{'snapshot': snap['snapshot']};
     case 'diff':
       final String? previous = snapshotBaseline;
-      final Map<String, dynamic> snap = await duskSnapBuild();
+      final Map<String, dynamic> snap = await tapirSnapBuild();
       return <String, dynamic>{
         'snapshot': diffSnapshots(previous, snap['snapshot'] as String),
         'snapshotMode': 'diff',
@@ -359,7 +359,7 @@ SemanticsNode _resolveWithinNode(String ref) {
   final RefEntry? entry = RefRegistry.lookup(ref);
   if (entry == null) {
     throw StateError(
-      'duskSnapBuild: within ref "$ref" not found. Take it from the ref '
+      'tapirSnapBuild: within ref "$ref" not found. Take it from the ref '
       'tokens of a prior snapshot; q<N> query handles are not addressable '
       'here (they re-resolve per action and have no fixed subtree).',
     );
@@ -367,7 +367,7 @@ SemanticsNode _resolveWithinNode(String ref) {
   final SemanticsNode? node = entry.node;
   if (node == null) {
     throw StateError(
-      'duskSnapBuild: within ref "$ref" carries no semantics node, so it '
+      'tapirSnapBuild: within ref "$ref" carries no semantics node, so it '
       'has no subtree to scope to. Re-snapshot and use a ref from that '
       'output.',
     );
@@ -380,7 +380,7 @@ SemanticsNode _resolveWithinNode(String ref) {
   // than "your ref is stale".
   if (!node.attached || !entry.element.mounted) {
     throw StateError(
-      'duskSnapBuild: within ref "$ref" no longer resolves; the widget it '
+      'tapirSnapBuild: within ref "$ref" no longer resolves; the widget it '
       'named has left the tree. Re-snapshot and scope to a ref from that '
       'output.',
     );
@@ -465,7 +465,7 @@ RefBinding? _bindingFor(
 
   final Route<dynamic>? route = ModalRoute.of(element);
   return RefBinding(
-    query: DuskQuery(
+    query: TapirQuery(
       semanticsLabel: label,
       matchIndex: index,
     ),
@@ -584,7 +584,7 @@ void _emitNode({
       buffer.write(' [ref=$token]');
       buffer.writeln(_visibilityMarker(renderObject, rect));
 
-      // D2: the surviving textbox is the one `dusk:type` resolves. Annotate it
+      // D2: the surviving textbox is the one `tapir:type` resolves. Annotate it
       // so agents target the typeable node directly. Additive sub-line; no
       // change to the node-line format. This node's render object becomes the
       // containment anchor for any nested (duplicate) textbox below it.
@@ -618,12 +618,12 @@ void _emitNode({
       // Enricher loop. Each registered enricher may emit one or more YAML
       // lines indented under the ref entry. Magic + Wind register here.
       // Default off (Playwright parity): callers opt in via
-      // includeEnrichers=true on dusk:snap or the includeEnrichers flag on
+      // includeEnrichers=true on tapir:snap or the includeEnrichers flag on
       // action handlers that embed a post-action snapshot.
       if (includeEnrichers) {
-        // Wind diagnostics via fluttersdk_wind_diagnostics_contracts neutral bridge.
+        // Wind diagnostics via wind_kit_diagnostics_contracts neutral bridge.
         // Wind registers a WindDebugResolver at app boot (Wind.installDebugResolver);
-        // dusk reads it here without ever importing wind types. Returns const {}
+        // tapir reads it here without ever importing wind types. Returns const {}
         // for non-Wind widgets, a graceful no-op.
         final WindDebugResolver? resolver = WindDebugRegistry.current;
         if (resolver != null) {
@@ -641,7 +641,7 @@ void _emitNode({
           }
         }
         // Existing enricher loop UNCHANGED (Magic still uses this path).
-        for (final enricher in DuskPlugin.enrichers) {
+        for (final enricher in TapirPlugin.enrichers) {
           final String? fragment = enricher(element, RefRegistry.instance);
           if (fragment == null || fragment.isEmpty) continue;
           for (final line

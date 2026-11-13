@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
-import 'package:fluttersdk_dusk/src/utils/tap_owner.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/ref_registry.dart';
+import 'package:tapir/src/utils/tap_owner.dart';
 
 import '../../_support/merged_stage.dart';
 
@@ -16,7 +16,7 @@ void _useSmallView(WidgetTester tester) {
 
 /// Snapshots the screen and judges [point] on the first button ref found.
 Future<TapOwnerReport?> _judge(WidgetTester tester, Offset? point) async {
-  final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+  final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
   final String ref =
       RegExp(r'button "[^"]*" \[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
   final RefEntry entry = RefRegistry.lookup(ref)!;
@@ -177,7 +177,7 @@ void main() {
       try {
         await tester
             .pumpWidget(mergedStageApp(onStageTap: () {}, onSkip: () {}));
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
         final String ref =
             RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
         final RefEntry entry = RefRegistry.lookup(ref)!;
@@ -206,7 +206,7 @@ void main() {
       try {
         await tester
             .pumpWidget(mergedStageApp(onStageTap: () {}, onSkip: () {}));
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
         final String ref =
             RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
         final RefEntry entry = RefRegistry.lookup(ref)!;
@@ -238,7 +238,7 @@ void main() {
         await tester.pumpWidget(
           mergedChoiceApp(onStageTap: () {}, onYes: () {}, onNo: () {}),
         );
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
         final String ref =
             RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
         final RefEntry entry = RefRegistry.lookup(ref)!;

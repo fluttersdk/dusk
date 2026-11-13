@@ -1,4 +1,4 @@
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
 import '../cdp/page_visibility.dart';
 
@@ -27,7 +27,7 @@ import '../cdp/page_visibility.dart';
 /// rethrows the original error after a stderr notice, since its gesture may
 /// already have fired. Any other error propagates untouched.
 Future<Map<String, dynamic>> callExtensionVisible(
-  ArtisanContext ctx,
+  DowelContext ctx,
   String method,
   Map<String, dynamic> params, {
   bool retry = false,
@@ -41,7 +41,7 @@ Future<Map<String, dynamic>> callExtensionVisible(
     if (!retry) {
       ctx.output.error(
         '⚠ The page was hidden and did not answer; it is now in front. The '
-        'action may already have run: run dusk:snap to check before the '
+        'action may already have run: run tapir:snap to check before the '
         'next step.',
       );
       rethrow;
@@ -75,7 +75,7 @@ Future<Map<String, dynamic>> callExtensionVisible(
   }
   ctx.output.error(
     '⚠ Brought the hidden page to front. This action ran while it was hidden '
-    'and was not repeated: run dusk:snap to check what it did before the '
+    'and was not repeated: run tapir:snap to check what it did before the '
     'next step.',
   );
   return response;
@@ -92,7 +92,7 @@ bool _looksLikeNoAnswer(Object error) {
 
 /// For a call that threw: true only when the session has a `cdpPort`, the
 /// tab reports `hidden` and bringing it to front worked.
-Future<bool> _recoveredHiddenTab(ArtisanContext ctx) async {
+Future<bool> _recoveredHiddenTab(DowelContext ctx) async {
   final Map<String, dynamic>? state = await StateFile.read();
   final int? cdpPort = _asInt(state?['cdpPort']);
   if (cdpPort == null) return false;

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/perf/scenario.dart';
+import 'package:tapir/src/perf/scenario.dart';
 
 /// A scenario every test mutates one axis of. It is valid as written, so a
 /// test that expects a rejection proves the one line it changed is the cause.
@@ -219,7 +219,7 @@ steps:
       expect(problems.join('\n'), contains('slider'));
     });
 
-    test('accepts the roles dusk:snap prints, textbox and heading included',
+    test('accepts the roles tapir:snap prints, textbox and heading included',
         () {
       for (final String role in <String>['textbox', 'heading']) {
         final PerfScenario scenario = PerfScenario.parse('''
@@ -232,7 +232,7 @@ steps:
       }
     });
 
-    test('rejects textField, which is not a role dusk:snap prints', () {
+    test('rejects textField, which is not a role tapir:snap prints', () {
       final List<String> problems = _problems(
         _valid.replaceFirst(
           '{role: button, name: Row, index: 2}',

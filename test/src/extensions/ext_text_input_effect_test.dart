@@ -5,13 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_text_input.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/extensions/ext_text_input.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 /// Verifies that the text verbs report what the widget HOLDS, not what they
 /// were asked to write.
 ///
-/// `ext.dusk.type` echoed its own `text` parameter back, so a field that
+/// `ext.tapir.type` echoed its own `text` parameter back, so a field that
 /// filtered or rejected the input reported a clean success with the value the
 /// caller wanted. A number field silently dropping a fill produced a
 /// defect-shaped story that survived two rewrites of the widget before anyone
@@ -50,7 +50,7 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> pending =
           aiTestTypeHandler(
-        'ext.dusk.type',
+        'ext.tapir.type',
         <String, String>{
           'ref': ref,
           'text': 'QA Sweep User',
@@ -77,7 +77,7 @@ void main() {
       WidgetTester tester,
     ) async {
       // A digits-only field is the reproducible stand-in for the real case:
-      // an InputType.number field that swallowed every fill while dusk kept
+      // an InputType.number field that swallowed every fill while tapir kept
       // reporting the text it had been handed.
       final String ref = await pumpFieldAndRegisterRef(
         tester,
@@ -88,7 +88,7 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> pending =
           aiTestTypeHandler(
-        'ext.dusk.type',
+        'ext.tapir.type',
         <String, String>{
           'ref': ref,
           'text': 'abc',
@@ -142,7 +142,7 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> pending =
-          aiTestTypeHandler('ext.dusk.type', <String, String>{
+          aiTestTypeHandler('ext.tapir.type', <String, String>{
         'ref': ref,
         'text': 'QA Sweep',
         'checkStable': 'false',
@@ -175,7 +175,7 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> pending =
-          aiTestTypeHandler('ext.dusk.type', <String, String>{
+          aiTestTypeHandler('ext.tapir.type', <String, String>{
         'ref': ref,
         'text': 'QA Sweep',
         'checkStable': 'false',

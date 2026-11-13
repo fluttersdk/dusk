@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/utils/snapshot_diff.dart';
+import 'package:tapir/src/utils/snapshot_diff.dart';
 
 String _snap(List<String> lines) => '${lines.join('\n')}\n';
 

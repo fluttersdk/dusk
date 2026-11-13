@@ -8,7 +8,7 @@
 /// valid whatever the report cut.
 ///
 /// Pure apart from reading [perfInsightContributors]: no binding access, so
-/// `ext.dusk.perf_end` and magic_devtools' conformance test build the same
+/// `ext.tapir.perf_end` and magic_devtools' conformance test build the same
 /// report from the same maps.
 library;
 
@@ -90,7 +90,7 @@ const double _kOutlierMedianMultiple = 10;
 final class PerfAnalysis {
   const PerfAnalysis._(this.report, this._drillDowns);
 
-  /// The bounded report `ext.dusk.perf_end` returns.
+  /// The bounded report `ext.tapir.perf_end` returns.
   final Map<String, Object?> report;
 
   final Map<String, Map<String, Object?>> _drillDowns;
@@ -690,7 +690,7 @@ _Insight? _coverageInsight(_Session session, Map<String, Object?> coverage) {
         perFrame: null,
         threshold: <String, Object?>{'minPlaced': 1},
       ),
-      nextStep: 'Treat this unit as unmeasured; dusk:perf_run leaves it out '
+      nextStep: 'Treat this unit as unmeasured; tapir:perf_run leaves it out '
           'of the series medians.',
       detail: coverage,
     );
@@ -723,7 +723,7 @@ _Insight? _coverageInsight(_Session session, Map<String, Object?> coverage) {
             'host\'s frame watcher is not draining the timeline.',
       if (missing.contains('blockSelfTime'))
         'Blocks carry no selfMicros, so the self-time ranking reads zero: the '
-            'host\'s telescope predates exclusive block time.',
+            'host\'s crumbs predates exclusive block time.',
     ].join(' '),
     // Two findings, two metrics: frames that never reported, or sources that
     // were never read. A frame metric reading 0 would say the first is fine

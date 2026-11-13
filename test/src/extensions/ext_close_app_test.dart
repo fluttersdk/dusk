@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_close_app.dart';
-import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
+import 'package:tapir/src/extensions/ext_close_app.dart';
+import 'package:tapir/src/utils/error_envelope.dart';
 
 void main() {
   // These call the handler from a bare `test()`, so the binding the response
@@ -16,7 +16,7 @@ void main() {
     closeAppImpl = defaultCloseApp;
   });
 
-  group('ext.dusk.close_app', () {
+  group('ext.tapir.close_app', () {
     // -------------------------------------------------------------------------
     // (a) Envelope shape
     // -------------------------------------------------------------------------
@@ -29,8 +29,8 @@ void main() {
           closeCalled = true;
         };
 
-        final response = await extDuskCloseAppHandler(
-          'ext.dusk.close_app',
+        final response = await extTapirCloseAppHandler(
+          'ext.tapir.close_app',
           <String, String>{},
         );
 
@@ -64,8 +64,8 @@ void main() {
       () async {
         closeAppImpl = () async {};
 
-        final response = await extDuskCloseAppHandler(
-          'ext.dusk.close_app',
+        final response = await extTapirCloseAppHandler(
+          'ext.tapir.close_app',
           <String, String>{},
         );
 
@@ -98,8 +98,8 @@ void main() {
           stubInvoked = true;
         };
 
-        await extDuskCloseAppHandler(
-          'ext.dusk.close_app',
+        await extTapirCloseAppHandler(
+          'ext.tapir.close_app',
           <String, String>{},
         );
 
@@ -136,8 +136,8 @@ void main() {
         registerCloseAppExtension();
         registerCloseAppExtension();
 
-        final response = await extDuskCloseAppHandler(
-          'ext.dusk.close_app',
+        final response = await extTapirCloseAppHandler(
+          'ext.tapir.close_app',
           <String, String>{},
         );
 
@@ -159,8 +159,8 @@ void main() {
       () async {
         closeAppImpl = () async {};
 
-        final response = await extDuskCloseAppHandler(
-          'ext.dusk.close_app',
+        final response = await extTapirCloseAppHandler(
+          'ext.tapir.close_app',
           <String, String>{'unexpected': 'value'},
         );
 
@@ -178,8 +178,8 @@ void main() {
           throw Exception('boom');
         };
 
-        final response = await extDuskCloseAppHandler(
-          'ext.dusk.close_app',
+        final response = await extTapirCloseAppHandler(
+          'ext.tapir.close_app',
           <String, String>{},
         );
 

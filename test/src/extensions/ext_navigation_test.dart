@@ -6,16 +6,16 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_navigation.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/tapir_plugin.dart';
+import 'package:tapir/src/extensions/ext_navigation.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
 
-/// Tests for the navigation extensions (Step 6 of fluttersdk-dusk-alpha-2 plan).
+/// Tests for the navigation extensions (Step 6 of tapir-alpha-2 plan).
 ///
 /// Covers:
-/// 1. `extDuskNavigateHandler` — route param validation + success envelope.
-/// 2. `extDuskNavigateBackHandler` — always-success pop path.
-/// 3. `extDuskGetRoutesHandler` — returns location + title keys.
+/// 1. `extTapirNavigateHandler` — route param validation + success envelope.
+/// 2. `extTapirNavigateBackHandler` — always-success pop path.
+/// 3. `extTapirGetRoutesHandler` — returns location + title keys.
 /// 4. `registerNavigationExtensions()` — idempotent registration without throw.
 ///
 /// ## Async pattern for handlers that await endOfFrame
@@ -24,7 +24,7 @@ import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
 /// fake-timer dance inside `testWidgets`:
 ///
 /// ```dart
-/// final future = extDuskNavigateHandler(...);
+/// final future = extTapirNavigateHandler(...);
 /// await tester.pump();
 /// await tester.pump();
 /// final response = await future;
@@ -174,14 +174,14 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // extDuskNavigateHandler
+  // extTapirNavigateHandler
   // ---------------------------------------------------------------------------
 
-  group('extDuskNavigateHandler', () {
+  group('extTapirNavigateHandler', () {
     test('returns extensionError when route param is missing', () async {
       final developer.ServiceExtensionResponse response =
-          await extDuskNavigateHandler(
-        'ext.dusk.navigate',
+          await extTapirNavigateHandler(
+        'ext.tapir.navigate',
         <String, String>{},
       );
 
@@ -194,8 +194,8 @@ void main() {
 
     test('returns extensionError when route param is empty string', () async {
       final developer.ServiceExtensionResponse response =
-          await extDuskNavigateHandler(
-        'ext.dusk.navigate',
+          await extTapirNavigateHandler(
+        'ext.tapir.navigate',
         <String, String>{'route': ''},
       );
 
@@ -220,11 +220,11 @@ void main() {
       // needs a real Router widget and is exercised by the uptizm-app
       // MCP smoke test (live GoRouter, both directions).
       String? routeSeenByAdapter;
-      DuskPlugin.registerNavigateAdapter((String route) async {
+      TapirPlugin.registerNavigateAdapter((String route) async {
         routeSeenByAdapter = route;
         return true;
       });
-      addTearDown(() => DuskPlugin.registerNavigateAdapter(null));
+      addTearDown(() => TapirPlugin.registerNavigateAdapter(null));
 
       await tester
           .pumpWidget(const MaterialApp(home: Scaffold(body: Text('Home'))));
@@ -235,8 +235,8 @@ void main() {
       // handler future — the URL-verify poll past this point requires
       // a router that this test doesn't mount.
       // ignore: unawaited_futures
-      extDuskNavigateHandler(
-        'ext.dusk.navigate',
+      extTapirNavigateHandler(
+        'ext.tapir.navigate',
         <String, String>{'route': '/settings', 'includeSnapshot': 'false'},
       );
       await tester.pump();
@@ -279,16 +279,16 @@ void main() {
       //    This is the same pattern as the existing test; the critical
       //    difference is that a named route for the same path also exists above.
       String? routeSeenByAdapter;
-      DuskPlugin.registerNavigateAdapter((String route) async {
+      TapirPlugin.registerNavigateAdapter((String route) async {
         routeSeenByAdapter = route;
         return true; // claim the route so Navigator fallback must be skipped.
       });
-      addTearDown(() => DuskPlugin.registerNavigateAdapter(null));
+      addTearDown(() => TapirPlugin.registerNavigateAdapter(null));
 
       // 3. Drive the handler.
       // ignore: unawaited_futures
-      extDuskNavigateHandler(
-        'ext.dusk.navigate',
+      extTapirNavigateHandler(
+        'ext.tapir.navigate',
         <String, String>{
           'route': '/adapter-wins-target',
           'includeSnapshot': 'false',
@@ -319,14 +319,14 @@ void main() {
         required String at,
         required String route,
       }) async {
-        DuskPlugin.registerNavigateAdapter((String route) async => true);
-        addTearDown(() => DuskPlugin.registerNavigateAdapter(null));
+        TapirPlugin.registerNavigateAdapter((String route) async => true);
+        addTearDown(() => TapirPlugin.registerNavigateAdapter(null));
         await tester.pumpWidget(
           MaterialApp.router(routerConfig: _routerConfig(at)),
         );
         final Future<developer.ServiceExtensionResponse> future =
-            extDuskNavigateHandler(
-          'ext.dusk.navigate',
+            extTapirNavigateHandler(
+          'ext.tapir.navigate',
           <String, String>{'route': route, 'includeSnapshot': 'false'},
         );
         await tester.pump();
@@ -368,7 +368,7 @@ void main() {
 
     // Negative-path coverage (router never honors the route → navigated:false
     // + reason field) is exercised end-to-end via the uptizm-app MCP smoke
-    // test, where the actual GoRouter + the dusk_navigate VM service call
+    // test, where the actual GoRouter + the tapir_navigate VM service call
     // round-trip prove the envelope. A testWidgets reproduction would have
     // to drive _observeActivePathUntil's frame-bound poll loop through
     // pumpAndSettle, which deadlocks against the loop's recursive
@@ -377,8 +377,8 @@ void main() {
 
     test('returns a ServiceExtensionResponse instance', () async {
       final developer.ServiceExtensionResponse response =
-          await extDuskNavigateHandler(
-        'ext.dusk.navigate',
+          await extTapirNavigateHandler(
+        'ext.tapir.navigate',
         <String, String>{},
       );
 
@@ -387,10 +387,10 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // extDuskNavigateBackHandler
+  // extTapirNavigateBackHandler
   // ---------------------------------------------------------------------------
 
-  group('extDuskNavigateBackHandler', () {
+  group('extTapirNavigateBackHandler', () {
     // All tests in this group use testWidgets because the handler awaits
     // WidgetsBinding.instance.endOfFrame, which requires a frame scheduler.
     // In a plain test() the frame never fires and the future never resolves.
@@ -399,8 +399,8 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{},
       );
       await tester.pump();
@@ -439,8 +439,8 @@ void main() {
 
       // 3. Drive the back handler.
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{},
       );
       await tester.pump();
@@ -459,8 +459,8 @@ void main() {
       // Pump a minimal app so the frame scheduler is running.
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{},
       );
       await tester.pump();
@@ -476,8 +476,8 @@ void main() {
       // back: `navigatedBack` and `popped` agree.
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{'includeSnapshot': 'false'},
       );
       await tester.pump();
@@ -494,8 +494,8 @@ void main() {
     testWidgets('result encodes to valid JSON', (WidgetTester tester) async {
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{},
       );
       await tester.pump();
@@ -508,7 +508,7 @@ void main() {
     });
   });
 
-  group('extDuskNavigateBackHandler nested Navigators', () {
+  group('extTapirNavigateBackHandler nested Navigators', () {
     testWidgets(
         'pops a page stacked inside a nested Navigator and get_routes follows',
         (WidgetTester tester) async {
@@ -529,8 +529,8 @@ void main() {
       expect(buildGetRoutesResponse()['uri'], '/monitors/7');
 
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{'includeSnapshot': 'false'},
       );
       await tester.pump();
@@ -579,8 +579,8 @@ void main() {
       expect(find.text('root-cover'), findsOneWidget);
 
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{'includeSnapshot': 'false'},
       );
       await tester.pump();
@@ -611,8 +611,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{'includeSnapshot': 'false'},
       );
       await tester.pump();
@@ -648,8 +648,8 @@ void main() {
       expect(find.text('visible-detail'), findsOneWidget);
 
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{'includeSnapshot': 'false'},
       );
       await tester.pump();
@@ -670,14 +670,14 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // extDuskGetRoutesHandler
+  // extTapirGetRoutesHandler
   // ---------------------------------------------------------------------------
 
-  group('extDuskGetRoutesHandler', () {
+  group('extTapirGetRoutesHandler', () {
     test('returns a ServiceExtensionResponse instance', () async {
       final developer.ServiceExtensionResponse response =
-          await extDuskGetRoutesHandler(
-        'ext.dusk.get_routes',
+          await extTapirGetRoutesHandler(
+        'ext.tapir.get_routes',
         <String, String>{},
       );
 
@@ -686,8 +686,8 @@ void main() {
 
     test('result contains location and title keys', () async {
       final developer.ServiceExtensionResponse response =
-          await extDuskGetRoutesHandler(
-        'ext.dusk.get_routes',
+          await extTapirGetRoutesHandler(
+        'ext.tapir.get_routes',
         <String, String>{},
       );
 
@@ -700,8 +700,8 @@ void main() {
 
     test('location and title are strings in the JSON envelope', () async {
       final developer.ServiceExtensionResponse response =
-          await extDuskGetRoutesHandler(
-        'ext.dusk.get_routes',
+          await extTapirGetRoutesHandler(
+        'ext.tapir.get_routes',
         <String, String>{},
       );
 
@@ -714,8 +714,8 @@ void main() {
 
     test('does not require any params (handles empty map)', () async {
       final developer.ServiceExtensionResponse response =
-          await extDuskGetRoutesHandler(
-        'ext.dusk.get_routes',
+          await extTapirGetRoutesHandler(
+        'ext.tapir.get_routes',
         <String, String>{},
       );
 
@@ -727,7 +727,7 @@ void main() {
   // Step 3.2 — snapshot-in-action-response for navigate + navigate_back.
   // ---------------------------------------------------------------------------
 
-  group('extDuskNavigateHandler snapshot-in-response', () {
+  group('extTapirNavigateHandler snapshot-in-response', () {
     testWidgets('embeds snapshot field in success response by default',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1440, 900);
@@ -749,8 +749,8 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateHandler(
-        'ext.dusk.navigate',
+          extTapirNavigateHandler(
+        'ext.tapir.navigate',
         <String, String>{'route': '/settings'},
       );
       await tester.pump();
@@ -787,8 +787,8 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateHandler(
-        'ext.dusk.navigate',
+          extTapirNavigateHandler(
+        'ext.tapir.navigate',
         <String, String>{
           'route': '/about',
           'includeSnapshot': 'false',
@@ -816,7 +816,7 @@ void main() {
 
       // Route push triggers a 300 ms transition; the handler's two
       // endOfFrame awaits land partway through. Settled-content checks
-      // are the caller's responsibility (issue dusk_snap after the
+      // are the caller's responsibility (issue tapir_snap after the
       // animation completes). We assert structural presence of the
       // snapshot key here, not the animation-dependent payload.
       await tester.pumpWidget(
@@ -832,8 +832,8 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateHandler(
-        'ext.dusk.navigate',
+          extTapirNavigateHandler(
+        'ext.tapir.navigate',
         <String, String>{'route': '/marker'},
       );
       await tester.pump();
@@ -862,11 +862,11 @@ void main() {
           ),
         ),
       );
-      await duskSnapBuild();
+      await tapirSnapBuild();
 
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateHandler(
-        'ext.dusk.navigate',
+          extTapirNavigateHandler(
+        'ext.tapir.navigate',
         <String, String>{'route': '/next', 'snapshot': 'diff'},
       );
       await tester.pump();
@@ -894,8 +894,8 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateHandler(
-        'ext.dusk.navigate',
+          extTapirNavigateHandler(
+        'ext.tapir.navigate',
         <String, String>{'route': '/away', 'snapshot': 'none'},
       );
       await tester.pump();
@@ -908,7 +908,7 @@ void main() {
     });
   });
 
-  group('extDuskNavigateBackHandler snapshot-in-response', () {
+  group('extTapirNavigateBackHandler snapshot-in-response', () {
     testWidgets('embeds snapshot field in success response by default',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1440, 900);
@@ -935,8 +935,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{},
       );
       await tester.pump();
@@ -953,8 +953,8 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{'includeSnapshot': 'false'},
       );
       await tester.pump();
@@ -996,8 +996,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final Future<developer.ServiceExtensionResponse> future =
-          extDuskNavigateBackHandler(
-        'ext.dusk.navigate_back',
+          extTapirNavigateBackHandler(
+        'ext.tapir.navigate_back',
         <String, String>{},
       );
       await tester.pump();
@@ -1033,7 +1033,7 @@ void main() {
 }
 
 /// A one-screen Router whose provider starts on [location], with no page
-/// names: what a go_router app looks like to dusk.
+/// names: what a go_router app looks like to tapir.
 RouterConfig<Uri> _routerConfig(String location) => RouterConfig<Uri>(
       routeInformationProvider: PlatformRouteInformationProvider(
         initialRouteInformation: RouteInformation(uri: Uri.parse(location)),
@@ -1043,7 +1043,7 @@ RouterConfig<Uri> _routerConfig(String location) => RouterConfig<Uri>(
     );
 
 /// A Router hosting a nested Navigator inside a single root page: what a
-/// go_router `ShellRoute` looks like to dusk. [delegate] owns the stack.
+/// go_router `ShellRoute` looks like to tapir. [delegate] owns the stack.
 RouterConfig<Uri> _shellStackConfig(
   String location,
   _ShellStackDelegate delegate,

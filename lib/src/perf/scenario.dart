@@ -1,8 +1,8 @@
-/// The scenario `dusk:perf_run` drives: a YAML file naming the setup, the
+/// The scenario `tapir:perf_run` drives: a YAML file naming the setup, the
 /// steps and how often to repeat them, validated whole before anything runs.
 ///
 /// Pure Dart with no Flutter import, because the CLI wrapper that loads it
-/// (`bin/fluttersdk_dusk.dart`) has to stay Flutter-free.
+/// (`bin/tapir.dart`) has to stay Flutter-free.
 ///
 /// ```yaml
 /// name: monitors-list-scroll-1440
@@ -49,19 +49,19 @@ enum PerfPlatform {
       name is String ? PerfPlatform.values.asNameMap()[name] : null;
 }
 
-/// Which `dusk:find` predicate a target maps to.
+/// Which `tapir:find` predicate a target maps to.
 enum PerfTargetKind {
-  /// `{text: ...}`: `dusk:find --text`.
+  /// `{text: ...}`: `tapir:find --text`.
   text,
 
-  /// `{label: ...}`: `dusk:find --semanticsLabel`.
+  /// `{label: ...}`: `tapir:find --semanticsLabel`.
   label,
 
-  /// `{role: ..., name: ...}`: the node `dusk:snap` prints as that role
-  /// and name, listed through `ext.dusk.observe`.
+  /// `{role: ..., name: ...}`: the node `tapir:snap` prints as that role
+  /// and name, listed through `ext.tapir.observe`.
   role,
 
-  /// `{key: ...}`: `dusk:find --key`.
+  /// `{key: ...}`: `tapir:find --key`.
   key,
 }
 
@@ -137,8 +137,8 @@ enum PerfStepVerb {
   }
 }
 
-/// The `role` values a `{role, name}` target accepts: the roles `dusk:snap`
-/// prints and `ext.dusk.observe` filters on.
+/// The `role` values a `{role, name}` target accepts: the roles `tapir:snap`
+/// prints and `ext.tapir.observe` filters on.
 const Set<String> kPerfTargetRoles = <String>{
   'button',
   'textbox',
@@ -466,7 +466,7 @@ final class PerfStep {
   }
 }
 
-/// How large a per-metric change has to be before `dusk:perf_compare` calls
+/// How large a per-metric change has to be before `tapir:perf_compare` calls
 /// it a warning or an error, in percent.
 final class PerfThresholds {
   const PerfThresholds({this.warnPct = 10, this.errorPct = 25});
@@ -1251,12 +1251,12 @@ final class _ScenarioReader {
       problems.add('$at.index: a key names one widget, so an index is not '
           'supported on a key target.');
     }
-    // `ext.dusk.find` takes no index, and the list extension behind a label
+    // `ext.tapir.find` takes no index, and the list extension behind a label
     // index walks only the root pipeline owner, which holds no semantics
     // tree in a running app: an index here would match nothing, every time.
     if (kind == PerfTargetKind.label && index != 0) {
       problems.add('$at.index: a label target cannot be indexed; name the '
-          'control as {role, name, index} with the role dusk:snap prints, or '
+          'control as {role, name, index} with the role tapir:snap prints, or '
           'use {text, index}.');
     }
     if (kind != PerfTargetKind.role) {
@@ -1269,7 +1269,7 @@ final class _ScenarioReader {
     if (!kPerfTargetRoles.contains(role)) {
       problems.add(
         '$at.role "$role" is not one of ${kPerfTargetRoles.join(', ')}, the '
-        'roles dusk:snap prints.',
+        'roles tapir:snap prints.',
       );
     }
     final String? name = _string(raw['name'], '$at.name');

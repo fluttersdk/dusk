@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/utils/viewport_visibility.dart';
+import 'package:tapir/src/utils/viewport_visibility.dart';
 
 const Key _targetKey = ValueKey<String>('target');
 

@@ -1,16 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/perf/perf_actions.dart';
-import 'package:fluttersdk_dusk/src/perf/perf_redaction.dart';
-import 'package:fluttersdk_dusk/src/perf/perf_run_driver.dart';
-import 'package:fluttersdk_dusk/src/perf/perf_setup_runner.dart';
-import 'package:fluttersdk_dusk/src/perf/scenario.dart';
+import 'package:tapir/src/perf/perf_actions.dart';
+import 'package:tapir/src/perf/perf_redaction.dart';
+import 'package:tapir/src/perf/perf_run_driver.dart';
+import 'package:tapir/src/perf/perf_setup_runner.dart';
+import 'package:tapir/src/perf/scenario.dart';
 
 /// One call the runner made, in order.
 typedef _Call = ({String method, Map<String, dynamic> params});
 
 /// A driver whose screen shows [shown] texts, some only after a number of
-/// `ext.dusk.find` polls, and whose Router is always mounted.
+/// `ext.tapir.find` polls, and whose Router is always mounted.
 final class _ScreenDriver implements PerfRunDriver {
   _ScreenDriver({
     Map<String, int>? appearsAfter,
@@ -20,7 +20,7 @@ final class _ScreenDriver implements PerfRunDriver {
     this.exceptions = const <Map<String, dynamic>>[],
   }) : appearsAfter = appearsAfter ?? <String, int>{};
 
-  /// What `ext.dusk.exceptions` lists, newest first.
+  /// What `ext.tapir.exceptions` lists, newest first.
   final List<Map<String, dynamic>> exceptions;
 
   /// Texts on screen from the first poll.
@@ -32,7 +32,7 @@ final class _ScreenDriver implements PerfRunDriver {
   final bool navigateHonoured;
   final bool answersUri;
 
-  /// `ext.dusk.get_routes` reads that answer no Router before one mounts.
+  /// `ext.tapir.get_routes` reads that answer no Router before one mounts.
   int unmountedReads = 0;
 
   String uri = '/';
@@ -45,7 +45,7 @@ final class _ScreenDriver implements PerfRunDriver {
 
   int findsOf(String text) => calls
       .where(
-        (_Call c) => c.method == 'ext.dusk.find' && c.params['text'] == text,
+        (_Call c) => c.method == 'ext.tapir.find' && c.params['text'] == text,
       )
       .length;
 
@@ -56,7 +56,7 @@ final class _ScreenDriver implements PerfRunDriver {
   ]) async {
     calls.add((method: method, params: params));
     switch (method) {
-      case 'ext.dusk.find':
+      case 'ext.tapir.find':
         final String text = params['text']!;
         final int? left = appearsAfter[text];
         if (left != null) {
@@ -68,14 +68,14 @@ final class _ScreenDriver implements PerfRunDriver {
         }
         final bool hit = shown.contains(text);
         return <String, dynamic>{'ref': hit ? 'q1' : null, 'matched': hit};
-      case 'ext.dusk.navigate':
+      case 'ext.tapir.navigate':
         if (!navigateHonoured) {
           _landing = params['route'];
           return <String, dynamic>{'navigated': false};
         }
         uri = params['route']!;
         return <String, dynamic>{'navigated': true, 'route': uri};
-      case 'ext.dusk.get_routes':
+      case 'ext.tapir.get_routes':
         if (unmountedReads > 0) {
           unmountedReads--;
           return <String, dynamic>{'uri': null};
@@ -86,7 +86,7 @@ final class _ScreenDriver implements PerfRunDriver {
           return <String, dynamic>{'uri': null};
         }
         return <String, dynamic>{if (answersUri) 'uri': uri};
-      case 'ext.dusk.exceptions':
+      case 'ext.tapir.exceptions':
         return <String, dynamic>{'exceptions': exceptions};
       default:
         return <String, dynamic>{'ok': true};
@@ -173,7 +173,7 @@ void main() {
               .toList(),
           <int>[250, 250],
         );
-        expect(driver.callsTo('ext.dusk.tap'), hasLength(1));
+        expect(driver.callsTo('ext.tapir.tap'), hasLength(1));
       });
 
       test('skips the group when unless_text shows, and it wins over text',
@@ -196,7 +196,7 @@ void main() {
           'login',
         );
 
-        final List<_Call> taps = driver.callsTo('ext.dusk.tap');
+        final List<_Call> taps = driver.callsTo('ext.tapir.tap');
         expect(taps, hasLength(1));
         expect(driver.findsOf('Monitors'), 1);
         expect(driver.findsOf('Afterwards'), 1);
@@ -217,7 +217,7 @@ void main() {
 
         // 0, 250, 500, 750 and 1000 ms: five polls cover the budget.
         expect(driver.findsOf('Sign in'), 5);
-        expect(driver.callsTo('ext.dusk.tap'), isEmpty);
+        expect(driver.callsTo('ext.tapir.tap'), isEmpty);
         expect(result.landedLate, isFalse);
       });
 
@@ -250,7 +250,7 @@ void main() {
             ),
           ),
         );
-        expect(driver.callsTo('ext.dusk.tap'), isEmpty);
+        expect(driver.callsTo('ext.tapir.tap'), isEmpty);
       });
 
       test('decides an outer guard first and never polls an inner one it skips',
@@ -276,7 +276,7 @@ void main() {
         );
 
         expect(driver.findsOf('Two-factor'), 0);
-        expect(driver.callsTo('ext.dusk.tap'), isEmpty);
+        expect(driver.callsTo('ext.tapir.tap'), isEmpty);
       });
 
       test('an inner guard that skips leaves the rest of the outer group',
@@ -304,7 +304,7 @@ void main() {
           'login',
         );
 
-        expect(driver.callsTo('ext.dusk.tap'), hasLength(2));
+        expect(driver.callsTo('ext.tapir.tap'), hasLength(2));
         // Each guard is decided once per pass.
         expect(driver.findsOf('Skip me'), 1);
       });
@@ -448,7 +448,7 @@ void main() {
 
         await _runner(driver).awaitRouter('after_start');
 
-        expect(driver.callsTo('ext.dusk.get_routes'), hasLength(1));
+        expect(driver.callsTo('ext.tapir.get_routes'), hasLength(1));
       });
 
       test(
@@ -461,7 +461,7 @@ void main() {
           budget: const Duration(seconds: 60),
         );
 
-        expect(driver.callsTo('ext.dusk.get_routes'), hasLength(151));
+        expect(driver.callsTo('ext.tapir.get_routes'), hasLength(151));
         expect(
           driver.callsTo('pause').map((_Call c) => c.params['ms']).toSet(),
           <int>{100},
@@ -483,7 +483,7 @@ void main() {
         );
       });
 
-      test('tells an app with an older dusk to relaunch', () async {
+      test('tells an app with an older tapir to relaunch', () async {
         final _ScreenDriver driver = _ScreenDriver(answersUri: false);
 
         await expectLater(

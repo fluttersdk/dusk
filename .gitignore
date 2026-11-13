@@ -34,8 +34,8 @@ migrate_working_dir/
 /.vscode/
 .mcp.json
 
-# Artisan runtime state (state.json + install records, machine-local)
-.artisan/
+# Dowel runtime state (state.json + install records, machine-local)
+.dowel/
 
 # AI coding tools
 .ac/

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_modal_router.dart';
+import 'package:tapir/src/extensions/ext_modal_router.dart';
 
 void main() {
   // NOTE: The original implementation awaited endOfFrame between pops, which
@@ -174,7 +174,7 @@ void main() {
 
       await tester.runAsync(
         () => aiTestResetOverlaysHandler(
-          'ext.dusk.reset_overlays',
+          'ext.tapir.reset_overlays',
           const <String, String>{},
         ),
       );
@@ -195,7 +195,7 @@ void main() {
 
       final response = await tester.runAsync(
         () => aiTestResetOverlaysHandler(
-          'ext.dusk.reset_overlays',
+          'ext.tapir.reset_overlays',
           const <String, String>{},
         ),
       );
@@ -216,7 +216,7 @@ void main() {
       // endOfFrame.timeout settle steps against a real clock.
       final first = await tester.runAsync(() async {
         return aiTestResetOverlaysHandler(
-          'ext.dusk.reset_overlays',
+          'ext.tapir.reset_overlays',
           const <String, String>{},
         );
       });
@@ -228,7 +228,7 @@ void main() {
       // Second call on the same idle tree: identical result (idempotent).
       final second = await tester.runAsync(() async {
         return aiTestResetOverlaysHandler(
-          'ext.dusk.reset_overlays',
+          'ext.tapir.reset_overlays',
           const <String, String>{},
         );
       });
@@ -265,7 +265,7 @@ void main() {
 
       final response = await tester.runAsync(() async {
         return aiTestResetOverlaysHandler(
-          'ext.dusk.reset_overlays',
+          'ext.tapir.reset_overlays',
           const <String, String>{},
         );
       });
@@ -280,7 +280,7 @@ void main() {
       // Calling again on the now-clean tree is a no-op (idempotent).
       final again = await tester.runAsync(() async {
         return aiTestResetOverlaysHandler(
-          'ext.dusk.reset_overlays',
+          'ext.tapir.reset_overlays',
           const <String, String>{},
         );
       });
@@ -310,7 +310,7 @@ void main() {
       );
 
       final response = await aiTestDismissModalsHandler(
-        'ext.dusk.dismiss_modals',
+        'ext.tapir.dismiss_modals',
         const <String, String>{},
       );
       expect(response.errorCode, isNull);
@@ -337,7 +337,7 @@ void main() {
         expect(navigator.canPop(), isTrue);
 
         final response = await aiTestDismissModalsHandler(
-          'ext.dusk.dismiss_modals',
+          'ext.tapir.dismiss_modals',
           const <String, String>{},
         );
         expect(response.errorCode, isNull);
@@ -372,7 +372,7 @@ void main() {
         expect(find.text('handler-sheet'), findsOneWidget);
 
         final response = await aiTestDismissModalsHandler(
-          'ext.dusk.dismiss_modals',
+          'ext.tapir.dismiss_modals',
           const <String, String>{},
         );
         await tester.pumpAndSettle();

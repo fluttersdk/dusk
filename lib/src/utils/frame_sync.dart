@@ -50,10 +50,10 @@ Future<void> awaitFramesOrTimeout(
 
 /// Whether [ensureFramesProduced] may wake a hidden engine.
 ///
-/// On by default; `--dart-define=DUSK_FORCE_FRAMES=false` leaves a hidden
+/// On by default; `--dart-define=TAPIR_FORCE_FRAMES=false` leaves a hidden
 /// app frameless, so every response carries the `warnings` block instead.
-const bool kDuskForceFrames = bool.fromEnvironment(
-  'DUSK_FORCE_FRAMES',
+const bool kTapirForceFrames = bool.fromEnvironment(
+  'TAPIR_FORCE_FRAMES',
   defaultValue: true,
 );
 
@@ -87,7 +87,7 @@ const bool kDuskForceFrames = bool.fromEnvironment(
 ///
 /// Returns true only when this call forced and a frame ran.
 Future<bool> ensureFramesProduced() async {
-  if (kIsWeb || !kDuskForceFrames) return false;
+  if (kIsWeb || !kTapirForceFrames) return false;
 
   final SchedulerBinding scheduler = SchedulerBinding.instance;
   if (scheduler.framesEnabled) return false;
@@ -117,7 +117,7 @@ Future<bool> ensureFramesProduced() async {
   try {
     // 1. Wake the engine with `inactive`, not `resumed`: Flutter drops a
     // message equal to the current state, so an engine `resumed` arriving
-    // during the wait would be invisible to the watch if dusk had already
+    // during the wait would be invisible to the watch if tapir had already
     // moved the lifecycle there.
     deliver(AppLifecycleState.inactive);
     scheduler.scheduleForcedFrame();
@@ -190,7 +190,7 @@ Map<String, dynamic>? frameProductionWarning() {
             'page to front (CDP Page.bringToFront) and retry before trusting '
             'this result.'
         : '$starved The window is hidden, minimised or occluded, or the '
-            'display is asleep, and dusk could not force frames. Bring the '
+            'display is asleep, and tapir could not force frames. Bring the '
             'window to front (for example '
             '`osascript -e \'tell application "<App>" to activate\'`) and '
             'retry before trusting this result.',

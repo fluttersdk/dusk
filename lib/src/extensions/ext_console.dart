@@ -1,44 +1,44 @@
 import 'dart:developer' as developer;
 
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
-import '../dusk_log_capture.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../tapir_log_capture.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
-// MCP descriptor constants — consumed by DuskArtisanProvider.mcpTools()
+// MCP descriptor constants — consumed by TapirDowelProvider.mcpTools()
 // ---------------------------------------------------------------------------
 
 /// MCP tool name for the console log reader.
-const String kDuskConsoleMcpName = 'dusk_console';
+const String kTapirConsoleMcpName = 'tapir_console';
 
 /// VM Service extension method name for the console log reader.
-const String kDuskConsoleMcpExtension = 'ext.dusk.console';
+const String kTapirConsoleMcpExtension = 'ext.tapir.console';
 
 // ---------------------------------------------------------------------------
 // Function-pointer indirection — same pattern as pendingHttpCountReader
 // ---------------------------------------------------------------------------
 
-/// Reader for recent log entries from TelescopeStore.
+/// Reader for recent log entries from CrumbsStore.
 ///
-/// Defaults to a function that returns an empty list so dusk compiles and
-/// runs without telescope present (missing-telescope graceful path).
+/// Defaults to a function that returns an empty list so tapir compiles and
+/// runs without crumbs present (missing-crumbs graceful path).
 ///
-/// Hosts that ship `fluttersdk_telescope` wire the real source by assigning:
+/// Hosts that ship `crumbs` wire the real source by assigning:
 ///
 /// ```dart
 /// recentLogsReader = ({int limit = 50, String? minLevel}) =>
-///     TelescopeStore.recentLogs(limit: limit, minLevel: minLevel);
+///     CrumbsStore.recentLogs(limit: limit, minLevel: minLevel);
 /// ```
 ///
-/// The indirection keeps dusk's pubspec free of a telescope dependency while
-/// letting the console handler still read real logs when telescope is wired.
+/// The indirection keeps tapir's pubspec free of a crumbs dependency while
+/// letting the console handler still read real logs when crumbs is wired.
 ///
-/// **Contract**: set-once-per-isolate from `MagicTelescopeIntegration.install()`.
-/// Reset to the empty-list default by `MagicTelescopeIntegration.resetForTesting()`
-/// so downstream tests asserting the missing-telescope default do not see leaked
+/// **Contract**: set-once-per-isolate from `MagicCrumbsIntegration.install()`.
+/// Reset to the empty-list default by `MagicCrumbsIntegration.resetForTesting()`
+/// so downstream tests asserting the missing-crumbs default do not see leaked
 /// bindings.
 List<Map<String, dynamic>> Function({int limit, String? minLevel})
     recentLogsReader = ({int limit = 50, String? minLevel}) => const [];
@@ -47,13 +47,13 @@ List<Map<String, dynamic>> Function({int limit, String? minLevel})
 // Aggregator
 // ---------------------------------------------------------------------------
 
-/// Registers the `ext.dusk.console` VM Service extension.
+/// Registers the `ext.tapir.console` VM Service extension.
 ///
 /// Idempotent via [registerExtensionIdempotent]. Call from
-/// [registerAllDuskExtensions] once during [DuskPlugin.install].
+/// [registerAllTapirExtensions] once during [TapirPlugin.install].
 void registerConsoleExtensions() {
-  registerDuskExtension(
-    kDuskConsoleMcpExtension,
+  registerTapirExtension(
+    kTapirConsoleMcpExtension,
     aiTestConsoleHandler,
     ensureFrames: false,
   );
@@ -63,19 +63,19 @@ void registerConsoleExtensions() {
 // Handler
 // ---------------------------------------------------------------------------
 
-/// Handler for the `ext.dusk.console` VM Service extension.
+/// Handler for the `ext.tapir.console` VM Service extension.
 ///
 /// Merges entries from two sources, newest-first, deduped by
 /// `(level, message, logger)`, then clips to `limit`:
 ///
 /// 1. [recentCapturedLogs] — in-package ring buffer fed by the [debugPrint]
-///    override installed by [installLogCapture]. Present without telescope.
+///    override installed by [installLogCapture]. Present without crumbs.
 ///    Captures every call that routes through the [debugPrint] global callback
 ///    (`debugPrint(...)`, `print(...)`, any Flutter framework path). Does NOT
 ///    capture direct `dart:developer` `log()` calls that bypass [debugPrint].
 /// 2. [recentLogsReader] — function-pointer indirection wired by
-///    `MagicTelescopeIntegration.install()`. Defaults to an empty list when
-///    telescope is absent (graceful no-op). When telescope is wired it returns
+///    `MagicCrumbsIntegration.install()`. Defaults to an empty list when
+///    crumbs is absent (graceful no-op). When crumbs is wired it returns
 ///    all log sources including `Logger.root.onRecord` from `package:logging`
 ///    (which covers direct `developer.log()` calls when the app configures
 ///    hierarchical logging).
@@ -101,26 +101,26 @@ Future<developer.ServiceExtensionResponse> aiTestConsoleHandler(
         params['minLevel']?.isNotEmpty == true ? params['minLevel'] : null;
 
     // 2. Collect from both sources: in-package buffer (debugPrint capture) and
-    //    the telescope reader (when wired). Use a generous fetch so the merge
+    //    the crumbs reader (when wired). Use a generous fetch so the merge
     //    has enough candidates before the final limit clip.
     final List<Map<String, dynamic>> buffered = recentCapturedLogs(
       limit: limit,
       minLevel: minLevel,
     );
-    final List<Map<String, dynamic>> telescope = recentLogsReader(
+    final List<Map<String, dynamic>> crumbs = recentLogsReader(
       limit: limit,
       minLevel: minLevel,
     );
 
     // 3. Merge, dedup by (level, message, logger), keep newest-first (in-package
-    //    buffer already newest-first; telescope entries follow so buffered entries
+    //    buffer already newest-first; crumbs entries follow so buffered entries
     //    win on dedup conflicts), then clip to limit.
     final Set<String> seen = <String>{};
     final List<Map<String, dynamic>> merged = <Map<String, dynamic>>[];
 
     for (final Map<String, dynamic> entry in <Map<String, dynamic>>[
       ...buffered,
-      ...telescope,
+      ...crumbs,
     ]) {
       final String key =
           '${entry['level']} ${entry['message']} ${entry['logger']}';
@@ -134,20 +134,20 @@ Future<developer.ServiceExtensionResponse> aiTestConsoleHandler(
 
     // 4. Return the structured envelope — count lets callers skip iterating the
     //    list when only the total matters.
-    return duskResult(<String, dynamic>{
+    return tapirResult(<String, dynamic>{
       'logs': logs,
       'count': logs.length,
     });
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.console: unexpected error: $e\n$st',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.console: unexpected error: $e\n$st',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.console: $e',
-        DuskErrorEnvelope.unexpected(),
+        'ext.tapir.console: $e',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }

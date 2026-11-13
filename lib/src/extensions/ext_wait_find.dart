@@ -6,17 +6,17 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
 // ---------------------------------------------------------------------------
 // Self-registration entry point
 // ---------------------------------------------------------------------------
 
-/// Registers the `ext.dusk.wait_for`, `ext.dusk.find_by_text`,
-/// `ext.dusk.find_by_label`, and `ext.dusk.wait_for_network_idle` VM Service
+/// Registers the `ext.tapir.wait_for`, `ext.tapir.find_by_text`,
+/// `ext.tapir.find_by_label`, and `ext.tapir.wait_for_network_idle` VM Service
 /// extensions.
 ///
 /// All four extensions help LLM agents synchronise with dynamic UI state
@@ -31,17 +31,17 @@ import 'package:fluttersdk_artisan/artisan.dart';
 /// Call this once from the Wave 3 aggregator
 /// (`extensions.dart#registerAllAiTestExtensions`).
 void registerWaitFindExtensions() {
-  registerDuskExtension('ext.dusk.wait_for', aiTestWaitForHandler);
-  registerDuskExtension(
-    'ext.dusk.find_by_text',
+  registerTapirExtension('ext.tapir.wait_for', aiTestWaitForHandler);
+  registerTapirExtension(
+    'ext.tapir.find_by_text',
     aiTestFindByTextHandler,
   );
-  registerDuskExtension(
-    'ext.dusk.find_by_label',
+  registerTapirExtension(
+    'ext.tapir.find_by_label',
     aiTestFindByLabelHandler,
   );
-  registerDuskExtension(
-    'ext.dusk.wait_for_network_idle',
+  registerTapirExtension(
+    'ext.tapir.wait_for_network_idle',
     aiTestWaitForNetworkIdleHandler,
   );
 }
@@ -52,33 +52,33 @@ void registerWaitFindExtensions() {
 
 /// Reader for the live in-flight HTTP request count.
 ///
-/// Defaults to a function that returns 0 so dusk runs without any HTTP
-/// observation layer wired up (the missing-telescope graceful path: the
+/// Defaults to a function that returns 0 so tapir runs without any HTTP
+/// observation layer wired up (the missing-crumbs graceful path: the
 /// network is treated as continuously idle, so `wait_for_network_idle`
 /// returns immediately).
 ///
-/// Hosts that ship `fluttersdk_telescope` wire the real source by writing:
+/// Hosts that ship `crumbs` wire the real source by writing:
 ///
 /// ```dart
-/// pendingHttpCountReader = () => TelescopeStore.pendingHttpCount;
+/// pendingHttpCountReader = () => CrumbsStore.pendingHttpCount;
 /// ```
 ///
-/// The indirection keeps dusk's pubspec free of a telescope dependency
+/// The indirection keeps tapir's pubspec free of a crumbs dependency
 /// (pre-existing xml/image conflict in this repo blocks adding it as a
 /// path-dep) while letting the wait_for_network_idle handler still observe
-/// real network traffic when telescope is present.
+/// real network traffic when crumbs is present.
 ///
-/// **Contract**: set-once-per-isolate from `MagicTelescopeIntegration.install()`.
-/// Reset to `() => 0` by `MagicTelescopeIntegration.resetForTesting()` so
-/// downstream tests asserting the missing-telescope default do not see leaked
+/// **Contract**: set-once-per-isolate from `MagicCrumbsIntegration.install()`.
+/// Reset to `() => 0` by `MagicCrumbsIntegration.resetForTesting()` so
+/// downstream tests asserting the missing-crumbs default do not see leaked
 /// bindings.
 int Function() pendingHttpCountReader = () => 0;
 
 // ---------------------------------------------------------------------------
-// ext.dusk.wait_for
+// ext.tapir.wait_for
 // ---------------------------------------------------------------------------
 
-/// Handler for the `ext.dusk.wait_for` VM Service extension.
+/// Handler for the `ext.tapir.wait_for` VM Service extension.
 ///
 /// Blocks (Dart-side) until a condition is met or [timeoutMs] elapses.
 /// Polls at [_kPollIntervalMs] (200ms) so the main isolate is never starved
@@ -119,9 +119,9 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[fluttersdk_dusk] ext.dusk.wait_for: at least one of text, textGone, '
+          '[tapir] ext.tapir.wait_for: at least one of text, textGone, '
           'or expression is required',
-          DuskErrorEnvelope.missingParam('text|textGone|expression'),
+          TapirErrorEnvelope.missingParam('text|textGone|expression'),
         ),
       );
     }
@@ -144,7 +144,7 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
       );
     } else {
       // 3. expression: reuse text-presence check — agents that need arbitrary
-      //    Dart eval should call ext.dusk.evaluate / flutter_evaluate directly.
+      //    Dart eval should call ext.tapir.evaluate / flutter_evaluate directly.
       //    Here we treat the expression as a text-match string so the extension
       //    stays pure-Dart without a second RPC round-trip.
       result = await findByTextWaitLoop(
@@ -154,24 +154,24 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
       );
     }
 
-    return duskResult(result);
+    return tapirResult(result);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.wait_for error: $e\n$stackTrace',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.wait_for error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// ext.dusk.find_by_text
+// ext.tapir.find_by_text
 // ---------------------------------------------------------------------------
 
-/// Handler for the `ext.dusk.find_by_text` VM Service extension.
+/// Handler for the `ext.tapir.find_by_text` VM Service extension.
 ///
 /// Walks the live element tree after an [endOfFrame] settle (so stale
 /// pre-layout elements are not counted) and returns a ref string for every
@@ -199,8 +199,8 @@ Future<developer.ServiceExtensionResponse> aiTestFindByTextHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[fluttersdk_dusk] ext.dusk.find_by_text: missing required param "text"',
-          DuskErrorEnvelope.missingParam('text'),
+          '[tapir] ext.tapir.find_by_text: missing required param "text"',
+          TapirErrorEnvelope.missingParam('text'),
         ),
       );
     }
@@ -216,24 +216,24 @@ Future<developer.ServiceExtensionResponse> aiTestFindByTextHandler(
       groupId: groupId,
     );
 
-    return duskResult(<String, dynamic>{'refs': refs});
+    return tapirResult(<String, dynamic>{'refs': refs});
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.find_by_text error: $e\n$stackTrace',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.find_by_text error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// ext.dusk.find_by_label
+// ext.tapir.find_by_label
 // ---------------------------------------------------------------------------
 
-/// Handler for the `ext.dusk.find_by_label` VM Service extension.
+/// Handler for the `ext.tapir.find_by_label` VM Service extension.
 ///
 /// Walks the live SemanticsNode tree synchronously and returns a ref string
 /// for every node whose [SemanticsNode.label] matches [label].
@@ -259,8 +259,8 @@ Future<developer.ServiceExtensionResponse> aiTestFindByLabelHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[fluttersdk_dusk] ext.dusk.find_by_label: missing required param "label"',
-          DuskErrorEnvelope.missingParam('label'),
+          '[tapir] ext.tapir.find_by_label: missing required param "label"',
+          TapirErrorEnvelope.missingParam('label'),
         ),
       );
     }
@@ -277,15 +277,15 @@ Future<developer.ServiceExtensionResponse> aiTestFindByLabelHandler(
       groupId: groupId,
     );
 
-    return duskResult(<String, dynamic>{'refs': refs});
+    return tapirResult(<String, dynamic>{'refs': refs});
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.find_by_label error: $e\n$stackTrace',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.find_by_label error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -321,7 +321,7 @@ const int _kPollIntervalMs = 200;
 /// refs) is the right gate; the wait loop is read-only so it just needs the
 /// [Future.delayed] to yield to the event loop each cycle.
 ///
-/// Also a production helper for `ext.dusk.tap --until` (D7): after a tap the
+/// Also a production helper for `ext.tapir.tap --until` (D7): after a tap the
 /// pointer handler polls this loop to confirm the expected text appeared.
 Future<Map<String, dynamic>> findByTextWaitLoop({
   required String text,
@@ -604,7 +604,7 @@ Element? _elementForSemanticsNode(SemanticsNode node) {
 }
 
 // ---------------------------------------------------------------------------
-// ext.dusk.wait_for_network_idle
+// ext.tapir.wait_for_network_idle
 // ---------------------------------------------------------------------------
 
 /// Default network-idle parameters. Match the briefing's contract:
@@ -613,7 +613,7 @@ const int _kNetworkIdleDefaultTimeoutMs = 5000;
 const int _kNetworkIdleDefaultIdleMs = 500;
 const int _kNetworkIdleDefaultPollIntervalMs = 200;
 
-/// Handler for the `ext.dusk.wait_for_network_idle` VM Service extension.
+/// Handler for the `ext.tapir.wait_for_network_idle` VM Service extension.
 ///
 /// Blocks (Dart-side) until [pendingHttpCountReader] reports 0 for a
 /// continuous window of [idleMs], or until [timeoutMs] elapses. Polls every
@@ -634,7 +634,7 @@ const int _kNetworkIdleDefaultPollIntervalMs = 200;
 /// structured envelope `{type: "timeout", suggestions: []}` carrying the
 /// max in-flight count observed during the wait window inside `message`.
 ///
-/// Missing-telescope graceful path: when the host has not overridden
+/// Missing-crumbs graceful path: when the host has not overridden
 /// [pendingHttpCountReader] the default `() => 0` makes the loop satisfy
 /// `idleMs` on the very first poll, returning `matched: true` immediately.
 Future<developer.ServiceExtensionResponse> aiTestWaitForNetworkIdleHandler(
@@ -657,7 +657,7 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForNetworkIdleHandler(
     );
 
     if (result['matched'] == true) {
-      return duskResult(result);
+      return tapirResult(result);
     }
 
     // 1. Timeout path: surface the free-form `errorDetail` message alongside
@@ -668,19 +668,19 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForNetworkIdleHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        '[fluttersdk_dusk] ext.dusk.wait_for_network_idle: timeout after '
+        '[tapir] ext.tapir.wait_for_network_idle: timeout after '
         '${timeoutMs}ms (maxPending=$maxPending, idleMs=$idleMs)',
-        DuskErrorEnvelope.timeout(),
+        TapirErrorEnvelope.timeout(),
       ),
     );
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.wait_for_network_idle error: $e\n$stackTrace',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.wait_for_network_idle error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }

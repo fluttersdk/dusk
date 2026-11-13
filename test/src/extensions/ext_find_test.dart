@@ -4,39 +4,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
-import 'package:fluttersdk_dusk/src/utils/actionability_gate.dart';
-import 'package:fluttersdk_dusk/src/utils/dusk_exceptions.dart';
-import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
+import 'package:tapir/src/extensions/ext_find.dart';
+import 'package:tapir/src/extensions/ext_pointer.dart';
+import 'package:tapir/src/ref_registry.dart';
+import 'package:tapir/src/utils/actionability_gate.dart';
+import 'package:tapir/src/utils/tapir_exceptions.dart';
+import 'package:tapir/src/utils/error_envelope.dart';
 
 /// Tests for the Playwright-Locator-style query handles introduced in
 /// Step 16.
 ///
 /// The contract:
 ///
-/// 1. `extDuskFindHandler` mints a `q<N>` token when at least one
+/// 1. `extTapirFindHandler` mints a `q<N>` token when at least one
 ///    predicate (`text`, `semanticsLabel`, `key`) resolves to a live
 ///    Semantics + Element tree node.
 /// 2. `qN` handles re-execute the stored predicates on every action call
 ///    (tap / hover / drag / type) — they survive widget rebuilds and
 ///    snapshot disposal.
 /// 3. When the predicates no longer match anything live, action handlers
-///    surface [DuskStaleHandleException] verbatim. They do NOT retry.
+///    surface [TapirStaleHandleException] verbatim. They do NOT retry.
 /// 4. `eN` snapshot refs continue to resolve via [RefRegistry.lookup] —
 ///    backward compat is non-negotiable.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('extDuskFindHandler — predicate gating', () {
+  group('extTapirFindHandler — predicate gating', () {
     setUp(RefRegistry.resetForTesting);
 
     test(
       '(a) zero predicates returns extensionError',
       () async {
-        final response = await extDuskFindHandler(
-          'ext.dusk.find',
+        final response = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{},
         );
         expect(response.result, isNull);
@@ -51,8 +51,8 @@ void main() {
     test(
       '(a) empty predicate values are treated as missing',
       () async {
-        final response = await extDuskFindHandler(
-          'ext.dusk.find',
+        final response = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'text': '', 'semanticsLabel': ''},
         );
         expect(response.result, isNull);
@@ -64,7 +64,7 @@ void main() {
     );
   });
 
-  group('extDuskFindHandler — match shape', () {
+  group('extTapirFindHandler — match shape', () {
     setUp(RefRegistry.resetForTesting);
 
     testWidgets(
@@ -81,8 +81,8 @@ void main() {
           ),
         );
 
-        final response = await extDuskFindHandler(
-          'ext.dusk.find',
+        final response = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'text': 'Submit'},
         );
 
@@ -112,8 +112,8 @@ void main() {
           ),
         );
 
-        final response = await extDuskFindHandler(
-          'ext.dusk.find',
+        final response = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'contains': 'pushed the button'},
         );
 
@@ -149,8 +149,8 @@ void main() {
         );
         await tester.pump();
 
-        final response = await extDuskFindHandler(
-          'ext.dusk.find',
+        final response = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'contains': 'Sign in'},
         );
 
@@ -171,8 +171,8 @@ void main() {
           ),
         );
 
-        final response = await extDuskFindHandler(
-          'ext.dusk.find',
+        final response = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'contains': 'pushed the button'},
         );
 
@@ -193,8 +193,8 @@ void main() {
           ),
         );
 
-        final response = await extDuskFindHandler(
-          'ext.dusk.find',
+        final response = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'text': 'Submit'},
         );
 
@@ -229,8 +229,8 @@ void main() {
         );
         await tester.pump();
 
-        final response = await extDuskFindHandler(
-          'ext.dusk.find',
+        final response = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'semanticsLabel': 'AccessibleOnly'},
         );
 
@@ -257,8 +257,8 @@ void main() {
           ),
         );
 
-        final response = await extDuskFindHandler(
-          'ext.dusk.find',
+        final response = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'key': 'monitor-row-7'},
         );
 
@@ -306,8 +306,8 @@ void main() {
         );
         await tester.pump();
 
-        final findResponse = await extDuskFindHandler(
-          'ext.dusk.find',
+        final findResponse = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'semanticsLabel': 'tap-target'},
         );
         final String qRef = (jsonDecode(findResponse.result!)
@@ -320,7 +320,7 @@ void main() {
         // settle the gate's extra `await endOfFrame` deterministically.
         // Production callers leave the defaults.
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': qRef,
             'checkStable': 'false',
@@ -379,8 +379,8 @@ void main() {
         );
         await tester.pump();
 
-        final findResponse = await extDuskFindHandler(
-          'ext.dusk.find',
+        final findResponse = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'semanticsLabel': 'corner-target'},
         );
         final String qRef = (jsonDecode(findResponse.result!)
@@ -396,7 +396,7 @@ void main() {
         expect(dispatchRect.center.dy, lessThan(120));
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': qRef,
             'checkStable': 'false',
@@ -431,7 +431,7 @@ void main() {
         // owning element (not fall back to the root) and its pointer tap must
         // reach the underlying GestureDetector. This reproduces the live bug
         // where MSSwitch toggles (notification prefs, status-page monitor
-        // assignment) ignored dusk taps.
+        // assignment) ignored tapir taps.
         int taps = 0;
         await tester.pumpWidget(
           MaterialApp(
@@ -467,8 +467,8 @@ void main() {
         );
         await tester.pump();
 
-        final findResponse = await extDuskFindHandler(
-          'ext.dusk.find',
+        final findResponse = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'semanticsLabel': 'toggle-x'},
         );
         final String qRef = (jsonDecode(findResponse.result!)
@@ -484,7 +484,7 @@ void main() {
         expect(dispatchRect.center.dy, lessThan(120));
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': qRef,
             'checkStable': 'false',
@@ -539,8 +539,8 @@ void main() {
         );
         await tester.pump();
 
-        final findResponse = await extDuskFindHandler(
-          'ext.dusk.find',
+        final findResponse = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'semanticsLabel': 'Email'},
         );
         final decoded =
@@ -550,7 +550,7 @@ void main() {
         expect(decoded['matchCount'], 2);
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': qRef,
             'checkStable': 'false',
@@ -602,8 +602,8 @@ void main() {
         );
         await tester.pump();
 
-        final findResponse = await extDuskFindHandler(
-          'ext.dusk.find',
+        final findResponse = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'semanticsLabel': 'Monitors'},
         );
         final decoded =
@@ -613,7 +613,7 @@ void main() {
         expect(decoded['matchCount'], 2);
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': qRef,
             'checkStable': 'false',
@@ -662,8 +662,8 @@ void main() {
         );
         await tester.pump();
 
-        final findResponse = await extDuskFindHandler(
-          'ext.dusk.find',
+        final findResponse = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'semanticsLabel': 'persistent-target'},
         );
         final String qRef = (jsonDecode(findResponse.result!)
@@ -697,7 +697,7 @@ void main() {
         await tester.pump();
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': qRef,
             'checkStable': 'false',
@@ -715,7 +715,7 @@ void main() {
     );
 
     testWidgets(
-      '(d) q-ref with no live match throws DuskStaleHandleException',
+      '(d) q-ref with no live match throws TapirStaleHandleException',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(800, 600);
         tester.view.devicePixelRatio = 1.0;
@@ -737,15 +737,15 @@ void main() {
         );
         await tester.pump();
 
-        final findResponse = await extDuskFindHandler(
-          'ext.dusk.find',
+        final findResponse = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'semanticsLabel': 'will-vanish'},
         );
         final String qRef = (jsonDecode(findResponse.result!)
             as Map<String, dynamic>)['ref'] as String;
 
         // Replace the entire tree with something the predicate does not
-        // match. The stored DuskQuery now resolves to zero live nodes.
+        // match. The stored TapirQuery now resolves to zero live nodes.
         await tester.pumpWidget(
           const MaterialApp(
             home: Scaffold(body: Center(child: Text('something else'))),
@@ -753,7 +753,7 @@ void main() {
         );
 
         final response = await aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{'ref': qRef},
         );
 
@@ -765,8 +765,8 @@ void main() {
 
         // Sanity: the typed exception is the one we declared.
         expect(
-          () => throw const DuskStaleHandleException(ref: 'q9'),
-          throwsA(isA<DuskStaleHandleException>()),
+          () => throw const TapirStaleHandleException(ref: 'q9'),
+          throwsA(isA<TapirStaleHandleException>()),
         );
       },
     );
@@ -799,7 +799,7 @@ void main() {
         expect(eRef, startsWith('e'));
 
         final future = aiTestTapHandler(
-          'ext.dusk.tap',
+          'ext.tapir.tap',
           <String, String>{
             'ref': eRef,
             'checkStable': 'false',
@@ -858,8 +858,8 @@ void main() {
         );
         await tester.pump();
 
-        final response = await extDuskFindHandler(
-          'ext.dusk.find',
+        final response = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'semanticsLabel': 'Password'},
         );
 
@@ -903,8 +903,8 @@ void main() {
         );
         await tester.pump();
 
-        final response = await extDuskFindHandler(
-          'ext.dusk.find',
+        final response = await extTapirFindHandler(
+          'ext.tapir.find',
           <String, String>{'semanticsLabel': 'UniqueLabel'},
         );
 
@@ -969,7 +969,7 @@ void main() {
         final List<double> tops = <double>[
           for (int index = 0; index < 3; index++)
             resolveQuery(
-              DuskQuery(semanticsLabel: 'Favourite', matchIndex: index),
+              TapirQuery(semanticsLabel: 'Favourite', matchIndex: index),
             )!
                 .rect
                 .top,
@@ -977,7 +977,7 @@ void main() {
 
         expect(tops, <double>[0, 40, 80]);
         expect(
-          resolveQuery(const DuskQuery(semanticsLabel: 'Favourite'))!.rect.top,
+          resolveQuery(const TapirQuery(semanticsLabel: 'Favourite'))!.rect.top,
           40,
           reason: 'an unindexed query still prefers the first interactive node',
         );
@@ -1009,7 +1009,7 @@ void main() {
 
         expect(
           resolveQuery(
-            const DuskQuery(semanticsLabel: 'Favourite', matchIndex: 1),
+            const TapirQuery(semanticsLabel: 'Favourite', matchIndex: 1),
           ),
           isNull,
         );
@@ -1037,12 +1037,12 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          resolveQuery(const DuskQuery(text: 'Favourite')),
+          resolveQuery(const TapirQuery(text: 'Favourite')),
           isNotNull,
           reason: 'the unindexed query still reaches the Element-tree leg',
         );
         expect(
-          resolveQuery(const DuskQuery(text: 'Favourite', matchIndex: 1)),
+          resolveQuery(const TapirQuery(text: 'Favourite', matchIndex: 1)),
           isNull,
         );
       },
@@ -1054,10 +1054,10 @@ void main() {
 
     test('registerQuery mints q-shape tokens; lookupQuery round-trips', () {
       final String first = RefRegistry.registerQuery(
-        const DuskQuery(text: 'Submit'),
+        const TapirQuery(text: 'Submit'),
       );
       final String second = RefRegistry.registerQuery(
-        const DuskQuery(semanticsLabel: 'Cancel'),
+        const TapirQuery(semanticsLabel: 'Cancel'),
       );
 
       expect(first, equals('q1'));
@@ -1076,18 +1076,19 @@ void main() {
     });
 
     test('resetForTesting clears both q and e tokens', () {
-      RefRegistry.registerQuery(const DuskQuery(text: 'a'));
+      RefRegistry.registerQuery(const TapirQuery(text: 'a'));
       RefRegistry.resetForTesting();
       expect(RefRegistry.lookupQuery('q1'), isNull);
       // Counter resets — next mint is q1 again.
-      final String next = RefRegistry.registerQuery(const DuskQuery(text: 'b'));
+      final String next =
+          RefRegistry.registerQuery(const TapirQuery(text: 'b'));
       expect(next, equals('q1'));
     });
   });
 
   group('globalRectFromSemantics (transform + DPR fallback)', () {
     // This fallback fires only for a synthetic / non-RenderBox-owned node.
-    // Every node matched through extDuskFindHandler with a real widget tree
+    // Every node matched through extTapirFindHandler with a real widget tree
     // resolves to its owning RenderBox (proven across scroll/merge/link/list
     // structures), so the fallback is unreachable via the public handler. Its
     // transform-composition + DPR-correction math is verified directly here.
@@ -1103,7 +1104,7 @@ void main() {
           ..transform = Matrix4.identity();
 
         // Semantics rects fold in the DPR (physical px); the fallback divides
-        // it back to the logical space dusk dispatches pointers in.
+        // it back to the logical space tapir dispatches pointers in.
         expect(
           globalRectFromSemantics(node),
           const Rect.fromLTWH(0, 0, 100, 50),

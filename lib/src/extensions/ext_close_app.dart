@@ -3,10 +3,10 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 
 /// Signature for the function that performs the actual app-close operation.
@@ -40,20 +40,20 @@ Future<void> defaultCloseApp() async {
   }
 }
 
-/// Registers the `ext.dusk.close_app` VM Service extension.
+/// Registers the `ext.tapir.close_app` VM Service extension.
 ///
 /// Delegates to [registerExtensionIdempotent] so hot-restart is safe: the VM
 /// extension table persists across hot-restart; duplicate registration silently
-/// no-ops. Step 13 wires this into the [registerAllDuskExtensions] aggregator.
+/// no-ops. Step 13 wires this into the [registerAllTapirExtensions] aggregator.
 void registerCloseAppExtension() {
-  registerDuskExtension(
-    'ext.dusk.close_app',
-    extDuskCloseAppHandler,
+  registerTapirExtension(
+    'ext.tapir.close_app',
+    extTapirCloseAppHandler,
     ensureFrames: false,
   );
 }
 
-/// Handler for `ext.dusk.close_app`.
+/// Handler for `ext.tapir.close_app`.
 ///
 /// Accepts no required parameters. Returns `{"closed": true}` immediately
 /// before the actual close fires so the agent sees confirmation regardless of
@@ -64,7 +64,7 @@ void registerCloseAppExtension() {
 /// ```json
 /// { "closed": true }
 /// ```
-Future<developer.ServiceExtensionResponse> extDuskCloseAppHandler(
+Future<developer.ServiceExtensionResponse> extTapirCloseAppHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -76,17 +76,17 @@ Future<developer.ServiceExtensionResponse> extDuskCloseAppHandler(
 
     // 2. Return confirmation immediately. The agent reads this before the OS
     //    terminates the isolate, giving it a chance to record the outcome.
-    return duskResult(<String, dynamic>{
+    return tapirResult(<String, dynamic>{
       'closed': true,
     });
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.close_app error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] ext.tapir.close_app error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }

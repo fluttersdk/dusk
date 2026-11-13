@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
-import 'package:fluttersdk_dusk/src/utils/actionability_gate.dart';
+import 'package:tapir/src/ref_registry.dart';
+import 'package:tapir/src/utils/actionability_gate.dart';
 
 /// Verifies that the receives-events check says what it actually knows.
 ///

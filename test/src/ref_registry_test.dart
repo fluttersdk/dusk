@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -129,9 +129,9 @@ void main() {
 
   group('registerQuery + lookupQuery', () {
     test('mints a fresh q-ref per call and stores the predicates', () {
-      final q1 = RefRegistry.registerQuery(const DuskQuery(text: 'hello'));
+      final q1 = RefRegistry.registerQuery(const TapirQuery(text: 'hello'));
       final q2 = RefRegistry.registerQuery(
-        const DuskQuery(semanticsLabel: 'label'),
+        const TapirQuery(semanticsLabel: 'label'),
       );
       expect(q1, startsWith('q'));
       expect(q2, startsWith('q'));
@@ -158,7 +158,7 @@ void main() {
         groupId: 'g',
         isTextField: false,
       );
-      final q = RefRegistry.registerQuery(const DuskQuery(text: 'x'));
+      final q = RefRegistry.registerQuery(const TapirQuery(text: 'x'));
       expect(RefRegistry.lookup(r), isNotNull);
       expect(RefRegistry.lookupQuery(q), isNotNull);
 
@@ -174,14 +174,14 @@ void main() {
         isTextField: false,
       );
       expect(r2, equals('e1'));
-      final q2 = RefRegistry.registerQuery(const DuskQuery(text: 'x'));
+      final q2 = RefRegistry.registerQuery(const TapirQuery(text: 'x'));
       expect(q2, equals('q1'));
     });
   });
 
   group('bindings', () {
     const RefBinding binding = RefBinding(
-      query: DuskQuery(semanticsLabel: 'Save', matchIndex: 1),
+      query: TapirQuery(semanticsLabel: 'Save', matchIndex: 1),
       matchCount: 2,
     );
 

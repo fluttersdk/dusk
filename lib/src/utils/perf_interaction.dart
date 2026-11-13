@@ -1,4 +1,4 @@
-/// The interaction a dusk gesture opens inside a perf session, carried in the
+/// The interaction a tapir gesture opens inside a perf session, carried in the
 /// zone the gesture dispatches in and published through a slot for work the
 /// zone cannot reach.
 ///
@@ -22,12 +22,12 @@ import 'package:flutter/scheduler.dart';
 
 import '../extensions/ext_perf.dart' show perfSessionOpen;
 
-/// One dusk gesture inside a perf session, from dispatch to settle.
+/// One tapir gesture inside a perf session, from dispatch to settle.
 ///
-/// Read it off the zone with `Zone.current[#fluttersdk_interaction]`, the
+/// Read it off the zone with `Zone.current[#tapir_interaction]`, the
 /// public symbol [zoneKey] names; a public symbol is equal across libraries
 /// (dart-sdk `lib/core/symbol.dart:38-39`), so a host reads it without
-/// importing dusk. A handle whose [closedAtUs] is set is ABSENT: Timers and
+/// importing tapir. A handle whose [closedAtUs] is set is ABSENT: Timers and
 /// stream subscriptions created in the zone keep it forever (a Reverb socket
 /// opened during a login tap), and without the close every later message on
 /// that socket would be attributed to the tap.
@@ -39,13 +39,13 @@ final class PerfInteraction {
     required this.startUs,
   });
 
-  /// The zone value key, `#fluttersdk_interaction`.
-  static const Symbol zoneKey = #fluttersdk_interaction;
+  /// The zone value key, `#tapir_interaction`.
+  static const Symbol zoneKey = #tapir_interaction;
 
   /// `i<N>`, unique for the isolate's lifetime.
   final String id;
 
-  /// The `ext.dusk.*` verb without its prefix (`tap`, `fill`, `scroll`).
+  /// The `ext.tapir.*` verb without its prefix (`tap`, `fill`, `scroll`).
   final String verb;
 
   /// The ref, route or key the verb acted on; null for a verb without one
@@ -84,7 +84,7 @@ const int _kCapPolls = 100;
 /// The same cap on the real clock, for a watch whose timer was starved.
 const int _kCapMicros = 5000000;
 
-/// Interactions kept for `ext.dusk.perf_trace`. Only a driving agent opens
+/// Interactions kept for `ext.tapir.perf_trace`. Only a driving agent opens
 /// them, so this is hours of driving, not a memory concern.
 const int _kLogLimit = 512;
 

@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/dusk_plugin.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_observe.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_pointer.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/tapir_plugin.dart';
+import 'package:tapir/src/extensions/ext_find.dart';
+import 'package:tapir/src/extensions/ext_observe.dart';
+import 'package:tapir/src/extensions/ext_pointer.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 /// A `MergeSemantics` boundary absorbs the semantics of everything beneath it
 /// into one platform node, yet the framework keeps each absorbed descendant as
@@ -141,8 +141,8 @@ List<SemanticsNode> _rawNodes() {
 }
 
 Future<List<Map<String, dynamic>>> _observe() async {
-  final response = await extDuskObserveHandler(
-    'ext.dusk.observe',
+  final response = await extTapirObserveHandler(
+    'ext.tapir.observe',
     <String, String>{},
   );
   final Map<String, dynamic> body =
@@ -157,15 +157,15 @@ Future<List<Map<String, dynamic>>> _observe() async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('extDuskObserveHandler merged semantics', () {
+  group('extTapirObserveHandler merged semantics', () {
     setUp(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     tearDown(() {
       RefRegistry.resetForTesting();
-      DuskPlugin.enrichers.clear();
+      TapirPlugin.enrichers.clear();
     });
 
     testWidgets('a control merged into its parent is listed once', (
@@ -225,7 +225,7 @@ void main() {
         expect(resolveQuery(RefRegistry.lookupQuery(ref)!), isNotNull);
 
         final Future<dynamic> pending =
-            aiTestTapHandler('ext.dusk.tap', <String, String>{
+            aiTestTapHandler('ext.tapir.tap', <String, String>{
           'ref': ref,
           'checkStable': 'false',
           'checkReceivesEvents': 'false',
@@ -296,7 +296,7 @@ void main() {
           final List<Map<String, dynamic>> candidates = await _observe();
           final Map<String, dynamic> laterCandidate = candidates.last;
 
-          final DuskQuery query = RefRegistry.lookupQuery(
+          final TapirQuery query = RefRegistry.lookupQuery(
             laterCandidate['ref'] as String,
           )!;
           expect(query.matchIndex, expectedIndex);

@@ -5,11 +5,11 @@ import 'package:meta/meta.dart';
 
 import 'cdp_client.dart';
 
-// Re-export DuskCdpException so existing callers / tests that import only
+// Re-export TapirCdpException so existing callers / tests that import only
 // chrome_finder.dart keep compiling. The canonical declaration lives in
 // cdp_client.dart (Wave 2); the Wave 1 local copy was removed when Step 1
 // landed.
-export 'cdp_client.dart' show DuskCdpException;
+export 'cdp_client.dart' show TapirCdpException;
 
 /// Represents the response from Chrome's `/json/version` endpoint.
 ///
@@ -37,7 +37,7 @@ final class ChromeInfo {
 ///
 /// Usage: call [ChromeFinder.probe] with the port Chrome was launched on. On
 /// success it returns a [ChromeInfo] containing the WebSocket debugger URL and
-/// browser version strings. On failure it throws [DuskCdpException].
+/// browser version strings. On failure it throws [TapirCdpException].
 final class ChromeFinder {
   ChromeFinder._();
 
@@ -84,13 +84,13 @@ final class ChromeFinder {
   /// Behaviour by outcome:
   ///
   /// - **Chrome responds (2xx)**: parses JSON, returns [ChromeInfo].
-  /// - **Port open but 404**: throws [DuskCdpException] immediately with a
+  /// - **Port open but 404**: throws [TapirCdpException] immediately with a
   ///   hint that the port does not serve the Chrome DevTools Protocol. This
   ///   case is empirically observed when Chrome is running without
   ///   `--remote-debugging-port`.
   /// - **Connection refused (SocketException)**: sleeps [interval] and retries
   ///   until [timeout] elapses.
-  /// - **Timeout**: throws [DuskCdpException] with a "timed out" message.
+  /// - **Timeout**: throws [TapirCdpException] with a "timed out" message.
   static Future<ChromeInfo> probe({
     required int port,
     Duration timeout = const Duration(seconds: 10),
@@ -107,7 +107,7 @@ final class ChromeFinder {
         // 2. Parse the JSON payload Chrome returns.
         final dynamic decoded = jsonDecode(body);
         if (decoded is! Map<String, dynamic>) {
-          throw DuskCdpException(
+          throw TapirCdpException(
             'Port $port returned unexpected JSON shape from /json/version.',
           );
         }
@@ -118,7 +118,7 @@ final class ChromeFinder {
         final String? protocolVersion = decoded['Protocol-Version'] as String?;
 
         if (wsUrl == null || browser == null || protocolVersion == null) {
-          throw DuskCdpException(
+          throw TapirCdpException(
             'Port $port /json/version response is missing required fields '
             '(webSocketDebuggerUrl, Browser, Protocol-Version).',
           );
@@ -132,7 +132,7 @@ final class ChromeFinder {
       } on ChromeFinderHttpNotFoundException catch (e) {
         // 4. Port is open but Chrome is not serving CDP. Throw immediately;
         //    retrying will not help.
-        throw DuskCdpException(
+        throw TapirCdpException(
           'Port ${e.port} is open but does not serve Chrome DevTools Protocol. '
           'Is it the right Chrome instance?',
         );
@@ -145,7 +145,7 @@ final class ChromeFinder {
     }
 
     // 6. Deadline passed without a successful response.
-    throw DuskCdpException(
+    throw TapirCdpException(
       'Chrome on port $port timed out after ${timeout.inSeconds}s. '
       'Ensure Chrome was launched with --remote-debugging-port=$port.',
     );
@@ -156,7 +156,7 @@ final class ChromeFinder {
 /// the server responds with HTTP 404.
 ///
 /// [ChromeFinder.defaultHttpGet] raises this when the status code is 404.
-/// The probe loop catches it and immediately re-throws as [DuskCdpException]
+/// The probe loop catches it and immediately re-throws as [TapirCdpException]
 /// without retrying, because a 404 means the port is open but Chrome is not
 /// serving the DevTools Protocol.
 ///

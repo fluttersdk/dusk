@@ -2,18 +2,18 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/widgets.dart';
 
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import '../utils/perf_interaction.dart';
 import 'ext_pointer.dart' show resolveRefForAction;
-import 'ext_snapshot.dart' show duskSnapBuild;
+import 'ext_snapshot.dart' show tapirSnapBuild;
 
-const String kDuskFocusMcpName = 'dusk_focus';
-const String kDuskFocusMcpExtension = 'ext.dusk.focus';
-const String kDuskBlurMcpName = 'dusk_blur';
-const String kDuskBlurMcpExtension = 'ext.dusk.blur';
+const String kTapirFocusMcpName = 'tapir_focus';
+const String kTapirFocusMcpExtension = 'ext.tapir.focus';
+const String kTapirBlurMcpName = 'tapir_blur';
+const String kTapirBlurMcpExtension = 'ext.tapir.blur';
 
 bool _parseBoolFlag(
   Map<String, String> params,
@@ -32,11 +32,11 @@ Future<void> _appendSnapshotIfRequested(
   if (!_parseBoolFlag(params, 'includeSnapshot', defaultValue: false)) {
     return;
   }
-  final Map<String, dynamic> snap = await duskSnapBuild();
+  final Map<String, dynamic> snap = await tapirSnapBuild();
   payload['snapshot'] = snap['snapshot'];
 }
 
-/// Handler for `ext.dusk.focus` — requests keyboard focus on the widget
+/// Handler for `ext.tapir.focus` — requests keyboard focus on the widget
 /// resolved by [params]['ref'].
 ///
 /// Walks the resolved element to find the nearest `Focus` widget (or
@@ -53,8 +53,8 @@ Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.focus: missing required param "ref"',
-          DuskErrorEnvelope.missingParam('ref'),
+          'ext.tapir.focus: missing required param "ref"',
+          TapirErrorEnvelope.missingParam('ref'),
         ),
       );
     }
@@ -63,8 +63,8 @@ Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.focus: ref "$ref" not found in registry',
-          DuskErrorEnvelope.notFound(ref: ref),
+          'ext.tapir.focus: ref "$ref" not found in registry',
+          TapirErrorEnvelope.notFound(ref: ref),
         ),
       );
     }
@@ -81,8 +81,8 @@ Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.focus: no Focus ancestor or descendant for ref "$ref"',
-          DuskErrorEnvelope.unexpected(),
+          'ext.tapir.focus: no Focus ancestor or descendant for ref "$ref"',
+          TapirErrorEnvelope.unexpected(),
         ),
       );
     }
@@ -96,20 +96,20 @@ Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
       'focused': true,
     };
     await _appendSnapshotIfRequested(payload, params);
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.focus error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] ext.tapir.focus error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
 
-/// Handler for `ext.dusk.blur` — clears keyboard focus.
+/// Handler for `ext.tapir.blur` — clears keyboard focus.
 ///
 /// Playwright parity: `locator.blur()` removes focus from the element.
 /// When `ref` is provided we blur ONLY when the resolved element is the
@@ -132,15 +132,15 @@ Future<developer.ServiceExtensionResponse> aiTestBlurHandler(
       'hadFocus': primary != null,
     };
     await _appendSnapshotIfRequested(payload, params);
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.blur error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] ext.tapir.blur error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -172,6 +172,6 @@ FocusNode? _findDescendantFocusNode(Element element) {
 }
 
 void registerFocusExtensions() {
-  registerDuskExtension(kDuskFocusMcpExtension, aiTestFocusHandler);
-  registerDuskExtension(kDuskBlurMcpExtension, aiTestBlurHandler);
+  registerTapirExtension(kTapirFocusMcpExtension, aiTestFocusHandler);
+  registerTapirExtension(kTapirBlurMcpExtension, aiTestBlurHandler);
 }

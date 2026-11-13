@@ -77,9 +77,9 @@ migrate_working_dir/
 .DS_Store
 
 # ---------------------------------------------------------------------------
-# Local state (artisan runtime + AI coding tooling)
+# Local state (dowel runtime + AI coding tooling)
 # ---------------------------------------------------------------------------
-.artisan/
+.dowel/
 .ac/
 .claude/
 .mcp.json

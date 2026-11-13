@@ -9,17 +9,17 @@ import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
-import '../utils/dusk_exceptions.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_exceptions.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import '../utils/key_press.dart';
 import '../utils/perf_interaction.dart';
 import 'ext_pointer.dart';
-import 'ext_snapshot.dart' show duskSnapBuild, snapshotForAction;
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'ext_snapshot.dart' show tapirSnapBuild, snapshotForAction;
+import 'package:dowel/dowel.dart';
 
 /// Parses the optional `'true' | 'false'` flag [params] field [name],
 /// returning [defaultValue] when missing or empty. Mirrors the helper in
@@ -50,7 +50,7 @@ typedef _Key = ({
 /// null when it names nothing.
 ///
 /// A name in [_kKeyMap] matches case-insensitively, since agents call
-/// `dusk:press_key --key=TAB` or `--key=enter` and the canonical names are
+/// `tapir:press_key --key=TAB` or `--key=enter` and the canonical names are
 /// PascalCase. A single letter or digit is the key that carries it: `G` and
 /// `g` both press the G key with the character `g`, so a shortcut bound to a
 /// letter can be driven. Anything else is refused rather than guessed at.
@@ -339,10 +339,10 @@ developer.ServiceExtensionResponse? refuseNonTextRef({
   return developer.ServiceExtensionResponse.error(
     developer.ServiceExtensionResponse.extensionError,
     wrapErrorDetail(
-      '[fluttersdk_dusk] ext.dusk.$verb: ref $ref is a $role, not a text '
+      '[tapir] ext.tapir.$verb: ref $ref is a $role, not a text '
       'field. Target the field itself, or use the verb for a $role '
       '(tap, select_option, set_checkbox).',
-      DuskErrorEnvelope.unexpected(widgetPath: ref),
+      TapirErrorEnvelope.unexpected(widgetPath: ref),
     ),
   );
 }
@@ -429,7 +429,7 @@ Future<String?> typeIntoElement({
 TextFieldTarget _requireTarget(TextFieldTarget? target, Element element) {
   if (target == null) {
     throw ArgumentError(
-      '[fluttersdk_dusk] typeIntoElement: no EditableText found in or under '
+      '[tapir] typeIntoElement: no EditableText found in or under '
       'element $element',
     );
   }
@@ -468,9 +468,9 @@ Future<String?> _writeText(EditableTextState state, String text) async {
     injected = true;
   } catch (e) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.type: userUpdateTextEditingValue threw $e; '
+      '[tapir] ext.tapir.type: userUpdateTextEditingValue threw $e; '
       'falling back to controller.value setter',
-      name: 'fluttersdk_dusk',
+      name: 'tapir',
     );
   }
 
@@ -492,9 +492,9 @@ Future<String?> _writeText(EditableTextState state, String text) async {
     //    handlePlatformMessage on the 'flutter/textinput' channel directly so
     //    the engine receives the update through the internal message path.
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.type: primary path unavailable, using '
+      '[tapir] ext.tapir.type: primary path unavailable, using '
       'platform-message fallback',
-      name: 'fluttersdk_dusk',
+      name: 'tapir',
     );
 
     final ByteData? encodedMessage = const JSONMessageCodec().encodeMessage(
@@ -549,7 +549,7 @@ Future<void> pressKey({
   final _Key? resolved = _lookupKey(key);
   if (resolved == null) {
     throw ArgumentError(
-      '[fluttersdk_dusk] ext.dusk.press_key: unknown key "$key". '
+      '[tapir] ext.tapir.press_key: unknown key "$key". '
       'Supported keys: ${_kKeyMap.keys.join(', ')}, or one letter or digit',
     );
   }
@@ -577,7 +577,7 @@ KeyModifier _lookupModifier(String input) {
 
   if (modifier == null) {
     throw ArgumentError(
-      '[fluttersdk_dusk] ext.dusk.press_key: unknown modifier "$input". '
+      '[tapir] ext.tapir.press_key: unknown modifier "$input". '
       'Supported modifiers: control (or ctrl), shift, alt, meta',
     );
   }
@@ -585,7 +585,7 @@ KeyModifier _lookupModifier(String input) {
   return modifier;
 }
 
-/// Splits the `modifiers` param of `ext.dusk.press_key` into names.
+/// Splits the `modifiers` param of `ext.tapir.press_key` into names.
 ///
 /// The CLI sends a comma-separated string (`control,shift`); the MCP schema
 /// declares an array, which reaches the extension as its JSON text
@@ -609,7 +609,7 @@ List<String> _parseModifiers(String? raw) {
 // VM Service extension handlers
 // ---------------------------------------------------------------------------
 
-/// Handler for the `ext.dusk.type` VM Service extension.
+/// Handler for the `ext.tapir.type` VM Service extension.
 ///
 /// Params (all string-valued as per [developer.ServiceExtensionHandler]):
 /// - `ref` (required): a ref string (`eN`) from a prior snapshot response;
@@ -651,8 +651,8 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[fluttersdk_dusk] ext.dusk.type: missing required param "ref"',
-          DuskErrorEnvelope.missingParam('ref'),
+          '[tapir] ext.tapir.type: missing required param "ref"',
+          TapirErrorEnvelope.missingParam('ref'),
         ),
       );
     }
@@ -667,10 +667,10 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     final RefEntry? entry;
     try {
       entry = resolveRefForAction(ref);
-    } on DuskStaleHandleException catch (e) {
+    } on TapirStaleHandleException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
       );
     }
     if (target == null) {
@@ -699,12 +699,12 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
           checkStable: checkStable,
           checkReceivesEvents: checkReceivesEvents,
         );
-      } on DuskActionabilityException catch (e) {
+      } on TapirActionabilityException catch (e) {
         return developer.ServiceExtensionResponse.error(
           developer.ServiceExtensionResponse.extensionError,
           wrapErrorDetail(
             e.message,
-            DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+            TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
           ),
         );
       }
@@ -715,8 +715,8 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[fluttersdk_dusk] ext.dusk.type: ref "$ref" not found in registry',
-          DuskErrorEnvelope.notFound(
+          '[tapir] ext.tapir.type: ref "$ref" not found in registry',
+          TapirErrorEnvelope.notFound(
             ref: ref,
             candidates: collectSnapshotCandidates(),
           ),
@@ -763,26 +763,26 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
-        '[fluttersdk_dusk] ext.dusk.type: post-dispatch snapshot build swallowed '
+        '[tapir] ext.tapir.type: post-dispatch snapshot build swallowed '
         'for ref "$ref": $e',
-        name: 'fluttersdk_dusk',
+        name: 'tapir',
       );
     }
 
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.type error: $e\n$stackTrace',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.type error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
 
-/// Handler for the `ext.dusk.press_key` VM Service extension.
+/// Handler for the `ext.tapir.press_key` VM Service extension.
 ///
 /// Params:
 /// - `key` (required): key name string from the supported lookup table
@@ -808,8 +808,8 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          '[fluttersdk_dusk] ext.dusk.press_key: missing required param "key"',
-          DuskErrorEnvelope.missingParam('key'),
+          '[tapir] ext.tapir.press_key: missing required param "key"',
+          TapirErrorEnvelope.missingParam('key'),
         ),
       );
     }
@@ -847,22 +847,22 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
         payload.addAll(await snapshotForAction(params));
       } catch (e) {
         developer.log(
-          '[fluttersdk_dusk] ext.dusk.press_key: post-dispatch snapshot build '
+          '[tapir] ext.tapir.press_key: post-dispatch snapshot build '
           'swallowed for key "$key": $e',
-          name: 'fluttersdk_dusk',
+          name: 'tapir',
         );
       }
     }
 
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.press_key error: $e\n$stackTrace',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.press_key error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -871,7 +871,7 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
 // Self-registration entry point
 // ---------------------------------------------------------------------------
 
-/// Registers `ext.dusk.type` and `ext.dusk.press_key` as VM Service
+/// Registers `ext.tapir.type` and `ext.tapir.press_key` as VM Service
 /// extensions.
 ///
 /// Idempotent: each registration routes through [registerExtensionIdempotent],
@@ -881,12 +881,12 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
 /// Called from `extensions.dart#registerAllAiTestExtensions()` once the Step
 /// 14b aggregator lands. May also be called standalone in tests.
 void registerTextInputExtensions() {
-  registerDuskExtension('ext.dusk.type', aiTestTypeHandler);
-  registerDuskExtension('ext.dusk.press_key', aiTestPressKeyHandler);
-  registerDuskExtension('ext.dusk.clear', aiTestClearHandler);
+  registerTapirExtension('ext.tapir.type', aiTestTypeHandler);
+  registerTapirExtension('ext.tapir.press_key', aiTestPressKeyHandler);
+  registerTapirExtension('ext.tapir.clear', aiTestClearHandler);
 }
 
-/// Handler for `ext.dusk.clear` — empties the [TextEditingController] backing
+/// Handler for `ext.tapir.clear` — empties the [TextEditingController] backing
 /// the resolved text field. Playwright parity: `locator.clear()`.
 ///
 /// Resolves the field through [resolveTextFieldTarget], as
@@ -904,18 +904,18 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.clear: missing required param "ref"',
-          DuskErrorEnvelope.missingParam('ref'),
+          'ext.tapir.clear: missing required param "ref"',
+          TapirErrorEnvelope.missingParam('ref'),
         ),
       );
     }
     final RefEntry? entry;
     try {
       entry = resolveRefForAction(ref);
-    } on DuskStaleHandleException catch (e) {
+    } on TapirStaleHandleException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
       );
     }
     if (target == null) {
@@ -931,8 +931,8 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.clear: ref "$ref" not found in registry',
-          DuskErrorEnvelope.notFound(
+          'ext.tapir.clear: ref "$ref" not found in registry',
+          TapirErrorEnvelope.notFound(
             ref: ref,
             candidates: collectSnapshotCandidates(),
           ),
@@ -945,8 +945,8 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.clear: no EditableText under ref "$ref"',
-          DuskErrorEnvelope.unexpected(),
+          'ext.tapir.clear: no EditableText under ref "$ref"',
+          TapirErrorEnvelope.unexpected(),
         ),
       );
     }
@@ -955,8 +955,8 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.clear: could not resolve TextEditingController',
-          DuskErrorEnvelope.unexpected(),
+          'ext.tapir.clear: could not resolve TextEditingController',
+          TapirErrorEnvelope.unexpected(),
         ),
       );
     }
@@ -977,18 +977,18 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
       ),
     };
     if (_parseBoolFlag(params, 'includeSnapshot', defaultValue: false)) {
-      final snap = await duskSnapBuild();
+      final snap = await tapirSnapBuild();
       payload['snapshot'] = snap['snapshot'];
     }
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.clear error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] ext.tapir.clear error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }

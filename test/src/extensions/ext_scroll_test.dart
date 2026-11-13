@@ -4,9 +4,9 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_scroll.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/extensions/ext_scroll.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 bool _isError(developer.ServiceExtensionResponse response) =>
     response.errorCode != null;
@@ -15,7 +15,7 @@ bool _isError(developer.ServiceExtensionResponse response) =>
 // hangs the flutter_test fake-clock harness even under tester.runAsync().
 // We only exercise the error path (which short-circuits before endOfFrame).
 // Live drive coverage for success paths is captured by the example/ playground
-// (`dusk:scroll` against the /scroll screen).
+// (`tapir:scroll` against the /scroll screen).
 
 void main() {
   tearDown(() {
@@ -55,7 +55,7 @@ void main() {
       );
 
       final response = await aiTestScrollHandler(
-        'ext.dusk.scroll',
+        'ext.tapir.scroll',
         const {'dy': '100'},
       );
       expect(_isError(response), isTrue);
@@ -77,7 +77,7 @@ void main() {
       );
 
       final future = aiTestScrollHandler(
-        'ext.dusk.scroll',
+        'ext.tapir.scroll',
         const {'dy': '120'},
       );
       await tester.pump();
@@ -101,7 +101,7 @@ void main() {
       );
 
       final future = aiTestScrollHandler(
-        'ext.dusk.scroll',
+        'ext.tapir.scroll',
         const {'ref': 'e9999', 'dy': '120'},
       );
       await tester.pump();
@@ -125,7 +125,7 @@ void main() {
       );
 
       final future = aiTestScrollHandler(
-        'ext.dusk.scroll',
+        'ext.tapir.scroll',
         const {'ref': 'q9999', 'dy': '120'},
       );
       await tester.pump();
@@ -160,7 +160,7 @@ void main() {
       );
 
       final future = aiTestScrollHandler(
-        'ext.dusk.scroll',
+        'ext.tapir.scroll',
         {'ref': ref, 'dy': '120'},
       );
       await tester.pump();
@@ -192,7 +192,7 @@ void main() {
       );
 
       final future = aiTestScrollHandler(
-        'ext.dusk.scroll',
+        'ext.tapir.scroll',
         {'ref': ref, 'dy': '120', 'includeSnapshot': 'false'},
       );
       await tester.pump();
@@ -231,7 +231,7 @@ void main() {
         isTextField: false,
       );
       final future = aiTestScrollHandler(
-        'ext.dusk.scroll',
+        'ext.tapir.scroll',
         {'ref': ref, 'includeSnapshot': 'false', ...params},
       );
       await tester.pump();
@@ -372,7 +372,7 @@ void main() {
       ) async {
         await pumpList(tester);
         final response = await aiTestScrollHandler(
-          'ext.dusk.scroll',
+          'ext.tapir.scroll',
           {'includeSnapshot': 'false', ...params},
         );
 
@@ -408,7 +408,7 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // Step 3.2 — snapshot-in-action-response for ext.dusk.scroll.
+  // Step 3.2 — snapshot-in-action-response for ext.tapir.scroll.
   // ---------------------------------------------------------------------------
 
   group('aiTestScrollHandler snapshot-in-response', () {
@@ -429,7 +429,7 @@ void main() {
         );
 
         final future = aiTestScrollHandler(
-          'ext.dusk.scroll',
+          'ext.tapir.scroll',
           const <String, String>{'dy': '120'},
         );
         await tester.pump();
@@ -461,7 +461,7 @@ void main() {
         );
 
         final future = aiTestScrollHandler(
-          'ext.dusk.scroll',
+          'ext.tapir.scroll',
           const <String, String>{
             'dy': '120',
             'includeSnapshot': 'false',
@@ -497,7 +497,7 @@ void main() {
         );
 
         final future = aiTestScrollHandler(
-          'ext.dusk.scroll',
+          'ext.tapir.scroll',
           const <String, String>{'dy': '60'},
         );
         await tester.pump();
@@ -528,10 +528,10 @@ void main() {
             ),
           ),
         );
-        await duskSnapBuild();
+        await tapirSnapBuild();
 
         final future = aiTestScrollHandler(
-          'ext.dusk.scroll',
+          'ext.tapir.scroll',
           const <String, String>{'dy': '600', 'snapshot': 'diff'},
         );
         await tester.pump();
@@ -564,7 +564,7 @@ void main() {
         );
 
         final future = aiTestScrollHandler(
-          'ext.dusk.scroll',
+          'ext.tapir.scroll',
           const <String, String>{'dy': '120', 'snapshot': 'none'},
         );
         await tester.pump();
@@ -585,7 +585,7 @@ void main() {
     });
   });
 
-  group('ext.dusk.select_option handler', () {
+  group('ext.tapir.select_option handler', () {
     // -------------------------------------------------------------------------
     // (a) aiTestSelectOptionInElement selects DropdownButton value
     // -------------------------------------------------------------------------
@@ -747,7 +747,7 @@ void main() {
 
         try {
           final response = await aiTestSelectOptionHandler(
-            'ext.dusk.select_option',
+            'ext.tapir.select_option',
             <String, String>{'ref': 'e1'},
             // 'value' intentionally missing
           );
@@ -780,7 +780,7 @@ void main() {
 
         try {
           final response = await aiTestSelectOptionHandler(
-            'ext.dusk.select_option',
+            'ext.tapir.select_option',
             <String, String>{'value': 'b'},
           );
           expect(response, isNotNull);
@@ -819,7 +819,7 @@ void main() {
       // harness is pumped.
       final Future<developer.ServiceExtensionResponse> future =
           aiTestSelectOptionHandler(
-        'ext.dusk.select_option',
+        'ext.tapir.select_option',
         const <String, String>{'value': 'two'},
       );
       for (int i = 0; i < 4; i++) {
@@ -868,7 +868,7 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          aiTestScrollHandler('ext.dusk.scroll', <String, String>{
+          aiTestScrollHandler('ext.tapir.scroll', <String, String>{
         'ref': ref,
         'dy': '300',
         'includeSnapshot': 'false',
@@ -898,7 +898,7 @@ void main() {
       Map<String, String> params,
     ) async {
       final Future<developer.ServiceExtensionResponse> future =
-          aiTestScrollHandler('ext.dusk.scroll', <String, String>{
+          aiTestScrollHandler('ext.tapir.scroll', <String, String>{
         ...params,
         'includeSnapshot': 'false',
       });
@@ -1017,7 +1017,7 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          aiTestScrollHandler('ext.dusk.scroll', <String, String>{
+          aiTestScrollHandler('ext.tapir.scroll', <String, String>{
         'dy': '200',
         'includeSnapshot': 'false',
       });
@@ -1067,7 +1067,7 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> future =
           aiTestSelectOptionHandler(
-        'ext.dusk.select_option',
+        'ext.tapir.select_option',
         const <String, String>{'value': 'two'},
       );
       for (int i = 0; i < 4; i++) {
@@ -1095,7 +1095,7 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> future =
           aiTestSelectOptionHandler(
-        'ext.dusk.select_option',
+        'ext.tapir.select_option',
         const <String, String>{'value': 'two'},
       );
       for (int i = 0; i < 4; i++) {

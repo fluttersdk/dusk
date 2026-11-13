@@ -4,12 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
-import 'package:fluttersdk_artisan/artisan.dart';
-import 'package:fluttersdk_wind_diagnostics_contracts/fluttersdk_wind_diagnostics_contracts.dart';
+import 'package:dowel/dowel.dart';
+import 'package:wind_kit_diagnostics_contracts/wind_kit_diagnostics_contracts.dart';
 
-import '../dusk_plugin.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../tapir_plugin.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import '../utils/perf_insights.dart';
@@ -19,28 +19,28 @@ import '../utils/perf_readers.dart';
 // Self-registration entry point
 // ---------------------------------------------------------------------------
 
-/// Registers `ext.dusk.perf_begin`, `ext.dusk.perf_end` and
-/// `ext.dusk.perf_insight`.
+/// Registers `ext.tapir.perf_begin`, `ext.tapir.perf_end` and
+/// `ext.tapir.perf_insight`.
 ///
 /// The first two are one verb split in half: `perf_begin` turns the
 /// instrumentation on and records what to compare against, `perf_end` reads,
 /// reports and puts every flag back. `perf_insight` drills into one insight of
 /// the report `perf_end` last produced. Idempotent via
-/// [registerExtensionIdempotent]; call once from `registerAllDuskExtensions()`.
+/// [registerExtensionIdempotent]; call once from `registerAllTapirExtensions()`.
 void registerPerfExtensions() {
-  registerDuskExtension(
-    'ext.dusk.perf_begin',
-    duskPerfBeginHandler,
+  registerTapirExtension(
+    'ext.tapir.perf_begin',
+    tapirPerfBeginHandler,
     ensureFrames: false,
   );
-  registerDuskExtension(
-    'ext.dusk.perf_end',
-    duskPerfEndHandler,
+  registerTapirExtension(
+    'ext.tapir.perf_end',
+    tapirPerfEndHandler,
     ensureFrames: false,
   );
-  registerDuskExtension(
-    'ext.dusk.perf_insight',
-    duskPerfInsightHandler,
+  registerTapirExtension(
+    'ext.tapir.perf_insight',
+    tapirPerfInsightHandler,
     ensureFrames: false,
   );
 }
@@ -71,7 +71,7 @@ final class _PerfSession {
   final Stopwatch clock = Stopwatch()..start();
 
   /// `FlutterTimeline.now` at open, the start of the window
-  /// `ext.dusk.perf_trace` exports: the clock interactions are stamped with.
+  /// `ext.tapir.perf_trace` exports: the clock interactions are stamped with.
   final int startUs = FlutterTimeline.now;
 
   /// The liveness counter as it read at `perf_begin`. `perf_end` reports
@@ -100,7 +100,7 @@ final class _PerfSession {
   // them. Restoring these values rather than forcing `false` is deliberate:
   // a host that had build profiling on for its own reasons (a DevTools
   // session, an outer harness) would otherwise have it silently switched off
-  // by a dusk verb that never owned it.
+  // by a tapir verb that never owned it.
   final bool priorCollectionEnabled;
   final bool priorProfileBuilds;
   final bool priorProfileUserWidgets;
@@ -181,10 +181,10 @@ void resetClosedPerfSessionForTesting() {
 }
 
 // ---------------------------------------------------------------------------
-// ext.dusk.perf_begin
+// ext.tapir.perf_begin
 // ---------------------------------------------------------------------------
 
-/// Handler for `ext.dusk.perf_begin`: opens a measurement session.
+/// Handler for `ext.tapir.perf_begin`: opens a measurement session.
 ///
 /// Params (all string-valued):
 /// - `mode` (optional, default `'attribution'`): `attribution` switches build
@@ -213,7 +213,7 @@ void resetClosedPerfSessionForTesting() {
 /// which is what keeps the restore honest; saving first would capture the
 /// values `perf_begin` itself set and `perf_end` would then "restore"
 /// profiling to on, permanently.
-Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
+Future<developer.ServiceExtensionResponse> tapirPerfBeginHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -228,11 +228,11 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
       developer.ServiceExtensionResponse.invalidParams,
       wrapErrorDetail(
         mode == null
-            ? 'ext.dusk.perf_begin: mode "$modeName" is not one of '
+            ? 'ext.tapir.perf_begin: mode "$modeName" is not one of '
                 'attribution, timing.'
-            : 'ext.dusk.perf_begin: phases=true profiles layout and paint, '
+            : 'ext.tapir.perf_begin: phases=true profiles layout and paint, '
                 'and mode=timing profiles nothing; pick one.',
-        DuskErrorEnvelope.unexpected(),
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }
@@ -287,7 +287,7 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
       }
     }
 
-    // 5. Zero the counters dusk cannot reach itself, then read the baseline
+    // 5. Zero the counters tapir cannot reach itself, then read the baseline
     //    the refusal is judged against. Reading after the hook keeps the
     //    baseline on the same side of the reset as everything else. The hook
     //    gets the mode so a timing session can leave wind's counting off.
@@ -295,7 +295,7 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
     final int livenessBaseline = _asInt(framePerfReader()['livenessCounter']);
     session.livenessBaseline = livenessBaseline;
 
-    return duskResult(<String, dynamic>{
+    return tapirResult(<String, dynamic>{
       'sessionToken': session.token,
       'mode': mode.name,
       'phases': phases,
@@ -304,8 +304,8 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
     });
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.perf_begin: unexpected error: $e\n$st',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.perf_begin: unexpected error: $e\n$st',
+      name: 'tapir',
     );
     // Hand the instrumentation back immediately rather than leaving it on
     // until a `perf_end` that may never come. The session was installed before
@@ -316,18 +316,18 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.perf_begin: $e',
-        DuskErrorEnvelope.unexpected(),
+        'ext.tapir.perf_begin: $e',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// ext.dusk.perf_end
+// ext.tapir.perf_end
 // ---------------------------------------------------------------------------
 
-/// Handler for `ext.dusk.perf_end`: closes the session and reports.
+/// Handler for `ext.tapir.perf_end`: closes the session and reports.
 ///
 /// Params (all string-valued):
 /// - `full` (optional, default `'false'`): lift every cut, so the counter
@@ -338,8 +338,8 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
 /// Reads the frames and the liveness counter through
 /// [framePerfReader], wind's aggregate through `WindDebugRegistry.currentPerf`
 /// and the magic-side counters through [perfExtrasReader], builds the report
-/// with [analysePerf], keeps the analysis for `ext.dusk.perf_insight`, then
-/// restores every flag [duskPerfBeginHandler] changed and calls
+/// with [analysePerf], keeps the analysis for `ext.tapir.perf_insight`, then
+/// restores every flag [tapirPerfBeginHandler] changed and calls
 /// [perfSessionEndHook].
 ///
 /// Response JSON, reporting (bounded to about 6 KB; the rows behind each
@@ -387,7 +387,7 @@ Future<developer.ServiceExtensionResponse> duskPerfBeginHandler(
 ///
 /// Called without a prior `perf_begin` it returns an error envelope rather
 /// than throwing across the VM Service boundary.
-Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
+Future<developer.ServiceExtensionResponse> tapirPerfEndHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -396,11 +396,11 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.perf_end: no measurement session is open. Call '
-        'ext.dusk.perf_begin first; the session carries the flag values to '
+        'ext.tapir.perf_end: no measurement session is open. Call '
+        'ext.tapir.perf_begin first; the session carries the flag values to '
         'restore and the liveness baseline this report is judged against, '
         'and neither can be reconstructed afterwards.',
-        DuskErrorEnvelope.unexpected(),
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }
@@ -430,10 +430,10 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.perf_end: the open session never completed its baseline '
+          'ext.tapir.perf_end: the open session never completed its baseline '
           'read, so there is nothing to judge a run against. Call '
-          'ext.dusk.perf_begin again.',
-          DuskErrorEnvelope.unexpected(),
+          'ext.tapir.perf_begin again.',
+          TapirErrorEnvelope.unexpected(),
         ),
       );
     }
@@ -447,7 +447,7 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
         startUs: session.startUs,
         endUs: endUs,
       );
-      return duskResult(<String, dynamic>{
+      return tapirResult(<String, dynamic>{
         'sessionToken': session.token,
         'refused': true,
         'mode': session.mode.name,
@@ -520,21 +520,21 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
       startUs: session.startUs,
       endUs: endUs,
     );
-    return duskResult(<String, dynamic>{
+    return tapirResult(<String, dynamic>{
       'sessionToken': session.token,
       'refused': false,
       ...analysis.report,
     });
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.perf_end: unexpected error: $e\n$st',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.perf_end: unexpected error: $e\n$st',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.perf_end: $e',
-        DuskErrorEnvelope.unexpected(),
+        'ext.tapir.perf_end: $e',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   } finally {
@@ -546,10 +546,10 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
 }
 
 // ---------------------------------------------------------------------------
-// ext.dusk.perf_insight
+// ext.tapir.perf_insight
 // ---------------------------------------------------------------------------
 
-/// Handler for `ext.dusk.perf_insight`: the rows behind one insight of the
+/// Handler for `ext.tapir.perf_insight`: the rows behind one insight of the
 /// most recent report `perf_end` produced.
 ///
 /// Params (all string-valued):
@@ -578,7 +578,7 @@ Future<developer.ServiceExtensionResponse> duskPerfEndHandler(
 /// Every miss is an error naming what to read instead: no id, no closed
 /// session, a stale token, a refused session, or an id the session never
 /// issued (which points at `perf_end`'s list).
-Future<developer.ServiceExtensionResponse> duskPerfInsightHandler(
+Future<developer.ServiceExtensionResponse> tapirPerfInsightHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -589,23 +589,23 @@ Future<developer.ServiceExtensionResponse> duskPerfInsightHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.invalidParams,
       wrapErrorDetail(
-        'ext.dusk.perf_insight: id is required, an insight id such as I1 '
-        'from the insights[] list ext.dusk.perf_end returned.',
-        DuskErrorEnvelope.missingParam('id'),
+        'ext.tapir.perf_insight: id is required, an insight id such as I1 '
+        'from the insights[] list ext.tapir.perf_end returned.',
+        TapirErrorEnvelope.missingParam('id'),
       ),
     );
   }
 
   final _ClosedSession? closed = _lastClosed;
   final String? problem = switch (closed) {
-    null => 'no closed perf session to drill into. Run ext.dusk.perf_begin, '
-        'drive the interaction, then ext.dusk.perf_end; its insights[] list '
+    null => 'no closed perf session to drill into. Run ext.tapir.perf_begin, '
+        'drive the interaction, then ext.tapir.perf_end; its insights[] list '
         'carries the ids.',
     _ when token != null && token != closed.token =>
       'session $token is not held; only the most recent closed session '
           '(${closed.token}) is kept. Drill into it, or rerun the session.',
     _ when closed.analysis == null =>
-      'session ${closed.token} was refused by ext.dusk.perf_end and has no '
+      'session ${closed.token} was refused by ext.tapir.perf_end and has no '
           'insights; rerun it with an interaction driven inside.',
     _ => null,
   };
@@ -613,8 +613,8 @@ Future<developer.ServiceExtensionResponse> duskPerfInsightHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.perf_insight: $problem',
-        DuskErrorEnvelope.unexpected(),
+        'ext.tapir.perf_insight: $problem',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }
@@ -624,16 +624,16 @@ Future<developer.ServiceExtensionResponse> duskPerfInsightHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.perf_insight: session ${closed.token} issued no insight '
-        '$id. Read the ids from the insights[] list ext.dusk.perf_end '
+        'ext.tapir.perf_insight: session ${closed.token} issued no insight '
+        '$id. Read the ids from the insights[] list ext.tapir.perf_end '
         'returned; one cut from that list is counted in omitted.insights and '
         'is still drillable by its id.',
-        DuskErrorEnvelope.notFound(ref: id),
+        TapirErrorEnvelope.notFound(ref: id),
       ),
     );
   }
 
-  return duskResult(<String, dynamic>{
+  return tapirResult(<String, dynamic>{
     'sessionToken': closed.token,
     ...drill,
   });
@@ -643,13 +643,13 @@ Future<developer.ServiceExtensionResponse> duskPerfInsightHandler(
 // Private helpers
 // ---------------------------------------------------------------------------
 
-/// Where this report was measured, read in-app rather than from artisan
-/// state: a profile build launched by hand has no artisan record, and the
+/// Where this report was measured, read in-app rather than from dowel
+/// state: a profile build launched by hand has no dowel record, and the
 /// numbers mean different things in each mode.
 ///
-/// `semanticsEnabled` is on the report because dusk keeps a semantics handle
-/// for the whole process, so every dusk-driven measurement builds the
-/// semantics tree each frame; a reader comparing against a non-dusk run needs
+/// `semanticsEnabled` is on the report because tapir keeps a semantics handle
+/// for the whole process, so every tapir-driven measurement builds the
+/// semantics tree each frame; a reader comparing against a non-tapir run needs
 /// to know that.
 Map<String, Object?> _env(_PerfSession session) => <String, Object?>{
       'platform': defaultTargetPlatform.name,
@@ -675,14 +675,14 @@ Map<String, Object?> _env(_PerfSession session) => <String, Object?>{
 /// pre-window behavior for a host that never supplied one.
 ///
 /// `vsyncStartUs` is the engine's clock and `startUs`/`endUs` are
-/// `FlutterTimeline.now`; telescope's record documents that their parity is
+/// `FlutterTimeline.now`; crumbs's record documents that their parity is
 /// unverified on native. The caller only gets here after the liveness counter
 /// proved the session drew, so a read in which frames carry a timestamp and
 /// NONE of them lands in the window means the clocks disagree, not that the
 /// session was empty. Then every frame is kept and `clockMismatch` is set, so
 /// the report describes the frames it has and says it could not cut them.
 ///
-/// `ext.dusk.perf_trace` cuts its frames by the same rule, so the trace and
+/// `ext.tapir.perf_trace` cuts its frames by the same rule, so the trace and
 /// the report it sits beside never disagree on which frames the session had.
 ({
   List<Map<String, Object?>> inSession,
@@ -754,7 +754,7 @@ void _closeSession(_PerfSession session) {
   // A semantics pass whose driver died between `semantics_hold release` and
   // its `acquire` would otherwise leave every later snapshot and ref-based
   // action reading an empty tree. The session is the receipt for that too.
-  if (DuskPlugin.semanticsReleased) DuskPlugin.acquireSemantics();
+  if (TapirPlugin.semanticsReleased) TapirPlugin.acquireSemantics();
   // Session dropped BEFORE the host hook runs. That hook is assigned in
   // another repository and can throw; from `perf_end`'s `finally` a throw
   // would replace the response and cross the VM Service boundary, which this
@@ -772,9 +772,9 @@ void _closeSession(_PerfSession session) {
     perfSessionEndHook();
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] perfSessionEndHook threw while closing a perf '
+      '[tapir] perfSessionEndHook threw while closing a perf '
       'session; the instrumentation flags were already restored: $e\n$st',
-      name: 'fluttersdk_dusk',
+      name: 'tapir',
     );
   }
 }

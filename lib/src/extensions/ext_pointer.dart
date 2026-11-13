@@ -4,12 +4,12 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
-import '../dusk_plugin.dart';
+import '../tapir_plugin.dart';
 import '../ref_registry.dart';
 import '../utils/actionability_gate.dart';
-import '../utils/dusk_exceptions.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_exceptions.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
@@ -18,7 +18,7 @@ import '../utils/tap_owner.dart';
 import 'ext_find.dart';
 import 'ext_snapshot.dart' show snapshotForAction;
 import 'ext_wait_find.dart' show findByTextWaitLoop;
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
 /// Parses the optional `'true' | 'false'` flag [params] field [name],
 /// returning [defaultValue] when missing or empty.
@@ -98,10 +98,10 @@ int _semanticsSubtreeHash(SemanticsNode? node) {
 /// Resolves a ref string to a live [RefEntry].
 ///
 /// When [ref] begins with `q` it is treated as a Playwright-Locator-style
-/// query handle: the stored [DuskQuery] is looked up in [RefRegistry] and
+/// query handle: the stored [TapirQuery] is looked up in [RefRegistry] and
 /// re-executed against the live Semantics + Element tree at this moment so
 /// the returned entry reflects the freshest rect / element / node. When no
-/// node matches the stored predicates, [DuskStaleHandleException] is
+/// node matches the stored predicates, [TapirStaleHandleException] is
 /// thrown so the action handler can surface a descriptive error and the
 /// agent can decide to re-find or re-snap.
 ///
@@ -117,7 +117,7 @@ int _semanticsSubtreeHash(SemanticsNode? node) {
 RefEntry? resolveRefForAction(String ref) {
   if (ref.isEmpty) return null;
   if (ref.startsWith('q')) {
-    final DuskQuery? query = RefRegistry.lookupQuery(ref);
+    final TapirQuery? query = RefRegistry.lookupQuery(ref);
     if (query == null) return null;
     // Hold a SemanticsHandle for the duration of the re-execution so the
     // semantics owner's rootSemanticsNode is non-null (the framework only
@@ -130,7 +130,7 @@ RefEntry? resolveRefForAction(String ref) {
       handle.dispose();
     }
     if (entry == null) {
-      throw DuskStaleHandleException(ref: ref);
+      throw TapirStaleHandleException(ref: ref);
     }
     return entry;
   }
@@ -245,13 +245,13 @@ String _pointTarget(Offset point) => '@${point.dx},${point.dy}';
 /// The `checks` block of a dispatch at raw coordinates.
 ///
 /// There is no element, so none of the gate's checks can run, and the enabled
-/// check reads the semantics tree `ext.dusk.semantics_hold` may have
-/// released: this is the dispatch `dusk:perf_run --semantics-pass` replays
+/// check reads the semantics tree `ext.tapir.semantics_hold` may have
+/// released: this is the dispatch `tapir:perf_run --semantics-pass` replays
 /// with points it recorded while the tree was on. Always present, because a
 /// coordinate dispatch proves nothing about what it landed on.
 Map<String, dynamic> _coordinateChecks() => <String, dynamic>{
       'gate': 'skipped',
-      'semantics': DuskPlugin.semanticsReleased ? 'released' : 'held',
+      'semantics': TapirPlugin.semanticsReleased ? 'released' : 'held',
       'why': 'Dispatched at raw coordinates: there is no element to gate, so '
           'the enabled, zero-rect, off-viewport, stable and receives-events '
           'checks did not run. Nothing here resolves through the semantics '
@@ -338,7 +338,7 @@ Future<void> _injectTap(
   await awaitFramesOrTimeout(2);
 }
 
-/// Handler for the `ext.dusk.tap` VM Service extension.
+/// Handler for the `ext.tapir.tap` VM Service extension.
 ///
 /// Resolves the `ref` parameter via [RefRegistry], injects a Down+50ms+Up
 /// pointer sequence at the widget's logical-pixel center, and (for text-field
@@ -350,7 +350,7 @@ Future<void> _injectTap(
 /// - `requestKeyboard()` after the pointer events produces `hasPrimaryFocus == true`.
 ///
 /// Parameters:
-/// - `ref` (required): opaque ref string from a prior `ext.dusk.snapshot` call.
+/// - `ref` (required): opaque ref string from a prior `ext.tapir.snapshot` call.
 /// - `checkStable` (optional, default `'true'`): when `'false'`, skip the
 ///   Playwright stable-rect gate. Production callers leave the default;
 ///   tests that fabricate synthetic [RefEntry] rects opt out so the gate
@@ -387,7 +387,7 @@ Future<void> _injectTap(
 ///   adds an `untilMatched: true|false` field reporting whether it appeared
 ///   within `untilTimeoutMs`. Confirms a navigation / state change produced
 ///   the expected text (Playwright `waitFor`-after-click parity) in one call,
-///   so the agent does not need a separate `dusk_wait_for` round-trip.
+///   so the agent does not need a separate `tapir_wait_for` round-trip.
 /// - `untilTimeoutMs` (optional, default 3000): poll ceiling for `until`.
 ///
 /// With `until: 'Welcome'`:
@@ -408,8 +408,8 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.tap: missing required param "ref"',
-        DuskErrorEnvelope.missingParam('ref'),
+        'ext.tapir.tap: missing required param "ref"',
+        TapirErrorEnvelope.missingParam('ref'),
       ),
     );
   }
@@ -417,18 +417,18 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   final RefEntry? entry;
   try {
     entry = resolveRefForAction(ref);
-  } on DuskStaleHandleException catch (e) {
+  } on TapirStaleHandleException catch (e) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+      wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
     );
   }
   if (entry == null) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.tap: ref "$ref" not found in registry',
-        DuskErrorEnvelope.notFound(
+        'ext.tapir.tap: ref "$ref" not found in registry',
+        TapirErrorEnvelope.notFound(
           ref: ref,
           candidates: collectSnapshotCandidates(),
         ),
@@ -453,12 +453,12 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
       checkStable: checkStable,
       checkReceivesEvents: checkReceivesEvents,
     );
-  } on DuskActionabilityException catch (e) {
+  } on TapirActionabilityException catch (e) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
         e.message,
-        DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+        TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
       ),
     );
   }
@@ -504,15 +504,15 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     );
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.tap: _injectTap failed for ref "$ref": '
+      '[tapir] ext.tapir.tap: _injectTap failed for ref "$ref": '
       '$e\n$st',
-      name: 'fluttersdk_dusk',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.tap: injectTap failed: $e',
-        DuskErrorEnvelope.unexpected(widgetPath: ref),
+        'ext.tapir.tap: injectTap failed: $e',
+        TapirErrorEnvelope.unexpected(widgetPath: ref),
       ),
     );
   }
@@ -533,9 +533,9 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
       await awaitFrameOrTimeout();
     } catch (e) {
       developer.log(
-        '[fluttersdk_dusk] ext.dusk.tap: post-dispatch noise swallowed for '
+        '[tapir] ext.tapir.tap: post-dispatch noise swallowed for '
         'ref "$ref" (keyboard focus): $e',
-        name: 'fluttersdk_dusk',
+        name: 'tapir',
       );
     }
   }
@@ -577,16 +577,16 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     payload['effect'] = treeChangedEffect(before: preSignal, after: postSignal);
   } catch (e) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.tap: post-dispatch effect signal swallowed '
+      '[tapir] ext.tapir.tap: post-dispatch effect signal swallowed '
       'for ref "$ref": $e',
-      name: 'fluttersdk_dusk',
+      name: 'tapir',
     );
   }
 
   // 3b. Until-text confirmation (opt-in `until`). When enabled, poll the live
   //     element tree for a Text widget whose data equals the expected string
   //     and add `untilMatched` to the payload. Reuses [findByTextWaitLoop]
-  //     (the same poll loop dusk_wait_for uses) so the cadence + fake-async
+  //     (the same poll loop tapir_wait_for uses) so the cadence + fake-async
   //     behaviour match. Failures here are post-dispatch noise: the tap
   //     already fired, so the field is simply omitted on error.
   final String? until = params['until'];
@@ -602,9 +602,9 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
       payload['untilMatched'] = result['matched'] == true;
     } catch (e) {
       developer.log(
-        '[fluttersdk_dusk] ext.dusk.tap: post-dispatch until poll swallowed '
+        '[tapir] ext.tapir.tap: post-dispatch until poll swallowed '
         'for ref "$ref": $e',
-        name: 'fluttersdk_dusk',
+        name: 'tapir',
       );
     }
   }
@@ -616,20 +616,20 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
     payload.addAll(await snapshotForAction(params));
   } catch (e) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.tap: post-dispatch snapshot build swallowed '
+      '[tapir] ext.tapir.tap: post-dispatch snapshot build swallowed '
       'for ref "$ref": $e',
-      name: 'fluttersdk_dusk',
+      name: 'tapir',
     );
   }
 
-  return duskResult(payload);
+  return tapirResult(payload);
 }
 
-/// `ext.dusk.tap` at [point], with no ref.
+/// `ext.tapir.tap` at [point], with no ref.
 ///
 /// Nothing that reads the semantics tree runs: no gate, no effect signal, no
-/// snapshot. That is the whole point of the shape, which `dusk:perf_run
-/// --semantics-pass` uses while `ext.dusk.semantics_hold` has the tree
+/// snapshot. That is the whole point of the shape, which `tapir:perf_run
+/// --semantics-pass` uses while `ext.tapir.semantics_hold` has the tree
 /// released.
 Future<developer.ServiceExtensionResponse> _coordinateTap(Offset point) async {
   try {
@@ -640,31 +640,31 @@ Future<developer.ServiceExtensionResponse> _coordinateTap(Offset point) async {
     );
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.tap: _injectTap failed at $point: $e\n$st',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.tap: _injectTap failed at $point: $e\n$st',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.tap: injectTap failed: $e',
-        DuskErrorEnvelope.unexpected(),
+        'ext.tapir.tap: injectTap failed: $e',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }
-  return duskResult(<String, dynamic>{
+  return tapirResult(<String, dynamic>{
     'point': _pointJson(point),
     'checks': _coordinateChecks(),
   });
 }
 
-/// Handler for the `ext.dusk.hover` VM Service extension.
+/// Handler for the `ext.tapir.hover` VM Service extension.
 ///
 /// Injects a [PointerHoverEvent] with `kind: PointerDeviceKind.mouse` at the
 /// center of the widget identified by `ref`. Mouse-region `onEnter` callbacks
 /// fire in response to hover events; touch-kind events do not trigger them.
 ///
 /// Parameters:
-/// - `ref` (required): opaque ref string from `ext.dusk.snapshot`.
+/// - `ref` (required): opaque ref string from `ext.tapir.snapshot`.
 /// - `checkStable` / `checkReceivesEvents` (optional, default `'true'`):
 ///   Playwright actionability opt-outs. See [aiTestTapHandler] for details.
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
@@ -684,8 +684,8 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.hover: missing required param "ref"',
-          DuskErrorEnvelope.missingParam('ref'),
+          'ext.tapir.hover: missing required param "ref"',
+          TapirErrorEnvelope.missingParam('ref'),
         ),
       );
     }
@@ -693,18 +693,18 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     final RefEntry? entry;
     try {
       entry = resolveRefForAction(ref);
-    } on DuskStaleHandleException catch (e) {
+    } on TapirStaleHandleException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
       );
     }
     if (entry == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.hover: ref "$ref" not found in registry',
-          DuskErrorEnvelope.notFound(
+          'ext.tapir.hover: ref "$ref" not found in registry',
+          TapirErrorEnvelope.notFound(
             ref: ref,
             candidates: collectSnapshotCandidates(),
           ),
@@ -727,12 +727,12 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
         checkStable: checkStable,
         checkReceivesEvents: checkReceivesEvents,
       );
-    } on DuskActionabilityException catch (e) {
+    } on TapirActionabilityException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
           e.message,
-          DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+          TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
         ),
       );
     }
@@ -771,29 +771,29 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
       payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
-        '[fluttersdk_dusk] ext.dusk.hover: post-dispatch snapshot build '
+        '[tapir] ext.tapir.hover: post-dispatch snapshot build '
         'swallowed for ref "$ref": $e',
-        name: 'fluttersdk_dusk',
+        name: 'tapir',
       );
     }
 
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.hover: unexpected error: $e\n$st',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.hover: unexpected error: $e\n$st',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.hover: $e',
-        DuskErrorEnvelope.unexpected(),
+        'ext.tapir.hover: $e',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }
 }
 
-/// Handler for the `ext.dusk.drag` VM Service extension.
+/// Handler for the `ext.tapir.drag` VM Service extension.
 ///
 /// Injects a Down→N×Move→Up pointer sequence. Five intermediate Move events
 /// are spaced 16ms apart so velocity recognizers can compute a valid drag
@@ -812,7 +812,7 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
 ///   gated; the end is a point, not a widget.
 /// - `x`, `y`, `toX`, `toY` with no ref: between raw coordinates. Nothing is
 ///   gated and nothing reads the semantics tree, so it works while
-///   `ext.dusk.semantics_hold` has it released; `checks` says so.
+///   `ext.tapir.semantics_hold` has it released; `checks` says so.
 ///
 /// Parameters:
 /// - `checkStable` / `checkReceivesEvents` (optional, default `'true'`):
@@ -842,7 +842,7 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       final Offset? to = _pointParam(params, 'toX', 'toY');
       if (from != null && to != null) {
         await _injectDrag(from, to, _pointTarget(from));
-        return duskResult(<String, dynamic>{
+        return tapirResult(<String, dynamic>{
           'from': _pointJson(from),
           'to': _pointJson(to),
           'checks': _coordinateChecks(),
@@ -851,8 +851,8 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.drag: missing required param "startRef"',
-          DuskErrorEnvelope.missingParam('startRef'),
+          'ext.tapir.drag: missing required param "startRef"',
+          TapirErrorEnvelope.missingParam('startRef'),
         ),
       );
     }
@@ -867,8 +867,8 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.drag: missing required param "endRef"',
-          DuskErrorEnvelope.missingParam('endRef'),
+          'ext.tapir.drag: missing required param "endRef"',
+          TapirErrorEnvelope.missingParam('endRef'),
         ),
       );
     }
@@ -876,18 +876,18 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     final RefEntry? startEntry;
     try {
       startEntry = resolveRefForAction(startRef);
-    } on DuskStaleHandleException catch (e) {
+    } on TapirStaleHandleException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(startRef)),
+        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(startRef)),
       );
     }
     if (startEntry == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.drag: startRef "$startRef" not found in registry',
-          DuskErrorEnvelope.notFound(
+          'ext.tapir.drag: startRef "$startRef" not found in registry',
+          TapirErrorEnvelope.notFound(
             ref: startRef,
             candidates: collectSnapshotCandidates(),
           ),
@@ -899,18 +899,18 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     if (!byOffset) {
       try {
         endEntry = resolveRefForAction(endRef);
-      } on DuskStaleHandleException catch (e) {
+      } on TapirStaleHandleException catch (e) {
         return developer.ServiceExtensionResponse.error(
           developer.ServiceExtensionResponse.extensionError,
-          wrapErrorDetail(e.message, DuskErrorEnvelope.stale(endRef)),
+          wrapErrorDetail(e.message, TapirErrorEnvelope.stale(endRef)),
         );
       }
       if (endEntry == null) {
         return developer.ServiceExtensionResponse.error(
           developer.ServiceExtensionResponse.extensionError,
           wrapErrorDetail(
-            'ext.dusk.drag: endRef "$endRef" not found in registry',
-            DuskErrorEnvelope.notFound(
+            'ext.tapir.drag: endRef "$endRef" not found in registry',
+            TapirErrorEnvelope.notFound(
               ref: endRef,
               candidates: collectSnapshotCandidates(),
             ),
@@ -945,12 +945,12 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
           checkReceivesEvents: checkReceivesEvents,
         );
       }
-    } on DuskActionabilityException catch (e) {
+    } on TapirActionabilityException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
           e.message,
-          DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+          TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
         ),
       );
     }
@@ -985,23 +985,23 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
-        '[fluttersdk_dusk] ext.dusk.drag: post-dispatch snapshot build '
+        '[tapir] ext.tapir.drag: post-dispatch snapshot build '
         'swallowed: $e',
-        name: 'fluttersdk_dusk',
+        name: 'tapir',
       );
     }
 
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.drag: unexpected error: $e\n$st',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.drag: unexpected error: $e\n$st',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.drag: $e',
-        DuskErrorEnvelope.unexpected(),
+        'ext.tapir.drag: $e',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }
@@ -1070,7 +1070,7 @@ Future<void> _injectDrag(
   await awaitFramesOrTimeout(2);
 }
 
-/// Handler for the `ext.dusk.dblclick` VM Service extension.
+/// Handler for the `ext.tapir.dblclick` VM Service extension.
 ///
 /// Fires two tap sequences at the widget identified by `ref` with a ~100ms
 /// delay between them, matching Playwright's double-click model. Both taps
@@ -1102,8 +1102,8 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.dblclick: missing required param "ref"',
-        DuskErrorEnvelope.missingParam('ref'),
+        'ext.tapir.dblclick: missing required param "ref"',
+        TapirErrorEnvelope.missingParam('ref'),
       ),
     );
   }
@@ -1111,18 +1111,18 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
   final RefEntry? entry;
   try {
     entry = resolveRefForAction(ref);
-  } on DuskStaleHandleException catch (e) {
+  } on TapirStaleHandleException catch (e) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+      wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
     );
   }
   if (entry == null) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.dblclick: ref "$ref" not found in registry',
-        DuskErrorEnvelope.notFound(
+        'ext.tapir.dblclick: ref "$ref" not found in registry',
+        TapirErrorEnvelope.notFound(
           ref: ref,
           candidates: collectSnapshotCandidates(),
         ),
@@ -1142,12 +1142,12 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
       checkStable: checkStable,
       checkReceivesEvents: checkReceivesEvents,
     );
-  } on DuskActionabilityException catch (e) {
+  } on TapirActionabilityException catch (e) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
         e.message,
-        DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+        TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
       ),
     );
   }
@@ -1166,15 +1166,15 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
       );
     } catch (e, st) {
       developer.log(
-        '[fluttersdk_dusk] ext.dusk.dblclick: first _injectTap failed for ref '
+        '[tapir] ext.tapir.dblclick: first _injectTap failed for ref '
         '"$ref": $e\n$st',
-        name: 'fluttersdk_dusk',
+        name: 'tapir',
       );
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.dblclick: first injectTap failed: $e',
-          DuskErrorEnvelope.unexpected(widgetPath: ref),
+          'ext.tapir.dblclick: first injectTap failed: $e',
+          TapirErrorEnvelope.unexpected(widgetPath: ref),
         ),
       );
     }
@@ -1193,15 +1193,15 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
       );
     } catch (e, st) {
       developer.log(
-        '[fluttersdk_dusk] ext.dusk.dblclick: second _injectTap failed for ref '
+        '[tapir] ext.tapir.dblclick: second _injectTap failed for ref '
         '"$ref": $e\n$st',
-        name: 'fluttersdk_dusk',
+        name: 'tapir',
       );
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.dblclick: second injectTap failed: $e',
-          DuskErrorEnvelope.unexpected(widgetPath: ref),
+          'ext.tapir.dblclick: second injectTap failed: $e',
+          TapirErrorEnvelope.unexpected(widgetPath: ref),
         ),
       );
     }
@@ -1217,35 +1217,35 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     payload.addAll(await snapshotForAction(params));
   } catch (e) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.dblclick: post-dispatch snapshot build '
+      '[tapir] ext.tapir.dblclick: post-dispatch snapshot build '
       'swallowed for ref "$ref": $e',
-      name: 'fluttersdk_dusk',
+      name: 'tapir',
     );
   }
 
-  return duskResult(payload);
+  return tapirResult(payload);
 }
 
 /// Registers all pointer-event VM Service extensions.
 ///
 /// Called by the Wave 3 aggregator (`extensions.dart#registerAllAiTestExtensions`)
-/// during [DuskPlugin.install]. This module uses [registerExtensionIdempotent]
+/// during [TapirPlugin.install]. This module uses [registerExtensionIdempotent]
 /// for each registration so hot-restart is safe (the VM extension table persists
 /// across hot-restart while Dart statics reset — try/catch on ArgumentError is
 /// the only reliable idempotency primitive).
 ///
 /// Extensions registered:
-/// - `ext.dusk.tap` — pointer Down+50ms+Up at ref center; requestKeyboard for text fields.
-/// - `ext.dusk.hover` — PointerHoverEvent (mouse kind) at ref center.
-/// - `ext.dusk.drag` — Down+5×Move+Up from startRef to endRef.
-/// - `ext.dusk.dblclick` — two tap sequences (~100ms apart) at ref center.
+/// - `ext.tapir.tap` — pointer Down+50ms+Up at ref center; requestKeyboard for text fields.
+/// - `ext.tapir.hover` — PointerHoverEvent (mouse kind) at ref center.
+/// - `ext.tapir.drag` — Down+5×Move+Up from startRef to endRef.
+/// - `ext.tapir.dblclick` — two tap sequences (~100ms apart) at ref center.
 void registerPointerExtensions() {
-  registerDuskExtension('ext.dusk.tap', aiTestTapHandler);
-  registerDuskExtension('ext.dusk.hover', aiTestHoverHandler);
-  registerDuskExtension('ext.dusk.drag', aiTestDragHandler);
-  registerDuskExtension('ext.dusk.dblclick', aiTestDoubleClickHandler);
-  registerDuskExtension('ext.dusk.right_click', aiTestRightClickHandler);
-  registerDuskExtension('ext.dusk.triple_click', aiTestTripleClickHandler);
+  registerTapirExtension('ext.tapir.tap', aiTestTapHandler);
+  registerTapirExtension('ext.tapir.hover', aiTestHoverHandler);
+  registerTapirExtension('ext.tapir.drag', aiTestDragHandler);
+  registerTapirExtension('ext.tapir.dblclick', aiTestDoubleClickHandler);
+  registerTapirExtension('ext.tapir.right_click', aiTestRightClickHandler);
+  registerTapirExtension('ext.tapir.triple_click', aiTestTripleClickHandler);
 }
 
 /// Right-click (secondary mouse button) at the ref center. Playwright parity:
@@ -1260,26 +1260,26 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.right_click: missing required param "ref"',
-          DuskErrorEnvelope.missingParam('ref'),
+          'ext.tapir.right_click: missing required param "ref"',
+          TapirErrorEnvelope.missingParam('ref'),
         ),
       );
     }
     final RefEntry? entry;
     try {
       entry = resolveRefForAction(ref);
-    } on DuskStaleHandleException catch (e) {
+    } on TapirStaleHandleException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
       );
     }
     if (entry == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.right_click: ref "$ref" not found in registry',
-          DuskErrorEnvelope.notFound(
+          'ext.tapir.right_click: ref "$ref" not found in registry',
+          TapirErrorEnvelope.notFound(
             ref: ref,
             candidates: collectSnapshotCandidates(),
           ),
@@ -1298,12 +1298,12 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
         checkStable: checkStable,
         checkReceivesEvents: checkReceivesEvents,
       );
-    } on DuskActionabilityException catch (e) {
+    } on TapirActionabilityException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
           e.message,
-          DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+          TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
         ),
       );
     }
@@ -1343,15 +1343,15 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
     };
     stampChecks(payload, gate);
     payload.addAll(await snapshotForAction(params));
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.right_click error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] ext.tapir.right_click error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -1369,26 +1369,26 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.triple_click: missing required param "ref"',
-          DuskErrorEnvelope.missingParam('ref'),
+          'ext.tapir.triple_click: missing required param "ref"',
+          TapirErrorEnvelope.missingParam('ref'),
         ),
       );
     }
     final RefEntry? entry;
     try {
       entry = resolveRefForAction(ref);
-    } on DuskStaleHandleException catch (e) {
+    } on TapirStaleHandleException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, DuskErrorEnvelope.stale(ref)),
+        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
       );
     }
     if (entry == null) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.triple_click: ref "$ref" not found in registry',
-          DuskErrorEnvelope.notFound(
+          'ext.tapir.triple_click: ref "$ref" not found in registry',
+          TapirErrorEnvelope.notFound(
             ref: ref,
             candidates: collectSnapshotCandidates(),
           ),
@@ -1407,12 +1407,12 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
         checkStable: checkStable,
         checkReceivesEvents: checkReceivesEvents,
       );
-    } on DuskActionabilityException catch (e) {
+    } on TapirActionabilityException catch (e) {
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
           e.message,
-          DuskErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+          TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
         ),
       );
     }
@@ -1438,15 +1438,15 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
     };
     stampChecks(payload, gate);
     payload.addAll(await snapshotForAction(params));
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.triple_click error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] ext.tapir.triple_click error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }

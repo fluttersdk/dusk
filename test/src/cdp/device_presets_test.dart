@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/cdp/device_presets.dart';
+import 'package:tapir/src/cdp/device_presets.dart';
 
 void main() {
   group('kDevicePresets', () {

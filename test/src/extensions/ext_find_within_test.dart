@@ -4,9 +4,9 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/extensions/ext_find.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 /// Verifies that `find` can be scoped to a subtree.
 ///
@@ -101,7 +101,7 @@ String _refFor(String snapshot, String label) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('ext.dusk.find within', () {
+  group('ext.tapir.find within', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -111,8 +111,8 @@ void main() {
       await tester.pumpWidget(_shell());
 
       final developer.ServiceExtensionResponse response =
-          await extDuskFindHandler(
-        'ext.dusk.find',
+          await extTapirFindHandler(
+        'ext.tapir.find',
         const <String, String>{'semanticsLabel': 'Monitors'},
       );
 
@@ -128,12 +128,12 @@ void main() {
     ) async {
       await tester.pumpWidget(_shell());
 
-      final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+      final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
       final String contentRef = _refFor(snapshot, 'content');
 
       final developer.ServiceExtensionResponse response =
-          await extDuskFindHandler(
-        'ext.dusk.find',
+          await extTapirFindHandler(
+        'ext.tapir.find',
         <String, String>{'semanticsLabel': 'Monitors', 'within': contentRef},
       );
 
@@ -154,8 +154,8 @@ void main() {
       await tester.pumpWidget(_shell());
 
       final developer.ServiceExtensionResponse response =
-          await extDuskFindHandler(
-        'ext.dusk.find',
+          await extTapirFindHandler(
+        'ext.tapir.find',
         const <String, String>{'semanticsLabel': 'Monitors', 'within': 'e999'},
       );
 
@@ -171,7 +171,7 @@ void main() {
       await tester.pumpWidget(_shell());
 
       // `find_by_text` mints an element-only entry (ext_wait_find.dart:433
-      // registers without a `node`), so a ref taken from a `dusk:wait`
+      // registers without a `node`), so a ref taken from a `tapir:wait`
       // result arrives here carrying no semantics node. The scope still has
       // to hold: falling back to a whole-tree semantics walk would answer a
       // different question than the caller asked, and answer it plausibly.
@@ -184,8 +184,8 @@ void main() {
       );
 
       final developer.ServiceExtensionResponse response =
-          await extDuskFindHandler(
-        'ext.dusk.find',
+          await extTapirFindHandler(
+        'ext.tapir.find',
         <String, String>{'semanticsLabel': 'Monitors', 'within': ref},
       );
 
@@ -222,8 +222,8 @@ void main() {
         isTextField: false,
       );
 
-      final developer.ServiceExtensionResponse hit = await extDuskFindHandler(
-        'ext.dusk.find',
+      final developer.ServiceExtensionResponse hit = await extTapirFindHandler(
+        'ext.tapir.find',
         <String, String>{'text': 'Uptime', 'within': ref},
       );
       expect(
@@ -231,8 +231,8 @@ void main() {
         isTrue,
       );
 
-      final developer.ServiceExtensionResponse miss = await extDuskFindHandler(
-        'ext.dusk.find',
+      final developer.ServiceExtensionResponse miss = await extTapirFindHandler(
+        'ext.tapir.find',
         <String, String>{'text': 'Monitors', 'within': ref},
       );
       expect(
@@ -245,12 +245,12 @@ void main() {
     testWidgets('within bounds a key lookup', (WidgetTester tester) async {
       await tester.pumpWidget(_keyedShell());
 
-      final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+      final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
       final String contentRef = _refFor(snapshot, 'content');
 
       final developer.ServiceExtensionResponse response =
-          await extDuskFindHandler(
-        'ext.dusk.find',
+          await extTapirFindHandler(
+        'ext.tapir.find',
         <String, String>{'key': 'sidebar-row', 'within': contentRef},
       );
 
@@ -264,12 +264,12 @@ void main() {
     testWidgets('within bounds a contains lookup', (WidgetTester tester) async {
       await tester.pumpWidget(_keyedShell());
 
-      final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+      final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
       final String contentRef = _refFor(snapshot, 'content');
 
       final developer.ServiceExtensionResponse response =
-          await extDuskFindHandler(
-        'ext.dusk.find',
+          await extTapirFindHandler(
+        'ext.tapir.find',
         <String, String>{'contains': 'Sidebar copy', 'within': contentRef},
       );
 
@@ -290,7 +290,7 @@ void main() {
     /// so the entry outlives the widget it was minted from.
     Future<String> refFromReplacedScreen(WidgetTester tester) async {
       await tester.pumpWidget(_shell());
-      final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+      final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
       final String ref = _refFor(snapshot, 'content');
 
       await tester.pumpWidget(
@@ -310,8 +310,9 @@ void main() {
       // say so.
       final String ref = await refFromReplacedScreen(tester);
 
-      final developer.ServiceExtensionResponse response = await duskSnapHandler(
-        'ext.dusk.snap',
+      final developer.ServiceExtensionResponse response =
+          await tapirSnapHandler(
+        'ext.tapir.snap',
         <String, String>{'within': ref},
       );
 
@@ -334,8 +335,8 @@ void main() {
       final String ref = await refFromReplacedScreen(tester);
 
       final developer.ServiceExtensionResponse response =
-          await extDuskFindHandler(
-        'ext.dusk.find',
+          await extTapirFindHandler(
+        'ext.tapir.find',
         <String, String>{'semanticsLabel': 'Monitors', 'within': ref},
       );
 

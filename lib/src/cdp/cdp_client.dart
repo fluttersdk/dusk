@@ -9,15 +9,15 @@ import 'package:meta/meta.dart';
 ///
 /// One concrete type covers every failure mode (port unreachable, malformed
 /// JSON, WebSocket refused, per-request timeout, CDP error envelope). Callers
-/// (DuskResizeCommand, DuskDeviceCommand, StartCommand's post-scrape Page.navigate)
+/// (TapirResizeCommand, TapirDeviceCommand, StartCommand's post-scrape Page.navigate)
 /// branch on this single type rather than parse error strings.
-final class DuskCdpException implements Exception {
+final class TapirCdpException implements Exception {
   final String message;
 
-  const DuskCdpException(this.message);
+  const TapirCdpException(this.message);
 
   @override
-  String toString() => 'DuskCdpException: $message';
+  String toString() => 'TapirCdpException: $message';
 }
 
 /// Signature for the test-injectable HTTP GET hook used during the
@@ -49,8 +49,8 @@ typedef WsConnect = Future<WebSocket> Function(String url);
 /// ```
 ///
 /// V1 surface intentionally narrow: [connect], [send], [close]. Typed wrappers
-/// for individual CDP methods live in the consumer (DuskResizeCommand,
-/// DuskDeviceCommand, StartCommand). CDP events (frames without an `id` field)
+/// for individual CDP methods live in the consumer (TapirResizeCommand,
+/// TapirDeviceCommand, StartCommand). CDP events (frames without an `id` field)
 /// are ignored; the Emulation methods used by V1 are all request/response.
 ///
 /// V1 connects to the browser-level WebSocket (i.e. `webSocketDebuggerUrl`
@@ -143,7 +143,7 @@ final class CdpClient {
   ///   2. Parse `webSocketDebuggerUrl` from the JSON response.
   ///   3. Open a WebSocket against that URL.
   ///
-  /// Throws [DuskCdpException] when the port is unreachable, the body is not
+  /// Throws [TapirCdpException] when the port is unreachable, the body is not
   /// valid JSON, the JSON is missing `webSocketDebuggerUrl`, or the WebSocket
   /// handshake fails.
   static Future<CdpClient> connect({
@@ -166,13 +166,13 @@ final class CdpClient {
     try {
       body = await cdpHttpGet(listUri).timeout(handshakeTimeout);
     } catch (e) {
-      throw DuskCdpException(
+      throw TapirCdpException(
         'Chrome DevTools port unreachable on $port: $e',
       );
     }
 
     // 2. Parse the JSON envelope. /json returns a List of tab descriptors;
-    //    non-list / wrong-shape responses are surfaced as DuskCdpException.
+    //    non-list / wrong-shape responses are surfaced as TapirCdpException.
     final List<dynamic> tabs;
     try {
       final dynamic raw = jsonDecode(body);
@@ -181,7 +181,7 @@ final class CdpClient {
       }
       tabs = raw;
     } catch (e) {
-      throw DuskCdpException(
+      throw TapirCdpException(
         'Chrome /json on port $port returned non-JSON-array response: $e',
       );
     }
@@ -205,7 +205,7 @@ final class CdpClient {
       break;
     }
     if (pageTab == null) {
-      throw DuskCdpException(
+      throw TapirCdpException(
         matchUrlSubstring == null
             ? 'Chrome /json on port $port returned no page tab. '
                 'Open a tab in the running Chrome before retrying.'
@@ -217,18 +217,18 @@ final class CdpClient {
 
     final String? wsUrl = pageTab['webSocketDebuggerUrl'] as String?;
     if (wsUrl == null || wsUrl.isEmpty) {
-      throw DuskCdpException(
+      throw TapirCdpException(
         'Chrome /json on port $port page tab is missing webSocketDebuggerUrl.',
       );
     }
 
     // 4. Open the WebSocket. Refused / timeout / TLS errors become
-    //    DuskCdpException too.
+    //    TapirCdpException too.
     final WebSocket ws;
     try {
       ws = await cdpWsConnect(wsUrl).timeout(handshakeTimeout);
     } catch (e) {
-      throw DuskCdpException(
+      throw TapirCdpException(
         'WebSocket connection to $wsUrl refused: $e',
       );
     }
@@ -240,14 +240,14 @@ final class CdpClient {
   ///
   /// Registers a [Completer] in `_pending[id]`, writes the envelope to the
   /// WebSocket, returns the completer's future. The future completes with the
-  /// `result` map on success or with a [DuskCdpException] on either an error
+  /// `result` map on success or with a [TapirCdpException] on either an error
   /// envelope or the 30s [_requestTimeout].
   Future<Map<String, dynamic>> send(
     String method, [
     Map<String, dynamic>? params,
   ]) async {
     if (!_connected || _ws == null) {
-      throw const DuskCdpException(
+      throw const TapirCdpException(
         'CDP client is not connected; call connect() first.',
       );
     }
@@ -267,7 +267,7 @@ final class CdpClient {
       _ws!.add(jsonEncode(envelope));
     } catch (e) {
       _pending.remove(id);
-      throw DuskCdpException(
+      throw TapirCdpException(
         'Failed to write CDP request "$method" to WebSocket: $e',
       );
     }
@@ -276,7 +276,7 @@ final class CdpClient {
       _requestTimeout,
       onTimeout: () {
         _pending.remove(id);
-        throw DuskCdpException(
+        throw TapirCdpException(
           'CDP call "$method" timed out after ${_requestTimeout.inSeconds}s.',
         );
       },
@@ -284,7 +284,7 @@ final class CdpClient {
   }
 
   /// Closes the WebSocket and drains every pending [Completer] with a
-  /// [DuskCdpException].
+  /// [TapirCdpException].
   ///
   /// Idempotent: subsequent calls return immediately. Pending Completers are
   /// failed BEFORE the WebSocket close so in-flight `send()` futures resolve
@@ -342,7 +342,7 @@ final class CdpClient {
     final dynamic error = json['error'];
     if (error is Map<String, dynamic>) {
       completer.completeError(
-        DuskCdpException(
+        TapirCdpException(
           'CDP error ${error['code']}: ${error['message']}',
         ),
       );
@@ -367,7 +367,7 @@ final class CdpClient {
     _pending.clear();
     for (final Completer<Map<String, dynamic>> completer in drained) {
       if (!completer.isCompleted) {
-        completer.completeError(DuskCdpException(reason));
+        completer.completeError(TapirCdpException(reason));
       }
     }
   }

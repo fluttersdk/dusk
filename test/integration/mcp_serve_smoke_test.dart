@@ -1,7 +1,7 @@
 @Tags(<String>['integration'])
 @Skip(
   'requires flutter on PATH plus sibling checkouts at '
-  '../fluttersdk_artisan and ../fluttersdk_wind_diagnostics_contracts; '
+  '../dowel and ../wind_kit_diagnostics_contracts; '
   'run manually: flutter test test/integration --tags integration',
 )
 library;
@@ -10,12 +10,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dowel/dowel.dart' show McpToolDescriptor;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tapir/src/tapir_dowel_provider.dart';
 
-/// Integration smoke test for `dart run fluttersdk_dusk mcp:serve`.
+/// Integration smoke test for `dart run tapir mcp:serve`.
 ///
-/// Exercises the full stdio JSON-RPC boot path and asserts that the 31
-/// `dusk_*` MCP tools are advertised via `tools/list`.
+/// Exercises the full stdio JSON-RPC boot path and asserts that every
+/// `tapir_*` MCP tool the provider registers is advertised via `tools/list`.
 ///
 /// Skipped by default. Tagged `integration` so the manual invocation opts in:
 ///
@@ -23,26 +25,25 @@ import 'package:flutter_test/flutter_test.dart';
 /// flutter test test/integration/mcp_serve_smoke_test.dart --tags=integration
 /// ```
 ///
-/// Locks Bug 3 (collectMcpTools wrapper flag) — turns red if the dusk wrapper
-/// regresses to calling `runArtisan` without `collectMcpTools: true`.
+/// Locks Bug 3 (collectMcpTools wrapper flag) — turns red if the tapir wrapper
+/// regresses to calling `runDowel` without `collectMcpTools: true`.
 void main() {
-  // Resolve sibling package paths relative to the dusk package root.
+  // Resolve sibling package paths relative to the tapir package root.
   // `Directory.current` inside a `flutter test` run is the package root.
-  final String duskRoot = Directory.current.absolute.path;
-  final String referencesRoot = Directory(duskRoot).parent.absolute.path;
-  final String artisanPath = '$referencesRoot/fluttersdk_artisan';
-  final String contractsPath =
-      '$referencesRoot/fluttersdk_wind_diagnostics_contracts';
+  final String tapirRoot = Directory.current.absolute.path;
+  final String referencesRoot = Directory(tapirRoot).parent.absolute.path;
+  final String dowelPath = '$referencesRoot/dowel';
+  final String contractsPath = '$referencesRoot/wind_kit_diagnostics_contracts';
 
   // Skip when sibling checkouts are missing (the path-dep targets the test
   // writes into the temp pubspec.yaml). The @Skip above blocks the default
   // runner; this guard blocks accidental --tags=integration runs on
   // developer machines that lack the references/ layout.
-  if (!Directory(artisanPath).existsSync() ||
+  if (!Directory(dowelPath).existsSync() ||
       !Directory(contractsPath).existsSync()) {
     test('mcp:serve smoke test', () {
       markTestSkipped(
-        'sibling checkout missing: needs $artisanPath and $contractsPath',
+        'sibling checkout missing: needs $dowelPath and $contractsPath',
       );
     });
     return;
@@ -52,12 +53,12 @@ void main() {
   late Process mcpProcess;
 
   setUpAll(() async {
-    // 1. Create a minimal consumer project that depends on the local dusk package.
-    tempDir = await Directory.systemTemp.createTemp('dusk_mcp_smoke_');
+    // 1. Create a minimal consumer project that depends on the local tapir package.
+    tempDir = await Directory.systemTemp.createTemp('tapir_mcp_smoke_');
 
     final String pubspecYaml = '''
-name: dusk_mcp_smoke
-description: dusk mcp:serve smoke test fixture
+name: tapir_mcp_smoke
+description: tapir mcp:serve smoke test fixture
 publish_to: 'none'
 
 environment:
@@ -71,13 +72,13 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  fluttersdk_dusk:
-    path: $duskRoot
+  tapir:
+    path: $tapirRoot
 
 dependency_overrides:
-  fluttersdk_artisan:
-    path: $artisanPath
-  fluttersdk_wind_diagnostics_contracts:
+  dowel:
+    path: $dowelPath
+  wind_kit_diagnostics_contracts:
     path: $contractsPath
 ''';
 
@@ -97,11 +98,11 @@ dependency_overrides:
       );
     }
 
-    // 3. Spawn `dart run fluttersdk_dusk mcp:serve` as a long-lived subprocess.
+    // 3. Spawn `dart run tapir mcp:serve` as a long-lived subprocess.
     //    stdin is piped so we can send JSON-RPC requests.
     mcpProcess = await Process.start(
       'dart',
-      <String>['run', 'fluttersdk_dusk', 'mcp:serve'],
+      <String>['run', 'tapir', 'mcp:serve'],
       workingDirectory: tempDir.path,
     );
   });
@@ -120,7 +121,8 @@ dependency_overrides:
   });
 
   test(
-    'mcp:serve advertises exactly 31 dusk_* tools via tools/list',
+    'mcp:serve advertises every tapir_* tool the provider registers via '
+    'tools/list',
     () async {
       // Collect stdout lines concurrently to avoid pipe backpressure deadlock.
       final List<String> stdoutLines = <String>[];
@@ -191,26 +193,31 @@ dependency_overrides:
               as Map<String, dynamic>?)?['tools'] as List<dynamic>? ??
           <dynamic>[];
 
-      // 5. Assert that the dusk_* slice has exactly 31 entries.
-      final List<String> duskToolNames = tools
+      // 5. Assert that the tapir_* slice is exactly what the provider
+      //    registers, so the smoke test never carries a count of its own.
+      final List<String> tapirToolNames = tools
           .whereType<Map<String, dynamic>>()
           .map((Map<String, dynamic> t) => t['name'] as String? ?? '')
-          .where((String name) => name.startsWith('dusk_'))
+          .where((String name) => name.startsWith('tapir_'))
           .toList();
+      final Set<String> expectedToolNames = TapirDowelProvider()
+          .mcpTools()
+          .map((McpToolDescriptor tool) => tool.name)
+          .toSet();
 
       expect(
-        duskToolNames.length,
-        equals(31),
-        reason: 'Expected 31 dusk_* tools, got ${duskToolNames.length}. '
-            'Full tool names: ${tools.whereType<Map<String, dynamic>>().map((t) => t['name']).toList()}',
+        tapirToolNames.toSet(),
+        equals(expectedToolNames),
+        reason: 'tools/list must advertise every tool the provider registers. '
+            'Got: $tapirToolNames',
       );
 
       // 6. Verify a sample of canonical alpha-1 tool names are present.
       expect(
-        duskToolNames,
-        containsAll(<String>['dusk_snap', 'dusk_tap', 'dusk_screenshot']),
+        tapirToolNames,
+        containsAll(<String>['tapir_snap', 'tapir_tap', 'tapir_screenshot']),
         reason:
-            'Alpha-1 canonical tool names must be present in the dusk_* slice.',
+            'Alpha-1 canonical tool names must be present in the tapir_* slice.',
       );
     },
     timeout: const Timeout(Duration(seconds: 30)),

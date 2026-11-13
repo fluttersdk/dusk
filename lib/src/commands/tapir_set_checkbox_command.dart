@@ -1,0 +1,77 @@
+import 'dart:convert';
+
+import 'package:dowel/dowel.dart';
+
+import 'frame_warning_output.dart';
+import 'json_output.dart';
+
+/// `dowel tapir:set_checkbox --ref=<ref> --value=<true|false>` — set the
+/// checked state of a Checkbox or Switch widget identified by a snapshot ref.
+///
+/// Wraps the `ext.tapir.set_checkbox` VM Service extension which reads the
+/// widget's current checked state via a Semantics/element walk, then either
+/// taps to toggle (when the current value differs from [value]) or returns
+/// an idempotent success (when they already match).
+class TapirSetCheckboxCommand extends DowelCommand {
+  @override
+  String get name => 'tapir:set_checkbox';
+
+  @override
+  String get description =>
+      'Set the checked state of a Checkbox or Switch widget by ref.';
+
+  @override
+  CommandBoot get boot => CommandBoot.connected;
+
+  @override
+  void configure(ArgParser parser) {
+    addJsonFlag(parser);
+    parser.addOption(
+      'ref',
+      help: 'Widget ref token from a prior tapir:snap call (e.g. e5).',
+    );
+    parser.addOption(
+      'value',
+      help: 'Target checked state: "true" or "false".',
+    );
+    parser.addFlag('includeSnapshot',
+        help: 'Embed the post-toggle snapshot in the response.',
+        defaultsTo: false);
+  }
+
+  @override
+  Future<int> handle(DowelContext ctx) async {
+    final String? ref = ctx.input.option('ref') as String?;
+    final String? value = ctx.input.option('value') as String?;
+
+    if (ref == null || ref.isEmpty) {
+      ctx.output.error('Provide --ref with a widget ref token (e.g. e5).');
+      return 1;
+    }
+    if (value == null || value.isEmpty) {
+      ctx.output.error('Provide --value as "true" or "false".');
+      return 1;
+    }
+
+    final includeSnapshot =
+        (ctx.input.option('includeSnapshot') as bool?) ?? false;
+    final params = <String, dynamic>{
+      'ref': ref,
+      'value': value,
+      'includeSnapshot': includeSnapshot.toString(),
+    };
+
+    final response = await ctx.callExtension<Map<String, dynamic>>(
+      'ext.tapir.set_checkbox',
+      params,
+    );
+    reportFrameWarning(ctx, response);
+    if (includeSnapshot) {
+      ctx.output.writeln(jsonEncode(response));
+    } else {
+      emitEnvelope(ctx, response,
+          () => ctx.output.success('Checkbox $ref set to $value'));
+    }
+    return 0;
+  }
+}

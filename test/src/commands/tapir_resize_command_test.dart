@@ -1,0 +1,495 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:dowel/dowel.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:tapir/src/cdp/cdp_client.dart';
+import 'package:tapir/src/commands/tapir_resize_command.dart';
+
+import '../cdp/fake_cdp_server.dart';
+
+// ---------------------------------------------------------------------------
+// Shared context stub (mirrors tapir_tap_command_test.dart:6-25).
+// ---------------------------------------------------------------------------
+
+class _StubContext extends DowelContext {
+  _StubContext({
+    required DowelInput input,
+    required DowelOutput output,
+  }) : super.bare(input, output);
+}
+
+// ---------------------------------------------------------------------------
+// StateFile helper: writes a minimal state.json under a temp dir and wires
+// StateFile.debugHomeOverride so TapirResizeCommand.handle() reads it.
+// ---------------------------------------------------------------------------
+
+Future<String> _writeState(
+  Directory tempDir,
+  Map<String, dynamic> data,
+) async {
+  final stateDir = Directory('${tempDir.path}/.dowel');
+  await stateDir.create(recursive: true);
+  final stateFile = File('${stateDir.path}/state.json');
+  await stateFile.writeAsString(jsonEncode(data));
+  return tempDir.path;
+}
+
+void main() {
+  late Directory tempDir;
+
+  setUp(() async {
+    // 1. Create a fresh temp directory for each test so state files do not
+    //    cross-contaminate between test cases.
+    tempDir = await Directory.systemTemp.createTemp('tapir_resize_test_');
+    // 2. Reset CDP client seams to their production defaults so no stub from
+    //    a prior test leaks.
+    CdpClient.cdpHttpGet = CdpClient.defaultHttpGet;
+    CdpClient.cdpWsConnect = CdpClient.defaultWsConnect;
+  });
+
+  tearDown(() async {
+    // 1. Clear the StateFile override so subsequent non-CDP tests see the
+    //    real home path.
+    StateFile.debugHomeOverride = null;
+    // 2. Reset CDP seams.
+    CdpClient.cdpHttpGet = CdpClient.defaultHttpGet;
+    CdpClient.cdpWsConnect = CdpClient.defaultWsConnect;
+    // 3. Remove the temp directory including any state.json written during
+    //    the test.
+    try {
+      await tempDir.delete(recursive: true);
+    } catch (_) {
+      // Already removed; harmless.
+    }
+  });
+
+  group('TapirResizeCommand metadata', () {
+    test('name is tapir:resize', () {
+      expect(TapirResizeCommand().name, equals('tapir:resize'));
+    });
+
+    test('description contains "viewport"', () {
+      expect(
+        TapirResizeCommand().description,
+        contains('viewport'),
+      );
+    });
+
+    test('boot is CommandBoot.none', () {
+      expect(TapirResizeCommand().boot, equals(CommandBoot.none));
+    });
+
+    test('configure declares width, height, dpr, mobile, touch, reset', () {
+      final parser = ArgParser();
+      TapirResizeCommand().configure(parser);
+      expect(
+          parser.options.keys,
+          containsAll(<String>[
+            'width',
+            'height',
+            'dpr',
+            'mobile',
+            'touch',
+            'reset',
+          ]));
+    });
+  });
+
+  group('TapirResizeCommand.handle', () {
+    // -----------------------------------------------------------------------
+    // (0) The MCP schema no longer requires width and height (a bare
+    //     `{"reset": true}` must be callable), so the command is what refuses a
+    //     resize that names no size.
+    // -----------------------------------------------------------------------
+    for (final Map<String, Object> input in <Map<String, Object>>[
+      <String, Object>{},
+      <String, Object>{'width': 375},
+      <String, Object>{'height': 812},
+      <String, Object>{'width': 0, 'height': 812},
+      <String, Object>{'width': '375', 'height': 'tall'},
+    ]) {
+      test('exits 1 and names width and height for $input', () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(input: MapInput(input), output: output);
+
+        final exit = await TapirResizeCommand().handle(ctx);
+
+        expect(exit, equals(1));
+        expect(output.content, contains('--width'));
+        expect(output.content, contains('--height'));
+        expect(output.content, contains('--reset'));
+        expect(output.content, isNot(contains('CDP not enabled')));
+      });
+    }
+
+    test('--reset needs no size and reaches the CDP check', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'reset': true}),
+        output: output,
+      );
+
+      final exit = await TapirResizeCommand().handle(ctx);
+
+      expect(exit, equals(1));
+      expect(output.content, contains('CDP not enabled'));
+    });
+
+    // -----------------------------------------------------------------------
+    // (a) No state file (cdpPort missing) → exit 1 + hint message.
+    // -----------------------------------------------------------------------
+    test('exits 1 with hint when cdpPort is absent from state', () async {
+      // Write state WITHOUT cdpPort.
+      await _writeState(tempDir, {
+        'pid': 1234,
+        'vmServiceUri': 'ws://localhost:8181/ws',
+        'device': 'chrome',
+      });
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {
+          'width': '375',
+          'height': '812',
+          'dpr': '3.0',
+          'mobile': false,
+          'touch': false,
+          'reset': false,
+        }),
+        output: output,
+      );
+
+      final exit = await TapirResizeCommand().handle(ctx);
+
+      expect(exit, equals(1));
+      expect(output.content, contains('CDP not enabled'));
+    });
+
+    // -----------------------------------------------------------------------
+    // (a-2) No state file at all → exit 1 + hint message.
+    // -----------------------------------------------------------------------
+    test('exits 1 with hint when no state file exists', () async {
+      // Do NOT write any state file. Override home to a directory with no
+      // .dowel/state.json.
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {
+          'width': '375',
+          'height': '812',
+          'dpr': '3.0',
+          'mobile': false,
+          'touch': false,
+          'reset': false,
+        }),
+        output: output,
+      );
+
+      final exit = await TapirResizeCommand().handle(ctx);
+
+      expect(exit, equals(1));
+      expect(output.content, contains('CDP not enabled'));
+    });
+
+    // -----------------------------------------------------------------------
+    // (b) Successful resize: FakeCdpServer records Emulation params.
+    // -----------------------------------------------------------------------
+    test(
+      'sends Emulation.setDeviceMetricsOverride with correct params on resize',
+      () async {
+        // 1. Start FakeCdpServer and record the params sent to
+        //    Emulation.setDeviceMetricsOverride.
+        Map<String, dynamic>? capturedMetricsParams;
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Emulation.setDeviceMetricsOverride':
+                (Map<String, dynamic> params) async {
+              capturedMetricsParams = params;
+              return <String, dynamic>{};
+            },
+          },
+        );
+        addTearDown(server.stop);
+
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
+
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({
+            'width': '1280',
+            'height': '720',
+            'dpr': '2.0',
+            'mobile': false,
+            'touch': false,
+            'reset': false,
+          }),
+          output: output,
+        );
+
+        final exit = await TapirResizeCommand().handle(ctx);
+
+        // 2. Assert exit 0 and correct CDP params.
+        expect(exit, equals(0));
+        expect(capturedMetricsParams, isNotNull);
+        expect(capturedMetricsParams!['width'], equals(1280));
+        expect(capturedMetricsParams!['height'], equals(720));
+        expect(capturedMetricsParams!['deviceScaleFactor'], equals(2.0));
+        expect(capturedMetricsParams!['mobile'], equals(false));
+        // The override dies with this command's CDP session: the output must
+        // not read as a lasting resize.
+        expect(output.content, isNot(contains('Viewport set to')));
+        expect(output.content, contains('only as long as'));
+        expect(output.content, contains('--hold'));
+      },
+    );
+
+    // -----------------------------------------------------------------------
+    // (c) --reset sends 3-call chain in order:
+    //     UA empty → touch off → clearMetrics.
+    // -----------------------------------------------------------------------
+    test('--reset sends Emulation 3-call chain in order', () async {
+      final List<String> callOrder = <String>[];
+
+      final server = await FakeCdpServer.start(
+        handlers: {
+          'Emulation.setUserAgentOverride':
+              (Map<String, dynamic> params) async {
+            callOrder.add('ua');
+            return <String, dynamic>{};
+          },
+          'Emulation.setTouchEmulationEnabled':
+              (Map<String, dynamic> params) async {
+            callOrder.add('touch');
+            return <String, dynamic>{};
+          },
+          'Emulation.clearDeviceMetricsOverride':
+              (Map<String, dynamic> _) async {
+            callOrder.add('clear');
+            return <String, dynamic>{};
+          },
+        },
+      );
+      addTearDown(server.stop);
+
+      await _writeState(tempDir, {'cdpPort': server.port});
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput({
+          'width': '0',
+          'height': '0',
+          'dpr': '1.0',
+          'mobile': false,
+          'touch': false,
+          'reset': true,
+        }),
+        output: output,
+      );
+
+      final exit = await TapirResizeCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(callOrder, equals(<String>['ua', 'touch', 'clear']));
+      expect(output.content, contains('reset'));
+    });
+
+    // -----------------------------------------------------------------------
+    // (d) --touch adds setTouchEmulationEnabled(enabled: true).
+    // -----------------------------------------------------------------------
+    test('--touch sends setTouchEmulationEnabled with enabled true', () async {
+      Map<String, dynamic>? capturedTouchParams;
+
+      final server = await FakeCdpServer.start(
+        handlers: {
+          'Emulation.setDeviceMetricsOverride':
+              (Map<String, dynamic> _) async => <String, dynamic>{},
+          'Emulation.setTouchEmulationEnabled':
+              (Map<String, dynamic> params) async {
+            capturedTouchParams = params;
+            return <String, dynamic>{};
+          },
+        },
+      );
+      addTearDown(server.stop);
+
+      await _writeState(tempDir, {'cdpPort': server.port});
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput({
+          'width': '375',
+          'height': '812',
+          'dpr': '3.0',
+          'mobile': true,
+          'touch': true,
+          'reset': false,
+        }),
+        output: output,
+      );
+
+      final exit = await TapirResizeCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(capturedTouchParams, isNotNull);
+      expect(capturedTouchParams!['enabled'], equals(true));
+    });
+
+    // -----------------------------------------------------------------------
+    // (e) Connect failure (FakeCdpServer stopped) → exit 1 + error message.
+    // -----------------------------------------------------------------------
+    test('exits 1 with error message when CDP connect fails', () async {
+      // Start then stop the server immediately to simulate a closed port.
+      final server = await FakeCdpServer.start();
+      final int closedPort = server.port;
+      await server.stop();
+
+      await _writeState(tempDir, {'cdpPort': closedPort});
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput({
+          'width': '375',
+          'height': '812',
+          'dpr': '1.0',
+          'mobile': false,
+          'touch': false,
+          'reset': false,
+        }),
+        output: output,
+      );
+
+      final exit = await TapirResizeCommand().handle(ctx);
+
+      expect(exit, equals(1));
+      expect(
+        output.content,
+        contains('Failed to connect to Chrome CDP'),
+      );
+    });
+
+    // -----------------------------------------------------------------------
+    // (f) CdpClient.close() invoked in finally even on error path.
+    // -----------------------------------------------------------------------
+    test('closes CdpClient in finally block even when send throws', () async {
+      // Use the dropWebSocket mode: the server accepts the WS upgrade, reads
+      // the first frame, then closes immediately. CdpClient.send() will
+      // complete with a TapirCdpException. The command should still call
+      // client.close() (finally block) and exit 1 gracefully.
+      final server = await FakeCdpServer.start(dropWebSocket: true);
+      addTearDown(server.stop);
+
+      await _writeState(tempDir, {'cdpPort': server.port});
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput({
+          'width': '375',
+          'height': '812',
+          'dpr': '1.0',
+          'mobile': false,
+          'touch': false,
+          'reset': false,
+        }),
+        output: output,
+      );
+
+      // If finally block is missing, close() never runs and the WS socket
+      // lingers; the test would hang at tearDown(server.stop). The assertion
+      // below implicitly proves close() ran by verifying exit code.
+      final exit = await TapirResizeCommand().handle(ctx);
+      expect(exit, equals(1));
+    });
+    // -----------------------------------------------------------------------
+    // (g) The override belongs to the CDP session that sent it.
+    // -----------------------------------------------------------------------
+    test('sends the exact metrics override, and says it ends with the command',
+        () async {
+      // Measured against Chrome: Emulation.setDeviceMetricsOverride is dropped
+      // when the DevTools session that sent it detaches, whatever its
+      // parameters (dsf 0 or 1, mobile true or false). So a command that sets
+      // it and exits changed nothing anyone can observe afterwards, while its
+      // success line said the viewport was set.
+      Map<String, dynamic>? sent;
+      final server = await FakeCdpServer.start(
+        handlers: {
+          'Emulation.setDeviceMetricsOverride':
+              (Map<String, dynamic> params) async {
+            sent = params;
+            return <String, dynamic>{};
+          },
+        },
+      );
+      addTearDown(server.stop);
+      await _writeState(tempDir, {'cdpPort': server.port});
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput({'width': '390', 'height': '844'}),
+        output: output,
+      );
+
+      final exit = await TapirResizeCommand().handle(ctx);
+
+      expect(exit, equals(0));
+      expect(sent, <String, dynamic>{
+        'width': 390,
+        'height': 844,
+        'deviceScaleFactor': 1.0,
+        'mobile': false,
+      });
+      expect(output.content, contains('--hold'));
+    });
+
+    test(
+        '--hold keeps the session, and so the override, until Chrome goes away',
+        () async {
+      Map<String, dynamic>? sent;
+      final server = await FakeCdpServer.start(
+        handlers: {
+          'Emulation.setDeviceMetricsOverride':
+              (Map<String, dynamic> params) async {
+            sent = params;
+            return <String, dynamic>{};
+          },
+        },
+      );
+      addTearDown(server.stop);
+      await _writeState(tempDir, {'cdpPort': server.port});
+      StateFile.debugHomeOverride = tempDir.path;
+
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput({'width': '390', 'height': '844', 'hold': true}),
+        output: output,
+      );
+
+      bool finished = false;
+      final Future<int> run = TapirResizeCommand().handle(ctx).whenComplete(
+            () => finished = true,
+          );
+
+      for (int i = 0; i < 50 && sent == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(sent, isNotNull, reason: 'the override must have been sent');
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      expect(finished, isFalse,
+          reason: 'closing the session drops the override');
+
+      await server.stop();
+
+      expect(await run.timeout(const Duration(seconds: 5)), equals(0));
+      expect(output.content, contains('Holding'));
+    });
+  });
+}

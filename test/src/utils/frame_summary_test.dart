@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/utils/frame_summary.dart';
+import 'package:tapir/src/utils/frame_summary.dart';
 
 /// Builds a minimal frame map matching `FramePerfRecord.toJson()`'s shape
-/// (telescope repo), the exact input contract `summarizeFramePerf` consumes.
+/// (crumbs repo), the exact input contract `summarizeFramePerf` consumes.
 Map<String, Object?> _frame({
   required int frameNumber,
   required int buildMicros,

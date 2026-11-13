@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/utils/perf_insights.dart';
-import 'package:fluttersdk_dusk/src/utils/perf_readers.dart';
+import 'package:tapir/src/utils/perf_insights.dart';
+import 'package:tapir/src/utils/perf_readers.dart';
 
 void main() {
   // Captured before any test assigns them, so tearDown restores the real
@@ -61,7 +61,7 @@ void main() {
   });
 
   group('perfTimelineReader default', () {
-    test('returns no rows, so a trace still carries dusk\'s own events', () {
+    test('returns no rows, so a trace still carries tapir\'s own events', () {
       expect(perfTimelineReader(), isEmpty);
     });
   });

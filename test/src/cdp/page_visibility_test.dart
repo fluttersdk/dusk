@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/cdp/page_visibility.dart';
+import 'package:tapir/src/cdp/page_visibility.dart';
 
 import 'fake_cdp_server.dart';
 

@@ -2,18 +2,18 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
 import '../ref_registry.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 
 // ---------------------------------------------------------------------------
 // Self-registration entry point
 // ---------------------------------------------------------------------------
 
-/// Registers the `ext.dusk.find` VM Service extension.
+/// Registers the `ext.tapir.find` VM Service extension.
 ///
 /// Mints a `q<N>` query handle for one or more predicates (`text`,
 /// `semanticsLabel`, `key`) and stores the predicate set in [RefRegistry]
@@ -22,14 +22,14 @@ import '../utils/error_envelope.dart';
 ///
 /// Idempotent via [registerExtensionIdempotent] — hot-restart safe.
 void registerFindExtension() {
-  registerDuskExtension('ext.dusk.find', extDuskFindHandler);
+  registerTapirExtension('ext.tapir.find', extTapirFindHandler);
 }
 
 // ---------------------------------------------------------------------------
-// ext.dusk.find
+// ext.tapir.find
 // ---------------------------------------------------------------------------
 
-/// Handler for the `ext.dusk.find` VM Service extension.
+/// Handler for the `ext.tapir.find` VM Service extension.
 ///
 /// Accepts at least one of `text`, `semanticsLabel`, or `key`; walks the
 /// live Semantics + Element tree once to verify the predicates resolve to
@@ -42,10 +42,10 @@ void registerFindExtension() {
 /// `{"ref": null, "matched": false}` — no handle is minted.
 ///
 /// The handle is opaque from the agent's perspective: passing it back to
-/// `ext.dusk.tap` etc. triggers a fresh tree walk at that moment, so a
+/// `ext.tapir.tap` etc. triggers a fresh tree walk at that moment, so a
 /// handle survives widget rebuilds, route pushes, and snapshot disposal as
 /// long as the predicates still match something live.
-Future<developer.ServiceExtensionResponse> extDuskFindHandler(
+Future<developer.ServiceExtensionResponse> extTapirFindHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -65,14 +65,14 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.find: at least one of "text", "contains", '
+          'ext.tapir.find: at least one of "text", "contains", '
           '"semanticsLabel", or "key" is required',
-          DuskErrorEnvelope.missingParam('text|contains|semanticsLabel|key'),
+          TapirErrorEnvelope.missingParam('text|contains|semanticsLabel|key'),
         ),
       );
     }
 
-    final DuskQuery query = DuskQuery(
+    final TapirQuery query = TapirQuery(
       text: text,
       containsText: containsText,
       semanticsLabel: semanticsLabel,
@@ -87,7 +87,7 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
     final (RefEntry? entry, int matchCount, String? diagnostic) =
         resolveQueryWithCount(query);
     if (entry == null) {
-      return duskResult(<String, dynamic>{
+      return tapirResult(<String, dynamic>{
         'ref': null,
         'matched': false,
         // Only populated on the unresolvable-scope path; a plain no-match
@@ -110,15 +110,15 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
       payload['diagnostic'] = diagnostic;
     }
 
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.find error: $e\n$stackTrace',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.find error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -127,7 +127,7 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
 // Query resolution — shared with action handlers via resolveQuery
 // ---------------------------------------------------------------------------
 
-/// Re-executes a stored [DuskQuery] against the live tree and returns a
+/// Re-executes a stored [TapirQuery] against the live tree and returns a
 /// fresh [RefEntry] for the first match, or `null` when no node matches.
 ///
 /// The returned entry is NOT registered in [RefRegistry]'s e-map — it is a
@@ -136,17 +136,17 @@ Future<developer.ServiceExtensionResponse> extDuskFindHandler(
 /// is no persistent e-token whose lifetime is bound to a snapshot.
 ///
 /// Resolution order:
-/// 1. When [DuskQuery.keyValue] is set, walks the Element tree and matches
+/// 1. When [TapirQuery.keyValue] is set, walks the Element tree and matches
 ///    any widget whose `key` stringifies to the supplied value.
-/// 2. When [DuskQuery.semanticsLabel] is set, walks the Semantics tree and
+/// 2. When [TapirQuery.semanticsLabel] is set, walks the Semantics tree and
 ///    matches the first node whose label is `==` to the supplied value.
-/// 3. When [DuskQuery.text] is set, prefers a Semantics node with that
+/// 3. When [TapirQuery.text] is set, prefers a Semantics node with that
 ///    label (matches accessibility-labelled buttons / text fields) and
 ///    falls back to a [Text] widget whose `data` matches exactly.
 ///
 /// When multiple predicates are set they all must match the same node /
 /// element (intersection).
-RefEntry? resolveQuery(DuskQuery query) {
+RefEntry? resolveQuery(TapirQuery query) {
   return resolveQueryWithCount(query).$1;
 }
 
@@ -167,7 +167,7 @@ RefEntry? resolveQuery(DuskQuery query) {
 /// Single-match and no-match behaviour is identical to [resolveQuery];
 /// callers that do not need ambiguity detection may use [resolveQuery]
 /// directly.
-(RefEntry?, int, String?) resolveQueryWithCount(DuskQuery query) {
+(RefEntry?, int, String?) resolveQueryWithCount(TapirQuery query) {
   // 0. Resolve the scope, when one was named. A scope that no longer
   //    resolves is reported as a no-match WITH a diagnostic rather than
   //    silently widening to the whole tree: widening would answer a
@@ -199,7 +199,7 @@ RefEntry? resolveQuery(DuskQuery query) {
   // 0b. A scope entry carrying no semantics node cannot bound a semantics
   //     walk, and `find_by_text` mints exactly that shape
   //     (ext_wait_find.dart:433 registers without a node), so a ref taken
-  //     from a `dusk:wait` result arrives here that way. Running the walk
+  //     from a `tapir:wait` result arrives here that way. Running the walk
   //     unscoped would search the whole tree and answer plausibly, which is
   //     the failure the scope was passed to prevent. The element legs stay
   //     available: those the entry's element does bound.
@@ -297,8 +297,8 @@ RefEntry? resolveQuery(DuskQuery query) {
 /// to know which ref to take next, not how the registry stores entries.
 String _noSemanticsScope(String ref) =>
     "within ref '$ref' carries no semantics node, so it cannot scope a "
-    'label lookup; take the scope ref from a dusk:snap output instead of a '
-    'dusk:wait result';
+    'label lookup; take the scope ref from a tapir:snap output instead of a '
+    'tapir:wait result';
 
 String? _nonEmpty(String? raw) {
   if (raw == null) return null;
@@ -500,7 +500,7 @@ bool _isInteractiveNode(SemanticsNode node) {
 /// Cross-checks an Element-tree match against the supplied query's
 /// remaining predicates. Returns `true` when every non-null predicate
 /// (other than the one that produced the element) matches.
-bool _elementMatchesOtherPredicates(Element element, DuskQuery query) {
+bool _elementMatchesOtherPredicates(Element element, TapirQuery query) {
   // text predicate: walk descendants for a Text widget with matching data.
   if (query.text != null) {
     bool matches = false;
@@ -557,7 +557,7 @@ RefEntry? _entryFromElement(Element element) {
 /// editable in the tree. Resolving the owning element fixes both at the source.
 ///
 /// The rect is taken from that element's [RenderBox] via `localToGlobal`
-/// (LOGICAL px, the space dusk's pointer events use). It falls back to the
+/// (LOGICAL px, the space tapir's pointer events use). It falls back to the
 /// root element and the semantics-transform rect only when no render object
 /// owns the node (the DPR-divided `_globalRectFromSemantics`, kept logical).
 RefEntry? _entryFromSemanticsNode(SemanticsNode node) {
@@ -588,7 +588,7 @@ RefEntry? _entryFromSemanticsNode(SemanticsNode node) {
 
 /// The live [Element] whose [RenderBox] contributes [node] to the semantics
 /// tree, matching on `debugSemantics` identity (null in release builds only,
-/// and dusk is `!kReleaseMode`-gated). Returns `null` when no render object owns [node]
+/// and tapir is `!kReleaseMode`-gated). Returns `null` when no render object owns [node]
 /// (a purely synthetic or merged-away node); callers fall back to the root.
 Element? _elementForSemanticsNode(SemanticsNode node) {
   final Element? root = WidgetsBinding.instance.rootElement;
@@ -622,7 +622,7 @@ Element? _elementForSemanticsNode(SemanticsNode node) {
 ///
 /// Public and `@visibleForTesting`: this fallback only runs for a synthetic or
 /// non-RenderBox-owned node (see [_elementForSemanticsNode]), which cannot be
-/// produced through [extDuskFindHandler] with a real widget tree, so the
+/// produced through [extTapirFindHandler] with a real widget tree, so the
 /// transform-composition + DPR-correction math is verified directly.
 @visibleForTesting
 Rect globalRectFromSemantics(SemanticsNode node) {
@@ -636,7 +636,7 @@ Rect globalRectFromSemantics(SemanticsNode node) {
     current = current.parent;
   }
   // The semantics ancestor transforms fold in the root view's device pixel
-  // ratio, so `rect` is in PHYSICAL pixels. dusk dispatches pointer events and
+  // ratio, so `rect` is in PHYSICAL pixels. tapir dispatches pointer events and
   // compares against render-tree localToGlobal rects in LOGICAL pixels, so
   // divide the DPR back out; otherwise, on a DPR!=1 display, every tap that
   // falls back to this rect lands at N times the intended offset and misses.

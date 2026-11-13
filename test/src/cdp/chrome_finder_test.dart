@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/cdp/chrome_finder.dart';
+import 'package:tapir/src/cdp/chrome_finder.dart';
 
 void main() {
   group('ChromeFinder', () {
@@ -77,10 +77,10 @@ void main() {
     );
 
     // ---------------------------------------------------------------
-    // (c) probe() throws DuskCdpException on HTTP 404
+    // (c) probe() throws TapirCdpException on HTTP 404
     // ---------------------------------------------------------------
     test(
-      'probe() throws DuskCdpException on HTTP 404 (port open but no CDP)',
+      'probe() throws TapirCdpException on HTTP 404 (port open but no CDP)',
       () async {
         ChromeFinder.chromeFinderHttpGet = (Uri uri) async {
           throw ChromeFinderHttpNotFoundException(uri.port);
@@ -93,8 +93,8 @@ void main() {
             interval: const Duration(milliseconds: 1),
           ),
           throwsA(
-            isA<DuskCdpException>().having(
-              (DuskCdpException e) => e.message,
+            isA<TapirCdpException>().having(
+              (TapirCdpException e) => e.message,
               'message',
               contains('does not serve Chrome DevTools Protocol'),
             ),
@@ -104,11 +104,11 @@ void main() {
     );
 
     // ---------------------------------------------------------------
-    // (d) probe() throws DuskCdpException with "timed out" when port
+    // (d) probe() throws TapirCdpException with "timed out" when port
     //     never accepts connection
     // ---------------------------------------------------------------
     test(
-      'probe() throws DuskCdpException with "timed out" message when port never accepts connection',
+      'probe() throws TapirCdpException with "timed out" message when port never accepts connection',
       () async {
         ChromeFinder.chromeFinderHttpGet = (Uri uri) async {
           throw const SocketException('Connection refused');
@@ -121,8 +121,8 @@ void main() {
             interval: const Duration(milliseconds: 5),
           ),
           throwsA(
-            isA<DuskCdpException>().having(
-              (DuskCdpException e) => e.message,
+            isA<TapirCdpException>().having(
+              (TapirCdpException e) => e.message,
               'message',
               contains('timed out'),
             ),

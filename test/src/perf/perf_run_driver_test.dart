@@ -1,16 +1,16 @@
 import 'dart:async';
 
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/perf/perf_run_driver.dart';
+import 'package:tapir/src/perf/perf_run_driver.dart';
 
 void main() {
   // -------------------------------------------------------------------------
   // The restart wait
   // -------------------------------------------------------------------------
 
-  group('awaitDuskBoot()', () {
+  group('awaitTapirBoot()', () {
     const Duration tick = Duration(milliseconds: 1);
 
     test(
@@ -18,12 +18,12 @@ void main() {
         'as it does under DWDS', () async {
       final _FakeVmClient vm = _FakeVmClient(<Object>[
         'boot-a',
-        Exception('RPCError -32603: ext.dusk.boot_id is not registered'),
+        Exception('RPCError -32603: ext.tapir.boot_id is not registered'),
         StateError('VM Service reported no isolates'),
         'boot-b',
       ]);
 
-      await awaitDuskBoot(
+      await awaitTapirBoot(
         vm,
         replacing: 'boot-a',
         timeout: const Duration(seconds: 5),
@@ -39,7 +39,7 @@ void main() {
       final _FakeVmClient vm = _FakeVmClient(<Object>['boot-a']);
 
       await expectLater(
-        awaitDuskBoot(
+        awaitTapirBoot(
           vm,
           replacing: 'boot-a',
           timeout: const Duration(milliseconds: 50),
@@ -61,7 +61,7 @@ void main() {
       ]);
 
       await expectLater(
-        awaitDuskBoot(
+        awaitTapirBoot(
           vm,
           replacing: 'boot-a',
           timeout: const Duration(milliseconds: 50),
@@ -83,7 +83,7 @@ void main() {
         'boot-z',
       ]);
 
-      await awaitDuskBoot(
+      await awaitTapirBoot(
         vm,
         replacing: null,
         timeout: const Duration(seconds: 5),
@@ -94,23 +94,23 @@ void main() {
     });
   });
 
-  group('readDuskBootId()', () {
-    test('asks the main isolate for ext.dusk.boot_id', () async {
+  group('readTapirBootId()', () {
+    test('asks the main isolate for ext.tapir.boot_id', () async {
       final _FakeVmClient vm = _FakeVmClient(<Object>['boot-a']);
 
-      expect(await readDuskBootId(vm), 'boot-a');
-      expect(vm.methods.single, 'ext.dusk.boot_id');
+      expect(await readTapirBootId(vm), 'boot-a');
+      expect(vm.methods.single, 'ext.tapir.boot_id');
     });
   });
 
-  group('pollDuskBoot()', () {
+  group('pollTapirBoot()', () {
     test(
         'never reads once the budget is spent, so the last answer is the '
         'app\'s, not a zero timeout', () async {
       int reads = 0;
 
       await expectLater(
-        pollDuskBoot(
+        pollTapirBoot(
           () {
             reads++;
             if (reads == 1) {
@@ -144,7 +144,7 @@ void main() {
       int pauses = 0;
 
       await expectLater(
-        pollDuskBoot(
+        pollTapirBoot(
           () async {
             reads++;
             throw StateError('no isolate yet');
@@ -153,14 +153,14 @@ void main() {
           timeout: const Duration(seconds: 2),
           pollInterval: const Duration(milliseconds: 500),
           pause: (Duration _) async => pauses++,
-          failure: 'the app did not answer ext.dusk.boot_id within 2 s of '
+          failure: 'the app did not answer ext.tapir.boot_id within 2 s of '
               'the start',
         ),
         throwsA(
           isA<PerfRunException>().having(
             (PerfRunException e) => e.message,
             'message',
-            'the app did not answer ext.dusk.boot_id within 2 s of the start '
+            'the app did not answer ext.tapir.boot_id within 2 s of the start '
                 '(last answer: Bad state: no isolate yet).',
           ),
         ),
@@ -172,7 +172,7 @@ void main() {
 }
 
 /// A VM Service client whose main isolate is always `"1"`, as DWDS reports
-/// it across a hot restart, and whose `ext.dusk.boot_id` answers come from
+/// it across a hot restart, and whose `ext.tapir.boot_id` answers come from
 /// a script: a String is a boot id, anything else is thrown. The last entry
 /// repeats.
 final class _FakeVmClient implements VmServiceClient {
@@ -188,7 +188,7 @@ final class _FakeVmClient implements VmServiceClient {
 
   @override
   Future<List<String>> getExtensionRPCs(String isolateId) async =>
-      const <String>['ext.dusk.perf_begin', 'ext.dusk.boot_id'];
+      const <String>['ext.tapir.perf_begin', 'ext.tapir.boot_id'];
 
   @override
   Future<T> callServiceExtension<T>(

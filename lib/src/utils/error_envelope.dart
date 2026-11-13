@@ -5,7 +5,7 @@ import 'package:flutter/rendering.dart';
 
 import '../ref_registry.dart';
 
-/// Structured error envelope appended to every Dusk action-handler error
+/// Structured error envelope appended to every Tapir action-handler error
 /// response.
 ///
 /// The wire shape of `ServiceExtensionResponse.error(...)` historically
@@ -28,15 +28,15 @@ import '../ref_registry.dart';
 /// callers doing `response.errorDetail.contains("not enabled")` continue to
 /// match (the substring sits verbatim inside the JSON `message` field).
 /// New callers parse the string as JSON to read the structured envelope.
-class DuskErrorEnvelope {
-  /// Creates a [DuskErrorEnvelope].
+class TapirErrorEnvelope {
+  /// Creates a [TapirErrorEnvelope].
   ///
   /// [type] is the machine-readable failure category; see class-level docs
   /// for the closed set. [widgetPath] is the `eN` / `qN` token or any other
   /// identifier the agent can carry forward. [suggestions] is the (possibly
   /// empty) list of fuzzy-matched alternative refs / texts for `not_found`
   /// failures; empty for every other type.
-  const DuskErrorEnvelope({
+  const TapirErrorEnvelope({
     required this.type,
     required this.widgetPath,
     required this.suggestions,
@@ -82,21 +82,21 @@ class DuskErrorEnvelope {
   /// (currently a snapshot of active refs + semantic labels gathered by
   /// [collectSnapshotCandidates]). The top 3 closest by Levenshtein
   /// distance (cap 3) are surfaced in [suggestions].
-  factory DuskErrorEnvelope.notFound({
+  factory TapirErrorEnvelope.notFound({
     required String ref,
     Iterable<String> candidates = const <String>[],
   }) =>
-      DuskErrorEnvelope(
+      TapirErrorEnvelope(
         type: 'not_found',
         widgetPath: ref,
         suggestions: fuzzyMatch(ref, candidates),
       );
 
-  /// Envelope for a `DuskActionabilityException` failure. [reason] is the
+  /// Envelope for a `TapirActionabilityException` failure. [reason] is the
   /// raw substring from the exception (`"not enabled"`, `"zero rect"`,
   /// etc.); unknown reasons land under `'unexpected'` so the agent can
   /// still branch on `type`.
-  factory DuskErrorEnvelope.fromActionabilityReason(
+  factory TapirErrorEnvelope.fromActionabilityReason(
     String ref,
     String reason,
   ) {
@@ -116,16 +116,16 @@ class DuskErrorEnvelope {
     } else {
       type = 'unexpected';
     }
-    return DuskErrorEnvelope(
+    return TapirErrorEnvelope(
       type: type,
       widgetPath: ref,
       suggestions: const <String>[],
     );
   }
 
-  /// Envelope for a `DuskStaleHandleException`: the `qN` handle's stored
+  /// Envelope for a `TapirStaleHandleException`: the `qN` handle's stored
   /// predicates no longer match anything in the live tree.
-  factory DuskErrorEnvelope.stale(String ref) => DuskErrorEnvelope(
+  factory TapirErrorEnvelope.stale(String ref) => TapirErrorEnvelope(
         type: 'stale',
         widgetPath: ref,
         suggestions: const <String>[],
@@ -133,8 +133,8 @@ class DuskErrorEnvelope {
 
   /// Envelope for a missing required parameter. [paramName] is included
   /// purely for documentation; the [type] field is what agents branch on.
-  factory DuskErrorEnvelope.missingParam(String paramName) =>
-      const DuskErrorEnvelope(
+  factory TapirErrorEnvelope.missingParam(String paramName) =>
+      const TapirErrorEnvelope(
         type: 'missing_param',
         widgetPath: null,
         suggestions: <String>[],
@@ -142,7 +142,8 @@ class DuskErrorEnvelope {
 
   /// Envelope for a wait/find timeout. [widgetPath] is optional — wait_for
   /// queries by text rather than by ref.
-  factory DuskErrorEnvelope.timeout({String? widgetPath}) => DuskErrorEnvelope(
+  factory TapirErrorEnvelope.timeout({String? widgetPath}) =>
+      TapirErrorEnvelope(
         type: 'timeout',
         widgetPath: widgetPath,
         suggestions: const <String>[],
@@ -150,8 +151,8 @@ class DuskErrorEnvelope {
 
   /// Envelope for any failure that does not fit a typed bucket — handler
   /// catch-blocks that fall through to `e.toString()`.
-  factory DuskErrorEnvelope.unexpected({String? widgetPath}) =>
-      DuskErrorEnvelope(
+  factory TapirErrorEnvelope.unexpected({String? widgetPath}) =>
+      TapirErrorEnvelope(
         type: 'unexpected',
         widgetPath: widgetPath,
         suggestions: const <String>[],
@@ -181,9 +182,9 @@ class DuskErrorEnvelope {
 /// [parseEnvelopeFromErrorDetail] / [parseMessageFromErrorDetail].
 ///
 /// Structured access: new callers decode the string as JSON and read
-/// `decoded['envelope']` for the [DuskErrorEnvelope.toJson] payload, or
+/// `decoded['envelope']` for the [TapirErrorEnvelope.toJson] payload, or
 /// `decoded['message']` for the original free-form message.
-String wrapErrorDetail(String message, DuskErrorEnvelope envelope) {
+String wrapErrorDetail(String message, TapirErrorEnvelope envelope) {
   return jsonEncode(<String, dynamic>{
     'message': _capMessage(message),
     'envelope': envelope.toJson(),
@@ -351,8 +352,8 @@ List<String> fuzzyMatch(
 // Live-tree candidate collection
 // ---------------------------------------------------------------------------
 
-/// Gathers candidate strings from the current Dusk runtime state to feed
-/// [DuskErrorEnvelope.notFound]'s fuzzy match.
+/// Gathers candidate strings from the current Tapir runtime state to feed
+/// [TapirErrorEnvelope.notFound]'s fuzzy match.
 ///
 /// Three sources, in this order:
 ///

@@ -10,21 +10,21 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fluttersdk_dusk/src/cdp/cdp_client.dart';
+import 'package:tapir/src/cdp/cdp_client.dart';
 
 /// Integration smoke test for the full CDP chain.
 ///
 /// Exercises:
 ///
-///   1. `artisan start --cdp-port=<port>` boots Chrome with remote debugging,
+///   1. `dowel start --cdp-port=<port>` boots Chrome with remote debugging,
 ///      writes vmServiceUri + chromePid + cdpPort + tmpProfileDir to
-///      `~/.artisan/state.json`.
-///   2. `dusk:resize` round-trips a viewport change through CDP.
-///   3. `dusk:device --preset=iphone-x` resolves a curated preset and pushes
+///      `~/.dowel/state.json`.
+///   2. `tapir:resize` round-trips a viewport change through CDP.
+///   3. `tapir:device --preset=iphone-x` resolves a curated preset and pushes
 ///      the 3-call CDP chain.
 ///   4. Hot reload via the FIFO surfaces "Reloaded" in `flutter-dev.log`
 ///      (Oracle F1 mitigation against dart-lang/webdev#2642).
-///   5. `artisan stop` reaps Chrome AND clears `state.json`.
+///   5. `dowel stop` reaps Chrome AND clears `state.json`.
 ///
 /// Skipped by default. Real Chrome required; ~30 to 60s per run. Tagged
 /// `integration` so the manual invocation opts in explicitly:
@@ -40,7 +40,7 @@ void main() {
   // ------------------------------------------------------------------
 
   late int cdpPort;
-  late String artisanHome;
+  late String dowelHome;
   late File stateFile;
   late File flutterDevLog;
   late File flutterDevFifo;
@@ -62,21 +62,21 @@ void main() {
     );
   }
 
-  Future<ProcessResult> runArtisan(
+  Future<ProcessResult> runDowel(
     List<String> args, {
     Duration timeout = const Duration(seconds: 60),
   }) {
-    // `dart run fluttersdk_dusk <args>` is the consumer-facing entry. The
-    // smoke test runs against the dusk package's own pubspec, which depends on
-    // fluttersdk_artisan via path. Process inherits stdout / stderr so the
-    // test log captures the full artisan trace on failure.
-    return Process.run('dart', <String>['run', 'fluttersdk_dusk', ...args])
+    // `dart run tapir <args>` is the consumer-facing entry. The
+    // smoke test runs against the tapir package's own pubspec, which depends on
+    // dowel via path. Process inherits stdout / stderr so the
+    // test log captures the full dowel trace on failure.
+    return Process.run('dart', <String>['run', 'tapir', ...args])
         .timeout(timeout);
   }
 
-  Future<void> stopArtisanQuietly() async {
+  Future<void> stopDowelQuietly() async {
     try {
-      await runArtisan(<String>['stop'], timeout: const Duration(seconds: 30));
+      await runDowel(<String>['stop'], timeout: const Duration(seconds: 30));
     } catch (_) {
       // Stop is best-effort during setup / teardown; the next assertions
       // verify the post-state on disk (state file absent + port free).
@@ -129,38 +129,38 @@ void main() {
     if (home == null || home.isEmpty) {
       throw StateError(
         'HOME environment variable is not set. '
-        'Integration smoke needs ~/.artisan/ for state + FIFO + log paths.',
+        'Integration smoke needs ~/.dowel/ for state + FIFO + log paths.',
       );
     }
-    artisanHome = '$home/.artisan';
-    stateFile = File('$artisanHome/state.json');
-    flutterDevLog = File('$artisanHome/flutter-dev.log');
-    flutterDevFifo = File('$artisanHome/flutter-dev.fifo');
+    dowelHome = '$home/.dowel';
+    stateFile = File('$dowelHome/state.json');
+    flutterDevLog = File('$dowelHome/flutter-dev.log');
+    flutterDevFifo = File('$dowelHome/flutter-dev.fifo');
 
-    // Pre-cleanup: any lingering artisan from a previous failed run must be
+    // Pre-cleanup: any lingering dowel from a previous failed run must be
     // reaped before this test claims its CDP port.
-    await stopArtisanQuietly();
+    await stopDowelQuietly();
     cdpPort = await pickFreeCdpPort();
   });
 
   tearDown(() async {
-    // Post-cleanup is non-negotiable: leaving artisan + Chrome alive between
-    // tests leaks PIDs, file descriptors, and /tmp/dusk-chrome-* profile
+    // Post-cleanup is non-negotiable: leaving dowel + Chrome alive between
+    // tests leaks PIDs, file descriptors, and /tmp/tapir-chrome-* profile
     // directories. Must NOT-touching means cleanup runs unconditionally.
-    await stopArtisanQuietly();
+    await stopDowelQuietly();
   });
 
   // ------------------------------------------------------------------
   // Test 1: happy path.
   // ------------------------------------------------------------------
   test(
-    'artisan start --cdp-port boots Chrome + dusk:resize round-trips via CDP',
+    'dowel start --cdp-port boots Chrome + tapir:resize round-trips via CDP',
     () async {
-      // 1. Spawn artisan start --cdp-port=$cdpPort. Foreground; the binary
+      // 1. Spawn dowel start --cdp-port=$cdpPort. Foreground; the binary
       //    backgrounds the flutter run subprocess itself, so this Future
       //    resolves once state.json has the vmServiceUri populated OR the
       //    spawn fails fast.
-      final Future<ProcessResult> startFuture = runArtisan(
+      final Future<ProcessResult> startFuture = runDowel(
         <String>[
           'start',
           '--device=chrome',
@@ -171,7 +171,7 @@ void main() {
       );
 
       // 2. Race the state-file watch against the start subprocess. Whichever
-      //    resolves first wins: a fast crash surfaces the artisan stderr,
+      //    resolves first wins: a fast crash surfaces the dowel stderr,
       //    a successful spawn surfaces the populated state.
       final Map<String, dynamic> state = await waitForStateWithVmServiceUri();
       expect(
@@ -209,12 +209,12 @@ void main() {
             'server (Edge / Brave / Electron).',
       );
 
-      // 4. dusk:resize sends Emulation.setDeviceMetricsOverride. iPhone-X
+      // 4. tapir:resize sends Emulation.setDeviceMetricsOverride. iPhone-X
       //    dimensions are the canonical smoke target (also exercised by the
       //    preset test).
-      final ProcessResult resize = await runArtisan(
+      final ProcessResult resize = await runDowel(
         <String>[
-          'dusk:resize',
+          'tapir:resize',
           '--width=375',
           '--height=812',
           '--dpr=3',
@@ -227,12 +227,12 @@ void main() {
         resize.exitCode,
         equals(0),
         reason:
-            'dusk:resize must succeed. stdout=${resize.stdout} stderr=${resize.stderr}',
+            'tapir:resize must succeed. stdout=${resize.stdout} stderr=${resize.stderr}',
       );
 
       // 5. Independent CDP round-trip: a fresh CdpClient connects to the same
       //    port and reads Browser.getVersion. Confirms that the remote-
-      //    debugging endpoint is still up after dusk:resize and that the
+      //    debugging endpoint is still up after tapir:resize and that the
       //    CdpClient implementation works against a real Chrome (not just
       //    the FakeCdpServer used in unit tests).
       final CdpClient client = await CdpClient.connect(port: cdpPort);
@@ -248,21 +248,21 @@ void main() {
         await client.close();
       }
 
-      // 6. artisan stop reaps everything. State file must be gone after.
-      final ProcessResult stop = await runArtisan(<String>['stop']);
+      // 6. dowel stop reaps everything. State file must be gone after.
+      final ProcessResult stop = await runDowel(<String>['stop']);
       expect(
         stop.exitCode,
         equals(0),
-        reason: 'artisan stop must exit cleanly. stderr=${stop.stderr}',
+        reason: 'dowel stop must exit cleanly. stderr=${stop.stderr}',
       );
       expect(
         stateFile.existsSync(),
         isFalse,
-        reason: 'artisan stop must delete state.json.',
+        reason: 'dowel stop must delete state.json.',
       );
 
       // 7. Surface the start subprocess result in case it had not yet
-      //    resolved (foreground artisan exits when its child flutter
+      //    resolved (foreground dowel exits when its child flutter
       //    detaches, so this is usually already done).
       try {
         await startFuture.timeout(const Duration(seconds: 5));
@@ -271,7 +271,7 @@ void main() {
         // proves the cleanup branch worked. Surface as a non-fatal warning.
         // ignore: avoid_print
         print(
-          '[smoke] artisan start subprocess did not exit within 5s after '
+          '[smoke] dowel start subprocess did not exit within 5s after '
           'stop; tearDown will reap it.',
         );
       }
@@ -285,10 +285,10 @@ void main() {
   test(
     'FIFO hot reload surfaces "Reloaded" in flutter-dev.log',
     () async {
-      // 1. Boot artisan with --cdp-port. Reuses the same wait-for-vmService
+      // 1. Boot dowel with --cdp-port. Reuses the same wait-for-vmService
       //    discipline from Test 1.
       unawaited(
-        runArtisan(
+        runDowel(
           <String>[
             'start',
             '--device=chrome',
@@ -311,7 +311,7 @@ void main() {
       expect(
         flutterDevFifo.existsSync(),
         isTrue,
-        reason: 'artisan start must create the FIFO at ${flutterDevFifo.path}.',
+        reason: 'dowel start must create the FIFO at ${flutterDevFifo.path}.',
       );
       final ProcessResult echoResult = await Process.run(
         'bash',
@@ -354,14 +354,14 @@ void main() {
   );
 
   // ------------------------------------------------------------------
-  // Test 3: preset smoke (dusk:device --preset=iphone-x).
+  // Test 3: preset smoke (tapir:device --preset=iphone-x).
   // ------------------------------------------------------------------
   test(
-    'dusk:device --preset=iphone-x applies the 3-call Emulation chain',
+    'tapir:device --preset=iphone-x applies the 3-call Emulation chain',
     () async {
       // 1. Same boot pattern.
       unawaited(
-        runArtisan(
+        runDowel(
           <String>[
             'start',
             '--device=chrome',
@@ -374,14 +374,14 @@ void main() {
       await waitForStateWithVmServiceUri();
 
       // 2. Apply the preset.
-      final ProcessResult device = await runArtisan(
-        <String>['dusk:device', '--preset=iphone-x'],
+      final ProcessResult device = await runDowel(
+        <String>['tapir:device', '--preset=iphone-x'],
         timeout: const Duration(seconds: 30),
       );
       expect(
         device.exitCode,
         equals(0),
-        reason: 'dusk:device --preset=iphone-x must exit 0. '
+        reason: 'tapir:device --preset=iphone-x must exit 0. '
             'stdout=${device.stdout} stderr=${device.stderr}',
       );
 
@@ -392,14 +392,14 @@ void main() {
       //    Page.* introspection here because Chrome polls window.innerWidth
       //    asynchronously after override; the --reset round-trip is the
       //    deterministic check.
-      final ProcessResult reset = await runArtisan(
-        <String>['dusk:resize', '--width=1440', '--height=900', '--reset'],
+      final ProcessResult reset = await runDowel(
+        <String>['tapir:resize', '--width=1440', '--height=900', '--reset'],
         timeout: const Duration(seconds: 30),
       );
       expect(
         reset.exitCode,
         equals(0),
-        reason: 'dusk:resize --reset must clear the override. '
+        reason: 'tapir:resize --reset must clear the override. '
             'stdout=${reset.stdout} stderr=${reset.stderr}',
       );
     },

@@ -1,11 +1,11 @@
 name: Feature Request
-description: Suggest a new feature or enhancement for fluttersdk_dusk
+description: Suggest a new feature or enhancement for tapir
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Have an idea for dusk? We'd love to hear it.
+        Have an idea for tapir? We'd love to hear it.
 
   - type: textarea
     id: description
@@ -22,13 +22,13 @@ body:
       label: Subsystem
       description: Which part of the framework does this relate to?
       options:
-        - Extensions (ext.dusk.* handlers)
-        - Commands (dusk:* CLI)
+        - Extensions (ext.tapir.* handlers)
+        - Commands (tapir:* CLI)
         - Actionability gate (5-gate, error envelope)
         - RefRegistry (e<N> / q<N> tokens)
-        - Snapshot enrichers (DuskSnapshotEnricher)
+        - Snapshot enrichers (TapirSnapshotEnricher)
         - CDP driver (cdp_client, device_presets, chrome_finder)
-        - MCP tools (DuskArtisanProvider mcpTools)
+        - MCP tools (TapirDowelProvider mcpTools)
         - Plugin integration (Magic / Wind)
         - Doctor / Doctor checks
         - Documentation
@@ -43,10 +43,10 @@ body:
       description: How would the API look? Show the CLI invocation or Dart code shape.
       placeholder: |
         # CLI example
-        dart run fluttersdk_dusk dusk:tap --ref=e1 --double
+        dart run tapir tapir:tap --ref=e1 --double
 
         # Dart enricher example
-        DuskPlugin.registerEnricher((element, refs) => 'custom: value');
+        TapirPlugin.registerEnricher((element, refs) => 'custom: value');
       render: yaml
 
   - type: textarea

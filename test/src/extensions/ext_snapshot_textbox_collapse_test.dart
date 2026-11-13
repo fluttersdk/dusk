@@ -3,9 +3,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_text_input.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/extensions/ext_text_input.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 /// D2 regression tests: collapse nested `textbox` Semantics nodes via
 /// render-object CONTAINMENT and annotate the surviving node `typeable: true`.
@@ -14,8 +14,8 @@ import 'package:fluttersdk_dusk/src/ref_registry.dart';
 /// `Semantics(textField:true) > MergeSemantics > TextField`. `RenderEditable`
 /// unconditionally owns its own `textField` Semantics node (flutter#26336) and
 /// `MergeSemantics` cannot absorb it (flutter#160281), so the tree carries TWO
-/// nested `textbox` nodes. Before this fix dusk minted two `eN` refs; agents
-/// naturally target the inner leaf, and `dusk:type` on it throws -32000.
+/// nested `textbox` nodes. Before this fix tapir minted two `eN` refs; agents
+/// naturally target the inner leaf, and `tapir:type` on it throws -32000.
 ///
 /// The fix threads the nearest enclosing textbox render object down through
 /// `_emitNode`. When a `textbox` node's render object is a DESCENDANT of an
@@ -28,10 +28,10 @@ import 'package:fluttersdk_dusk/src/ref_registry.dart';
 ///
 /// ## Test harness note
 ///
-/// `duskSnapBuild` walks `rootPipelineOwner` AND every child pipeline owner;
+/// `tapirSnapBuild` walks `rootPipelineOwner` AND every child pipeline owner;
 /// in the Flutter test harness the real widget tree lives under a child owner,
 /// so the snapshot string is populated. Drive it via
-/// `tester.runAsync(() => duskSnapBuild())` (mirrors the overflow test in
+/// `tester.runAsync(() => tapirSnapBuild())` (mirrors the overflow test in
 /// `ext_snapshot_dispatcher_test.dart`).
 
 /// Counts the `[ref=` occurrences across the whole snapshot YAML.
@@ -47,7 +47,7 @@ void main() {
   setUp(RefRegistry.resetForTesting);
   tearDown(RefRegistry.resetForTesting);
 
-  group('ext.dusk.snap textbox containment collapse', () {
+  group('ext.tapir.snap textbox containment collapse', () {
     testWidgets(
       '(a) Semantics(textField) > MergeSemantics > TextField collapses to '
       'ONE textbox ref carrying typeable: true',
@@ -79,7 +79,7 @@ void main() {
 
         // 2. Capture the snapshot via the child-owner-aware build path.
         final Map<String, dynamic> payload = await tester.runAsync(
-          () => duskSnapBuild(),
+          () => tapirSnapBuild(),
         ) as Map<String, dynamic>;
         final String snapshot = payload['snapshot'] as String;
 
@@ -105,7 +105,7 @@ void main() {
     );
 
     testWidgets(
-      '(a) dusk:type on the surviving collapsed ref succeeds',
+      '(a) tapir:type on the surviving collapsed ref succeeds',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(1440, 900);
         tester.view.devicePixelRatio = 1.0;
@@ -131,7 +131,7 @@ void main() {
         await tester.pump();
 
         // 1. Build the snapshot so the surviving textbox is registered as a ref.
-        await tester.runAsync(() => duskSnapBuild());
+        await tester.runAsync(() => tapirSnapBuild());
 
         // 2. The single registered ref must be the outer (typeable) node, whose
         //    element subtree hosts the EditableText. typeIntoElement walks
@@ -145,13 +145,13 @@ void main() {
 
         await tester.runAsync(
           () =>
-              typeIntoElement(element: entry!.element, text: 'hello@dusk.dev'),
+              typeIntoElement(element: entry!.element, text: 'hello@tapir.dev'),
         );
         await tester.pump();
 
         expect(
           controller.text,
-          'hello@dusk.dev',
+          'hello@tapir.dev',
           reason:
               'typing on the surviving ref must reach the inner EditableText',
         );
@@ -196,7 +196,7 @@ void main() {
         await tester.pump();
 
         final Map<String, dynamic> payload = await tester.runAsync(
-          () => duskSnapBuild(),
+          () => tapirSnapBuild(),
         ) as Map<String, dynamic>;
         final String snapshot = payload['snapshot'] as String;
 
@@ -248,7 +248,7 @@ void main() {
         await tester.pump();
 
         final Map<String, dynamic> payload = await tester.runAsync(
-          () => duskSnapBuild(),
+          () => tapirSnapBuild(),
         ) as Map<String, dynamic>;
         final String snapshot = payload['snapshot'] as String;
 
@@ -304,7 +304,7 @@ void main() {
         await tester.pump();
 
         final Map<String, dynamic> payload = await tester.runAsync(
-          () => duskSnapBuild(),
+          () => tapirSnapBuild(),
         ) as Map<String, dynamic>;
         final String snapshot = payload['snapshot'] as String;
 
@@ -344,7 +344,7 @@ void main() {
         await tester.pump();
 
         final Map<String, dynamic> payload = await tester.runAsync(
-          () => duskSnapBuild(),
+          () => tapirSnapBuild(),
         ) as Map<String, dynamic>;
         final String snapshot = payload['snapshot'] as String;
 

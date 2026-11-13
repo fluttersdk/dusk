@@ -6,8 +6,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img_lib;
 
-import 'package:fluttersdk_dusk/src/extensions/ext_screenshot.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/extensions/ext_screenshot.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 bool _isError(developer.ServiceExtensionResponse response) =>
     response.errorCode != null;
@@ -17,7 +17,7 @@ void main() {
   // toImage()/PNG encode/JPEG encode pipeline can hang. We restrict tests
   // to the param-validation + utility paths that do not need rendering.
   // End-to-end screenshot capture is covered by the example/ live drive
-  // (`dusk:screenshot --output=...` in the playground sweep).
+  // (`tapir:screenshot --output=...` in the playground sweep).
 
   group('screenshotHandler — param validation', () {
     testWidgets('errors on malformed rect string', (tester) async {
@@ -28,7 +28,7 @@ void main() {
         ),
       );
       final response = await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         const {'rect': 'not,a,rect'},
       );
       expect(_isError(response), isTrue);
@@ -42,7 +42,7 @@ void main() {
         ),
       );
       final response = await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         const {'rect': '0,0,-100,-100'},
       );
       expect(_isError(response), isTrue);
@@ -56,7 +56,7 @@ void main() {
         ),
       );
       final response = await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         const {'rect': '0,0,foo,bar'},
       );
       expect(_isError(response), isTrue);
@@ -70,7 +70,7 @@ void main() {
         ),
       );
       final response = await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         const {'rect': '0,0,100'},
       );
       expect(_isError(response), isTrue);
@@ -84,7 +84,7 @@ void main() {
         ),
       );
       final response = await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         const {'ref': 'e999'},
       );
       expect(_isError(response), isTrue);
@@ -178,7 +178,7 @@ void main() {
       developer.ServiceExtensionResponse? response;
       await tester.runAsync(() async {
         response = await screenshotHandler(
-          'ext.dusk.screenshot',
+          'ext.tapir.screenshot',
           const <String, String>{},
         );
       });
@@ -210,7 +210,7 @@ void main() {
       developer.ServiceExtensionResponse? response;
       await tester.runAsync(() async {
         response = await screenshotHandler(
-          'ext.dusk.screenshot',
+          'ext.tapir.screenshot',
           const <String, String>{'format': 'png'},
         );
       });
@@ -238,7 +238,7 @@ void main() {
       developer.ServiceExtensionResponse? response;
       await tester.runAsync(() async {
         response = await screenshotHandler(
-          'ext.dusk.screenshot',
+          'ext.tapir.screenshot',
           const <String, String>{'format': 'jpeg', 'quality': '30'},
         );
       });
@@ -263,7 +263,7 @@ void main() {
 
       final developer.ServiceExtensionResponse response =
           await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         const <String, String>{'geometry': 'true'},
       );
 
@@ -306,7 +306,7 @@ void main() {
 
       final developer.ServiceExtensionResponse response =
           await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         <String, String>{'ref': ref, 'geometry': 'true'},
       );
 
@@ -349,7 +349,7 @@ void main() {
 
       final developer.ServiceExtensionResponse response =
           await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         <String, String>{'ref': ref, 'rect': '5,10,20,15', 'geometry': 'true'},
       );
 
@@ -368,7 +368,7 @@ void main() {
 
       final developer.ServiceExtensionResponse response =
           await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         const <String, String>{'ref': 'e999', 'geometry': 'true'},
       );
 
@@ -410,7 +410,7 @@ void main() {
 
       final developer.ServiceExtensionResponse response =
           await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         <String, String>{'ref': ref, 'geometry': 'true'},
       );
 
@@ -427,9 +427,9 @@ void main() {
       WidgetTester tester,
     ) async {
       // The CLI help and the MCP schema both say `ref` takes "an e<N> token
-      // from dusk_snap or a q<N> handle from dusk_find", but the resolver
+      // from tapir_snap or a q<N> handle from tapir_find", but the resolver
       // only ever consulted the e space, so a q handle came back with "not
-      // found in RefRegistry. Call ext.dusk.snapshot first", which is the
+      // found in RefRegistry. Call ext.tapir.snapshot first", which is the
       // wrong recovery for a query handle.
       await tester.pumpWidget(
         const Directionality(
@@ -439,13 +439,13 @@ void main() {
       );
 
       final String ref = RefRegistry.registerQuery(
-        const DuskQuery(text: 'Capture me'),
+        const TapirQuery(text: 'Capture me'),
       );
       expect(ref, startsWith('q'));
 
       final developer.ServiceExtensionResponse response =
           await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         <String, String>{'ref': ref, 'geometry': 'true'},
       );
 
@@ -466,11 +466,11 @@ void main() {
 
       final developer.ServiceExtensionResponse response =
           await screenshotHandler(
-        'ext.dusk.screenshot',
+        'ext.tapir.screenshot',
         const <String, String>{'ref': 'e999', 'geometry': 'true'},
       );
 
-      expect(response.errorDetail, contains('ext.dusk.find'));
+      expect(response.errorDetail, contains('ext.tapir.find'));
     });
   });
 }

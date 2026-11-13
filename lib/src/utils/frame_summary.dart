@@ -1,13 +1,13 @@
-/// The frame and block arithmetic behind `ext.dusk.perf_end`: percentile and
+/// The frame and block arithmetic behind `ext.tapir.perf_end`: percentile and
 /// budget math over per-frame records, frame-number gap detection, and the
 /// session-wide block aggregation the rankings are cut from.
 ///
 /// Pure functions with no binding access, so they are trivially testable.
 ///
 /// Every `frames` argument is `List<Map<String, Object?>>` shaped like
-/// `FramePerfRecord.toJson()` (telescope repo): `frameNumber`, `buildMicros`,
+/// `FramePerfRecord.toJson()` (crumbs repo): `frameNumber`, `buildMicros`,
 /// `rasterMicros`, `blocks` (`{name: {micros, selfMicros, count}}`), `atUs`.
-/// dusk cannot import telescope's record type (frozen contract #10), so the
+/// tapir cannot import crumbs's record type (frozen contract #10), so the
 /// input is the plain map shape rather than the typed record, and every read
 /// tolerates a missing or mistyped key: the maps are built in another
 /// repository, so a renamed key does not fail to compile, and one malformed

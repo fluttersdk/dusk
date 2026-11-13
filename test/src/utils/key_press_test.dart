@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/utils/key_press.dart';
+import 'package:tapir/src/utils/key_press.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

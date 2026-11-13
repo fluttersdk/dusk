@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug in fluttersdk_dusk
+description: Report a bug in tapir
 labels: ["bug"]
 body:
   - type: markdown
@@ -22,8 +22,8 @@ body:
       label: Steps to Reproduce
       description: How can we reproduce this bug?
       placeholder: |
-        1. Run `dart run fluttersdk_dusk dusk:snap` in a running Flutter app
-        2. Run `dart run fluttersdk_dusk dusk:tap --ref=e1`
+        1. Run `dart run tapir tapir:snap` in a running Flutter app
+        2. Run `dart run tapir tapir:tap --ref=e1`
         3. See error
     validations:
       required: true
@@ -50,13 +50,13 @@ body:
       label: Subsystem
       description: Which part of the framework is affected?
       options:
-        - Extensions (ext.dusk.* handlers)
-        - Commands (dusk:* CLI)
+        - Extensions (ext.tapir.* handlers)
+        - Commands (tapir:* CLI)
         - Actionability gate (5-gate, error envelope)
         - RefRegistry (e<N> / q<N> tokens)
-        - Snapshot enrichers (DuskSnapshotEnricher)
+        - Snapshot enrichers (TapirSnapshotEnricher)
         - CDP driver (cdp_client, device_presets, chrome_finder)
-        - MCP tools (DuskArtisanProvider mcpTools)
+        - MCP tools (TapirDowelProvider mcpTools)
         - Plugin integration (Magic / Wind)
         - Doctor / Doctor checks
         - Documentation
@@ -68,8 +68,8 @@ body:
     id: command
     attributes:
       label: Command Invocation
-      description: The exact `dart run fluttersdk_dusk ...` command (or MCP tool name + arguments) that triggered the bug.
-      placeholder: "dart run fluttersdk_dusk dusk:snap"
+      description: The exact `dart run tapir ...` command (or MCP tool name + arguments) that triggered the bug.
+      placeholder: "dart run tapir tapir:snap"
       render: shell
 
   - type: textarea
@@ -80,9 +80,9 @@ body:
       render: dart
 
   - type: input
-    id: dusk-version
+    id: tapir-version
     attributes:
-      label: fluttersdk_dusk Version
+      label: tapir Version
       placeholder: "0.0.1"
     validations:
       required: true

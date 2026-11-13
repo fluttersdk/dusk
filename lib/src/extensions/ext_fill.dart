@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/widgets.dart';
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
 import '../ref_registry.dart';
-import '../utils/dusk_exceptions.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_exceptions.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import '../utils/perf_interaction.dart';
@@ -21,19 +21,19 @@ import 'ext_text_input.dart'
         refuseNonTextRef,
         resolveTextFieldTarget;
 
-const String kDuskFillMcpName = 'dusk_fill';
-const String kDuskFillMcpExtension = 'ext.dusk.fill';
+const String kTapirFillMcpName = 'tapir_fill';
+const String kTapirFillMcpExtension = 'ext.tapir.fill';
 
-/// Registers the `ext.dusk.fill` VM Service extension.
+/// Registers the `ext.tapir.fill` VM Service extension.
 ///
 /// Idempotent: [registerExtensionIdempotent] swallows the [ArgumentError]
 /// thrown on hot-restart duplicate registration. Call once from
-/// [registerAllDuskExtensions].
+/// [registerAllTapirExtensions].
 void registerFillExtension() {
-  registerDuskExtension(kDuskFillMcpExtension, aiTestFillHandler);
+  registerTapirExtension(kTapirFillMcpExtension, aiTestFillHandler);
 }
 
-/// Handler for `ext.dusk.fill`: the one-call "focus + clear + type + settle"
+/// Handler for `ext.tapir.fill`: the one-call "focus + clear + type + settle"
 /// composition that replaces the manual dance agents otherwise re-discover.
 ///
 /// Resolves the field once ([resolveTextFieldTarget]) and hands it to the
@@ -50,7 +50,7 @@ void registerFillExtension() {
 ///
 /// Stale-retry: the ref is re-resolved up front via [resolveRefForAction]
 /// before each attempt. A `q<N>` handle whose stored predicates transiently
-/// miss (mid-rebuild) throws [DuskStaleHandleException]; the handler retries
+/// miss (mid-rebuild) throws [TapirStaleHandleException]; the handler retries
 /// the whole resolve + focus + clear + type sequence ONCE so the second pass
 /// re-walks the now-settled tree. A second stale outcome propagates a typed
 /// `stale` envelope so the agent re-snaps or re-finds.
@@ -81,8 +81,8 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.fill: missing required param "ref"',
-          DuskErrorEnvelope.missingParam('ref'),
+          'ext.tapir.fill: missing required param "ref"',
+          TapirErrorEnvelope.missingParam('ref'),
         ),
       );
     }
@@ -90,8 +90,8 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.fill: missing required param "text"',
-          DuskErrorEnvelope.missingParam('text'),
+          'ext.tapir.fill: missing required param "text"',
+          TapirErrorEnvelope.missingParam('text'),
         ),
       );
     }
@@ -112,8 +112,8 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
-          'ext.dusk.fill: ref "$ref" went stale during fill (retried once)',
-          DuskErrorEnvelope.stale(ref),
+          'ext.tapir.fill: ref "$ref" went stale during fill (retried once)',
+          TapirErrorEnvelope.stale(ref),
         ),
       );
     }
@@ -143,20 +143,20 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
       payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
-        '[fluttersdk_dusk] ext.dusk.fill: post-fill snapshot build swallowed '
+        '[tapir] ext.tapir.fill: post-fill snapshot build swallowed '
         'for ref "$ref": $e',
-        name: 'fluttersdk_dusk',
+        name: 'tapir',
       );
     }
-    return duskResult(payload);
+    return tapirResult(payload);
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.fill error: $e\n$stackTrace',
-      name: 'dusk',
+      '[tapir] ext.tapir.fill error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -180,15 +180,15 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
   final RefEntry? entry;
   try {
     entry = resolveRefForAction(ref);
-  } on DuskStaleHandleException {
+  } on TapirStaleHandleException {
     return null;
   }
   if (entry == null) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.fill: ref "$ref" not found in registry',
-        DuskErrorEnvelope.notFound(
+        'ext.tapir.fill: ref "$ref" not found in registry',
+        TapirErrorEnvelope.notFound(
           ref: ref,
           candidates: collectSnapshotCandidates(),
         ),
@@ -213,8 +213,8 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.fill: no EditableText under ref "$ref"',
-        DuskErrorEnvelope.unexpected(widgetPath: ref),
+        'ext.tapir.fill: no EditableText under ref "$ref"',
+        TapirErrorEnvelope.unexpected(widgetPath: ref),
       ),
     );
   }
@@ -236,7 +236,7 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
 
   // 3. Clear the existing value so the type below is a replace, not an append.
   final developer.ServiceExtensionResponse clear = await aiTestClearHandler(
-    'ext.dusk.clear',
+    'ext.tapir.clear',
     stepParams,
     target: target,
   );
@@ -245,7 +245,7 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
 
   // 4. Type the new value. The gated type handler awaits two frames itself.
   return aiTestTypeHandler(
-    'ext.dusk.type',
+    'ext.tapir.type',
     <String, String>{
       ...stepParams,
       'text': params['text']!,

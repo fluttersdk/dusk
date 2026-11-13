@@ -2,11 +2,11 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/widgets.dart';
 
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
 import '../ref_registry.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/effect_report.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
@@ -14,22 +14,22 @@ import '../utils/perf_interaction.dart';
 import 'ext_find.dart' show resolveQuery;
 import 'ext_snapshot.dart' show snapshotForAction;
 
-/// Registers the `ext.dusk.scroll` and `ext.dusk.select_option` VM Service
+/// Registers the `ext.tapir.scroll` and `ext.tapir.select_option` VM Service
 /// extensions.
 ///
 /// Call this once from the Wave 3 aggregator (`registerAllAiTestExtensions()`
 /// in `extensions.dart`). Each call is idempotent via
 /// [registerExtensionIdempotent], so hot-restart is safe.
 void registerScrollExtensions() {
-  registerDuskExtension('ext.dusk.scroll', aiTestScrollHandler);
-  registerDuskExtension(
-    'ext.dusk.select_option',
+  registerTapirExtension('ext.tapir.scroll', aiTestScrollHandler);
+  registerTapirExtension(
+    'ext.tapir.select_option',
     aiTestSelectOptionHandler,
   );
 }
 
 // -----------------------------------------------------------------------------
-// ext.dusk.scroll
+// ext.tapir.scroll
 // -----------------------------------------------------------------------------
 
 /// Pixels a `direction` alone scrolls, the default the MCP schema documents.
@@ -83,7 +83,7 @@ double? _scrollNumber(Map<String, String> params, String key) {
   return value;
 }
 
-/// Handler for the `ext.dusk.scroll` VM Service extension.
+/// Handler for the `ext.tapir.scroll` VM Service extension.
 ///
 /// Params:
 /// - `ref` (optional): RefRegistry key (`eN`) identifying the target element.
@@ -194,7 +194,7 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
           developer.ServiceExtensionResponse.extensionError,
           wrapErrorDetail(
             'No scrollable found in the widget tree.',
-            DuskErrorEnvelope.notFound(
+            TapirErrorEnvelope.notFound(
               ref: ref ?? 'scrollable',
               candidates: collectSnapshotCandidates(),
             ),
@@ -236,29 +236,29 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       payload.addAll(await snapshotForAction(params));
     } catch (e) {
       developer.log(
-        '[fluttersdk_dusk] ext.dusk.scroll: post-dispatch snapshot build '
+        '[tapir] ext.tapir.scroll: post-dispatch snapshot build '
         'swallowed: $e',
-        name: 'fluttersdk_dusk',
+        name: 'tapir',
       );
     }
 
-    return duskResult(payload);
+    return tapirResult(payload);
   } on FormatException catch (e) {
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.invalidParams,
       wrapErrorDetail(
-        '[fluttersdk_dusk] ext.dusk.scroll: ${e.message}',
-        DuskErrorEnvelope.unexpected(),
+        '[tapir] ext.tapir.scroll: ${e.message}',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.scroll error: $e\n$stackTrace',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.scroll error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -305,7 +305,7 @@ Future<void> aiTestScrollByDelta(
 /// Resolves a `ref` string to a [BuildContext] via [RefRegistry].
 ///
 /// Handles both `e<N>` (snapshot-frame) and `q<N>` (re-resolvable query) refs.
-/// For q-refs, re-executes the stored DuskQuery against the live tree.
+/// For q-refs, re-executes the stored TapirQuery against the live tree.
 /// Returns `null` when the ref is unknown / unmounted; callers fall back
 /// to the root-scrollable walk in that case.
 BuildContext? _resolveRefContext(String ref) {
@@ -320,7 +320,7 @@ BuildContext? _resolveRefContext(String ref) {
 /// returns the materialised RefEntry, or null when the predicates no
 /// longer match.
 RefEntry? _resolveQueryToEntry(String qRef) {
-  final DuskQuery? query = RefRegistry.lookupQuery(qRef);
+  final TapirQuery? query = RefRegistry.lookupQuery(qRef);
   if (query == null) return null;
   return resolveQuery(query);
 }
@@ -358,7 +358,7 @@ bool _isLaidOut(ScrollableState state) =>
 
 /// Finds the first [ScrollableState] reachable from the widget tree root.
 ///
-/// Used when no `ref` parameter is supplied to `ext.dusk.scroll`. Walks the
+/// Used when no `ref` parameter is supplied to `ext.tapir.scroll`. Walks the
 /// element tree depth-first and returns the context of the first
 /// [Scrollable]-typed widget whose [ScrollableState] has an attached position.
 ScrollableState? _findRootScrollable() {
@@ -381,10 +381,10 @@ ScrollableState? _findRootScrollable() {
 }
 
 // -----------------------------------------------------------------------------
-// ext.dusk.select_option
+// ext.tapir.select_option
 // -----------------------------------------------------------------------------
 
-/// Handler for the `ext.dusk.select_option` VM Service extension.
+/// Handler for the `ext.tapir.select_option` VM Service extension.
 ///
 /// Resolves the element identified by [params] `ref`, walks its subtree to
 /// locate a [DropdownButton] (or compatible select widget), and calls
@@ -413,7 +413,7 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
           'Missing required parameter: value.',
-          DuskErrorEnvelope.missingParam('value'),
+          TapirErrorEnvelope.missingParam('value'),
         ),
       );
     }
@@ -436,7 +436,7 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
         developer.ServiceExtensionResponse.extensionError,
         wrapErrorDetail(
           'No selectable widget found for ref=$ref value=$value.',
-          DuskErrorEnvelope.notFound(
+          TapirErrorEnvelope.notFound(
             ref: ref ?? 'select',
             candidates: collectSnapshotCandidates(),
           ),
@@ -457,19 +457,19 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
     final String? settled =
         _readSelectedValue(ref == null ? null : _resolveRefContext(ref));
 
-    return duskResult(<String, dynamic>{
+    return tapirResult(<String, dynamic>{
       'selected': true,
       'value': value,
       'effect': selectedEffect(expected: value, actual: settled),
     });
   } catch (e, stackTrace) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.select_option error: $e\n$stackTrace',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.select_option error: $e\n$stackTrace',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), DuskErrorEnvelope.unexpected()),
+      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
     );
   }
 }

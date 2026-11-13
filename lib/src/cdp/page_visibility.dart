@@ -38,7 +38,7 @@ Future<bool?> isCdpPageHidden(int cdpPort, int? webPort) async {
     );
     final Object? value = (result['result'] as Map<String, dynamic>?)?['value'];
     return value is String ? value == 'hidden' : null;
-  } on DuskCdpException {
+  } on TapirCdpException {
     return null;
   } finally {
     await client?.close();
@@ -51,9 +51,9 @@ Future<bool?> isCdpPageHidden(int cdpPort, int? webPort) async {
 /// make the tab visible, so recovery has to come from outside the isolate.
 /// [webPort] picks the tab serving this run (`:<webPort>` in its URL) rather
 /// than an orphan tab left by a killed run; when it is null the first page
-/// tab is used, as `dusk:screenshot` does.
+/// tab is used, as `tapir:screenshot` does.
 ///
-/// Never throws: every [DuskCdpException] (port unreachable, no matching tab,
+/// Never throws: every [TapirCdpException] (port unreachable, no matching tab,
 /// a CDP error envelope, a timeout) becomes a [BringToFrontResult.failure],
 /// because the caller already holds a valid response it must not lose.
 Future<BringToFrontResult> bringCdpPageToFront(
@@ -66,14 +66,14 @@ Future<BringToFrontResult> bringCdpPageToFront(
       port: cdpPort,
       matchUrlSubstring: webPort == null ? null : ':$webPort',
     );
-  } on DuskCdpException catch (e) {
+  } on TapirCdpException catch (e) {
     return BringToFrontResult.failure(e.message);
   }
 
   try {
     await client.send('Page.bringToFront');
     return const BringToFrontResult.success();
-  } on DuskCdpException catch (e) {
+  } on TapirCdpException catch (e) {
     return BringToFrontResult.failure(e.message);
   } finally {
     await client.close();

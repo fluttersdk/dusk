@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/commands/web_visibility.dart';
+import 'package:tapir/src/commands/web_visibility.dart';
 
 import '../cdp/fake_cdp_server.dart';
 
@@ -12,9 +12,9 @@ import '../cdp/fake_cdp_server.dart';
 /// records every call, so a test can tell a re-call from a single call. An
 /// [Exception] in the list is thrown instead of returned, the way a DWDS
 /// timeout on a hidden tab reaches the command.
-class _SequenceContext extends ArtisanContext {
+class _SequenceContext extends DowelContext {
   _SequenceContext({
-    required ArtisanOutput output,
+    required DowelOutput output,
     required List<Object> responses,
   })  : _responses = responses,
         super.bare(MapInput(const {}), output);
@@ -70,14 +70,14 @@ void main() {
     String tabState = 'hidden';
 
     Future<void> writeState(Map<String, dynamic> data) async {
-      final Directory stateDir = Directory('${tempDir.path}/.artisan');
+      final Directory stateDir = Directory('${tempDir.path}/.dowel');
       await stateDir.create(recursive: true);
       await File('${stateDir.path}/state.json').writeAsString(jsonEncode(data));
       StateFile.debugHomeOverride = tempDir.path;
     }
 
     setUp(() async {
-      tempDir = await Directory.systemTemp.createTemp('dusk_web_visibility_');
+      tempDir = await Directory.systemTemp.createTemp('tapir_web_visibility_');
       cdpCalls = <String>[];
       tabState = 'hidden';
       server = await FakeCdpServer.start(
@@ -110,7 +110,7 @@ void main() {
 
       final response = await callExtensionVisible(
         ctx,
-        'ext.dusk.snap',
+        'ext.tapir.snap',
         const {},
         retry: true,
       );
@@ -129,7 +129,7 @@ void main() {
 
       final response = await callExtensionVisible(
         ctx,
-        'ext.dusk.snap',
+        'ext.tapir.snap',
         const {},
         retry: true,
       );
@@ -148,7 +148,7 @@ void main() {
 
       final response = await callExtensionVisible(
         ctx,
-        'ext.dusk.snap',
+        'ext.tapir.snap',
         const {},
         retry: true,
       );
@@ -168,13 +168,13 @@ void main() {
 
       final response = await callExtensionVisible(
         ctx,
-        'ext.dusk.snap',
+        'ext.tapir.snap',
         const {},
         retry: true,
       );
 
       expect(cdpCalls, equals(<String>['Page.bringToFront']));
-      expect(ctx.methods, equals(<String>['ext.dusk.snap', 'ext.dusk.snap']));
+      expect(ctx.methods, equals(<String>['ext.tapir.snap', 'ext.tapir.snap']));
       expect(response, same(_fresh));
     });
 
@@ -188,15 +188,15 @@ void main() {
 
       final response = await callExtensionVisible(
         ctx,
-        'ext.dusk.tap',
+        'ext.tapir.tap',
         const {'ref': 'e1'},
       );
 
       expect(cdpCalls, equals(<String>['Page.bringToFront']));
-      expect(ctx.methods, equals(<String>['ext.dusk.tap']));
+      expect(ctx.methods, equals(<String>['ext.tapir.tap']));
       expect(response, same(_hiddenWeb));
       expect(output.content, contains('not repeated'));
-      expect(output.content, contains('dusk:snap'));
+      expect(output.content, contains('tapir:snap'));
     });
 
     test('a CDP failure keeps the original response and says why', () async {
@@ -209,7 +209,7 @@ void main() {
 
       final response = await callExtensionVisible(
         ctx,
-        'ext.dusk.snap',
+        'ext.tapir.snap',
         const {},
         retry: true,
       );
@@ -234,14 +234,15 @@ void main() {
 
         final response = await callExtensionVisible(
           ctx,
-          'ext.dusk.snap',
+          'ext.tapir.snap',
           const {},
           retry: true,
         );
 
         expect(cdpCalls,
             equals(<String>['Runtime.evaluate', 'Page.bringToFront']));
-        expect(ctx.methods, equals(<String>['ext.dusk.snap', 'ext.dusk.snap']));
+        expect(
+            ctx.methods, equals(<String>['ext.tapir.snap', 'ext.tapir.snap']));
         expect(response, same(_fresh));
       });
 
@@ -254,22 +255,22 @@ void main() {
             _SequenceContext(output: output, responses: [timeout, _fresh]);
 
         await expectLater(
-          callExtensionVisible(ctx, 'ext.dusk.tap', const {'ref': 'e1'}),
+          callExtensionVisible(ctx, 'ext.tapir.tap', const {'ref': 'e1'}),
           throwsA(same(timeout)),
         );
 
         expect(cdpCalls,
             equals(<String>['Runtime.evaluate', 'Page.bringToFront']));
-        expect(ctx.methods, equals(<String>['ext.dusk.tap']));
+        expect(ctx.methods, equals(<String>['ext.tapir.tap']));
         expect(output.content, contains('was hidden'));
-        expect(output.content, contains('dusk:snap'));
+        expect(output.content, contains('tapir:snap'));
       });
 
-      test('a dusk refusal is not a hidden-tab symptom: no CDP call, no retry',
+      test('a tapir refusal is not a hidden-tab symptom: no CDP call, no retry',
           () async {
         await writeState({'cdpPort': server.port, 'webPort': 5123});
         final Exception refusal = Exception(
-          'ext.dusk.fill: (-32000) Server error {"message":"ref e5 is a '
+          'ext.tapir.fill: (-32000) Server error {"message":"ref e5 is a '
           'button, not a text field"}',
         );
         final ctx = _SequenceContext(
@@ -278,7 +279,7 @@ void main() {
         );
 
         await expectLater(
-          callExtensionVisible(ctx, 'ext.dusk.snap', const {}, retry: true),
+          callExtensionVisible(ctx, 'ext.tapir.snap', const {}, retry: true),
           throwsA(same(refusal)),
         );
 
@@ -295,7 +296,7 @@ void main() {
         );
 
         await expectLater(
-          callExtensionVisible(ctx, 'ext.dusk.snap', const {}, retry: true),
+          callExtensionVisible(ctx, 'ext.tapir.snap', const {}, retry: true),
           throwsA(same(timeout)),
         );
 
@@ -312,7 +313,7 @@ void main() {
         );
 
         await expectLater(
-          callExtensionVisible(ctx, 'ext.dusk.snap', const {}, retry: true),
+          callExtensionVisible(ctx, 'ext.tapir.snap', const {}, retry: true),
           throwsA(same(timeout)),
         );
 
@@ -328,7 +329,7 @@ void main() {
         );
 
         await expectLater(
-          callExtensionVisible(ctx, 'ext.dusk.snap', const {}, retry: true),
+          callExtensionVisible(ctx, 'ext.tapir.snap', const {}, retry: true),
           throwsA(same(timeout)),
         );
 

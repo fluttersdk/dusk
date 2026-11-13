@@ -2,11 +2,11 @@
 
 ## Stack
 
-Flutter package `fluttersdk_dusk` (Dart 3.4+, Flutter 3.22+), a plugin of `fluttersdk_artisan`. `DuskArtisanProvider` contributes the `dusk:*` CLI commands and the `dusk_*` MCP tool descriptors, both over the `ext.dusk.*` VM Service extensions. The counts are asserted in `test/dusk_artisan_provider_mcp_tools_test.dart`; do not copy them into prose without updating every doc that holds them.
+Flutter package `tapir` (Dart 3.4+, Flutter 3.22+), a plugin of `dowel`. `TapirDowelProvider` contributes the `tapir:*` CLI commands and the `tapir_*` MCP tool descriptors, both over the `ext.tapir.*` VM Service extensions. The counts are asserted in `test/tapir_dowel_provider_mcp_tools_test.dart`; do not copy them into prose without updating every doc that holds them.
 
-Production dependencies are limited to the list in Off-limits item 10. Consumers wrap `DuskPlugin.install()` in `if (!kReleaseMode)`, so debug and profile builds carry dusk (a profile build is what `dusk:perf_run` measures) and release builds tree-shake it.
+Production dependencies are limited to the list in Off-limits item 10. Consumers wrap `TapirPlugin.install()` in `if (!kReleaseMode)`, so debug and profile builds carry tapir (a profile build is what `tapir:perf_run` measures) and release builds tree-shake it.
 
-Two CLI surfaces: `bin/fluttersdk_dusk.dart` (Flutter-free wrapper, `dart run fluttersdk_dusk <cmd>`) and `lib/cli.dart` (exports `FluttersdkDuskArtisanProvider` for consumer `_plugins.g.dart` discovery). `install.yaml` drives `plugin:install fluttersdk_dusk`.
+Two CLI surfaces: `bin/tapir.dart` (Flutter-free wrapper, `dart run tapir <cmd>`) and `lib/cli.dart` (exports `TapirDowelProvider` for consumer `_plugins.g.dart` discovery). `install.yaml` drives `plugin:install tapir`.
 
 Before changing module boundaries or a main flow, read `ARCHITECTURE.md`; update it in the same change when a boundary, flow or invariant moves.
 
@@ -20,11 +20,11 @@ Before changing module boundaries or a main flow, read `ARCHITECTURE.md`; update
 | `dart pub publish --dry-run` | Exit 65 on warnings (a dirty git tree is one), 0 on a clean archive. |
 | `flutter test test/integration --tags=integration` | Manual CDP smoke run; needs Chrome. |
 
-A live check drives `example/` (`cd example && dart run fluttersdk_dusk start --device=macos`, then `dusk:*`, then `stop`). `flutter pub get` and a macOS build rewrite `example/pubspec.lock` and `example/macos/Runner.xcodeproj/project.pbxproj`: restore both before committing.
+A live check drives `example/` (`cd example && dart run tapir start --device=macos`, then `tapir:*`, then `stop`). `flutter pub get` and a macOS build rewrite `example/pubspec.lock` and `example/macos/Runner.xcodeproj/project.pbxproj`: restore both before committing.
 
 ## Golden rules
 
-1. **Doc sync.** A behavioural or interface change updates `README.md`, `ARCHITECTURE.md`, `CHANGELOG.md` (under `## [Unreleased]`), the matching `doc/**` page, `llms.txt` and `skills/fluttersdk-dusk/` in the same change.
+1. **Doc sync.** A behavioural or interface change updates `README.md`, `ARCHITECTURE.md`, `CHANGELOG.md` (under `## [Unreleased]`), the matching `doc/**` page, `llms.txt` and `skills/tapir/` in the same change.
 2. **Coverage stays at or above 80%.** Lift it with a test, never by excluding code.
 3. **Green gate plus TDD.** Format, analyze and the suite pass. Write the failing test first and confirm it fails for the right reason.
 4. **Payloads grow, they do not change.** New response keys are additive and absent on a healthy run; a default never changes meaning. Honest reporting beats a green tick: a verb that cannot confirm an effect says so.
@@ -33,22 +33,22 @@ A live check drives `example/` (`cd example && dart run fluttersdk_dusk start --
 
 One long-lived branch, `master`; direct pushes are blocked and everything lands through a PR. Task branches are cut from `master` with short kebab-case names (`feat/snap-ref-dedup`), one topic each.
 
-A release is a `release: X.Y.Z` PR that bumps the version stamps and promotes `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` with its footer link; merge it, then `git tag X.Y.Z && git push origin X.Y.Z`, which triggers `publish.yml`. The stamps: `pubspec.yaml`, `server.json` (guarded by a test), `skills/fluttersdk-dusk/SKILL.md` (frontmatter `version:` and the stamp comment) and `example/pubspec.lock`. Grep the old number before opening the PR.
+A release is a `release: X.Y.Z` PR that bumps the version stamps and promotes `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` with its footer link; merge it, then `git tag X.Y.Z && git push origin X.Y.Z`, which triggers `publish.yml`. The stamps: `pubspec.yaml`, `server.json` (guarded by a test), `skills/tapir/SKILL.md` (frontmatter `version:` and the stamp comment) and `example/pubspec.lock`. Grep the old number before opening the PR.
 
 ## Off-limits (FROZEN contracts)
 
-These change only with a coordinated bump across `fluttersdk_dusk`, `magic` and `wind`:
+These change only with a coordinated bump across `tapir`, `magic` and `wind`:
 
-1. `DuskSnapshotEnricher` typedef: `String? Function(Element, RefRegistry)`.
-2. `DuskNavigateAdapter` typedef: `Future<bool> Function(String route)`.
-3. `DuskPlugin.install()` and `DuskPlugin.registerNavigateAdapter()` signatures, and the `DuskPlugin.enrichers` live-read list that magic appends to.
+1. `TapirSnapshotEnricher` typedef: `String? Function(Element, RefRegistry)`.
+2. `TapirNavigateAdapter` typedef: `Future<bool> Function(String route)`.
+3. `TapirPlugin.install()` and `TapirPlugin.registerNavigateAdapter()` signatures, and the `TapirPlugin.enrichers` live-read list that magic appends to.
 4. `RefRegistry` public signatures: `register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`. Adding statics (`bind`, `lookupBinding`, `rebind`) is not a signature change.
-5. The `DuskActionabilityException` reason substrings agents branch on: `"defunct (element no longer mounted)"`, `"not enabled"`, `"zero rect"`, `"off-viewport (rect=..., viewport=...)"`, `"not stable (rect changed by Xpx)"`, `"obscured by other widget (top=...)"`.
+5. The `TapirActionabilityException` reason substrings agents branch on: `"defunct (element no longer mounted)"`, `"not enabled"`, `"zero rect"`, `"off-viewport (rect=..., viewport=...)"`, `"not stable (rect changed by Xpx)"`, `"obscured by other widget (top=...)"`.
 6. The actionability-gate evaluation order: (0) defunct preflight, (1) enabled, (2) zero rect, (3) off-viewport (auto `showOnScreen` under a `Scrollable`), (4) not stable (2-frame drift above 0.5px; `--no-checkStable`), (5) receives events (hit test reaches the target or a descendant; `--no-checkReceivesEvents`). New checks append. Step 5 reports `confirmed` / `indeterminate` / `skipped`; the report may grow, the order and substrings may not.
 7. The `e<N>` and `q<N>` token spaces are disjoint: never mint `e<N>` from `find`/`observe`, nor `q<N>` from `snap`.
-8. The six alpha-1 MCP names (`dusk_snap`, `dusk_tap`, `dusk_screenshot`, `dusk_hover`, `dusk_drag`, `dusk_type`) and their `ext.dusk.*` methods.
+8. The six alpha-1 MCP names (`tapir_snap`, `tapir_tap`, `tapir_screenshot`, `tapir_hover`, `tapir_drag`, `tapir_type`) and their `ext.tapir.*` methods.
 9. `install.yaml`: load-bearing for `plugin:install`; keep its bootstrap message and `executables:` mapping.
-10. No production dependency beyond `fluttersdk_artisan`, `image`, `meta`, `fluttersdk_wind_diagnostics_contracts`, `yaml`.
+10. No production dependency beyond `dowel`, `image`, `meta`, `wind_kit_diagnostics_contracts`, `yaml`.
 
 ## Style
 

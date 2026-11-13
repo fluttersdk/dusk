@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/cli_args.dart';
+import 'package:tapir/src/cli_args.dart';
 
 void main() {
   group('injectInvocationForMcpInstall()', () {
@@ -8,7 +8,7 @@ void main() {
         () {
       final result = injectInvocationForMcpInstall(
         ['list'],
-        'fluttersdk_dusk',
+        'tapir',
       );
       expect(result, equals(['list']));
     });
@@ -17,9 +17,9 @@ void main() {
         () {
       final result = injectInvocationForMcpInstall(
         ['mcp:install'],
-        'fluttersdk_dusk',
+        'tapir',
       );
-      expect(result, equals(['mcp:install', '--invocation=fluttersdk_dusk']));
+      expect(result, equals(['mcp:install', '--invocation=tapir']));
     });
 
     test(
@@ -27,7 +27,7 @@ void main() {
         () {
       final result = injectInvocationForMcpInstall(
         ['mcp:install', '--invocation=foo'],
-        'fluttersdk_dusk',
+        'tapir',
       );
       expect(result, equals(['mcp:install', '--invocation=foo']));
     });
@@ -37,7 +37,7 @@ void main() {
         () {
       final result = injectInvocationForMcpInstall(
         ['mcp:install', '--invocation', 'foo'],
-        'fluttersdk_dusk',
+        'tapir',
       );
       expect(result, equals(['mcp:install', '--invocation', 'foo']));
     });

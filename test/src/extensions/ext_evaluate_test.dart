@@ -3,8 +3,8 @@ import 'dart:developer' as developer;
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_evaluate.dart';
-import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
+import 'package:tapir/src/extensions/ext_evaluate.dart';
+import 'package:tapir/src/utils/error_envelope.dart';
 
 void main() {
   // These call the handler from a bare `test()`, so the binding the response
@@ -12,15 +12,15 @@ void main() {
   // warning) is not initialised for free the way `testWidgets` does it.
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('ext.dusk.evaluate', () {
+  group('ext.tapir.evaluate', () {
     // -------------------------------------------------------------------------
     // (a) Missing expression parameter returns extensionError
     // -------------------------------------------------------------------------
 
     test('(a) missing expression param returns extensionError', () async {
       final developer.ServiceExtensionResponse response =
-          await extDuskEvaluateHandler(
-        'ext.dusk.evaluate',
+          await extTapirEvaluateHandler(
+        'ext.tapir.evaluate',
         const <String, String>{},
         evaluator: null,
       );
@@ -49,8 +49,8 @@ void main() {
 
     test('(b) simple expression returns correct envelope shape', () async {
       final developer.ServiceExtensionResponse response =
-          await extDuskEvaluateHandler(
-        'ext.dusk.evaluate',
+          await extTapirEvaluateHandler(
+        'ext.tapir.evaluate',
         const <String, String>{'expression': '1 + 1'},
         evaluator: (String expr) async => '2',
       );
@@ -75,8 +75,8 @@ void main() {
 
         String? capturedExpr;
         final developer.ServiceExtensionResponse response =
-            await extDuskEvaluateHandler(
-          'ext.dusk.evaluate',
+            await extTapirEvaluateHandler(
+          'ext.tapir.evaluate',
           const <String, String>{
             'expression':
                 "Magic.find<MonitorController>().rxState.value.toString()",
@@ -105,8 +105,8 @@ void main() {
       '(d) evaluator error (compile error) returns extensionError',
       () async {
         final developer.ServiceExtensionResponse response =
-            await extDuskEvaluateHandler(
-          'ext.dusk.evaluate',
+            await extTapirEvaluateHandler(
+          'ext.tapir.evaluate',
           const <String, String>{'expression': 'invalid dart !!syntax!!'},
           evaluator: (_) async =>
               throw Exception('CompilationError: unexpected token'),
@@ -143,8 +143,8 @@ void main() {
       '(f) handler with no injected evaluator falls back to sentinel',
       () async {
         final developer.ServiceExtensionResponse response =
-            await extDuskEvaluateHandler(
-          'ext.dusk.evaluate',
+            await extTapirEvaluateHandler(
+          'ext.tapir.evaluate',
           const <String, String>{'expression': 'someExpr()'},
           // evaluator omitted → _sentinelEvaluator fires.
         );

@@ -4,8 +4,8 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 import '../../_support/merged_stage.dart';
 
@@ -74,7 +74,7 @@ String _lineFor(String snapshot, String label) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('duskSnapBuild', () {
+  group('tapirSnapBuild', () {
     setUp(() {
       RefRegistry.resetForTesting();
       resetSnapshotBaselineForTesting();
@@ -138,7 +138,7 @@ void main() {
       ) async {
         await tester.pumpWidget(screen());
 
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
 
         expect(snapshotBaseline, equals(snapshot));
       });
@@ -147,12 +147,12 @@ void main() {
         WidgetTester tester,
       ) async {
         await tester.pumpWidget(screen());
-        await duskSnapBuild();
+        await tapirSnapBuild();
 
         await tester.pumpWidget(
           MaterialApp(home: Scaffold(body: _button('Create monitor'))),
         );
-        final String second = (await duskSnapBuild())['snapshot'] as String;
+        final String second = (await tapirSnapBuild())['snapshot'] as String;
 
         expect(snapshotBaseline, equals(second));
       });
@@ -161,12 +161,12 @@ void main() {
         WidgetTester tester,
       ) async {
         await tester.pumpWidget(screen());
-        final String full = (await duskSnapBuild())['snapshot'] as String;
+        final String full = (await tapirSnapBuild())['snapshot'] as String;
 
         final String grepped =
-            (await duskSnapBuild(grep: 'Create'))['snapshot'] as String;
-        await duskSnapBuild(maxDepth: 0);
-        await duskSnapBuild(interactiveOnly: true);
+            (await tapirSnapBuild(grep: 'Create'))['snapshot'] as String;
+        await tapirSnapBuild(maxDepth: 0);
+        await tapirSnapBuild(interactiveOnly: true);
 
         expect(grepped, isNot(equals(full)));
         expect(snapshotBaseline, equals(full));
@@ -177,7 +177,7 @@ void main() {
       ) async {
         await tester.pumpWidget(screen());
 
-        await duskSnapBuild(grep: 'Create');
+        await tapirSnapBuild(grep: 'Create');
 
         expect(snapshotBaseline, isNull);
       });
@@ -187,7 +187,7 @@ void main() {
       ) async {
         await tester.pumpWidget(screen());
 
-        await duskSnapBuild(includeEnrichers: true);
+        await tapirSnapBuild(includeEnrichers: true);
 
         expect(snapshotBaseline, isNull);
       });
@@ -212,7 +212,7 @@ void main() {
         );
 
         final Map<String, dynamic> payload =
-            await duskSnapBuild(grep: _unbalancedLabel);
+            await tapirSnapBuild(grep: _unbalancedLabel);
         final String snapshot = payload['snapshot'] as String;
 
         expect(snapshot, contains(_unbalancedLabel));
@@ -238,7 +238,7 @@ void main() {
         );
 
         final Map<String, dynamic> payload =
-            await duskSnapBuild(grep: 'Create|Delete');
+            await tapirSnapBuild(grep: 'Create|Delete');
         final String snapshot = payload['snapshot'] as String;
 
         expect(snapshot, contains('Create monitor'));
@@ -257,8 +257,8 @@ void main() {
         );
 
         final developer.ServiceExtensionResponse response =
-            await duskSnapHandler(
-          'ext.dusk.snap',
+            await tapirSnapHandler(
+          'ext.tapir.snap',
           const <String, String>{'grep': _unbalancedLabel},
         );
 
@@ -277,7 +277,7 @@ void main() {
         _useSmallView(tester);
         await tester.pumpWidget(_visibilityScreen());
 
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
 
         expect(_lineFor(snapshot, 'Away'), endsWith(' [offscreen]'));
         expect(_lineFor(snapshot, 'Away'),
@@ -291,7 +291,7 @@ void main() {
         _useSmallView(tester);
         await tester.pumpWidget(_visibilityScreen());
 
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
 
         expect(_lineFor(snapshot, 'Covered'), endsWith(' [occluded]'));
         expect(_lineFor(snapshot, 'Visible'), isNot(contains('[occluded]')));
@@ -326,7 +326,7 @@ void main() {
           ),
         );
 
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
 
         expect(_lineFor(snapshot, 'Inside'), matches(r'\[ref=e\d+\]$'));
       });
@@ -349,7 +349,7 @@ void main() {
           ),
         );
 
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
 
         expect(snapshot, equals('- button "Save" [ref=e1]\n- text "Saved"\n'));
       });
@@ -373,7 +373,7 @@ void main() {
           ),
         );
 
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
         final List<String> saveRefs = RegExp(r'"Save" \[ref=(e\d+)\]')
             .allMatches(snapshot)
             .map((RegExpMatch m) => m.group(1)!)
@@ -404,7 +404,7 @@ void main() {
           ),
         );
 
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
         final String ref =
             RegExp(r'"Save" \[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
         final Route<dynamic>? expected =
@@ -430,7 +430,7 @@ void main() {
           ),
         );
 
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
         final String ref =
             RegExp(r'"Save" \[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
 
@@ -458,7 +458,7 @@ void main() {
           ),
         );
 
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
         final String ref =
             RegExp(r'button "" \[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
 
@@ -485,7 +485,8 @@ void main() {
             mergedStageApp(onStageTap: () {}, onSkip: () {}),
           );
 
-          final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+          final String snapshot =
+              (await tapirSnapBuild())['snapshot'] as String;
 
           // The control is 120x40, inset 24px from the bottom-right corner.
           expect(
@@ -513,7 +514,7 @@ void main() {
           MaterialApp(home: Scaffold(body: _button('Save'))),
         );
 
-        final String snapshot = (await duskSnapBuild())['snapshot'] as String;
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
 
         expect(snapshot, contains('"Save"'));
         expect(snapshot, isNot(contains('tapOwner')));

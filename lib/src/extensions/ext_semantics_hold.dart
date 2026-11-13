@@ -1,30 +1,30 @@
 import 'dart:developer' as developer;
 
 import 'package:flutter/rendering.dart';
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
-import '../dusk_plugin.dart';
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../tapir_plugin.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/frame_sync.dart';
 import 'ext_perf.dart' show perfSessionOpen;
 
-/// Registers `ext.dusk.semantics_hold`. Idempotent via
-/// [registerExtensionIdempotent]; call once from `registerAllDuskExtensions()`.
+/// Registers `ext.tapir.semantics_hold`. Idempotent via
+/// [registerExtensionIdempotent]; call once from `registerAllTapirExtensions()`.
 void registerSemanticsHoldExtension() {
-  registerDuskExtension(
-    'ext.dusk.semantics_hold',
-    duskSemanticsHoldHandler,
+  registerTapirExtension(
+    'ext.tapir.semantics_hold',
+    tapirSemanticsHoldHandler,
     ensureFrames: false,
   );
 }
 
-/// Handler for `ext.dusk.semantics_hold`: releases or re-acquires the
-/// semantics handle dusk keeps for the whole process.
+/// Handler for `ext.tapir.semantics_hold`: releases or re-acquires the
+/// semantics handle tapir keeps for the whole process.
 ///
 /// That handle makes the framework build the semantics tree on every frame,
-/// so every dusk-driven measurement carries its cost. `dusk:perf_run
+/// so every tapir-driven measurement carries its cost. `tapir:perf_run
 /// --semantics-pass` releases it for one timed window to measure the app
 /// without it, and re-acquires it after `perf_end` has closed the window, so
 /// the acquire's full tree rebuild is not a frame of the session.
@@ -54,8 +54,8 @@ void registerSemanticsHoldExtension() {
 /// ```
 ///
 /// While released, a target cannot be resolved through the tree: resolve
-/// rects first and dispatch `ext.dusk.tap` / `ext.dusk.drag` by coordinates.
-Future<developer.ServiceExtensionResponse> duskSemanticsHoldHandler(
+/// rects first and dispatch `ext.tapir.tap` / `ext.tapir.drag` by coordinates.
+Future<developer.ServiceExtensionResponse> tapirSemanticsHoldHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -67,15 +67,15 @@ Future<developer.ServiceExtensionResponse> duskSemanticsHoldHandler(
         return developer.ServiceExtensionResponse.error(
           developer.ServiceExtensionResponse.extensionError,
           wrapErrorDetail(
-            'ext.dusk.semantics_hold: release is only allowed inside an open '
+            'ext.tapir.semantics_hold: release is only allowed inside an open '
             'perf session, the timed window it exists for. Call '
-            'ext.dusk.perf_begin first, and acquire after ext.dusk.perf_end.',
-            DuskErrorEnvelope.unexpected(),
+            'ext.tapir.perf_begin first, and acquire after ext.tapir.perf_end.',
+            TapirErrorEnvelope.unexpected(),
           ),
         );
       }
-      final bool released = DuskPlugin.releaseSemantics();
-      return duskResult(<String, dynamic>{
+      final bool released = TapirPlugin.releaseSemantics();
+      return tapirResult(<String, dynamic>{
         'action': action,
         'released': released,
         'semanticsEnabled': SemanticsBinding.instance.semanticsEnabled,
@@ -83,9 +83,9 @@ Future<developer.ServiceExtensionResponse> duskSemanticsHoldHandler(
             SemanticsBinding.instance.platformDispatcher.semanticsEnabled,
       });
     case 'acquire':
-      final bool acquired = DuskPlugin.acquireSemantics();
+      final bool acquired = TapirPlugin.acquireSemantics();
       await awaitFrameOrTimeout();
-      return duskResult(<String, dynamic>{
+      return tapirResult(<String, dynamic>{
         'action': action,
         'acquired': acquired,
         'semanticsEnabled': SemanticsBinding.instance.semanticsEnabled,
@@ -95,9 +95,9 @@ Future<developer.ServiceExtensionResponse> duskSemanticsHoldHandler(
       return developer.ServiceExtensionResponse.error(
         developer.ServiceExtensionResponse.invalidParams,
         wrapErrorDetail(
-          'ext.dusk.semantics_hold: action "$action" is not one of release, '
+          'ext.tapir.semantics_hold: action "$action" is not one of release, '
           'acquire.',
-          DuskErrorEnvelope.missingParam('action'),
+          TapirErrorEnvelope.missingParam('action'),
         ),
       );
   }

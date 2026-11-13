@@ -1,23 +1,23 @@
 # Wind integration
 
-Wind 1.0.0-alpha.10 removed `WindDuskIntegration` and all dusk-specific shim code from the wind package.
-Wind state now surfaces through the neutral `fluttersdk_wind_diagnostics_contracts.WindDebugRegistry` bridge,
-which both wind (prod dep) and dusk (prod dep) depend on directly without either depending on the other.
-Dusk reads `WindDebugRegistry.current?.resolve(element)` inside `ext_snapshot.dart` and `ext_observe.dart`
-ahead of the enricher loop, so no dusk-side install call is required for wind metadata to appear.
+Wind 1.0.0-alpha.10 removed `WindTapirIntegration` and all tapir-specific shim code from the wind package.
+Wind state now surfaces through the neutral `wind_kit_diagnostics_contracts.WindDebugRegistry` bridge,
+which both wind (prod dep) and tapir (prod dep) depend on directly without either depending on the other.
+Tapir reads `WindDebugRegistry.current?.resolve(element)` inside `ext_snapshot.dart` and `ext_observe.dart`
+ahead of the enricher loop, so no tapir-side install call is required for wind metadata to appear.
 The 6 core fields still appear under the `wind:` block of every W-prefixed widget's snapshot ref.
 
 ## Host integration
 
-Call `Wind.installDebugResolver()` inside the host's `!kReleaseMode` branch, after `DuskPlugin.install()`.
-No additional dusk-side registration is required; dusk reads the resolver through the neutral contracts bridge
+Call `Wind.installDebugResolver()` inside the host's `!kReleaseMode` branch, after `TapirPlugin.install()`.
+No additional tapir-side registration is required; tapir reads the resolver through the neutral contracts bridge
 at snap time.
 
 ```dart
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   if (!kReleaseMode) {
-    DuskPlugin.install();
+    TapirPlugin.install();
     Wind.installDebugResolver();
   }
   runApp(app);
@@ -29,7 +29,7 @@ dart2native (mobile and desktop AOT).
 
 ## The six core fields
 
-Dusk emits a `wind:` YAML block under each W-widget ref by resolving the element through
+Tapir emits a `wind:` YAML block under each W-widget ref by resolving the element through
 `WindDebugRegistry.current?.resolve(element)` before the enricher loop runs. Six core fields are always
 evaluated. The first four (`breakpoint`, `brightness`, `platform`, `states`) are always present; the last two
 (`bgColor`, `textColor`) appear only when the resolved `WindStyle` carries a non-null `decoration.color` /
@@ -78,7 +78,7 @@ tracking. When enabled, a `resolvedVia:` line appears per ref listing the comma-
 property, showing which `className` prefix activated each resolved value. Disable provenance to return to the
 production-cheap, cache-friendly path.
 
-The `DuskSnapshotEnricher` typedef is frozen at `String? Function(Element, RefRegistry)`; threading a third
+The `TapirSnapshotEnricher` typedef is frozen at `String? Function(Element, RefRegistry)`; threading a third
 argument through the call would break the contract. See [enricher-authoring](enricher-authoring) for the
 frozen contract details.
 
@@ -92,7 +92,7 @@ bridge instead. Production code never calls any reset method.
 
 ## Cross-package coupling
 
-The `fluttersdk_wind_diagnostics_contracts` package is a hosted dependency for both `fluttersdk_dusk` and
+The `wind_kit_diagnostics_contracts` package is a hosted dependency for both `tapir` and
 `wind`; the outer `pubspec.yaml` may need a `dependency_overrides` block pointing to the local path during
 local development until the upstream repository is published on pub.dev (see CLAUDE.local.md wind alpha-10
 migration section for the exact override snippet).

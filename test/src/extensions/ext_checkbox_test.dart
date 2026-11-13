@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_checkbox.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/extensions/ext_checkbox.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -49,7 +49,7 @@ void main() {
         );
 
         final future = aiTestSetCheckboxHandler(
-          'ext.dusk.set_checkbox',
+          'ext.tapir.set_checkbox',
           <String, String>{
             'ref': ref,
             'value': 'true',
@@ -107,7 +107,7 @@ void main() {
         );
 
         final future = aiTestSetCheckboxHandler(
-          'ext.dusk.set_checkbox',
+          'ext.tapir.set_checkbox',
           <String, String>{
             'ref': ref,
             'value': 'false',
@@ -175,7 +175,7 @@ void main() {
 
         // Ask to set to true when already true — should be a no-op.
         final response = await aiTestSetCheckboxHandler(
-          'ext.dusk.set_checkbox',
+          'ext.tapir.set_checkbox',
           <String, String>{
             'ref': ref,
             'value': 'true',
@@ -199,7 +199,7 @@ void main() {
       '(d) ref not found returns not_found error envelope',
       () async {
         final response = await aiTestSetCheckboxHandler(
-          'ext.dusk.set_checkbox',
+          'ext.tapir.set_checkbox',
           <String, String>{
             'ref': 'e999',
             'value': 'true',
@@ -220,7 +220,7 @@ void main() {
       '(e) missing value param returns missing_param error envelope',
       () async {
         final response = await aiTestSetCheckboxHandler(
-          'ext.dusk.set_checkbox',
+          'ext.tapir.set_checkbox',
           <String, String>{'ref': 'e1'},
         );
 
@@ -237,7 +237,7 @@ void main() {
       '(f) missing ref param returns missing_param error envelope',
       () async {
         final response = await aiTestSetCheckboxHandler(
-          'ext.dusk.set_checkbox',
+          'ext.tapir.set_checkbox',
           const <String, String>{'value': 'true'},
         );
         expect(response.result, isNull);
@@ -250,7 +250,7 @@ void main() {
       '(g) empty ref string returns missing_param error envelope',
       () async {
         final response = await aiTestSetCheckboxHandler(
-          'ext.dusk.set_checkbox',
+          'ext.tapir.set_checkbox',
           const <String, String>{'ref': '', 'value': 'true'},
         );
         expect(response.result, isNull);
@@ -262,7 +262,7 @@ void main() {
       '(h) empty value string returns missing_param error envelope',
       () async {
         final response = await aiTestSetCheckboxHandler(
-          'ext.dusk.set_checkbox',
+          'ext.tapir.set_checkbox',
           const <String, String>{'ref': 'e1', 'value': ''},
         );
         expect(response.result, isNull);
@@ -308,7 +308,7 @@ void main() {
         );
 
         final future = aiTestSetCheckboxHandler(
-          'ext.dusk.set_checkbox',
+          'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'true'},
         );
         await tester.pump(const Duration(milliseconds: 100));

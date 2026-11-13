@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/utils/chrome_reaper.dart';
+import 'package:tapir/src/utils/chrome_reaper.dart';
 
 /// Records every invocation routed through [chromeReaperRunner] so tests can
 /// assert on the (executable, arguments) tuples produced by the reaper.

@@ -9,7 +9,7 @@ through `ensureActionable(entry, ref: ...)`. The gate guards an agent against
 firing a gesture against a widget that cannot accept it: disabled, collapsed,
 off-screen, animating, or covered by another widget.
 
-A failed gate throws a typed `DuskActionabilityException` whose `message` is
+A failed gate throws a typed `TapirActionabilityException` whose `message` is
 re-emitted by the VM-Service handler as
 `ServiceExtensionResponse.error(extensionError, exception.message)`. Agents
 parse the failure-reason substring to decide whether to re-snap, re-find,
@@ -89,7 +89,7 @@ same-type-and-key rebuild, so the live rect is valid and the pointer lands on
 the moved target instead of its stale gate-time position. A residual TOCTOU
 window remains between the live-rect re-resolve and the dispatch itself (the
 smallest achievable without a frame lock); the `effect` block on every
-`ext.dusk.tap` response reports whether the tap produced an observable effect,
+`ext.tapir.tap` response reports whether the tap produced an observable effect,
 so the residual window is visible rather than silent.
 
 ## What the gate could not prove
@@ -147,8 +147,8 @@ against `$reason` to branch their recovery. **The substring list is FROZEN**:
 | `defunct (...)`    | `findRenderObject()` returns null OR Element is in `_ElementLifecycle.defunct` lifecycle state | Re-snap; the widget was deactivated. |
 | `not enabled`      | `flagsCollection.isEnabled == Tristate.isFalse`                             | Re-snap; the widget may enable later.         |
 | `zero rect`        | `rect.width == 0 \|\| rect.height == 0`                                     | Re-snap or re-find; layout has shifted.       |
-| `off-viewport`     | rect does not overlap the visible viewport (view minus `viewInsets`) even after `showOnScreen` + one frame | `dusk_scroll_to_ref` then retry. |
-| `not stable`       | live rect drifted > 0.5 logical pixels on any side across one frame         | `dusk_wait_for_network_idle` or settle delay. |
+| `off-viewport`     | rect does not overlap the visible viewport (view minus `viewInsets`) even after `showOnScreen` + one frame | `tapir_scroll_to_ref` then retry. |
+| `not stable`       | live rect drifted > 0.5 logical pixels on any side across one frame         | `tapir_wait_for_network_idle` or settle delay. |
 | `obscured by`      | hit-test at `rect.center` resolves to a non-descendant render object first  | Dismiss the obscurer (modal, scrim, overlay). |
 
 The off-viewport reason carries the rect and viewport
@@ -187,7 +187,7 @@ here so contributors do not add the gate "for symmetry":
 
 - **`scroll`**; operates on the parent `Scrollable` rather than the ref
   target. Gating the ref would refuse scrolls against widgets that are
-  off-viewport, which is exactly the scenario `dusk_scroll` is meant to fix.
+  off-viewport, which is exactly the scenario `tapir_scroll` is meant to fix.
 - **`select_option`**; dispatches through Material / Cupertino popup machinery
   that owns its own enabled check. Adding the gate would double-check enabled
   state and miss the popup-specific failure modes.
@@ -199,10 +199,10 @@ CHANGELOG `### Known gaps` section.
 
 ## Cross-package implications
 
-The four gated actions share a common error envelope. `DuskActionabilityException`
+The four gated actions share a common error envelope. `TapirActionabilityException`
 is caught by the VM-Service handler and re-emitted via
 `ServiceExtensionResponse.error(extensionError, exception.message)`. The
-MCP/CLI layer wraps the wire error in a `DuskErrorEnvelope` carrying the
+MCP/CLI layer wraps the wire error in a `TapirErrorEnvelope` carrying the
 flat message string; consuming agents (Claude Code, Cursor, Windsurf via the
 MCP tool surface) parse the envelope and branch on the reason substring.
 
@@ -216,8 +216,8 @@ The contract guarantee is:
   the agent cannot diagnose.
 
 A change to any of these guarantees requires a coordinated bump across
-`fluttersdk_dusk` (this package), `magic` (whose `MagicDuskIntegration` ships
+`tapir` (this package), `magic` (whose `MagicTapirIntegration` ships
 seven enrichers and may surface gated actions through Magic facades), and
 `wind` (whose `WindClassNameEnricher` participates in the snapshot pipeline
 that mints the refs the gate guards). Treat the gate's public contract as
-load-bearing across the FlutterSDK ecosystem.
+load-bearing across the ecosystem.

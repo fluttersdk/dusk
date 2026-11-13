@@ -1,0 +1,74 @@
+import 'dart:convert';
+
+import 'package:dowel/dowel.dart';
+
+import 'frame_warning_output.dart';
+import 'json_output.dart';
+
+/// `dowel tapir:dblclick --ref=<ref>` — fire a double-click at the widget
+/// identified by a snapshot ref.
+///
+/// Wraps the `ext.tapir.dblclick` VM Service extension which injects two tap
+/// sequences with a ~100ms inter-tap delay, matching Playwright's double-click
+/// model. The 4-gate actionability check runs before both taps; the post-action
+/// snapshot is captured once after the second tap completes.
+class TapirDblclickCommand extends DowelCommand {
+  @override
+  String get name => 'tapir:dblclick';
+
+  @override
+  String get description =>
+      'Fire a double-click at the widget identified by a snapshot ref.';
+
+  @override
+  CommandBoot get boot => CommandBoot.connected;
+
+  @override
+  void configure(ArgParser parser) {
+    addJsonFlag(parser);
+    parser.addOption(
+      'ref',
+      help: 'Widget ref token from a prior tapir:snap call (e.g. e5).',
+    );
+    parser.addFlag('includeSnapshot',
+        help: 'Embed the post-dblclick snapshot in the response.',
+        defaultsTo: false);
+    parser.addFlag('checkStable',
+        help: 'Run the Stable actionability gate.', defaultsTo: true);
+    parser.addFlag('checkReceivesEvents',
+        help: 'Run the Receives-Events actionability gate.', defaultsTo: true);
+  }
+
+  @override
+  Future<int> handle(DowelContext ctx) async {
+    final String? ref = ctx.input.option('ref') as String?;
+
+    if (ref == null || ref.isEmpty) {
+      ctx.output.error('Provide --ref with a widget ref token (e.g. e5).');
+      return 1;
+    }
+    final includeSnapshot =
+        (ctx.input.option('includeSnapshot') as bool?) ?? false;
+    final checkStable = (ctx.input.option('checkStable') as bool?) ?? true;
+    final checkReceivesEvents =
+        (ctx.input.option('checkReceivesEvents') as bool?) ?? true;
+
+    final response = await ctx.callExtension<Map<String, dynamic>>(
+      'ext.tapir.dblclick',
+      {
+        'ref': ref,
+        'includeSnapshot': includeSnapshot.toString(),
+        'checkStable': checkStable.toString(),
+        'checkReceivesEvents': checkReceivesEvents.toString(),
+      },
+    );
+    reportFrameWarning(ctx, response);
+    if (includeSnapshot) {
+      ctx.output.writeln(jsonEncode(response));
+    } else {
+      emitEnvelope(
+          ctx, response, () => ctx.output.success('Double-clicked ref $ref'));
+    }
+    return 0;
+  }
+}

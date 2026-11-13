@@ -4,8 +4,8 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_focus.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/extensions/ext_focus.dart';
+import 'package:tapir/src/ref_registry.dart';
 
 /// Decodes a SUCCESS response payload. Asserts that the response is
 /// success-shaped (`result != null`) before parsing.
@@ -26,7 +26,7 @@ void main() {
     test('(a) missing ref param returns missing_param error envelope',
         () async {
       final response = await aiTestFocusHandler(
-        'ext.dusk.focus',
+        'ext.tapir.focus',
         <String, String>{},
       );
       expect(response.result, isNull);
@@ -38,7 +38,7 @@ void main() {
 
     test('(b) empty ref param returns missing_param error envelope', () async {
       final response = await aiTestFocusHandler(
-        'ext.dusk.focus',
+        'ext.tapir.focus',
         const <String, String>{'ref': ''},
       );
       expect(response.result, isNull);
@@ -47,7 +47,7 @@ void main() {
 
     test('(c) unknown ref token returns not-found error envelope', () async {
       final response = await aiTestFocusHandler(
-        'ext.dusk.focus',
+        'ext.tapir.focus',
         const <String, String>{'ref': 'e9999'},
       );
       expect(response.result, isNull);
@@ -98,7 +98,7 @@ void main() {
       // `await WidgetsBinding.instance.endOfFrame` blocks until a frame
       // pumps, and `flutter_test`'s FakeAsync only advances on tester.pump.
       final future = aiTestFocusHandler(
-        'ext.dusk.focus',
+        'ext.tapir.focus',
         <String, String>{'ref': ref},
       );
       await tester.pump(const Duration(milliseconds: 50));
@@ -132,7 +132,7 @@ void main() {
       );
 
       final response = await aiTestFocusHandler(
-        'ext.dusk.focus',
+        'ext.tapir.focus',
         <String, String>{'ref': ref},
       );
       expect(response.result, isNull);
@@ -166,7 +166,7 @@ void main() {
       expect(FocusManager.instance.primaryFocus, equals(node));
 
       final future = aiTestBlurHandler(
-        'ext.dusk.blur',
+        'ext.tapir.blur',
         const <String, String>{},
       );
       await tester.pump(const Duration(milliseconds: 50));
@@ -188,7 +188,7 @@ void main() {
       // root node depending on the test binding. The handler always reports
       // a stable shape — the test asserts only on the envelope keys.
       final future = aiTestBlurHandler(
-        'ext.dusk.blur',
+        'ext.tapir.blur',
         const <String, String>{},
       );
       await tester.pump(const Duration(milliseconds: 50));

@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
-/// Declares the `--json` flag every `dusk:*` command accepts.
+/// Declares the `--json` flag every `tapir:*` command accepts.
 ///
 /// The CLI used to split by verb: read commands printed JSON, the
 /// side-effect verbs printed a one-line summary, and a few printed a human
@@ -22,7 +22,7 @@ void addJsonFlag(ArgParser parser) {
 }
 
 /// True when the caller asked for the JSON envelope.
-bool wantsJson(ArtisanContext ctx) =>
+bool wantsJson(DowelContext ctx) =>
     (ctx.input.option('json') as bool?) ?? false;
 
 /// Prints [response] as JSON when `--json` is set, and calls [summary]
@@ -31,7 +31,7 @@ bool wantsJson(ArtisanContext ctx) =>
 /// [summary] is a callback rather than a string so a command never pays to
 /// build a sentence the caller is not going to read.
 void emitEnvelope(
-  ArtisanContext ctx,
+  DowelContext ctx,
   Map<String, dynamic> response,
   void Function() summary,
 ) {

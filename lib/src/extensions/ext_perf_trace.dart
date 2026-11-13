@@ -1,21 +1,21 @@
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
-import 'package:fluttersdk_artisan/artisan.dart';
+import 'package:dowel/dowel.dart';
 
-import '../utils/dusk_register.dart';
-import '../utils/dusk_response.dart';
+import '../utils/tapir_register.dart';
+import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
 import '../utils/perf_interaction.dart';
 import '../utils/perf_readers.dart';
 import 'ext_perf.dart';
 
-/// Registers `ext.dusk.perf_trace`. Idempotent via
-/// [registerExtensionIdempotent]; call once from `registerAllDuskExtensions()`.
+/// Registers `ext.tapir.perf_trace`. Idempotent via
+/// [registerExtensionIdempotent]; call once from `registerAllTapirExtensions()`.
 void registerPerfTraceExtension() {
-  registerDuskExtension(
-    'ext.dusk.perf_trace',
-    duskPerfTraceHandler,
+  registerTapirExtension(
+    'ext.tapir.perf_trace',
+    tapirPerfTraceHandler,
     ensureFrames: false,
   );
 }
@@ -23,11 +23,11 @@ void registerPerfTraceExtension() {
 /// The one process every event is filed under.
 const int _kPid = 1;
 
-/// Tracks dusk fills itself, listed first so they sit at the top.
+/// Tracks tapir fills itself, listed first so they sit at the top.
 const String _kInteractionTrack = 'interactions';
 const String _kFrameTrack = 'frames';
 
-/// Handler for `ext.dusk.perf_trace`: the most recent closed session's
+/// Handler for `ext.tapir.perf_trace`: the most recent closed session's
 /// timeline as Chrome Trace Event JSON, which ui.perfetto.dev and
 /// chrome://tracing open as is.
 ///
@@ -53,12 +53,12 @@ const String _kFrameTrack = 'frames';
 ///
 /// The frames and the host rows are read NOW, through [framePerfReader] and
 /// [perfTimelineReader], and cut to the session window; the interactions are
-/// dusk's own. So export before the next `perf_begin`, whose host hook clears
+/// tapir's own. So export before the next `perf_begin`, whose host hook clears
 /// those buffers: while a session is open this answers an error rather than a
 /// trace that silently lost its frames. Every miss is an error naming what to
 /// do instead, and a throwing host reader is an error envelope, never a throw
 /// across the VM Service boundary.
-Future<developer.ServiceExtensionResponse> duskPerfTraceHandler(
+Future<developer.ServiceExtensionResponse> tapirPerfTraceHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -67,14 +67,14 @@ Future<developer.ServiceExtensionResponse> duskPerfTraceHandler(
   final String? closed = lastClosedPerfToken;
   final ({int startUs, int endUs})? window = lastClosedPerfWindow;
   final String? problem = switch (closed) {
-    null => 'no closed perf session to export. Run ext.dusk.perf_begin, '
-        'drive the interaction, then ext.dusk.perf_end.',
+    null => 'no closed perf session to export. Run ext.tapir.perf_begin, '
+        'drive the interaction, then ext.tapir.perf_end.',
     _ when token != null && token != closed =>
       'session $token is not held; only the most recent closed session '
           '($closed) is kept. Export it, or rerun the session.',
     _ when perfSessionOpen =>
       'a perf session is open, and its perf_begin cleared the frames the '
-          'trace of $closed would read. Close it with ext.dusk.perf_end and '
+          'trace of $closed would read. Close it with ext.tapir.perf_end and '
           'export that session instead.',
     _ => null,
   };
@@ -82,8 +82,8 @@ Future<developer.ServiceExtensionResponse> duskPerfTraceHandler(
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.perf_trace: $problem',
-        DuskErrorEnvelope.unexpected(),
+        'ext.tapir.perf_trace: $problem',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }
@@ -95,7 +95,7 @@ Future<developer.ServiceExtensionResponse> duskPerfTraceHandler(
     final List<Map<String, Object?>> rows = perfTimelineReader();
 
     // 3. Build the trace from the window alone.
-    return duskResult(<String, dynamic>{
+    return tapirResult(<String, dynamic>{
       'sessionToken': closed,
       ...buildPerfTrace(
         token: closed!,
@@ -112,14 +112,14 @@ Future<developer.ServiceExtensionResponse> duskPerfTraceHandler(
     });
   } catch (e, st) {
     developer.log(
-      '[fluttersdk_dusk] ext.dusk.perf_trace: unexpected error: $e\n$st',
-      name: 'fluttersdk_dusk',
+      '[tapir] ext.tapir.perf_trace: unexpected error: $e\n$st',
+      name: 'tapir',
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
       wrapErrorDetail(
-        'ext.dusk.perf_trace: $e',
-        DuskErrorEnvelope.unexpected(),
+        'ext.tapir.perf_trace: $e',
+        TapirErrorEnvelope.unexpected(),
       ),
     );
   }
@@ -167,7 +167,7 @@ Map<String, Object?> buildPerfTrace({
     ..declare(_kFrameTrack);
   final List<Map<String, Object?>> events = <Map<String, Object?>>[];
 
-  // 1. Dusk's own interactions.
+  // 1. Tapir's own interactions.
   int interactionCount = 0;
   for (final Map<String, Object?> interaction in interactions) {
     final int start = _asInt(interaction['startUs']);
@@ -310,7 +310,7 @@ Map<String, Object?> buildPerfTrace({
         'ph': 'M',
         'name': 'process_name',
         'pid': _kPid,
-        'args': <String, Object?>{'name': 'fluttersdk_dusk $token'},
+        'args': <String, Object?>{'name': 'tapir $token'},
       },
       ...tracks.emit(),
       ...events,

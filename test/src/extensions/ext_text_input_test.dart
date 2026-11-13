@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fluttersdk_dusk/src/extensions/ext_find.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_text_input.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
-import 'package:fluttersdk_dusk/src/utils/error_envelope.dart';
+import 'package:tapir/src/extensions/ext_find.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/extensions/ext_text_input.dart';
+import 'package:tapir/src/ref_registry.dart';
+import 'package:tapir/src/utils/error_envelope.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -254,7 +254,7 @@ void main() {
         '(d) aiTestPressKeyHandler returns error when key is missing',
         () async {
           final response =
-              await aiTestPressKeyHandler('ext.dusk.press_key', {});
+              await aiTestPressKeyHandler('ext.tapir.press_key', {});
           expect(response.result, isNull);
         },
       );
@@ -263,7 +263,7 @@ void main() {
         '(d) aiTestPressKeyHandler error mentions missing key param',
         () async {
           final response =
-              await aiTestPressKeyHandler('ext.dusk.press_key', {});
+              await aiTestPressKeyHandler('ext.tapir.press_key', {});
           expect(response.errorDetail ?? '', contains('key'));
         },
       );
@@ -272,7 +272,7 @@ void main() {
         '(d) aiTestPressKeyHandler returns error when key is empty',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {'key': ''},
           );
           expect(response.result, isNull);
@@ -283,7 +283,7 @@ void main() {
         '(d) aiTestPressKeyHandler succeeds when key is valid',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {'key': 'Enter'},
           );
           final resultStr = response.result;
@@ -299,7 +299,7 @@ void main() {
         '(d) aiTestPressKeyHandler success response is valid JSON for Tab',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {'key': 'Tab'},
           );
           expect(
@@ -313,7 +313,7 @@ void main() {
         '(d) aiTestPressKeyHandler success response contains ok:true',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {'key': 'Escape'},
           );
           final decoded = jsonDecode(response.result ?? '{}');
@@ -325,7 +325,7 @@ void main() {
         '(d) aiTestPressKeyHandler accepts case-insensitive --key=TAB',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {'key': 'TAB'},
           );
           final resultStr = response.result;
@@ -340,7 +340,7 @@ void main() {
         '(d) aiTestPressKeyHandler accepts case-insensitive --key=enter',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {'key': 'enter'},
           );
           final resultStr = response.result;
@@ -355,7 +355,7 @@ void main() {
         '(d) aiTestPressKeyHandler rejects unknown key (no case-folding match)',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {'key': 'NoSuchKey'},
           );
           expect(response.result, isNull);
@@ -367,7 +367,7 @@ void main() {
         '(d) aiTestPressKeyHandler success response echoes the key',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {'key': 'Enter'},
           );
           final decoded = jsonDecode(response.result ?? '{}');
@@ -411,7 +411,7 @@ void main() {
           registerTextInputExtensions();
           registerTextInputExtensions();
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {'key': 'Enter'},
           );
           expect(response.result, isNotNull);
@@ -428,7 +428,7 @@ void main() {
         'parses comma-separated modifiers from params',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {
               'key': 'Enter',
               'modifiers': 'ctrl,shift',
@@ -444,7 +444,7 @@ void main() {
         'handles whitespace in modifier list',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {
               'key': 'Tab',
               'modifiers': 'ctrl, shift, alt',
@@ -458,7 +458,7 @@ void main() {
         'ignores empty modifier strings from split',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {
               'key': 'Enter',
               'modifiers': 'ctrl,,shift',
@@ -472,7 +472,7 @@ void main() {
         'handles null modifiers param gracefully',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {'key': 'Tab'},
           );
           expect(response.result, isNotNull);
@@ -503,7 +503,7 @@ void main() {
             addTearDown(() => HardwareKeyboard.instance.removeHandler(handler));
 
             final response = await aiTestPressKeyHandler(
-              'ext.dusk.press_key',
+              'ext.tapir.press_key',
               <String, String>{
                 'key': 'S',
                 'modifiers': modifiers,
@@ -533,7 +533,7 @@ void main() {
           addTearDown(() => HardwareKeyboard.instance.removeHandler(handler));
 
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             <String, String>{
               'key': 'Enter',
               'modifiers': 'shift,hyper',
@@ -559,7 +559,7 @@ void main() {
         addTearDown(() => HardwareKeyboard.instance.removeHandler(handler));
 
         final response = await aiTestPressKeyHandler(
-          'ext.dusk.press_key',
+          'ext.tapir.press_key',
           <String, String>{
             'key': 'g',
             'modifiers': 'ctrl,control,shift,shift',
@@ -611,7 +611,7 @@ void main() {
 
           Future<void> press(Map<String, String> params) async {
             final future = aiTestPressKeyHandler(
-              'ext.dusk.press_key',
+              'ext.tapir.press_key',
               <String, String>{
                 ...params,
                 'includeSnapshot': 'false',
@@ -652,7 +652,7 @@ void main() {
         'returns error when key is invalid despite valid modifiers',
         () async {
           final response = await aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             {
               'key': 'BadKey',
               'modifiers': 'ctrl',
@@ -690,7 +690,7 @@ void main() {
           );
 
           final response = await aiTestTypeHandler(
-            'ext.dusk.type',
+            'ext.tapir.type',
             <String, String>{'ref': ref, 'text': 'hello'},
           );
 
@@ -727,7 +727,7 @@ void main() {
           );
 
           final response = await aiTestTypeHandler(
-            'ext.dusk.type',
+            'ext.tapir.type',
             <String, String>{'ref': ref, 'text': 'world'},
           );
 
@@ -778,7 +778,7 @@ void main() {
           // opt-out: registerForTesting mints a synthetic rect that does
           // not align with the live TextField geometry.
           final future = aiTestTypeHandler(
-            'ext.dusk.type',
+            'ext.tapir.type',
             <String, String>{
               'ref': ref,
               'text': 'typed',
@@ -1149,7 +1149,7 @@ void main() {
           );
 
           final future = aiTestClearHandler(
-            'ext.dusk.clear',
+            'ext.tapir.clear',
             <String, String>{
               'ref': ref,
               'checkStable': 'false',
@@ -1199,8 +1199,8 @@ void main() {
           // SemanticsNode, so clear resolves the target rect from the node's own
           // render object via _localToGlobalRectForNode instead of a stored
           // rect. This is the real find -> clear path.
-          final findResponse = await extDuskFindHandler(
-            'ext.dusk.find',
+          final findResponse = await extTapirFindHandler(
+            'ext.tapir.find',
             <String, String>{'semanticsLabel': 'search-field'},
           );
           final String qRef = (jsonDecode(findResponse.result!)
@@ -1208,7 +1208,7 @@ void main() {
           expect(qRef, startsWith('q'));
 
           final future = aiTestClearHandler(
-            'ext.dusk.clear',
+            'ext.tapir.clear',
             <String, String>{
               'ref': qRef,
               'checkStable': 'false',
@@ -1225,7 +1225,7 @@ void main() {
       );
     });
 
-    group('ext.dusk.press_key registration', () {
+    group('ext.tapir.press_key registration', () {
       // -----------------------------------------------------------------------
       // Test registration state (no duplicate handler).
       //
@@ -1235,14 +1235,14 @@ void main() {
       // -----------------------------------------------------------------------
 
       testWidgets(
-        'ext.dusk.press_key is registered after registerTextInputExtensions',
+        'ext.tapir.press_key is registered after registerTextInputExtensions',
         (WidgetTester tester) async {
           await tester.pumpWidget(const MaterialApp(home: Scaffold()));
           registerTextInputExtensions();
           // If registration fails, it would throw; succeeding here validates
           // that the registration succeeded previously.
           final future = aiTestPressKeyHandler(
-            'ext.dusk.press_key',
+            'ext.tapir.press_key',
             <String, String>{'key': 'Enter'},
           );
           await tester.pump();
@@ -1272,7 +1272,7 @@ void main() {
         );
         final response = await _drive(
           tester,
-          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'Bob')),
+          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Bob')),
         );
 
         expect(response.result, isNull);
@@ -1299,7 +1299,7 @@ void main() {
         );
         final response = await _drive(
           tester,
-          aiTestClearHandler('ext.dusk.clear', _quietParams(ref)),
+          aiTestClearHandler('ext.tapir.clear', _quietParams(ref)),
         );
 
         expect(response.result, isNull);
@@ -1327,7 +1327,7 @@ void main() {
         final String ref = _registerNodeRef(tester, label);
         final response = await _drive(
           tester,
-          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'Ada')),
+          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Ada')),
         );
 
         expect(name.text, equals('Ada'));
@@ -1361,7 +1361,7 @@ void main() {
         final String ref = _registerNodeRef(tester, find.byType(TextField));
         final response = await _drive(
           tester,
-          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'Ada')),
+          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Ada')),
         );
 
         final Map<String, dynamic> target =
@@ -1394,7 +1394,7 @@ void main() {
         final String ref = _registerNodeRef(tester, find.byType(Checkbox));
         final response = await _drive(
           tester,
-          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'Bob')),
+          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Bob')),
         );
 
         expect(response.result, isNull);
@@ -1423,7 +1423,7 @@ void main() {
         final response = await _drive(
           tester,
           aiTestTypeHandler(
-            'ext.dusk.type',
+            'ext.tapir.type',
             _quietParams('e700', text: 'walked'),
           ),
         );
@@ -1460,7 +1460,7 @@ void main() {
         );
         final response = await _drive(
           tester,
-          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'abc')),
+          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'abc')),
         );
 
         final Map<String, dynamic> effect = _effectOf(response);
@@ -1496,7 +1496,7 @@ void main() {
         );
         final response = await _drive(
           tester,
-          aiTestTypeHandler('ext.dusk.type', _quietParams(ref, text: 'abc')),
+          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'abc')),
         );
 
         final Map<String, dynamic> effect = _effectOf(response);
@@ -1576,7 +1576,7 @@ void main() {
         );
 
         final future = aiTestTypeHandler(
-          'ext.dusk.type',
+          'ext.tapir.type',
           <String, String>{
             'ref': ref,
             'text': 'snap-type',
@@ -1623,7 +1623,7 @@ void main() {
         );
 
         final future = aiTestTypeHandler(
-          'ext.dusk.type',
+          'ext.tapir.type',
           <String, String>{
             'ref': ref,
             'text': 'no-snap-type',
@@ -1670,7 +1670,7 @@ void main() {
         );
 
         final future = aiTestTypeHandler(
-          'ext.dusk.type',
+          'ext.tapir.type',
           <String, String>{
             'ref': ref,
             'text': 'snap-type-content',
@@ -1685,7 +1685,7 @@ void main() {
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
         // The TextField's textbox role is the marker emitted by
-        // duskSnapBuild for editable nodes.
+        // tapirSnapBuild for editable nodes.
         expect(decoded['snapshot'] as String, contains('textbox'));
       },
     );
@@ -1710,7 +1710,7 @@ void main() {
             ),
           ),
         );
-        await duskSnapBuild();
+        await tapirSnapBuild();
 
         final Element element = tester.element(find.byType(TextField));
         final String ref = RefRegistry.registerForTesting(
@@ -1721,7 +1721,7 @@ void main() {
         );
 
         final future = aiTestTypeHandler(
-          'ext.dusk.type',
+          'ext.tapir.type',
           <String, String>{
             'ref': ref,
             'text': 'diff-typed',
@@ -1758,7 +1758,7 @@ void main() {
         );
 
         final future = aiTestPressKeyHandler(
-          'ext.dusk.press_key',
+          'ext.tapir.press_key',
           <String, String>{'key': 'Enter'},
         );
         await tester.pump();
@@ -1783,7 +1783,7 @@ void main() {
         );
 
         final future = aiTestPressKeyHandler(
-          'ext.dusk.press_key',
+          'ext.tapir.press_key',
           <String, String>{
             'key': 'Tab',
             'includeSnapshot': 'false',
@@ -1811,7 +1811,7 @@ void main() {
         );
 
         final future = aiTestPressKeyHandler(
-          'ext.dusk.press_key',
+          'ext.tapir.press_key',
           <String, String>{'key': 'Escape'},
         );
         await tester.pump();
@@ -1835,10 +1835,10 @@ void main() {
             home: Scaffold(body: Center(child: Text('presskey-diff'))),
           ),
         );
-        await duskSnapBuild();
+        await tapirSnapBuild();
 
         final future = aiTestPressKeyHandler(
-          'ext.dusk.press_key',
+          'ext.tapir.press_key',
           <String, String>{'key': 'Escape', 'snapshot': 'diff'},
         );
         await tester.pump();
@@ -1857,7 +1857,7 @@ void main() {
   group('aiTestTypeHandler param + error paths', () {
     test('missing ref returns missing-param error', () async {
       final response = await aiTestTypeHandler(
-        'ext.dusk.type',
+        'ext.tapir.type',
         const <String, String>{'text': 'hello'},
       );
       expect(response.result, isNull);
@@ -1869,7 +1869,7 @@ void main() {
 
     test('empty ref returns missing-param error', () async {
       final response = await aiTestTypeHandler(
-        'ext.dusk.type',
+        'ext.tapir.type',
         const <String, String>{'ref': '', 'text': 'hello'},
       );
       expect(response.result, isNull);
@@ -1881,7 +1881,7 @@ void main() {
 
     test('unknown ref returns not-found error', () async {
       final response = await aiTestTypeHandler(
-        'ext.dusk.type',
+        'ext.tapir.type',
         const <String, String>{'ref': 'e9999', 'text': 'hello'},
       );
       expect(response.result, isNull);
@@ -1901,7 +1901,7 @@ void main() {
   group('aiTestClearHandler error paths', () {
     test('missing ref returns missing_param error envelope', () async {
       final response = await aiTestClearHandler(
-        'ext.dusk.clear',
+        'ext.tapir.clear',
         const <String, String>{},
       );
       expect(response.result, isNull);
@@ -1911,7 +1911,7 @@ void main() {
 
     test('empty ref string returns missing_param error envelope', () async {
       final response = await aiTestClearHandler(
-        'ext.dusk.clear',
+        'ext.tapir.clear',
         const <String, String>{'ref': ''},
       );
       expect(response.result, isNull);
@@ -1920,7 +1920,7 @@ void main() {
 
     test('unknown ref returns not-found error envelope', () async {
       final response = await aiTestClearHandler(
-        'ext.dusk.clear',
+        'ext.tapir.clear',
         const <String, String>{'ref': 'e9999'},
       );
       expect(response.result, isNull);

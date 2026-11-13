@@ -1,16 +1,16 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fluttersdk_dusk/src/dusk_error_capture.dart';
-import 'package:fluttersdk_dusk/src/extensions/ext_snapshot.dart';
-import 'package:fluttersdk_dusk/src/ref_registry.dart';
+import 'package:tapir/src/tapir_error_capture.dart';
+import 'package:tapir/src/extensions/ext_snapshot.dart';
+import 'package:tapir/src/ref_registry.dart';
 
-/// Verifies that `duskSnapBuild` surfaces captured non-fatal render/build
+/// Verifies that `tapirSnapBuild` surfaces captured non-fatal render/build
 /// FlutterErrors in its payload under `renderErrors`. A widget that throws at
 /// build time (ParentDataWidget misuse, overflow) can render partially and stay
 /// invisible in the semantics tree, so an action against it silently no-ops.
 /// Embedding the error summary in every snapshot makes that impossible to miss.
 void main() {
-  group('duskSnapBuild renderErrors', () {
+  group('tapirSnapBuild renderErrors', () {
     setUp(() {
       RefRegistry.resetForTesting();
       resetCapturedExceptionsForTesting();
@@ -32,7 +32,7 @@ void main() {
         ),
       );
 
-      final payload = await tester.runAsync(() => duskSnapBuild());
+      final payload = await tester.runAsync(() => tapirSnapBuild());
 
       expect(payload!.containsKey('renderErrors'), isFalse,
           reason: 'a clean screen must not carry a renderErrors block');
@@ -61,10 +61,10 @@ void main() {
         ),
       );
       // Consume the overflow exception so the test binding does not fail it;
-      // the dusk capture buffer has already recorded it via FlutterError.onError.
+      // the tapir capture buffer has already recorded it via FlutterError.onError.
       tester.takeException();
 
-      final payload = await tester.runAsync(() => duskSnapBuild());
+      final payload = await tester.runAsync(() => tapirSnapBuild());
 
       expect(payload!.containsKey('renderErrors'), isTrue,
           reason: 'a screen with a captured FlutterError must report it');
@@ -74,7 +74,7 @@ void main() {
       expect(recent, isNotEmpty);
       expect((recent.first as Map<String, dynamic>)['message'] as String,
           contains('overflowed by'));
-      expect(renderErrors['hint'], contains('dusk:exceptions'));
+      expect(renderErrors['hint'], contains('tapir:exceptions'));
     });
   });
 }
