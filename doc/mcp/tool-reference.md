@@ -763,7 +763,11 @@ Return a structured candidate list of every interactive widget on screen. Implem
 Stagehand's observe-once-act-many pattern (no server-side LLM). Each candidate carries a
 re-resolvable `q<N>` ref, and labelled candidates sharing one label stay distinct: the handle
 carries its position among the nodes that label matched, so a list of rows offering the same
-action is safe to work row by row. An unlabelled candidate carries no position: its handle
+action can be worked row by row only while the list is unchanged: the position is an index,
+not an identity, and nothing compares the current count with the one seen at observe time,
+so after a same-label row is added or removed above a held handle it selects a neighbour and
+the action still reports success. Observe again after any action that adds or removes a row
+with that label. An unlabelled candidate carries no position: its handle
 matches its value text, so it can land on another control with the same text, and one with no
 value is stale at once; use a snapshot ref or a `key` for those. A control wrapped in `MergeSemantics` is listed once, as its
 boundary node; the descendants it absorbs get no candidate.

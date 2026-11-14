@@ -70,7 +70,7 @@ Returns `{ snapshot: "<yaml>", groupId }`. A node line is `- <role> "<label>" [r
 | `limit` | integer | 50 | Candidate cap |
 | `includeEnrichers` | string | `"true"` | `"true"` (`magicFormField`, `magicRoute`, `magicGateResult`, `wind.breakpoint`, `wind.states`), `"false"`, or `"full"` |
 
-Returns `{ candidates: [{ ref, role, label, value, bounds, isEnabled, isVisible, inViewport, occluded, tapOwner?, ...enricher fields }] }`. Each `ref` is a `q<N>`; a labelled candidate also carries its position among same-label nodes, so rows offering one action stay distinct. An unlabelled candidate has no position: its handle matches its value text (and can land on another control with the same text), and one with no value is stale at once, so use a snapshot ref or a `key` for those. A long list can exceed `limit`; narrow with `roles`.
+Returns `{ candidates: [{ ref, role, label, value, bounds, isEnabled, isVisible, inViewport, occluded, tapOwner?, ...enricher fields }] }`. Each `ref` is a `q<N>`; a labelled candidate also carries its position among same-label nodes, so rows offering one action stay distinct while the list is unchanged; after a same-label row is added or removed the handle selects a neighbour and the action still succeeds, so observe again. An unlabelled candidate has no position: its handle matches its value text (and can land on another control with the same text), and one with no value is stale at once, so use a snapshot ref or a `key` for those. A long list can exceed `limit`; narrow with `roles`.
 
 ### tapir_screenshot
 

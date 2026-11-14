@@ -69,19 +69,19 @@ When the dialog stays, snap inside it for the inline error. `tapir_reset_overlay
 A delta scroll is a `jumpTo` clamped to the extents, so it cannot overscroll and does not fire a `RefreshIndicator`. Pull with a real gesture instead, from the leading edge of the list: a drag on a list that is scrolled down only scrolls it back towards the top and never overscrolls, so no refresh runs.
 
 ```text
-1. tapir_observe { roles: "button,link" }       any row of the list to pull; q1
+1. tapir_observe { roles: "button,link" }       a row that is on screen now; q1
 2. tapir_scroll { ref: "q1", dy: -100000 }      a row ref resolves to its enclosing list, clamped to the top
-3. tapir_observe { roles: "button,link" }       again: the rows moved, so the old handles may point at other rows
+3. tapir_observe { roles: "button,link" }       again: the top rows are built now and the old handles may point at other rows
 4. tapir_drag { startRef: "q1", endRef: "q4" }  a top row and a row further down: down, five moves, up
 5. tapir_wait_for { text: "<text the refresh adds>" }
 6. tapir_snap { interactiveOnly: true }
 ```
 
-Step 2 needs the row's ref: a `tapir_scroll` without `ref` drives the first laid-out scrollable in the tree, which can be another list. If the list is already at the top, `effect.changed` is false and nothing is lost.
+Step 1 uses a row that is visible, not the top one: on a lazy list that is scrolled down the top row is not built, so no query can find it until step 2 has scrolled there. A `tapir_scroll` without `ref` drives the first laid-out scrollable in the tree, which can be another list. If the list is already at the top, `effect.changed` is false and nothing is lost.
 
-When the rows are plain text, `tapir_observe` lists only interactive nodes and may return no row to use. Locate rows by their text instead: `tapir_find { text: "<top row text>" }` and `tapir_find { text: "<lower row text>" }` give the refs for steps 2 and 4, and a snapshot with `interactiveOnly: false` shows the labels to search for.
+When the rows are plain text, `tapir_observe` lists only interactive nodes and may return no row to use. Locate rows by their text instead: `tapir_find { text: "<visible row text>" }` gives the ref for step 1; after step 2, `tapir_find { text: "<top row text>" }` and `tapir_find { text: "<lower row text>" }` give the drag ends for step 4. A snapshot with `interactiveOnly: false` shows the labels to search for.
 
-Step 5 waits on the UI because `tapir_wait_for_network_idle` reads the in-flight HTTP count from crumbs and, without that wiring, reports idle at once. With crumbs wired it is the better wait: `tapir_wait_for_network_idle { idleMs: 1000 }`. Wait for something the refresh adds (a new row, a changed count). `tapir_wait_for { textGone: ... }` succeeds whenever no matching `Text` exists, so it also succeeds for a spinner that has no text label or has not appeared yet while the refresh is still running; use it only after `tapir_wait_for { text: "<spinner label>" }` has confirmed the spinner showed, and treat an absent label as no proof of completion.
+Step 5 waits on the UI because `tapir_wait_for_network_idle` reads the in-flight HTTP count from crumbs and, without that wiring, reports idle at once. With crumbs wired, `tapir_wait_for_network_idle { idleMs: 1000 }` is a useful extra before step 5 but never the only wait: it counts HTTP requests only, so a refresh that reads a local cache, or keeps processing after the response, can pass it before the UI has changed. Wait for something the refresh adds (a new row, a changed count). `tapir_wait_for { textGone: ... }` succeeds whenever no matching `Text` exists, so it also succeeds for a spinner that has no text label or has not appeared yet while the refresh is still running; use it only after `tapir_wait_for { text: "<spinner label>" }` has confirmed the spinner showed, and treat an absent label as no proof of completion.
 
 ## Edit, hot reload, verify
 
