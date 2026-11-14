@@ -69,14 +69,19 @@ When the dialog stays, snap inside it for the inline error. `tapir_reset_overlay
 A delta scroll is a `jumpTo` clamped to the extents, so it cannot overscroll and does not fire a `RefreshIndicator`. Pull with a real gesture instead, from the leading edge of the list: a drag on a list that is scrolled down only scrolls it back towards the top and never overscrolls, so no refresh runs.
 
 ```text
-1. tapir_scroll { dy: -100000 }                 clamped to the top; effect.changed: false means it was already there
-2. tapir_observe { roles: "button,link" }       a top row and a row further down
-3. tapir_drag { startRef: "q1", endRef: "q4" }  down, five moves, up
-4. tapir_wait_for { text: "<text the refresh adds>" }
-5. tapir_snap { interactiveOnly: true }
+1. tapir_observe { roles: "button,link" }       any row of the list to pull; q1
+2. tapir_scroll { ref: "q1", dy: -100000 }      a row ref resolves to its enclosing list, clamped to the top
+3. tapir_observe { roles: "button,link" }       again: the rows moved, so the old handles may point at other rows
+4. tapir_drag { startRef: "q1", endRef: "q4" }  a top row and a row further down: down, five moves, up
+5. tapir_wait_for { text: "<text the refresh adds>" }
+6. tapir_snap { interactiveOnly: true }
 ```
 
-Step 4 waits on the UI because `tapir_wait_for_network_idle` reads the in-flight HTTP count from crumbs and, without that wiring, reports idle at once. With crumbs wired it is the better wait: `tapir_wait_for_network_idle { idleMs: 1000 }`. When the refresh adds no text, wait for a spinner to go with `tapir_wait_for { textGone: "<spinner label>" }`.
+Step 2 needs the row's ref: a `tapir_scroll` without `ref` drives the first laid-out scrollable in the tree, which can be another list. If the list is already at the top, `effect.changed` is false and nothing is lost.
+
+When the rows are plain text, `tapir_observe` lists only interactive nodes and may return no row to use. Locate rows by their text instead: `tapir_find { text: "<top row text>" }` and `tapir_find { text: "<lower row text>" }` give the refs for steps 2 and 4, and a snapshot with `interactiveOnly: false` shows the labels to search for.
+
+Step 5 waits on the UI because `tapir_wait_for_network_idle` reads the in-flight HTTP count from crumbs and, without that wiring, reports idle at once. With crumbs wired it is the better wait: `tapir_wait_for_network_idle { idleMs: 1000 }`. Wait for something the refresh adds (a new row, a changed count). `tapir_wait_for { textGone: ... }` succeeds whenever no matching `Text` exists, so it also succeeds for a spinner that has no text label or has not appeared yet while the refresh is still running; use it only after `tapir_wait_for { text: "<spinner label>" }` has confirmed the spinner showed, and treat an absent label as no proof of completion.
 
 ## Edit, hot reload, verify
 

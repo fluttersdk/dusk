@@ -71,10 +71,11 @@ bool _meetsLevel(String entryLevel, String minLevel) =>
 ///
 /// **Capture scope (without crumbs)**
 /// - Captures every call that routes through the [debugPrint] global callback:
-///   `debugPrint(...)`, `print(...)` (via Flutter's default callback), and
-///   any framework path that calls [debugPrint] directly.
-/// - Does NOT capture `dart:developer` `log()` calls that bypass [debugPrint]
-///   entirely. Those are captured only when `crumbs` is installed
+///   `debugPrint(...)` and any framework path that calls [debugPrint]
+///   directly.
+/// - Does NOT capture a direct `print(...)` (it does not call [debugPrint]; it
+///   is the other way round), nor `dart:developer` `log()` calls that bypass
+///   [debugPrint] entirely. `log()` calls are captured only when `crumbs` is installed
 ///   and its `LogWatcher` is wired (it subscribes to `Logger.root.onRecord`
 ///   from `package:logging`, which the Dart VM routes `developer.log()` through
 ///   when the app configures hierarchical logging). Without crumbs, direct

@@ -70,7 +70,7 @@ Returns `{ snapshot: "<yaml>", groupId }`. A node line is `- <role> "<label>" [r
 | `limit` | integer | 50 | Candidate cap |
 | `includeEnrichers` | string | `"true"` | `"true"` (`magicFormField`, `magicRoute`, `magicGateResult`, `wind.breakpoint`, `wind.states`), `"false"`, or `"full"` |
 
-Returns `{ candidates: [{ ref, role, label, value, bounds, isEnabled, isVisible, inViewport, occluded, tapOwner?, ...enricher fields }] }`. Each `ref` is a `q<N>` that also carries its position among same-label nodes, so rows offering one action stay distinct. A long list can exceed `limit`; narrow with `roles`.
+Returns `{ candidates: [{ ref, role, label, value, bounds, isEnabled, isVisible, inViewport, occluded, tapOwner?, ...enricher fields }] }`. Each `ref` is a `q<N>`; a labelled candidate also carries its position among same-label nodes, so rows offering one action stay distinct. An unlabelled candidate has no position: its handle matches its value text (and can land on another control with the same text), and one with no value is stale at once, so use a snapshot ref or a `key` for those. A long list can exceed `limit`; narrow with `roles`.
 
 ### tapir_screenshot
 
@@ -193,7 +193,7 @@ No params. Returns `{ location, title, uri }`. `uri` is the mounted Router's loc
 
 ### tapir_console
 
-`limit` (50), `minLevel` (`INFO`, `WARNING`, `ERROR`). Returns `{ logs: [{ level, message, time, logger }], count }`: the app's own `debugPrint` and `print` output (logger `debugPrint`, newest first) followed by crumbs log entries when crumbs is wired. The two lists are appended, not sorted by `time`, and the `limit` clip cuts from the end, so a newer crumbs entry can sit below an older buffered one or be cut; sort by `time` yourself when order matters. A direct `developer.log` call is not captured.
+`limit` (50), `minLevel` (`INFO`, `WARNING`, `ERROR`). Returns `{ logs: [{ level, message, time, logger }], count }`: the app's own `debugPrint` output (logger `debugPrint`, newest first; a direct Dart `print` does not go through `debugPrint` and is not captured) followed by crumbs log entries when crumbs is wired. The two lists are appended, not sorted by `time`, and the `limit` clip cuts from the end, so a newer crumbs entry can sit below an older buffered one or be cut; sort by `time` yourself when order matters. A direct `developer.log` call is not captured.
 
 ### tapir_exceptions
 

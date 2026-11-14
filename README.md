@@ -157,7 +157,7 @@ The `tapir_*` tools ride on the `dowel` MCP server, so the client config key is 
 | Client | Install |
 |---|---|
 | Claude Code | `claude mcp add dowel -- ./bin/dowel mcp:serve`, then `/mcp reconnect dowel` after a change |
-| VS Code | `code --add-mcp '{"name":"dowel","type":"stdio","command":"./bin/dowel","args":["mcp:serve"]}'` |
+| VS Code | `code --add-mcp '{"name":"dowel","type":"stdio","command":"dart","args":["run","tapir","mcp:serve"]}'` |
 | Cursor | `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (user) |
 | Windsurf | `~/.codeium/windsurf/mcp_config.json` |
 | Goose, Warp | Paste the standard config into Goose (Advanced settings, Extensions, Add custom extension) or Warp (Settings, AI, Manage MCP Servers) |

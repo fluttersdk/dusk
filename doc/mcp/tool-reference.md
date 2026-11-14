@@ -761,9 +761,11 @@ Dispatch: `ext.tapir.observe`
 
 Return a structured candidate list of every interactive widget on screen. Implements
 Stagehand's observe-once-act-many pattern (no server-side LLM). Each candidate carries a
-re-resolvable `q<N>` ref, and candidates sharing one label stay distinct: the handle carries
-its position among the nodes that label matched, so a list of rows offering the same action
-is safe to work row by row. A control wrapped in `MergeSemantics` is listed once, as its
+re-resolvable `q<N>` ref, and labelled candidates sharing one label stay distinct: the handle
+carries its position among the nodes that label matched, so a list of rows offering the same
+action is safe to work row by row. An unlabelled candidate carries no position: its handle
+matches its value text, so it can land on another control with the same text, and one with no
+value is stale at once; use a snapshot ref or a `key` for those. A control wrapped in `MergeSemantics` is listed once, as its
 boundary node; the descendants it absorbs get no candidate.
 
 ### Input schema
