@@ -55,3 +55,7 @@ CLAUDE.local.md
 
 # Local sibling-package path wiring (dev only)
 pubspec_overrides.yaml
+
+# Claude Code local settings and the hook script they register
+.claude/settings.local.json
+.claude/hooks/format-changed.sh
