@@ -147,7 +147,7 @@ When a project moves from `fluttersdk_dusk`, the install patches `lib/main.dart`
 Then run `dart run dowel install`, `dart run dowel commands:refresh` and `dart run tapir tapir:install`.
 ```
 
-The installer deletes none of them and still exits `0`. [`tapir:doctor`](tapir-doctor.md) reports the same list as a warning, and [Migrating from fluttersdk_dusk](../getting-started/migrating-from-fluttersdk-dusk.md) walks through the whole move.
+The installer deletes none of them and still exits `0`. When it cannot read one of the files it looks at (an unreadable `.mcp.json`, say), it prints `Could not check for fluttersdk_dusk leftovers: <path>: <reason>` instead and carries on. [`tapir:doctor`](tapir-doctor.md) reports the same list as a warning, and [Migrating from fluttersdk_dusk](../getting-started/migrating-from-fluttersdk-dusk.md) walks through the whole move.
 
 ### 3. Magic-stack app with the wind resolver
 

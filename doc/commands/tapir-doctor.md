@@ -119,7 +119,7 @@ Looks in the project root for what an install of tapir's predecessor left behind
 Then run `dart run dowel install`, `dart run dowel commands:refresh` and `dart run tapir tapir:install`.
 ```
 
-Each line appears only when its file is there. It never fails the doctor.
+Each line appears only when its file is there. It never fails the doctor. When a file cannot be read (an unreadable `.mcp.json`, say), the row WARNs `fluttersdk_dusk leftovers: could not inspect <path>: <reason>` instead of `none found`, and the remaining checks still run.
 
 ---
 
