@@ -1,11 +1,11 @@
 ---
 name: tapir
 description: "Drive, verify and profile a running Flutter app from an agent with tapir."
-version: 0.0.23
+version: 0.0.24
 when_to_use: "Use when driving, checking or profiling a running Flutter UI via tapir_* tools or tapir:* commands; not for app lifecycle or MCP wiring (dowel), log capture (crumbs) or flutter_test."
 ---
 
-<!-- tapir v0.0.23 | Skill updated: 2026-11-07 -->
+<!-- tapir v0.0.24 | Skill updated: 2026-11-14 -->
 
 # tapir
 

@@ -8,13 +8,16 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+---
+
+## [0.0.24] - 2026-11-14
+
 ### Changed
 
+- **Breaking, nothing is migrated automatically.** In a consumer project: (1) swap the dependencies with `flutter pub remove fluttersdk_dusk fluttersdk_artisan && flutter pub add tapir dowel` and rename the imports and the `Dusk*` identifiers; (2) follow the dowel 0.0.21 migration (move `.artisan/` to `.dowel/`, delete `.dowel/plugins.json`), delete `bin/dispatcher.dart`, `bin/fsa` and `lib/app/_plugins.g.dart` (the installer keeps an existing `bin/dispatcher.dart`, and the old one imports `fluttersdk_artisan`, so `bin/` no longer analyses) and run `dart run tapir tapir:install` again; (3) rename `dusk_*` to `tapir_*` in any saved MCP allow list, prompt or script (a Claude Code allow-list entry `mcp__fluttersdk__dusk_*` becomes `mcp__dowel__tapir_*`, since the server key is now `dowel`); (4) delete the stale `fluttersdk` server entry from `.mcp.json` (dowel leaves entries an earlier release wrote alone) and from every client you registered by hand (`claude mcp remove fluttersdk`, the VS Code or Claude Desktop settings), since they run `./bin/fsa mcp:serve`, which step (2) deletes; then run `dart run tapir mcp:install` and register `dowel` with the per-client commands in the README; (5) in a Magic app, remove the `import 'package:magic_devtools/dusk.dart'` line and the `MagicDuskIntegration.install()` call that the old installer added to `lib/main.dart` (`MagicDuskIntegration` is not a `Dusk*` name that step (1) renames), and check that `lib/main.dart` calls `MagicTapirIntegration.install()` after `tapir:install` has run (the installer adds that call once the installed `magic_devtools` ships `tapir.dart`; see the Magic bullet below), without adding a second one.
 - **Renamed from `fluttersdk_dusk` to `tapir`.** The package, the repository (`anilcancakir/tapir`), the barrels (`package:tapir/tapir.dart` and `package:tapir/cli.dart`), every `Dusk*` class (now `Tapir*`, and `DuskArtisanProvider` is `TapirDowelProvider`), the executable and the file names carry the new name. Also renamed: the `ext.dusk.*` VM Service extensions (now `ext.tapir.*`), the MCP tools (`dusk_*` is `tapir_*`), the CLI commands (`dusk:*` is `tapir:*`, and the substrate commands `artisan:dusk:*` are `dowel:tapir:*`), the environment variables (`DUSK_*` is `TAPIR_*`), the perf zone key (`#fluttersdk_interaction` is `#tapir_interaction`) and the docs URLs (`https://anilcancakir.com/tapir`).
 - **Built on `dowel` and `wind_kit_diagnostics_contracts`.** `fluttersdk_artisan` is now `dowel ^0.0.21` and `fluttersdk_wind_diagnostics_contracts` is `wind_kit_diagnostics_contracts ^1.3.0`. The `.mcp.json` server key written by `mcp:install` is `dowel`.
-- **Breaking, nothing is migrated automatically.** In a consumer project: (1) swap the dependencies with `dart pub remove fluttersdk_dusk fluttersdk_artisan && dart pub add tapir dowel` and rename the imports and the `Dusk*` identifiers; (2) follow the dowel 0.0.21 migration (move `.artisan/` to `.dowel/`, delete `.dowel/plugins.json`), delete `bin/dispatcher.dart`, `bin/fsa` and `lib/app/_plugins.g.dart` (the installer keeps an existing `bin/dispatcher.dart`, and the old one imports `fluttersdk_artisan`, so `bin/` no longer analyses) and run `dart run tapir tapir:install` again; (3) rename `dusk_*` to `tapir_*` in any saved MCP allow list, prompt or script (a Claude Code allow-list entry `mcp__fluttersdk__dusk_*` becomes `mcp__dowel__tapir_*`, since the server key is now `dowel`); (4) delete the stale `fluttersdk` server entry from `.mcp.json` (dowel leaves entries an earlier release wrote alone) and run `dart run tapir mcp:install`.
 - **The Magic step of `tapir:install` needs a `magic_devtools` built on tapir.** When the consumer's pubspec names `magic_devtools` and the resolved release ships `package:magic_devtools/tapir.dart`, the installer wires `MagicTapirIntegration` from it. The `magic_devtools` releases that still ship `MagicDuskIntegration` have no such library, so with one of them the installer skips the Magic lines and warns; upgrade `magic_devtools` to a release built on tapir and rerun `dart run tapir tapir:install` (see Fixed).
-
 - **The floor is Dart 3.13 and Flutter 3.47.** Flutter 3.50 deprecates `package:flutter/material.dart` in favour of `material_ui`, which needs that floor; the tests and the example app now build on `material_ui`, the package itself imports neither, and the repository is formatted with the tall style that floor enables. A consumer on an older SDK stays on the last `fluttersdk_dusk` release.
 
 ### Fixed
@@ -546,7 +549,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/anilcancakir/tapir/compare/0.0.23...HEAD
+[Unreleased]: https://github.com/anilcancakir/tapir/compare/0.0.24...HEAD
+[0.0.24]: https://github.com/anilcancakir/tapir/compare/0.0.23...0.0.24
 [0.0.23]: https://github.com/fluttersdk/dusk/compare/0.0.22...0.0.23
 [0.0.22]: https://github.com/fluttersdk/dusk/compare/0.0.21...0.0.22
 [0.0.21]: https://github.com/fluttersdk/dusk/compare/0.0.20...0.0.21
