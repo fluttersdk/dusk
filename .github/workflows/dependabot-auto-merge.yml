@@ -5,36 +5,31 @@ on:
     branches: [master]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   auto-merge:
+    permissions:
+      contents: write
+      pull-requests: write
     name: Auto-merge low-risk Dependabot PRs
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Fetch Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Arming auto-merge is the whole job, and the merge still waits for CI:
-      # `--auto` queues it behind the required checks rather than merging now.
-      # There is no approve step on purpose. GITHUB_TOKEN cannot approve a pull
-      # request ("Allow GitHub Actions to create and approve pull requests" is
-      # off org-wide), so an approve step would fail on every single bump, and a
-      # check that is always red teaches you to stop reading red checks.
-      #
-      # Scope is deliberately narrow: workflow action bumps only, minor and
-      # patch. A pub dependency reaches the package's own resolution graph and a
-      # major bump is a breaking change by declaration, so both keep a human.
-      - name: Arm auto-merge for GH Actions minor + patch
-        if: |
-          steps.metadata.outputs.package-ecosystem == 'github_actions' &&
-          (steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
-           steps.metadata.outputs.update-type == 'version-update:semver-patch')
+      # Arming auto-merge is the whole job: the merge waits for the required
+      # checks. Approval stays human on purpose and GITHUB_TOKEN could not
+      # approve anyway. Only the `minor-and-patch` group is armed: a major, a
+      # PR outside the group and a bump of the ecosystem's own 0.x packages
+      # (excluded from the group) open as separate pull requests and wait for
+      # review.
+      - name: Arm auto-merge for the minor-and-patch group
+        if: steps.metadata.outputs.dependency-group == 'minor-and-patch'
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

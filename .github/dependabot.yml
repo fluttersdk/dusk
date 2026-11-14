@@ -1,25 +1,101 @@
+# Dependabot (REPO_SPEC.md Appendix B). Minor and patch updates roll up into one
+# pull request per ecosystem and week; a major opens its own pull request and
+# waits for review. The ecosystem's own 0.x packages are excluded from the group
+# (a 0.x minor bump is breaking in pub, yet Dependabot reports it as a minor),
+# so each opens its own pull request, which is never armed for auto-merge.
+
 version: 2
+
 updates:
-  - package-ecosystem: "pub"
-    directory: "/"
+  - package-ecosystem: pub
+    directory: /
     schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Istanbul
     open-pull-requests-limit: 5
-
-  - package-ecosystem: "pub"
-    directory: "/example"
-    schedule:
-      interval: "weekly"
     labels:
-      - "dependencies"
+      - dependencies
+      - pub
+    assignees:
+      - anilcancakir
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - magic
+          - "magic_*"
+          - "wind_kit*"
+          - tapir
+          - crumbs
+          - dowel
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: pub
+    directory: /example
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Istanbul
     open-pull-requests-limit: 5
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
     labels:
-      - "ci"
-    open-pull-requests-limit: 3
+      - dependencies
+      - pub
+    assignees:
+      - anilcancakir
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - magic
+          - "magic_*"
+          - "wind_kit*"
+          - tapir
+          - crumbs
+          - dowel
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: tapir
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    assignees:
+      - anilcancakir
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # The reusable workflow that publishes to pub.dev over OIDC runs only on a
+      # release tag, so no pull request check exercises a bump of it: it is
+      # reviewed and updated by hand.
+      - dependency-name: dart-lang/setup-dart/.github/workflows/publish.yml
