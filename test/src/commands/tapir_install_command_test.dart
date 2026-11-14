@@ -332,6 +332,114 @@ Future<void> main() async {
       );
     });
 
+    test('an invalid package_config.json reads as unresolved, and the '
+        'installer still exits 0 with the warning', () async {
+      final mainDartPath = _seedProject(
+        tempDir,
+        pubspecDeps: const {'magic': 'any', 'magic_devtools': 'any'},
+        mainDartContents: magicMain,
+      );
+      Directory('${tempDir.path}/.dart_tool').createSync();
+      File('${tempDir.path}/.dart_tool/package_config.json')
+          .writeAsStringSync('{ not json');
+      TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+      TapirInstallCommand.pubspecPathResolver = () =>
+          '${tempDir.path}/pubspec.yaml';
+      final output = BufferedOutput();
+
+      expect(
+        TapirInstallCommand.magicDevtoolsTapirSupport(tempDir.path),
+        equals(MagicDevtoolsTapirSupport.unresolved),
+      );
+      final exit = await TapirInstallCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, equals(0));
+      expect(
+        File(mainDartPath).readAsStringSync(),
+        isNot(contains('MagicTapirIntegration')),
+      );
+      expect(output.content, contains('has no tapir integration yet'));
+    });
+
+    group('in a pub workspace', () {
+      // The workspace lives under the system temp directory, outside this
+      // repository, so the upward walk can only find the configs written
+      // here: a member with no config of its own and no workspace config
+      // above it reads as unresolved.
+      late Directory member;
+
+      setUp(() {
+        File('${tempDir.path}/pubspec.yaml').writeAsStringSync(
+          'name: workspace_root\n'
+          'environment:\n'
+          '  sdk: ^3.6.0\n'
+          'workspace:\n'
+          '  - packages/app\n',
+        );
+        member = Directory('${tempDir.path}/packages/app')
+          ..createSync(recursive: true);
+        File('${member.path}/pubspec.yaml').writeAsStringSync(
+          'name: app\n'
+          'environment:\n'
+          '  sdk: ^3.6.0\n'
+          'resolution: workspace\n',
+        );
+      });
+
+      test('a member without its own package config walks up to the '
+          'workspace root config', () {
+        expect(
+          TapirInstallCommand.magicDevtoolsTapirSupport(member.path),
+          equals(MagicDevtoolsTapirSupport.unresolved),
+        );
+
+        _seedProject(
+          tempDir,
+          mainDartContents: '',
+          magicDevtoolsLibrary: 'tapir.dart',
+        );
+        // _seedProject rewrote the root pubspec; the walk only reads
+        // `.dart_tool/package_config.json`, so that does not matter here.
+        expect(
+          TapirInstallCommand.magicDevtoolsTapirSupport(member.path),
+          equals(MagicDevtoolsTapirSupport.available),
+        );
+      });
+
+      test('a member-local package config takes precedence over the '
+          'workspace root config', () {
+        _seedProject(
+          tempDir,
+          mainDartContents: '',
+          magicDevtoolsLibrary: 'tapir.dart',
+        );
+        final Directory oldRelease = Directory(
+          '${member.path}/old/magic_devtools/lib',
+        )..createSync(recursive: true);
+        File('${oldRelease.path}/dusk.dart').writeAsStringSync('// stub\n');
+        Directory('${member.path}/.dart_tool').createSync();
+        File('${member.path}/.dart_tool/package_config.json').writeAsStringSync(
+          jsonEncode(<String, Object>{
+            'configVersion': 2,
+            'packages': <Map<String, String>>[
+              <String, String>{
+                'name': 'magic_devtools',
+                'rootUri': '../old/magic_devtools',
+                'packageUri': 'lib/',
+              },
+            ],
+          }),
+        );
+
+        expect(
+          TapirInstallCommand.magicDevtoolsTapirSupport(member.path),
+          equals(MagicDevtoolsTapirSupport.missing),
+        );
+      });
+    });
+
     // ------------------------------------------------------------------
     // WidgetsFlutterBinding.ensureInitialized() — no double inject
     // ------------------------------------------------------------------

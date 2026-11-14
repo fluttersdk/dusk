@@ -439,6 +439,37 @@ Future<void> main() async {
       expect(output.content, isNot(contains('MagicTapirIntegration missing')));
     });
 
+    test('an invalid package_config.json reads as unresolved and the '
+        'doctor goes on to the later checks', () async {
+      final Directory tmp = Directory.systemTemp.createTempSync(
+        'tapir_doctor_config_',
+      );
+      final Directory originalCwd = Directory.current;
+      addTearDown(() {
+        Directory.current = originalCwd;
+        tmp.deleteSync(recursive: true);
+      });
+      File('${tmp.path}/pubspec.yaml').writeAsStringSync('name: stub_app\n');
+      Directory('${tmp.path}/.dart_tool').createSync();
+      File('${tmp.path}/.dart_tool/package_config.json')
+          .writeAsStringSync('{ not json');
+      Directory.current = tmp;
+      TapirDoctorCommand.mainDartReader = (String path) => magicMain;
+      TapirDoctorCommand.stateFileReader = () async => <String, dynamic>{
+        'projectRoot': tmp.path,
+      };
+
+      final output = BufferedOutput();
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, equals(0));
+      expect(output.content, contains('no magic_devtools resolved'));
+      expect(output.content, contains('Session ownership'));
+      expect(output.content, contains('CDP session'));
+    });
+
     test('an unresolved magic_devtools gets advice to add one built on '
         'tapir', () async {
       TapirDoctorCommand.mainDartReader = (String path) => magicMain;

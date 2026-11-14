@@ -311,11 +311,20 @@ class TapirInstallCommand extends DowelCommand {
     String projectRoot,
   ) {
     // 1. No package config means `pub get` has not run: nothing is resolved.
-    final config = File('$projectRoot/.dart_tool/package_config.json');
-    if (!config.existsSync()) return MagicDevtoolsTapirSupport.unresolved;
+    final File? config = _nearestPackageConfig(projectRoot);
+    if (config == null) return MagicDevtoolsTapirSupport.unresolved;
 
-    // 2. Find the entry pub wrote for magic_devtools.
-    final Object? decoded = jsonDecode(config.readAsStringSync());
+    // 2. Find the entry pub wrote for magic_devtools. A config that cannot
+    //    be read or parsed tells nothing either way, which is what
+    //    `unresolved` says; the install and the doctor carry on from there.
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(config.readAsStringSync());
+    } on FormatException {
+      return MagicDevtoolsTapirSupport.unresolved;
+    } on FileSystemException {
+      return MagicDevtoolsTapirSupport.unresolved;
+    }
     final List<Object?> packages = switch (decoded) {
       {'packages': final List<Object?> list} => list,
       _ => const <Object?>[],
@@ -341,6 +350,24 @@ class TapirInstallCommand extends DowelCommand {
           : MagicDevtoolsTapirSupport.missing;
     }
     return MagicDevtoolsTapirSupport.unresolved;
+  }
+
+  /// The package config that governs [projectRoot]: the first
+  /// `.dart_tool/package_config.json` at or above it, the way the Dart tools
+  /// find it. A pub workspace member has none of its own, since `pub get`
+  /// writes one shared config at the workspace root. Null when the walk
+  /// reaches the filesystem root without finding one.
+  static File? _nearestPackageConfig(String projectRoot) {
+    Directory dir = Directory(
+      Directory(projectRoot).absolute.uri.normalizePath().toFilePath(),
+    );
+    while (true) {
+      final config = File('${dir.path}/.dart_tool/package_config.json');
+      if (config.existsSync()) return config;
+      final Directory parent = dir.parent;
+      if (parent.path == dir.path) return null;
+      dir = parent;
+    }
   }
 
   /// Returns true when the consumer's pubspec.yaml lists `magic_devtools:`

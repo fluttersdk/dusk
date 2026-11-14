@@ -1392,8 +1392,10 @@ at that descendant's centre, and a ref that holds more than one checkbox, switch
 is refused, so pass the ref of one of them. `set_checkbox` does not pass the actionability
 gate, so it does not scroll the control into view: a control marked `[offscreen]` or
 covered is missed and reported as `effect.verified: false`. Bring it on screen first
-(`tapir_scroll` with the list's ref, or a `tapir_tap` on it, which auto-scrolls), then
-call it. The `tapir:set_checkbox` CLI exits 1 on `verified: false` (with `--json` it prints
+with `tapir_scroll` on the containing list (its ref or the ref of a visible row), then
+call it. Do not `tapir_tap` the control to reveal it: the tap activates the control, so its
+value can change before `set_checkbox` reads it, and a value that already matched is
+toggled twice. The `tapir:set_checkbox` CLI exits 1 on `verified: false` (with `--json` it prints
 the envelope and exits 0).
 
 ### Input schema

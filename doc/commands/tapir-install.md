@@ -48,7 +48,7 @@ dart run tapir tapir:install
 |-------|---------|
 | `lib/main.dart` | Target file for snippet injection. |
 | `pubspec.yaml` | Inspected for a `magic_devtools:` dependency entry. Drives the conditional Magic wiring described under [Anchor modes](#anchor-modes). |
-| `.dart_tool/package_config.json` | Read only when the Magic wiring applies, to find the resolved `magic_devtools` and check that it ships `lib/tapir.dart`. |
+| `.dart_tool/package_config.json` | Read only when the Magic wiring applies, to find the resolved `magic_devtools` and check that it ships `lib/tapir.dart`. The nearest one at or above the project is used, so a pub workspace member reads the workspace root's; an unreadable or invalid one counts as unresolved and gets the warning. |
 
 ---
 

@@ -74,7 +74,7 @@ Reads `lib/main.dart` and reports one of these states:
 - `Magic detected, but no magic_devtools resolved; add a release built on tapir to dev_dependencies, run flutter pub get, then rerun tapir:install`: `.dart_tool/package_config.json` names no `magic_devtools`.
 - `vanilla Flutter detected`: no `Magic.init(` anchor.
 
-The `magic_devtools` check reads `.dart_tool/package_config.json` in the working directory, the same check `tapir:install` makes before it writes the Magic lines.
+The `magic_devtools` check reads the nearest `.dart_tool/package_config.json` at or above the working directory (the workspace root's for a pub workspace member; an unreadable or invalid one reads as unresolved and never stops the doctor), the same check `tapir:install` makes before it writes the Magic lines.
 
 INFO only; never fails the doctor regardless of the consumer stack.
 
