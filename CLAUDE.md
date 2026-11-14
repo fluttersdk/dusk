@@ -15,9 +15,10 @@ Before changing module boundaries or a main flow, read `ARCHITECTURE.md`; update
 | Command | When |
 |---|---|
 | `flutter test --coverage --exclude-tags=integration --timeout=30s` | CI gate; writes `coverage/lcov.info`, 80% line floor. |
-| `dart format lib/ test/ bin/` | Zero diff (CI: `--output=none --set-exit-if-changed`). |
-| `dart analyze lib/ test/ bin/` | Zero issues. |
-| `dart pub publish --dry-run` | Exit 65 on warnings (a dirty git tree is one), 0 on a clean archive. |
+| `dart format .` | Zero diff (CI: `--output=none --set-exit-if-changed .`, the whole repository including `example/`). |
+| `flutter analyze --no-fatal-infos` | No errors or warnings; infos do not fail CI. |
+| `python3 tool/check-docs.py` | Docs gate, one step of the `Internal Links` check (CI also runs an offline lychee pass over HTML links and images the script does not parse): 0 issues. |
+| `flutter pub publish --dry-run` | Exit 65 on warnings (a dirty git tree is one), 0 on a clean archive. |
 | `flutter test test/integration --tags=integration` | Manual CDP smoke run; needs Chrome. |
 
 A live check drives `example/` (`cd example && dart run tapir start --device=macos`, then `tapir:*`, then `stop`). `flutter pub get` and a macOS build rewrite `example/pubspec.lock` and `example/macos/Runner.xcodeproj/project.pbxproj`: restore both before committing.

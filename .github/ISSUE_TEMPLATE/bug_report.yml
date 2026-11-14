@@ -48,7 +48,7 @@ body:
     id: subsystem
     attributes:
       label: Subsystem
-      description: Which part of the framework is affected?
+      description: Which part of tapir is affected?
       options:
         - Extensions (ext.tapir.* handlers)
         - Commands (tapir:* CLI)
@@ -58,7 +58,7 @@ body:
         - CDP driver (cdp_client, device_presets, chrome_finder)
         - MCP tools (TapirDowelProvider mcpTools)
         - Plugin integration (Magic / Wind)
-        - Doctor / Doctor checks
+        - Doctor (tapir:doctor checks)
         - Documentation
         - Other
     validations:
@@ -102,6 +102,9 @@ body:
       label: Platform
       description: Which platform is the Flutter app running on?
       options:
+        - Android
+        - iOS
+        - Web
         - macOS
         - Linux
         - Windows

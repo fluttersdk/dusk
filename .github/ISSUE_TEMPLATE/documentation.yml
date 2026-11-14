@@ -12,7 +12,7 @@ body:
     attributes:
       label: Documentation Page
       description: Which doc page has the issue? Use the deployed URL or the repo path.
-      placeholder: "https://anilcancakir.com/tapir/docs/commands/snap OR doc/commands/snap.md"
+      placeholder: "https://anilcancakir.com/tapir/docs/commands/tapir-snap OR doc/commands/tapir-snap.md"
     validations:
       required: true
 

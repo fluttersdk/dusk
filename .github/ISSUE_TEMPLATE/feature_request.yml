@@ -20,7 +20,7 @@ body:
     id: subsystem
     attributes:
       label: Subsystem
-      description: Which part of the framework does this relate to?
+      description: Which part of tapir does this relate to?
       options:
         - Extensions (ext.tapir.* handlers)
         - Commands (tapir:* CLI)
@@ -30,7 +30,7 @@ body:
         - CDP driver (cdp_client, device_presets, chrome_finder)
         - MCP tools (TapirDowelProvider mcpTools)
         - Plugin integration (Magic / Wind)
-        - Doctor / Doctor checks
+        - Doctor (tapir:doctor checks)
         - Documentation
         - Other
     validations:

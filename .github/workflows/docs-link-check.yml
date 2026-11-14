@@ -1,0 +1,85 @@
+name: Docs Link Check
+
+# The docs site renders doc/ verbatim at a release tag and validates little on
+# the way in: a typo survives the sync and ships as a dead link or an empty
+# title. This workflow is where that gets caught instead.
+
+on:
+  # No paths filter on purpose. A required status check has to report on every
+  # PR: with a filter, a PR that touches only lib/ never triggers this workflow,
+  # the check never reports, and the PR waits on a status that will never
+  # arrive. The gate costs a couple of seconds, so it runs everywhere and stays
+  # requireable.
+  pull_request:
+    branches: [master]
+  schedule:
+    # Mondays at 08:00 UTC: external-URL rot pass. Kept off the PR path so a
+    # rate-limited host or an expired third-party page never blocks a doc merge.
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  internal:
+    name: Internal Links
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Page structure, relative .md targets, in-page and cross-page fragments,
+      # ToC-reachable anchors and absolute docs-site URLs. Pure stdlib Python,
+      # no network and no Flutter toolchain, so `python3 tool/check-docs.py`
+      # reproduces this locally.
+      - name: Check docs structure and fragments
+        run: python3 tool/check-docs.py
+
+      # Second pass for link forms the script does not parse, HTML <a href> and
+      # <img src> among them. Fragments stay out of scope here on purpose:
+      # lychee slugifies headings with a simplified kebab-case that collapses
+      # runs of whitespace, while GitHub and the docs site keep them, so
+      # tool/check-docs.py owns fragments and matches the rendered output.
+      - name: Check internal links (offline)
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: >-
+            --offline
+            --no-progress
+            'doc/**/*.md'
+            '*.md'
+          fail: true
+
+  external:
+    name: External Links
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Every outbound URL in the docs, badges and pub.dev pages included.
+      # .lycheeignore (regex, one pattern per line) is picked up automatically.
+      # --accept widens lychee's default with 429 and the whole 5xx range
+      # because this job hunts link ROT, and neither says a link is gone: they
+      # say the host is up and unhappy. 404 and 410 still fail the job.
+      - name: Check all links including external
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: >-
+            --no-progress
+            --accept '100..=103,200..=299,429,500..=599'
+            'doc/**/*.md'
+            '*.md'
+            'llms.txt'
+          fail: true
