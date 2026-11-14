@@ -17,7 +17,7 @@ Before changing module boundaries or a main flow, read `ARCHITECTURE.md`; update
 | `flutter test --coverage --exclude-tags=integration --timeout=30s` | CI gate; writes `coverage/lcov.info`, 80% line floor. |
 | `dart format .` | Zero diff (CI: `--output=none --set-exit-if-changed .`, the whole repository including `example/`). |
 | `flutter analyze --no-fatal-infos` | No errors or warnings; infos do not fail CI. |
-| `python3 tool/check-docs.py` | Docs gate (the `Internal Links` check): 0 issues. |
+| `python3 tool/check-docs.py` | Docs gate, one step of the `Internal Links` check (CI also runs an offline lychee pass over HTML links and images the script does not parse): 0 issues. |
 | `flutter pub publish --dry-run` | Exit 65 on warnings (a dirty git tree is one), 0 on a clean archive. |
 | `flutter test test/integration --tags=integration` | Manual CDP smoke run; needs Chrome. |
 
