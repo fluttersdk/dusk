@@ -2,20 +2,16 @@
 
 ## Stack
 
-Flutter package `tapir` (Dart 3.13+, Flutter 3.47+), a plugin of `dowel`. `TapirDowelProvider` contributes the `tapir:*` CLI commands and the `tapir_*` MCP tool descriptors, both over the `ext.tapir.*` VM Service extensions. Prose (README, `llms.txt`, `doc/**`, the skill, this file) states no counts of commands, tools or extensions; `test/tapir_dowel_provider_mcp_tools_test.dart` holds them.
-
-Production dependencies are limited to the list in Off-limits item 10. Consumers wrap `TapirPlugin.install()` in `if (!kReleaseMode)`, so debug and profile builds carry tapir (a profile build is what `tapir:perf_run` measures) and release builds tree-shake it.
-
-The CLI has a Flutter-free wrapper, `bin/tapir.dart` (`dart run tapir <cmd>`), and `lib/cli.dart`, which exports `TapirDowelProvider` for a consumer's `_plugins.g.dart`. `install.yaml` drives `plugin:install tapir`. Before changing a module boundary or a main flow, read `ARCHITECTURE.md`.
+Flutter package `tapir` (Dart 3.13+, Flutter 3.47+), a plugin of `dowel`. `TapirDowelProvider` contributes the `tapir:*` CLI commands and the `tapir_*` MCP tool descriptors, both over the `ext.tapir.*` VM Service extensions.
 
 ## Commands
 
 | Command | When |
 |---|---|
-| `flutter test --coverage --exclude-tags=integration --timeout=30s` | CI gate; writes `coverage/lcov.info`, 80% line floor. |
+| `flutter test --coverage --exclude-tags=integration --timeout=30s` | CI gate; writes `coverage/lcov.info`. |
 | `dart format .` | Zero diff (CI: `--output=none --set-exit-if-changed .`). |
 | `flutter analyze --no-fatal-infos` | Zero issues. |
-| `python3 tool/check-docs.py` | Docs gate (the `Internal Links` check): 0 issues. |
+| `python3 tool/check-docs.py` | Docs gate: 0 issues. |
 | `flutter pub publish --dry-run` | Archive check, as CI runs it; exit 65 on warnings (a dirty git tree is one), 0 on a clean archive. |
 | `flutter test test/integration --tags=integration` | Manual CDP smoke run; needs Chrome. |
 
@@ -23,35 +19,23 @@ A live check drives `example/` (`cd example && dart run tapir start --device=mac
 
 ## Post-Change Checklist
 
-A change is not done while any of these is stale: `CHANGELOG.md` under `## [Unreleased]`, `README.md`, `llms.txt`, the matching `doc/**` page, `skills/tapir/`, `ARCHITECTURE.md` and the Architecture table below. A behavioural or interface change updates all of them in the same change. Then format, analyze, test (coverage at or above 80%) and `python3 tool/check-docs.py`.
+A change is not done while any of these is stale: `CHANGELOG.md` under `## [Unreleased]`, `README.md`, `llms.txt`, the matching `doc/**` page, and `skills/tapir/`. A behavioural or interface change updates all of them in the same change. Then format, analyze, test and `python3 tool/check-docs.py`.
 
 ## Development Flow
 
-Red, green, refactor: write the failing test first and confirm it fails for the right reason. One long-lived branch, `master`; direct pushes are blocked and everything lands through a PR from a short kebab-case task branch (`feat/snap-ref-dedup`), one topic each.
-
-- Coverage stays at or above 80%: lift it with a test, never by excluding code.
+Red, green, refactor: write the failing test first and confirm it fails for the right reason. One long-lived branch, `master`; everything lands through a PR from a short kebab-case task branch (`feat/snap-ref-dedup`), one topic each.
 - Payloads grow, they do not change: new response keys are additive and absent on a healthy run, and a default never changes meaning. A verb that cannot confirm an effect says so.
 
 ## Testing
 
-- Tests mirror `lib/src/` paths under `test/src/`; the provider test sits at `test/tapir_dowel_provider_mcp_tools_test.dart`.
-- `flutter_test` only, no mockito: plain private fakes inside the test file, and no handler test opens a real VM Service connection.
-- Restore every global a test touches; the `integration` tag needs Chrome and CI excludes it.
+- Line coverage stays at or above 80% (the `awk` step in `.github/workflows/ci.yml` computes it from `coverage/lcov.info`): lift it with a test, never by excluding code.
 
 ## Architecture
 
-One barrel, `lib/tapir.dart`; `ARCHITECTURE.md` carries the flows and invariants.
+- The in-app half (`lib/src/extensions/`, most of `lib/src/utils/`, `TapirPlugin`, `RefRegistry`) imports Flutter; the host half (`commands/`, `perf/`, `cdp/`, `tapir_dowel_provider.dart`, `cli_args.dart`, `bin/tapir.dart`, `lib/cli.dart`) runs on the plain Dart VM, so it never imports Flutter, `dart:ui` or the `lib/tapir.dart` barrel.
+- Before changing module boundaries or a main flow, read ARCHITECTURE.md; update it in the same change when a boundary, flow or invariant moves.
 
-| Path under `lib/src/` | Owns |
-|---|---|
-| `extensions/` | The `ext.tapir.*` handlers, one `ext_<name>.dart` per group, wired by `register_tapir_extensions.dart` |
-| `commands/` | One `tapir_<verb>_command.dart` per CLI command, plus JSON output and web-visibility helpers |
-| `cdp/` | Chrome DevTools Protocol client, Chrome discovery, device presets, page visibility |
-| `perf/` | Perf run driver, scenarios, campaigns, setup runner, redaction |
-| `utils/` | Actionability gate, effect reports, error envelope, frame sync, key presses, response and registration helpers |
-| top level | `TapirPlugin`, `TapirDowelProvider` (commands and MCP descriptors), `RefRegistry`, the enricher and navigate-adapter contracts, log and error capture, `cli_args.dart` |
-
-## Off-limits (FROZEN contracts)
+## Off-limits (frozen contracts)
 
 These change only with a coordinated bump across `tapir`, `magic` and `wind_kit`:
 
@@ -62,7 +46,7 @@ These change only with a coordinated bump across `tapir`, `magic` and `wind_kit`
 5. The `TapirActionabilityException` reason substrings agents branch on: `"defunct (element no longer mounted)"`, `"not enabled"`, `"zero rect"`, `"off-viewport (rect=..., viewport=...)"`, `"not stable (rect changed by Xpx)"`, `"obscured by other widget (top=...)"`.
 6. The actionability-gate evaluation order: (0) defunct preflight, (1) enabled, (2) zero rect, (3) off-viewport (auto `showOnScreen` under a `Scrollable`), (4) not stable (2-frame drift above 0.5px; `--no-checkStable`), (5) receives events (hit test reaches the target or a descendant; `--no-checkReceivesEvents`). New checks append. Step 5 reports `confirmed` / `indeterminate` / `skipped`; the report may grow, the order and substrings may not.
 7. The `e<N>` and `q<N>` token spaces are disjoint: never mint `e<N>` from `find`/`observe`, nor `q<N>` from `snap`.
-8. The six original MCP tool names (`tapir_snap`, `tapir_tap`, `tapir_screenshot`, `tapir_hover`, `tapir_drag`, `tapir_type`) and their `ext.tapir.*` methods.
+8. The original MCP tool names (`tapir_snap`, `tapir_tap`, `tapir_screenshot`, `tapir_hover`, `tapir_drag`, `tapir_type`) and their `ext.tapir.*` methods.
 9. `install.yaml`: load-bearing for `plugin:install`; keep its `plugin_name` and its `post_install` bootstrap message. The `tapir` executable behind `dart run tapir <cmd>` is mapped by `executables:` in `pubspec.yaml`, not in `install.yaml`.
 10. No production dependency beyond `dowel`, `image`, `meta`, `wind_kit_diagnostics_contracts`, `yaml`.
 
@@ -71,34 +55,26 @@ These change only with a coordinated bump across `tapir`, `magic` and `wind_kit`
 | Mistake | Fix |
 |---|---|
 | `flutter pub get` or a macOS build of `example/` changes `example/pubspec.lock` and `example/macos/Runner.xcodeproj/project.pbxproj` | Restore both before committing. |
-| An MCP tool description over 2048 characters | A test enforces the cap: an imperative opening sentence, one context paragraph, a `Usage:` list. |
-| Registering a verb with `developer.registerExtension` | Use `registerTapirExtension`: idempotent across hot restart, and it wakes a hidden window. |
-| Importing the `lib/tapir.dart` barrel in `bin/tapir.dart` | The barrel pulls `dart:ui`; the Flutter-free wrapper imports `src/cli_args.dart` and `src/tapir_dowel_provider.dart` directly. |
-| Mirroring `tapir_evaluate` as a `tapir:` command | It is MCP-only: dowel's server answers it through the VM Service, and `ext.tapir.evaluate` is a sentinel. |
-| A release build that registers `ext.tapir.*` | Guard `TapirPlugin.install()` with `if (!kReleaseMode)`; `--dart-define=TAPIR_DISABLE=1` skips registration, `TAPIR_FORCE_FRAMES=false` turns off the frame wake. |
-| A count of commands, tools or extensions in prose | Name verbs; the provider test holds the numbers. |
-| An em or en dash in docs, comments or CHANGELOG | Comma, colon, semicolon, period or parentheses. |
+| A `tapir:*` command run in a git worktree (they sit under `.claude/worktrees/`, inside the main checkout) before the worktree has a session of its own | Run `dowel start` in the worktree, or pass `--state=<path>`, first. Without a session, dowel falls back to the main checkout's recorded app; `sessionOwnershipError` lets that through when the app's project root encloses the worktree, so the command drives the main checkout's app and reports success (an app started from `example/` is refused instead). |
+| A release build that registers `ext.tapir.*` | Wrap `TapirPlugin.install()` in `if (!kReleaseMode)`, not `kDebugMode`: a profile build is what `tapir:perf_run` measures. `--dart-define=TAPIR_DISABLE=1` skips registration; `TAPIR_FORCE_FRAMES=false` turns off the frame wake. |
+| A count of commands, tools or extensions in prose (README, `llms.txt`, `doc/**`, the skill, this file) | Name verbs; `test/tapir_dowel_provider_mcp_tools_test.dart` holds the numbers. |
 
 ## Release
 
 1. `release: X.Y.Z` PR: bump the version stamps and promote `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` with its footer link.
 2. Stamps: `pubspec.yaml`, `server.json` (guarded by a test), `example/pubspec.lock` and the `^X.Y.Z` install snippets in `doc/getting-started/installation.md`. Grep the old version before opening the PR. The skill keeps its own `version:` (and the stamp comment under its frontmatter) in `skills/tapir/SKILL.md`; bump it by hand with the release.
-3. After it merges, tag the merge commit with the bare version: `git tag X.Y.Z && git push origin X.Y.Z`. `publish.yml` requires the tag on `master`, checks it against `pubspec.yaml` and `server.json`, analyzes, tests, dry-runs, requires 160/160 pana points, extracts the CHANGELOG section, publishes through OIDC and creates the GitHub Release.
+3. After it merges, tag the merge commit with the bare version: `git tag X.Y.Z && git push origin X.Y.Z`. `publish.yml` validates the tag, the stamps, the dry-run and 160/160 pana points, publishes through OIDC, creates the GitHub Release and mirrors the skill to the registry.
 4. A recovery after a failed `Validate` is forward: delete the tag, fix on a PR, tag the new merge commit.
 
 ## CI
 
-`master` is protected; the required checks are `Lint & Test`, `Changelog` and `Internal Links`.
+`master` is protected; the required checks are `Lint & Test` (`ci.yml`), `Changelog` (`changelog.yml`) and `Internal Links` (`docs-link-check.yml`, which also runs an external link pass on Mondays).
 
-- `ci.yml` (`Lint & Test`): push and PR, analyze, format, tests with coverage (integration tag excluded), the 80% floor, Codecov upload.
-- `changelog.yml` (`Changelog`): a PR that changes `lib/`, `bin/` or `install.yaml` must change `CHANGELOG.md`; Dependabot, `release:` PRs and the `skip-changelog` label are exempt.
-- `docs-link-check.yml` (`Internal Links`, `External Links`): `python3 tool/check-docs.py` plus an offline lychee pass on every PR; the external pass runs on Mondays.
-- `publish.yml` (`Validate`, `publish`, `GitHub Release`): tag on master, stamps, analyze, format, test, dry-run, pana, CHANGELOG section, OIDC publish, release, then the skill mirror to the registry through `dispatch-to-registry.yml`.
-- `dependabot-auto-merge.yml`: arms auto-merge for minor and patch GitHub Actions bumps.
+- A PR that changes `lib/`, `bin/` or `install.yaml` must change `CHANGELOG.md`; Dependabot, `release:` PRs and the `skip-changelog` label are exempt.
+- `dependabot-auto-merge.yml` arms only the `minor-and-patch` Dependabot group; a major, or a bump of a sibling package such as `dowel`, opens its own PR and waits for review.
 
 ## Style
 
 - `final class` for new concrete types. Docblocks state a contract or a failure mode; none on trivial getters.
 - Numbered step comments (`// 1.`) in handlers with three or more phases.
-- An `Element` is never retained across calls inside an enricher; the contract is synchronous and stateless.
 - Prose in docs, comments and CHANGELOG is UK English with no em dash or en dash.
