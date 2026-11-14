@@ -1,128 +1,99 @@
 # tapir
 
-> E2E driver for Flutter apps targeting LLM agents and CI. 42 CLI commands and 40 MCP tools drive a running Flutter app over 38 `ext.tapir.*` VM Service extensions, 33 of which are reached directly by an MCP tool, plus 7 `dowel:tapir:*` substrate-routed tools. Every gesture passes a 6-step actionability gate (defunct, enabled, zero-rect, off-viewport, stable, receives-events) with substring-parseable failure reasons. Snapshots emit YAML trees with stable `[ref=eN]` tokens; `tapir:find` mints re-resolvable `q<N>` predicate handles (Playwright Locator pattern). The consumer gates with `!kReleaseMode` (debug and profile); release builds tree-shake the entire subsystem.
+> Drive a running Flutter app from an LLM agent or a CI script: snapshot the Semantics tree, act on stable refs through an actionability gate, and read back what each action changed, as `tapir_*` MCP tools and `tapir:*` CLI commands on the `dowel` substrate.
 
-**MCP tools (40)**, see `doc/mcp/tool-reference.md` for full input schemas. The 33 `ext.tapir.*` and 7 `dowel:tapir:*` (substrate-routed) tools are listed below.
+**Stack**: Dart >=3.13, Flutter >=3.47. A `dowel` plugin: `TapirDowelProvider` adds the `tapir:*` commands and `tapir_*` MCP tools, which call `ext.tapir.*` VM Service extensions inside the app. Install only outside release builds.
 
-*Snapshot / Screenshot*
-- `tapir_snap` (`ext.tapir.snap`): Capture Semantics tree YAML with stable `[ref=eN]` tokens. Narrow instead of reading everything: `within: "e12"` walks one subtree, `interactiveOnly: true` drops the prose, `grep: "<regex>"` keeps only matches plus the ancestors carrying their refs. A full tree costs context, and on a shell whose sidebar repeats page labels the unscoped read is also the misleading one. Nodes inside a currently-overflowing ancestor carry an `overflow: true` sub-line. Nested `textbox` nodes collapse by render-object containment to a single ref tagged `typeable: true` (the node `tapir_type` resolves); sibling fields sharing a label stay distinct. A node absorbed by `MergeSemantics` (`isMergedIntoParent`) prints no line and mints no ref, so a merged control is one ref on its boundary node. When non-fatal render/build FlutterErrors are in the capture buffer, the response includes a `renderErrors: {count, recent: [{type, message}], hint}` block so a silently-broken screen is visible without a separate `tapir_exceptions` call. A `warnings: {framesEnabled, lifecycleState, hint}` block appears on EVERY tool's payload while the app is not producing frames, which is when a rendering screen reads as empty.
-- `tapir_screenshot` (`ext.tapir.screenshot`, in-isolate): Capture base64-encoded JPEG/PNG frame. Optional `ref` captures ONLY that widget (an `e<N>`/`q<N>` token), optional `rect: "x,y,w,h"` narrows further within it; reach for `ref` whenever the question is about one component, since a full-screen capture of a tall page costs far more tokens and buries it. Can hang on web under CanvasKit+DWDS; for reliable web screenshots use the CLI `tapir:screenshot --output=<path>`, which falls back to CDP `Page.captureScreenshot` when dowel was started with `--cdp-port` (CLI-only, not this MCP tool).
+**Setup**:
 
-*Gestures (pointer actions)*
-- `tapir_tap` (`ext.tapir.tap`): Tap a widget (Down + 50ms hold + Up at the LIVE ref center, re-resolved post-gate). Every response carries an `effect: {kind: "treeChanged", changed: bool}` block; `changed: false` means the target's own route and semantics subtree are unchanged, so nothing the agent can see happened. `snapshot: "diff"` returns only the snapshot lines the tap changed since the last snapshot. A tap on a merged boundary goes to its one labelled control (`retargeted {from, to, ownerRect}`; `retarget:false` taps the centre); when it cannot, the response carries `tapPointOutsideOwner {ownerRect, point}`. Opt-in `until:"<text>"` polls (up to `untilTimeoutMs`, default 3000) for that text post-tap and adds an `untilMatched` boolean.
-- `tapir_hover` (`ext.tapir.hover`): Hover mouse cursor over a widget (PointerHoverEvent).
-- `tapir_drag` (`ext.tapir.drag`): Drag from one widget to another (Down + 5x Move + Up).
-- `tapir_dblclick` (`ext.tapir.dblclick`): Double-click a widget (two tap sequences ~100ms apart).
-- `tapir_right_click` (`ext.tapir.right_click`): Fire secondary (right) mouse button click.
-- `tapir_triple_click` (`ext.tapir.triple_click`): Fire three primary clicks (~100ms apart each).
+```bash
+dart pub add tapir
+dart run tapir tapir:install          # patches lib/main.dart, scaffolds ./bin/dowel, registers the plugin
+dart run tapir mcp:install            # the `dowel` entry in .mcp.json
+./bin/dowel start --device=chrome     # add --cdp-port=9222 for the web-only CDP verbs
+./bin/dowel tapir:snap                # YAML tree with [ref=eN] tokens
+```
 
-*Text Input*
-- `tapir_type` (`ext.tapir.type`): Type text into a TextField (calls userUpdateTextEditingValue).
-- `tapir_clear` (`ext.tapir.clear`): Clear TextEditingController backing a text field.
-- `tapir_fill` (`ext.tapir.fill`): Focus + clear + type + settle a text field in one call; composes the gated focus/clear/type handlers and retries once on a stale handle. Replaces the manual fill dance. A ref that is a button, checkbox, switch, slider or link is refused; `effect.target {matchKind, label, rect}` says which field was written, and `effect.verified` is read after the settle.
+```dart
+import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'package:flutter/widgets.dart';
+import 'package:tapir/tapir.dart';
 
-*Scrolling*
-- `tapir_scroll` (`ext.tapir.scroll`): Scroll a Scrollable widget by `direction` + `pixels`, by `dx` / `dy`, or `intoView`.
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
 
-*Waits / Polling*
-- `tapir_wait_for` (`ext.tapir.wait_for`): Wait until text/textGone/expression condition met or timeout.
-- `tapir_wait_for_network_idle` (`ext.tapir.wait_for_network_idle`): Wait until in-flight HTTP count reaches 0 + idle window.
+  if (!kReleaseMode) {
+    TapirPlugin.install();
+  }
 
-*Navigation*
-- `tapir_navigate` (`ext.tapir.navigate`): Push a named route onto the active router.
-- `tapir_navigate_back` (`ext.tapir.navigate_back`): Pop the top route off navigator stack.
-- `tapir_get_routes` (`ext.tapir.get_routes`): Report where the app is: the mounted Router's `uri` (null before one mounts), the top page name `location`, and a `title` hint; it does not list declared routes.
-- `tapir_dismiss_modals` (`ext.tapir.dismiss_modals`): Pop every PopupRoute (dialog, bottom sheet, popup menu) across all NavigatorState instances; returns additive `popped` count.
-- `tapir_reset_overlays` (`ext.tapir.reset_overlays`): Return to a clean screen via 3 idempotent layers: dismiss all PopupRoutes, press Escape, then tap a Cancel/Dismiss/Close/OK/Done affordance. Returns `{popped, escaped, dismissTapped}`.
+  runApp(const Placeholder()); // your app
+}
+```
 
-*Find (Query Handles)*
-- `tapir_find` (`ext.tapir.find`): Find widget by text/semanticsLabel/key, return re-resolvable `q<N>` handle. Optional `within: "e12"` evaluates the predicates inside one subtree and becomes part of the handle, so the scope survives every re-resolve (Playwright scoped-locator semantics, including the part where the handle stops matching once its scope is gone).
+## API
 
-*Diagnostics*
-- `tapir_console` (`ext.tapir.console`): Read recent log entries. Returns merged union of in-package `debugPrint` capture buffer (captures `debugPrint()`, `print()`, and any Flutter framework path through the `debugPrint` callback; does NOT capture direct `developer.log()` calls) and crumbs reader when wired; deduped, newest-first. Works without crumbs.
-- `tapir_exceptions` (`ext.tapir.exceptions`): Read recent exception entries. Returns merged union of in-package non-fatal `FlutterError` capture buffer (incl. overflow tagged `type: "overflow"`) and crumbs reader; deduped, newest-first. Optional `since` ISO8601 param filters to entries strictly after that timestamp, and `clear: true` empties the in-package buffer AFTER the read. The buffer is cumulative, so one boot-time fault otherwise rides along on every later read and a per-route sweep reports it against every route.
-- `tapir_observe` (`ext.tapir.observe`): Return structured candidate list of every interactive widget on screen.
+- `TapirPlugin.install()`: registers the `ext.tapir.*` extensions, holds the semantics tree on, captures `debugPrint` output and non-fatal `FlutterError`s. Idempotent; call it before `runApp` (before `Magic.init` on a Magic app). `--dart-define=TAPIR_DISABLE=1` skips it.
+- `TapirPlugin.registerNavigateAdapter(TapirNavigateAdapter?)`: a `Future<bool> Function(String route)` that `tapir_navigate` tries before `Navigator.pushNamed` and a route-information broadcast.
+- `TapirPlugin.enrichers` and `TapirSnapshotEnricher` (`String? Function(Element, RefRegistry)`): synchronous functions that add YAML lines under each snapshot ref; return `null` to skip an element.
+- `TapirDowelProvider` (`package:tapir/cli.dart`): the provider dowel loads from `lib/app/_plugins.g.dart`.
+- `MagicTapirIntegration.install()` (`package:magic_devtools/tapir.dart`): the Magic enrichers, after `Magic.init()`.
+- MCP families: see (`tapir_snap`, `tapir_observe`, `tapir_screenshot`), find (`tapir_find`), pointer (`tapir_tap`, `tapir_dblclick`, `tapir_right_click`, `tapir_triple_click`, `tapir_hover`, `tapir_drag`), text and keys (`tapir_fill`, `tapir_type`, `tapir_clear`, `tapir_press_key`, `tapir_focus`, `tapir_blur`), form controls (`tapir_set_checkbox`, `tapir_select_option`), `tapir_scroll`, waits (`tapir_wait_for`, `tapir_wait_for_network_idle`), navigation (`tapir_navigate`, `tapir_navigate_back`, `tapir_get_routes`, `tapir_dismiss_modals`, `tapir_reset_overlays`), diagnostics (`tapir_console`, `tapir_exceptions`), `tapir_evaluate`, `tapir_close_app`, perf (`tapir_perf_begin`, `tapir_perf_end`, `tapir_perf_insight`, `tapir_perf_run`, `tapir_perf_compare`, `tapir_perf_trace`), and the substrate-routed `tapir_run`, `tapir_hot_reload_and_snap`, `tapir_resize_viewport`, `tapir_device_profile`.
+- CLI-only commands: `tapir:install`, `tapir:doctor`, `tapir:perf_campaign`. The rest mirror a tool, mostly by name; the exceptions are `tapir:wait` (`tapir_wait_for`), `tapir:modal` (`tapir_dismiss_modals`), `tapir:resize` (`tapir_resize_viewport`) and `tapir:device` (`tapir_device_profile`).
 
-*Performance*
-- `tapir_perf_begin` (`ext.tapir.perf_begin`): Open a measurement session around an interaction you are about to drive. Switches `FlutterTimeline` collection plus `debugProfileBuildsEnabled` on (and, with `phases: true`, layout and paint), zeroes wind's counters and crumbs's frame buffer, and records the liveness baseline. Returns `{sessionToken, phases, livenessBaseline, restartedPreviousSession}`; a begin on an open session restarts it rather than failing.
-- `tapir_perf_end` (`ext.tapir.perf_end`): Close the session and read the attribution: `frameSummary` under `flutter_driver`'s own metric names plus a gap-derived `dropped_frame_count`, a session-wide `blockAttribution` ranking `{name, micros, count, frames}`, wind's cache hit/miss/bypass counters and magic's controller notifies. Restores every profiling flag to its PRIOR value. Check `refused` first: a session the engine did not render through returns `refused: true` with a reason and NO metrics, because a table of zeros reads as "fast"; the liveness counter is the authority there, not `SchedulerBinding.framesEnabled`, which was measured reporting `true` on a hidden page. Per-type durations are indicative, not representative.
-- `tapir_perf_insight` (`ext.tapir.perf_insight`): Drill into one ranked insight from the last `tapir_perf_end` report by id (e.g. `I1`): title, summary, the rows behind it, estimated savings and the next step.
-- `tapir_perf_run` (`dowel:tapir:perf_run`, substrate-routed): Run a perf scenario N times from a clean start (hot restart or relaunch between repeats) and write medians, spread, insights and every repeat to `<out>/<scenario>-<label>.json`.
-- `tapir_perf_compare` (`dowel:tapir:perf_compare`, substrate-routed): Compare two `tapir_perf_run` files on counts per painted frame (and timing-mode ms) and print a verdict table. Raw counts are never compared directly since a run that drew fewer frames reads as a false improvement.
-- `tapir_perf_trace` (`dowel:tapir:perf_trace`, substrate-routed): Write the last closed perf session's interactions, frames and host rows as Chrome Trace Event JSON (opens in ui.perfetto.dev or chrome://tracing) and return only its path.
+## Platforms
 
-*Keyboard / Input*
-- `tapir_press_key` (`ext.tapir.press_key`): Press a hardware key (a named key, or one letter or digit) so the focused widget hears it; `modifiers` (control, shift, alt, meta) are held down before the key and released after it.
-- `tapir_focus` (`ext.tapir.focus`): Request keyboard focus on widget identified by ref.
-- `tapir_blur` (`ext.tapir.blur`): Clear keyboard focus from current focus holder.
+Any Flutter target that exposes a VM Service in a debug or profile build: Android, iOS, web, macOS, Windows and Linux. `tapir_resize_viewport`, `tapir_device_profile` and the CLI's CDP screenshot and hidden-tab recovery need Chrome started with `--cdp-port`. `tapir_hot_reload_and_snap` writes to dowel's session FIFO, so it needs a POSIX host. Release builds carry no tapir code.
 
-*Form Controls*
-- `tapir_select_option` (`ext.tapir.select_option`): Select option in DropdownButton by ref + value.
-- `tapir_set_checkbox` (`ext.tapir.set_checkbox`): Set checked state of Checkbox or Switch widget.
+## Rules for agents
 
-*Evaluate (MCP-only; no CLI mirror)*
-- `tapir_evaluate` (`ext.tapir.evaluate`): Evaluate Dart expression in running app isolate via Tinker bridge.
-
-*App Control*
-- `tapir_close_app` (`ext.tapir.close_app`): Request graceful shutdown via `SystemNavigator.pop()`.
-
-*Hot Reload (substrate-routed)*
-- `tapir_hot_reload_and_snap` (`dowel:tapir:hot_reload_and_snap`): Hot reload app, capture snapshot + screenshot + recent exceptions in one round-trip.
-
-*Batch (substrate-routed)*
-- `tapir_run` (`dowel:tapir:run`): Run several tapir verbs in one call (`steps: ["tap --ref=e5", "snap --grep Total"]`, optional `continue`). One summary line per step, then the last step's output; stops at the first failing step. Saves a round trip per step; use `--text`, `--key` or q-refs between steps, since e-refs belong to one snapshot.
-
-*Viewport / Device Emulation (substrate-routed, CDP)*
-- `tapir_resize_viewport` (`dowel:tapir:resize`): Resize Flutter web viewport via Chrome DevTools Protocol; the override lasts only as long as the call's CDP session (the CLI's `tapir:resize --hold` keeps it).
-- `tapir_device_profile` (`dowel:tapir:device`): Emulate named device preset via CDP; the emulation lasts only as long as the call's CDP session, only the window size stays.
+- Snapshot first, then act on a ref from that snapshot. `e<N>` (from `tapir_snap`) names one node of one snapshot; `q<N>` (from `tapir_find` or `tapir_observe`) re-resolves on every action. Hold a `q<N>` across retries, navigation and hot reload.
+- Branch on the gate's reason substring: `defunct (element no longer mounted)`, `not enabled`, `zero rect`, `off-viewport (rect=..., viewport=...)`, `not stable (rect changed by Xpx)`, `obscured by other widget (top=...)`. A retry of `not enabled` fails the same way.
+- A success means dispatched. Read `effect` (`changed`, `verified`, `value`, `target.matchKind`) before concluding anything happened.
+- While a response carries `warnings`, the app is not producing frames: an empty snapshot is not an empty screen. Follow its `hint` and retry. `framesForced: true` is normal.
+- Narrow reads with `within`, `interactiveOnly` and `grep`; pass `snapshot: "diff"` to actions; batch known steps with `tapir_run`.
+- `tapir_wait_for_network_idle` needs crumbs wired, or it returns `matched: true` at once. Read `tapir_exceptions` as a delta (`since`, `clear: true`).
+- `tapir_evaluate` runs one Dart expression in the app's root library through the VM Service (dowel's MCP server answers it; `dowel_tinker` evaluates the same way); a runtime exception, a compile error or a stale isolate comes back as an error. `tapir_set_checkbox` reads the Semantics checked or toggled flag, so a checkbox, switch or radio from any library works; a ref with no such state is refused, and a state that already equals the target is not tapped (`toggled: false`).
+- Start every run with `./bin/dowel tapir:doctor`, and run `dowel start` in each project or worktree you drive: without its own session, a call falls back to whichever app dowel started last.
 
 ## Docs
-- [Installation](https://anilcancakir.com/tapir/docs/getting-started/installation.md)
-- [Quickstart](https://anilcancakir.com/tapir/docs/getting-started/quickstart.md)
-- [Commands index](https://anilcancakir.com/tapir/docs/commands/index.md)
-- [Driving real apps: gotchas for agents](https://anilcancakir.com/tapir/docs/getting-started/driving-real-apps-gotchas.md)
-- [tapir:run](https://anilcancakir.com/tapir/docs/commands/tapir-run.md): several verbs in one call, one summary line per step.
-- [tapir:snap](https://anilcancakir.com/tapir/docs/commands/tapir-snap.md)
-- [tapir:tap](https://anilcancakir.com/tapir/docs/commands/tapir-tap.md)
-- [tapir:fill](https://anilcancakir.com/tapir/docs/commands/tapir-fill.md)
-- [tapir:reset_overlays](https://anilcancakir.com/tapir/docs/commands/tapir-reset-overlays.md)
-- [tapir:find](https://anilcancakir.com/tapir/docs/commands/tapir-find.md)
-- [tapir:observe](https://anilcancakir.com/tapir/docs/commands/tapir-observe.md)
-- [tapir:screenshot](https://anilcancakir.com/tapir/docs/commands/tapir-screenshot.md)
-- [tapir:perf_begin](https://anilcancakir.com/tapir/docs/commands/tapir-perf-begin.md)
-- [tapir:perf_end](https://anilcancakir.com/tapir/docs/commands/tapir-perf-end.md)
-- [tapir:perf_insight](https://anilcancakir.com/tapir/docs/commands/tapir-perf-insight.md)
-- [tapir:perf_run](https://anilcancakir.com/tapir/docs/commands/tapir-perf-run.md)
-- [tapir:perf_campaign](https://anilcancakir.com/tapir/docs/commands/tapir-perf-campaign.md): every scenario of a campaign YAML on one platform, each from a cold start, with hooks, Android preparation, retries and a pass/fail summary. CLI only.
-- [tapir:perf_compare](https://anilcancakir.com/tapir/docs/commands/tapir-perf-compare.md)
-- [tapir:perf_trace](https://anilcancakir.com/tapir/docs/commands/tapir-perf-trace.md)
-- [tapir:doctor](https://anilcancakir.com/tapir/docs/commands/tapir-doctor.md)
-- [tapir:install](https://anilcancakir.com/tapir/docs/commands/tapir-install.md)
-- [Actionability gate](https://anilcancakir.com/tapir/docs/reference/actionability-gate.md)
-- [Frame production](https://anilcancakir.com/tapir/docs/reference/frame-production.md): why a backgrounded tab makes a snapshot read empty and an action report a success it could not have landed, and the `warnings` block that says so.
 
-## MCP
-- [MCP overview](https://anilcancakir.com/tapir/docs/mcp/overview.md)
-- [MCP setup (.mcp.json wiring)](https://anilcancakir.com/tapir/docs/mcp/setup.md): when fastcli is absent, `mcp:install` auto-selects `dart run tapir mcp:serve` as the plugin-aware fallback (no manual edit needed).
-- [MCP tool reference (40 tools)](https://anilcancakir.com/tapir/docs/mcp/tool-reference.md)
+- [Getting started](https://anilcancakir.com/tapir/docs/getting-started/index.md): what tapir is and the first snapshot, tap and screenshot
+- [Installation](https://anilcancakir.com/tapir/docs/getting-started/installation.md): requirements, `tapir:install`, the `!kReleaseMode` guard, MCP wiring
+- [Quickstart](https://anilcancakir.com/tapir/docs/getting-started/quickstart.md): drive the bundled `example/` app with a snapshot, a tap and a screenshot
+- [Driving real apps: gotchas for agents](https://anilcancakir.com/tapir/docs/getting-started/driving-real-apps-gotchas.md): the recurring traps of a long session and the workaround for each
+- [Commands](https://anilcancakir.com/tapir/docs/commands/index.md): every command by intent, with its boot mode and extension
+- [tapir:snap](https://anilcancakir.com/tapir/docs/commands/tapir-snap.md): the Semantics tree as YAML with `[ref=eN]` tokens
+- [tapir:observe](https://anilcancakir.com/tapir/docs/commands/tapir-observe.md): every interactive widget as a candidate with a `q<N>` handle
+- [tapir:find](https://anilcancakir.com/tapir/docs/commands/tapir-find.md): a re-resolvable `q<N>` handle from predicates
+- [tapir:tap](https://anilcancakir.com/tapir/docs/commands/tapir-tap.md): a tap at a ref, with the effect report and retargeting
+- [tapir:fill](https://anilcancakir.com/tapir/docs/commands/tapir-fill.md): focus, clear, type and settle a text field in one call
+- [tapir:screenshot](https://anilcancakir.com/tapir/docs/commands/tapir-screenshot.md): the app or one widget to a file, with the CDP fallback on web
+- [tapir:reset_overlays](https://anilcancakir.com/tapir/docs/commands/tapir-reset-overlays.md): back to a clean screen in escalating layers
+- [tapir:run](https://anilcancakir.com/tapir/docs/commands/tapir-run.md): several verbs in one call, one summary line per step
+- [tapir:doctor](https://anilcancakir.com/tapir/docs/commands/tapir-doctor.md): runtime, wiring and session health in one pass
+- [tapir:install](https://anilcancakir.com/tapir/docs/commands/tapir-install.md): the bootstrap that patches `lib/main.dart` and registers the plugin
+- [tapir:perf_begin](https://anilcancakir.com/tapir/docs/commands/tapir-perf-begin.md): open a measurement session around one interaction
+- [tapir:perf_end](https://anilcancakir.com/tapir/docs/commands/tapir-perf-end.md): close it and read frames, blocks, counters and insights
+- [tapir:perf_insight](https://anilcancakir.com/tapir/docs/commands/tapir-perf-insight.md): drill into one insight of the last report
+- [tapir:perf_run](https://anilcancakir.com/tapir/docs/commands/tapir-perf-run.md): repeat a scenario from a clean start and write a run file
+- [tapir:perf_compare](https://anilcancakir.com/tapir/docs/commands/tapir-perf-compare.md): judge one run file against another on counts per painted frame
+- [tapir:perf_trace](https://anilcancakir.com/tapir/docs/commands/tapir-perf-trace.md): the last closed session as a Chrome Trace file
+- [tapir:perf_campaign](https://anilcancakir.com/tapir/docs/commands/tapir-perf-campaign.md): every scenario of a campaign on one platform, each from a cold start
+- [MCP overview](https://anilcancakir.com/tapir/docs/mcp/overview.md): how the tapir tools join dowel's MCP server
+- [MCP setup](https://anilcancakir.com/tapir/docs/mcp/setup.md): the `.mcp.json` entry per client and the reconnect
+- [MCP tool reference](https://anilcancakir.com/tapir/docs/mcp/tool-reference.md): input schema, return shape and an example for every `tapir_*` tool
+- [Magic integration](https://anilcancakir.com/tapir/docs/plugins/magic-integration.md): the Magic enrichers from `magic_devtools`
+- [Wind integration](https://anilcancakir.com/tapir/docs/plugins/wind-integration.md): Wind state through the diagnostics bridge
+- [Authoring a snapshot enricher](https://anilcancakir.com/tapir/docs/plugins/enricher-authoring.md): the typedef, the contract, registration and tests
+- [Actionability gate](https://anilcancakir.com/tapir/docs/reference/actionability-gate.md): the checks before every gesture and their reason substrings
+- [Frame production](https://anilcancakir.com/tapir/docs/reference/frame-production.md): when the app stops drawing, what tapir does, and the `warnings` block
+- [Interactions and the perf trace](https://anilcancakir.com/tapir/docs/reference/perf-trace.md): how gestures become interactions in the Chrome Trace export
+- [The semantics hold](https://anilcancakir.com/tapir/docs/reference/semantics-hold.md): releasing the semantics tree for a timed perf measurement
 
-## Plugins
-- [Magic integration](https://anilcancakir.com/tapir/docs/plugins/magic-integration.md)
-- [Wind integration](https://anilcancakir.com/tapir/docs/plugins/wind-integration.md)
-- [Authoring a snapshot enricher](https://anilcancakir.com/tapir/docs/plugins/enricher-authoring.md)
+## Links
 
-## AI & Tooling
-- [anilcancakir/ai](https://github.com/anilcancakir/ai): canonical distribution channel. One-command install via `npx skills add anilcancakir/ai --skill tapir` covers Claude Code, Cursor, OpenCode, Gemini CLI, VS Code Copilot, Codex CLI, Cline, Roo Code.
-- [Tapir skill source](https://github.com/anilcancakir/tapir/tree/master/skills/tapir): canonical `SKILL.md` + references (`mcp-tools.md`, `cli-commands.md`, `actionability-and-refs.md`, `workflows.md`, `community.md`); `anilcancakir/ai` mirrors this directory.
-- [Hosted docs MCP server](https://mcp.anilcancakir.com): Streamable HTTP, single `search-docs` tool over the tapir docs corpus, no auth required.
-
-## Source
-- [GitHub](https://github.com/anilcancakir/tapir)
-- [pub.dev](https://pub.dev/packages/tapir)
-- [CHANGELOG](https://github.com/anilcancakir/tapir/blob/master/CHANGELOG.md)
-- [ARCHITECTURE](https://github.com/anilcancakir/tapir/blob/master/ARCHITECTURE.md)
-
-## Optional
-- [README](https://github.com/anilcancakir/tapir/blob/master/README.md)
-- [LICENSE](https://github.com/anilcancakir/tapir/blob/master/LICENSE)
-- [Issues](https://github.com/anilcancakir/tapir/issues)
+- [README](https://github.com/anilcancakir/tapir#readme): overview, feature tables and quick start
+- [API reference](https://pub.dev/documentation/tapir/latest/): generated from the doc comments
+- [Changelog](https://github.com/anilcancakir/tapir/blob/master/CHANGELOG.md): what changed in each version
+- [Source](https://github.com/anilcancakir/tapir): issues and pull requests
+- [Agent skill](https://github.com/anilcancakir/tapir/tree/master/skills/tapir): install with `npx skills add anilcancakir/tapir`

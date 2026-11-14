@@ -1,334 +1,137 @@
-# Agent workflows
+# Workflows
 
-Concrete playbooks for the loops an LLM agent runs against a running
-Flutter app through tapir. Every flow assumes the app is already running
-and `./bin/dowel tapir:doctor` passes. Examples shown as MCP calls; the CLI
-equivalents have identical params.
+Playbooks for the longer loops an agent runs through tapir. Each assumes the app is running and `./bin/dowel tapir:doctor` is clean. Calls are shown as MCP tools; the `tapir:*` command takes most of the same parameters as flags, but not all (`tapir:screenshot` requires `--output`, which the tool does not); `cli-commands.md` lists each command's flags. Ref numbers are illustrative: use the ones the previous call returned.
 
 ## Contents
 
 - [Fill a form and submit](#fill-a-form-and-submit)
-- [Find a button that is below the fold](#find-a-button-that-is-below-the-fold)
-- [Open, fill, and close a modal](#open-fill-and-close-a-modal)
-- [Navigate and verify the new screen](#navigate-and-verify-the-new-screen)
-- [Pull-to-refresh, scroll, and assert idle](#pull-to-refresh-scroll-and-assert-idle)
-- [Edit code, hot-reload, verify](#edit-code-hot-reload-verify)
-- [Wait for a specific log line or exception](#wait-for-a-specific-log-line-or-exception)
-- [Capture a "before / after" diff for a UI change](#capture-a-before--after-diff-for-a-ui-change)
-- [Recovery patterns](#recovery-patterns)
-- [Multi-tool composites worth knowing](#multi-tool-composites-worth-knowing)
-- [Field rules from real agent runs](#field-rules-from-real-agent-runs)
+- [Reach a control below the fold](#reach-a-control-below-the-fold)
+- [Open, fill and close a modal](#open-fill-and-close-a-modal)
+- [Navigate and confirm the screen](#navigate-and-confirm-the-screen)
+- [Refresh a list](#refresh-a-list)
+- [Edit, hot reload, verify](#edit-hot-reload-verify)
+- [Check logs and exceptions per screen](#check-logs-and-exceptions-per-screen)
+- [Before and after a change](#before-and-after-a-change)
+- [Recovery](#recovery)
+- [Field rules from real runs](#field-rules-from-real-runs)
 
 ## Fill a form and submit
 
-```
+```text
 1. tapir_observe { roles: "textbox,button" }
-   → candidates: [
-       { ref: "q1", role: "textbox", label: "Email",    magicFormField: "email"    },
-       { ref: "q2", role: "textbox", label: "Password", magicFormField: "password" },
-       { ref: "q3", role: "button",  label: "Sign in" }
-     ]
-
-2. tapir_type { ref: "q1", text: "user@example.com" }
-3. tapir_type { ref: "q2", text: "hunter2" }
-4. tapir_tap  { ref: "q3" }
-
-5. tapir_wait_for_network_idle { idleMs: 800, timeoutMs: 8000 }
-6. tapir_snap
-
-7. <look for an error label, success banner, or route change in the YAML>
+   candidates: q1 textbox "Email" (magicFormField: email), q2 textbox "Password", q3 button "Sign in"
+2. tapir_fill { ref: "q1", text: "user@example.com" }     effect.verified must be true
+3. tapir_fill { ref: "q2", text: "secret" }
+4. tapir_tap { ref: "q3" }                                a disabled button fails "not enabled"
+5. tapir_wait_for_network_idle { idleMs: 800, timeoutMs: 8000 }   only with crumbs wired
+6. tapir_snap { interactiveOnly: true }                   an error label, a banner, or the next screen
 ```
 
-Notes:
+`fill` replaces the content; to append, read the value and fill the whole string. `magicFormField` names the form key on a Magic app, which maps the field to its validation rule and API field. When `effect.target.matchKind` is `nearest`, the ref overlapped no field and a neighbour was written: check `target.label`. With all refs known up front, steps 2 to 4 fit in one `tapir_run`.
 
-- `tapir_type` REPLACES field content. To append, snap the field, read
-  the current value, then type the concatenation.
-- The `magicFormField` enricher matches the form key on the Dart side;
-  agents can map back to validation rules / API payload field names.
-- If the submit button is disabled (validation pending), step 4 fails
-  with `"not enabled"`. Snap or observe before tapping to inspect
-  state, or re-type a field that is empty.
+## Reach a control below the fold
 
-## Find a button that is below the fold
-
-```
-1. tapir_find { text: "Delete account" }
-   → { ref: "q5", matched: true }
-
-2. tapir_scroll { ref: "q5", intoView: true }
-3. tapir_tap    { ref: "q5" }
+```text
+1. tapir_find { text: "Delete account" }       { ref: "q5", matched: true }
+2. tapir_scroll { ref: "q5", intoView: true }  Scrollable.ensureVisible
+3. tapir_tap { ref: "q5" }
 ```
 
-`tapir_scroll --intoView` calls `Scrollable.ensureVisible` under the
-hood. When no `Scrollable` ancestor exists, falls back to a no-op;
-the actionability gate's auto-scroll on step 3 also helps for simple
-cases.
+The gate already scrolls a target into view under one `Scrollable`, so step 2 matters for nested or horizontal lists. A row Flutter has not built yet has no node: scroll the list by a delta first (`tapir_scroll { ref: "<a visible row>", dy: 600 }`), then find. `matched: false` means nothing in the live tree matches: a collapsed section, an unselected tab, data still loading.
 
-If `tapir_find` returns `matched: false`, the widget is not in the live
-tree at all. Common causes: the screen is collapsed (tab not selected,
-expansion panel closed), or the data has not loaded yet. Wait or
-navigate first.
+## Open, fill and close a modal
 
-## Open, fill, and close a modal
-
-Refs in the call sequence below are illustrative; the agent reads the
-actual `q<N>` numbers from each preceding tool's response. Numbers are
-NOT meaningful tokens to copy; only the `q` / `e` prefix and the
-integer minted by the tool are.
-
-```
-1. tapir_find { text: "Open settings" }
-   → { ref: "q1" }                                          # the trigger button
-
-2. tapir_tap { ref: "q1" }
-3. tapir_wait_for { text: "Confirm action" }                 # wait for modal title
-
-4. tapir_observe { intent: "modal contents", limit: 20 }
-   → candidates: [
-       { ref: "q2", role: "textbox", label: "Reason" },
-       { ref: "q3", role: "button",  label: "Confirm" },
-       { ref: "q4", role: "button",  label: "Cancel"  },
-       ...
-     ]
-
-5. tapir_type { ref: "q2", text: "no longer needed" }
-6. tapir_tap  { ref: "q3" }                                  # the Confirm candidate
-
-7. tapir_wait_for { textGone: "Confirm action" }             # wait for dismissal
-8. tapir_wait_for_network_idle
-9. tapir_snap
+```text
+1. tapir_tap { ref: "q1" }                          the trigger
+2. tapir_wait_for { text: "Confirm action" }        the dialog title
+3. tapir_observe { roles: "textbox,button", limit: 20 }
+4. tapir_fill { ref: "q2", text: "no longer needed" }
+5. tapir_tap { ref: "q3" }                          Confirm
+6. tapir_wait_for { textGone: "Confirm action" }    matched: false means validation kept it open
+7. tapir_snap { interactiveOnly: true }
 ```
 
-If the modal does not dismiss (validation kept it open), step 6 times
-out. Snap inside the modal again and look for inline errors. The
-fallback is `tapir_dismiss_modals` to pop everything, but use it as a
-last resort; the cancel button usually exists.
+When the dialog stays, snap inside it for the inline error. `tapir_reset_overlays` clears whatever is left (pops popup routes, presses Escape, taps a Cancel-style button); use it as the fallback, since the dialog's own Cancel keeps the app's state consistent.
 
-## Navigate and verify the new screen
+## Navigate and confirm the screen
 
-```
-1. tapir_navigate { route: "/monitors/abc-123" }
-   → { navigated: true, route: "/monitors/abc-123", exactPath: true, snapshot: "<yaml>" }
-
-2. tapir_wait_for_network_idle              # detail load
-3. tapir_wait_for { text: "abc-123" }       # presence of the id confirms the page
-
-4. tapir_snap
+```text
+1. tapir_navigate { route: "/monitors/abc-123", snapshot: "none" }
+   { navigated: true, route: "/monitors/abc-123", exactPath: true }
+2. tapir_wait_for { text: "abc-123" }
+3. tapir_snap { interactiveOnly: true }
 ```
 
-When the app uses `GoRouter` or `auto_route`, `tapir_navigate` falls
-through to `SystemNavigator.routeInformationUpdated`; the response
-carries `reason` when the router rejected the push. For static routes
-the `Navigator.pushNamed` path works directly.
+`navigated` is read off the mounted Router two frames after the push: `true` covers a page under the route, `exactPath` the route itself, and `navigated: false` carries `reason` (dropped or redirected). A Navigator 1.0 app has no Router to read, so it reports `navigated: false` even when the push landed; confirm with a snapshot. Register a `TapirNavigateAdapter` with `TapirPlugin.registerNavigateAdapter` (on a Magic app, typically `MagicRoute.to`) so the push goes through the app's own router. `tapir_get_routes` answers where the app is (`uri`), never the declared routes: read the router configuration in the source for those.
 
-`tapir_get_routes` returns where the app is now: `uri` is the mounted
-Router's location (the same read `tapir_navigate` verifies against; null
-while no Router is mounted), and `location` / `title` are the root
-Navigator's page name and a title hint, both empty in a Router-based app.
-It does NOT enumerate every declared route. To discover available routes, scan
-the source (`grep -rEn 'GoRoute|MaterialPage|name:' lib/`) or evaluate
-the router config directly via `./bin/dowel tinker` against whatever the
-app exposes its `RouterConfig` through.
+## Refresh a list
 
-## Pull-to-refresh, scroll, and assert idle
+A delta scroll is a `jumpTo` clamped to the extents, so it cannot overscroll and does not fire a `RefreshIndicator`. Pull with a real gesture instead, from the leading edge of the list: a drag on a list that is scrolled down only scrolls it back towards the top and never overscrolls, so no refresh runs.
 
-```
-1. tapir_snap                               # to find the ListView ref
-2. tapir_find { semanticsLabel: "Monitors list" }
-   → { ref: "q7" }
-
-3. tapir_scroll { ref: "q7", dy: -200 }     # pull down by 200px (negative = up = pull)
-4. tapir_wait_for_network_idle { idleMs: 1000 }
-5. tapir_snap
-
-6. <compare the list contents in the new snap>
+```text
+1. tapir_observe { roles: "button,link" }       a row that is on screen now; q1
+2. tapir_scroll { ref: "q1", dy: -100000 }      a row ref resolves to its enclosing list, clamped to the top
+3. tapir_observe { roles: "button,link" }       again: the top rows are built now and the old handles may point at other rows
+4. tapir_drag { startRef: "q1", endRef: "q4" }  a top row and a row further down: down, five moves, up
+5. tapir_wait_for { text: "<text the refresh adds>" }
+6. tapir_snap { interactiveOnly: true }
 ```
 
-Real touch pull-to-refresh uses fling gestures (high-velocity drag).
-Tapir's `tapir_scroll` is a `jumpTo` under the hood, which usually
-triggers the same `RefreshIndicator` callback in practice but does not
-animate. If a specific app's refresh handler requires a real fling,
-fall back to `tapir_drag` with a long y delta.
+Step 1 uses a row that is visible, not the top one: on a lazy list that is scrolled down the top row is not built, so no query can find it until step 2 has scrolled there. A `tapir_scroll` without `ref` drives the first laid-out scrollable in the tree, which can be another list. If the list is already at the top, `effect.changed` is false and nothing is lost. A very long list can be further than 100000 pixels from the top: repeat step 2 with a fresh visible row ref until `effect.changed` is false, and only then observe again.
 
-## Edit code, hot-reload, verify
+When the rows are plain text, `tapir_observe` lists only interactive nodes and may return no row to use. Locate rows by their text instead: `tapir_find { text: "<visible row text>" }` gives the ref for step 1; after step 2, `tapir_find { text: "<top row text>" }` and `tapir_find { text: "<lower row text>" }` give the drag ends for step 4. A snapshot with `interactiveOnly: false` shows the labels to search for. `tapir_find` takes the first match anywhere on screen, so a row text that also appears outside the list, or twice in it, can give a wrong ref or the same ref for both drag ends; add `within` (an `e<N>` ref of the list from `tapir_snap`; a `q<N>` ref is not looked up there) or search by a `key`, and check `matchCount` is 1.
 
-```
-<edit a Dart file in lib/, save>
+Step 5 waits on the UI because `tapir_wait_for_network_idle` reads the in-flight HTTP count from crumbs and, without that wiring, reports idle at once. With crumbs wired, `tapir_wait_for_network_idle { idleMs: 1000 }` is a useful extra before step 5 but never the only wait: it counts HTTP requests only, so a refresh that reads a local cache, or keeps processing after the response, can pass it before the UI has changed. Wait for something the refresh adds (a new row, a changed count). `tapir_wait_for { textGone: ... }` succeeds whenever no matching `Text` exists, so it also succeeds for a spinner that has no text label or has not appeared yet while the refresh is still running; use it only after `tapir_wait_for { text: "<spinner label>" }` has confirmed the spinner showed, and treat an absent label as no proof of completion.
 
-tapir_hot_reload_and_snap { screenshot: true }
-   On success: { reloaded: true, durationMs: 740,
-                 snapshot, screenshot, recentExceptions: [] }
-   On compile fail: { reloaded: false, error: "<text>",
-                      recentExceptions: [] }
+## Edit, hot reload, verify
 
-<inspect snapshot for the visible result; inspect recentExceptions
- for any runtime error that fired on rebuild>
-
-<if compile failed, fix the code and call again>
-<if reloaded but exceptions appeared, fix the bug and reload again>
+```text
+<save the edit>
+tapir_hot_reload_and_snap { screenshot: false }
+  reloaded: true   read snapshot and recentExceptions
+  reloaded: false  read error, fix, call again
 ```
 
-Hot-reload is the agent's main loop for iterative UI changes. Always
-inspect `recentExceptions` even on `reloaded: true`: a successful
-reload can still throw at runtime (e.g. a build-time null assertion
-firing in the new code).
+Read `recentExceptions` even after a clean reload: new code can throw on the next rebuild. A change to state that only runs at startup (`main`, a provider's boot, a `static final`) needs `dowel_hot_restart`; a refresh of the whole process is `dowel_restart`.
 
-When a code change touches state initialization that runs only at
-startup, hot-reload will not pick it up. Use `tapir_close_app` then
-`./bin/dowel start --device=<dev>` from the shell for a full restart.
+## Check logs and exceptions per screen
 
-## Wait for a specific log line or exception
-
-```
-1. tapir_console { minLevel: "WARNING", limit: 50 }
-   → { logs: [...] }
-
-2. tapir_exceptions { limit: 10 }
-   → { exceptions: [...] }
+```text
+1. tapir_exceptions { clear: true }                 drop tapir's buffer; note the time now (ISO 8601)
+2. tapir_navigate { route: "/reports" }
+3. tapir_exceptions { since: "<time from step 1>", limit: 10 }   only this screen's faults
+4. tapir_console { minLevel: "WARNING", limit: 50 }
 ```
 
-Empty arrays mean either: nothing logged at that level, or crumbs
-is not set up. Verify crumbs is active by triggering a known log
-(call a controller, then read `tapir_console`); if still empty, run
-`tapir:doctor` and check the enricher count.
+The exception buffer is cumulative; without `clear` (or a `since` pinned before the action) one boot-time fault is reported against every screen of a sweep. `clear: true` empties only tapir's own buffer, not the crumbs store, so the `since` in step 3 is what keeps an earlier fault that crumbs still holds out of the answer. `tapir_console` lists the app's own `debugPrint` output even without crumbs; HTTP and the rest of the runtime buffers are the `crumbs` skill. There is no streaming tool: poll between actions.
 
-For real-time log tailing during a workflow, no streaming MCP tool
-exists; the agent polls `tapir_console` between actions. The CLI
-equivalent for human watchers is `./bin/dowel crumbs:tail`.
+## Before and after a change
 
-## Capture a "before / after" diff for a UI change
-
-```
-1. tapir_snap
-   → save snapshot as "before"
-
-2. <perform the action: tap, type, navigate, etc.>
-3. tapir_wait_for or tapir_wait_for_network_idle
-
-4. tapir_snap
-   → save snapshot as "after"
-
-5. <diff the two YAMLs locally>
+```text
+1. tapir_snap                                  an unfiltered snap records the baseline
+2. tapir_tap { ref: "e7", snapshot: "diff" }   only the changed lines, with a (K of N lines changed) footer
 ```
 
-To skip steps 4 and 5, take the baseline snap and then pass
-`snapshot: "diff"` to the action: it returns only the lines it changed.
+For a visual check, `tapir_screenshot { ref: "e7", format: "png" }` before and after keeps the image to the component.
 
-For visual diffs, use `tapir_screenshot` before and after. PNG format
-preserves details for pixel-diff tools; JPEG q70 is good enough for
-"did the right widget appear" verification.
+## Recovery
 
-## Recovery patterns
-
-### Pattern: action fails with `defunct`
-
-```
-<tapir_tap returns "defunct (element no longer mounted)">
-
-1. tapir_snap                        # refresh tree
-2. <pick a new e<N> for the same logical widget>
-3. <retry the action>
-```
-
-If a fresh snap also shows the widget is gone, the assumption that it
-exists is wrong; abandon the path or navigate to the screen where it
-lives.
-
-### Pattern: action fails with `obscured by`
-
-```
-<tapir_tap returns "obscured by other widget (top=_ModalScope)">
-
-1. tapir_dismiss_modals              # pops every PopupRoute
-2. tapir_tap { ref: <same ref> }     # retry the original action
-```
-
-When the obscurer is not a modal (snackbar, drawer, custom overlay),
-inspect the YAML to find the overlay's ref and decide whether to
-dismiss it or accept and tap through with `checkReceivesEvents: false`.
-
-### Pattern: action fails with `not stable`
-
-```
-<tapir_tap returns "not stable (rect changed by 1.2px)">
-
-1. <small wait: tapir_wait_for on a transient label that disappears
-    when the animation finishes, OR explicitly wait via loop>
-2. tapir_tap { ref: <same ref> }
-```
-
-If the widget is permanently animating (a pulsing indicator, an
-endless spinner), the gate is correct to flag it as unstable; pass
-`checkStable: false` if the underlying onTap is safe to fire mid-frame.
-
-### Pattern: `q<N>` returns stale
-
-```
-<tapir_tap returns "Query handle ref=q3 is stale">
-
-1. <call tapir_find or tapir_observe again with broader predicates>
-2. <use the new q<N>>
-```
-
-A stale `q<N>` after a UI change is normal. After hot-reload, the
-predicates may match a re-rendered widget but with a different
-SemanticsNode; re-find rather than retry.
-
-## Multi-tool composites worth knowing
-
-| Goal | Composition |
+| Symptom | Move |
 |---|---|
-| "Reload and check for errors" | `tapir_hot_reload_and_snap { screenshot: false }` then inspect `recentExceptions` |
-| "Confirm a button is tappable" | `tapir_snap` → pick `e<N>` → `tapir_observe { roles: "button" }` → check `isEnabled` on the matching candidate |
-| "Wait for HTTP, then for UI" | `tapir_wait_for_network_idle` → `tapir_wait_for { text: "Done" }` |
-| "Fill 5 fields fast" | `tapir_observe { roles: "textbox" }` → 5 × `tapir_type` against `q<N>` from the candidates, or one `tapir_run` with 5 `fill --ref=q<N> --text=...` steps |
-| "Find a row in a long list" | `tapir_find { contains: "..." }` → `tapir_scroll { ref: <q>, intoView: true }` → `tapir_tap` |
-| "Set device and re-test" | `tapir_device_profile { preset: "iphone-15-pro" }` → `tapir_snap` |
-| "Inspect singleton state when YAML is not enough" | `tapir_evaluate { expression: "MyService.instance.state.toString()" }` (replace with the host app's singleton accessor) |
+| `defunct (element no longer mounted)` | Re-snap, pick the ref again; if the widget is gone from a fresh snap, the screen changed under you |
+| `obscured by other widget (top=...)` | `tapir_reset_overlays`, retry; for a cover that lets touches through, `checkReceivesEvents: false` |
+| `not stable (rect changed by Xpx)` | Wait for the animation (`tapir_wait_for { textGone: ... }`), retry; an endless animation takes `checkStable: false` |
+| `not enabled` | Change the state that disables it; a retry fails the same way |
+| `Query handle ref=qN is stale` | Find or observe again with broader predicates |
+| A success with `effect.changed: false` | Nothing observable moved: check `checks`, `tapPointOutsideOwner`, `warnings` before trying again |
+| `warnings` present | Frames are off; follow its `hint` (web: CDP `Page.bringToFront`), then retry |
 
-## Field rules from real agent runs
+## Field rules from real runs
 
-- Start every run with `./bin/dowel tapir:doctor`.
-- Give each git worktree its own `dowel start` and its own ports. A worktree
-  nested under the repo passes dowel's ownership guard, so a tapir call
-  made there can drive the main checkout's app.
-- A green tick is dispatch, not effect. Read `effect` (`changed`,
-  `verified`, `value`); `tapir:fill` and `tapir:type` exit `1` on an
-  unverified write.
-- The `tapir:wait` timeout flag is `--timeoutMs`, not `--timeout`.
-- Reach an off-screen row with `tapir:scroll --ref=<ref> --intoView`, and
-  trust a `[offscreen]` or `[occluded]` marker on a snapshot line before
-  tapping it.
-- `e<N>` refs re-resolve after a rebuild when the label count is unchanged;
-  `reresolved` in the response tells you it happened.
-- `tapir:press_key --modifiers=control,shift` holds the modifiers down for the
-  press and releases them after it, so exact-match shortcuts fire; an unknown
-  modifier name is an error before anything is pressed.
-- Batch steps whose inputs you already know with `tapir:run` (or `tapir_run`):
-  one call, one summary line per step, the last step's output. Between steps
-  that change the screen use `--text`, `--key` or `q<N>` refs, since `e<N>`
-  refs belong to one snapshot, and end with `snap` to read the new refs.
-- Prefer `--snapshot=diff` (`snapshot: "diff"` over MCP) on `tap`, `fill`,
-  `type`, `navigate` and `scroll`: it returns only the lines that changed
-  since your last unfiltered snapshot. Take a plain `tapir:snap` first, or the
-  first diff is the full tree.
-- A refused `fill` (`ref eN is a button, not a text field`) means the ref is
-  not a text field: pick the field's own ref, or use `tap`, `select_option` or
-  `set_checkbox` for that control. When `effect.target.matchKind` is
-  `nearest`, the ref overlapped no field and a neighbour was written; check
-  `target.label` and `target.rect` before moving on.
-- A `tapOwner` line under a snapshot ref (or field on an observe candidate)
-  marks a merged boundary whose centre is not its control; `tapir:tap` goes to
-  that control and says so (`retargeted`). A warning about
-  `tapPointOutsideOwner` means it could not, and the tap landed at the centre
-  of the merged boundary; check the result with `tapir:snap`.
-- On web with a CDP port, the CLI brings a hidden tab to front itself. It
-  repeats `snap` and `observe` only; after an acting verb run `tapir:snap`.
-- MCP clients should wait for `tools/list_changed` (or re-list tools) after
-  `initialize`: dowel's MCP server answers `tools/list` with an empty list
-  until its plugin tools register (seen from `example/`; a dowel-side
-  finding, not a tapir change).
-- On web, a WPopover trigger may need a real CDP mouse click rather than a
-  tapir tap (a hypothesis, not confirmed).
-- A hidden macOS window is woken by tapir (`framesForced: true`), but an
-  asleep display can still starve frames.
+- Start every run with `./bin/dowel tapir:doctor`; its session-ownership and CDP checks catch the two failures that look like a broken app.
+- Give each git worktree its own `dowel start` and ports. dowel keys sessions by project root and falls back to `~/.dowel/state.json` (whichever app started last) when the project has none, so a worktree without its own session drives someone else's app, successfully.
+- A success is dispatch, not effect: read `effect`, and on the CLI let `tapir:fill` and `tapir:type` fail on an unverified write.
+- Take a plain `tapir:snap` before the first `--snapshot=diff`, or that diff is the full tree.
+- A `tapOwner` sub-line marks a merged boundary whose centre is not its control; `tapir:tap` goes to the control and says `retargeted`. A `tapPointOutsideOwner` warning means it could not: check with `tapir:snap`.
+- On web with a CDP port the CLI brings a hidden tab to front itself, but repeats only `snap` and `observe`; after an acting verb run `tapir:snap`.
+- A hidden macOS window is woken by tapir (`framesForced: true`); an asleep display can still starve frames, and then `warnings` stays.

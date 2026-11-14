@@ -97,16 +97,17 @@ The Stagehand pattern that gives `tapir:observe` its name:
 1. **Observe once.** A single `tapir:observe` call enumerates the interactive surface of the current screen, mints `qN` handles, and returns them in one JSON payload.
 2. **Act many.** The agent issues a sequence of `tapir:tap --ref=qN`, `tapir:type --ref=qN`, `tapir:set_checkbox --ref=qN`, etc. against the minted refs WITHOUT re-observing between actions. Each action re-resolves the `qN` handle against the live tree, so the refs survive intermediate rebuilds.
 
-Candidates sharing one label stay distinct through that re-resolution. Each handle carries its position among the nodes that label matched, which is what makes a list of rows offering the same action safe to work row by row; a handle whose node is gone reports a stale handle rather than acting on its neighbour. `tapir:find` is deliberately different, because there the predicate is one you chose: it answers the first match and reports the total so you can refine it or scope it with `--within`.
+Candidates sharing one label stay distinct through that re-resolution. Each handle carries its position among the nodes that label matched, which lets a list of rows offering the same action be worked row by row while the list is unchanged; a handle reports stale only when fewer same-label nodes remain than its position. `tapir:find` is deliberately different, because there the predicate is one you chose: it answers the first match and reports the total so you can refine it or scope it with `--within`.
 
-The index is a position and not an identity, so it survives a row leaving and it does not survive a row ARRIVING. A row inserted above the list between the observe call and the action (a pull-to-refresh, a lazily built header, a banner carrying the same label) shifts every held handle down by one, silently, because nothing re-checks the node it lands on. Playwright's `nth(i)` behaves the same way. Re-observe after anything that can prepend to a list; a disappearance is reported, an insertion is not.
+The index is a position and not an identity, so it survives neither a row leaving nor a row arriving above it. A row inserted above the list between the observe call and the action (a pull-to-refresh, a lazily built header, a banner carrying the same label) shifts every held handle down by one, and a row removed above it shifts them up by one, silently, because nothing re-checks the node it lands on. Playwright's `nth(i)` behaves the same way. Re-observe after anything that can add or remove a row with that label; only a handle whose position no longer exists is reported stale.
 
 The "no server-side LLM" property is the second half of the pattern: Stagehand-the-product runs an LLM server-side to rank candidates by intent. `tapir:observe` returns the raw candidate list and lets the agent's own LLM rank, so no model context is consumed on the server, and the response is deterministic.
 
 Re-observe only when:
 
 - The agent navigated to a new screen (the handles minted on the previous screen become stale matches).
-- The candidate set itself changes (e.g. a modal opens, a list grows, a tab switches).
+- The candidate set itself changes (e.g. a modal opens, a list grows or shrinks, a tab switches).
+- Same-label rows are reordered (a sort, a filter, a drag to reorder): the held position then selects a different row without any candidate being added or removed.
 
 For incremental state changes on the same screen (clicking a button that disables another button, typing into a field that reveals a new form section), re-resolution on every action call is sufficient; no second `tapir:observe` is needed.
 

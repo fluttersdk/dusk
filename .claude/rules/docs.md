@@ -17,23 +17,23 @@ Docs change in the same change as the code. CI does not check it, so the author 
 
 | Code surface | Update |
 |---|---|
-| New or changed `ext.tapir.*` extension | `doc/commands/tapir-<verb>.md`, `doc/mcp/tool-reference.md`, `ARCHITECTURE.md` extension surface, `llms.txt`, README feature table, CHANGELOG |
-| New `DowelCommand` or `McpToolDescriptor` | the same, plus every count (below) |
-| Behaviour of an existing verb (flag, payload key, exit code, summary line) | its `doc/commands` page, its `tool-reference.md` section, the skill, CHANGELOG |
-| Actionability gate (new check, reason text) | `doc/reference/actionability-gate.md`, `ARCHITECTURE.md` gate table, README gate row, CHANGELOG `Changed` with a migration note, CLAUDE.md Off-limits 5 and 6 |
+| New or changed `ext.tapir.*` extension | `doc/commands/index.md` (and `doc/commands/tapir-<verb>.md` for a verb that has a page), `doc/mcp/tool-reference.md`, `ARCHITECTURE.md` VM Service extension surface, `llms.txt`, the matching README section, `skills/tapir/`, CHANGELOG |
+| New `DowelCommand` or `McpToolDescriptor` | the same, plus the expected names in `test/tapir_dowel_provider_mcp_tools_test.dart` |
+| Behaviour of an existing verb (flag, payload key, exit code, summary line) | its `doc/commands` entry, its `tool-reference.md` section, `skills/tapir/`, CHANGELOG |
+| Actionability gate (new check, reason text) | `doc/reference/actionability-gate.md`, `ARCHITECTURE.md` Actionability gate table, README "Actions and the actionability gate", CHANGELOG `Changed` with a migration note, CLAUDE.md Off-limits 5 and 6 |
 | FROZEN contract (CLAUDE.md Off-limits, or a perf pointer) | CHANGELOG `Changed` flagged breaking, CLAUDE.md Off-limits, `ARCHITECTURE.md` Frozen contracts (perf pointers and the verify table) |
-| Magic or wind integration | `doc/plugins/magic-integration.md` or `wind-integration.md` |
-| Frame production, CDP or device presets | `doc/reference/frame-production.md`, `ARCHITECTURE.md` CDP paragraph, README device row |
+| Magic or wind integration | `doc/plugins/magic-integration.md` or `doc/plugins/wind-integration.md` |
+| Frame production, CDP or device presets | `doc/reference/frame-production.md`, `ARCHITECTURE.md` CDP layer, README "Screenshots and web" |
 | New export from `lib/tapir.dart` | `ARCHITECTURE.md` Frozen contracts, CHANGELOG `Added` |
 
-Counts (commands, MCP tools, `dowel:tapir:*` tools, registered extensions) live in README, `ARCHITECTURE.md`, `llms.txt`, CLAUDE.md, `doc/**` and `skills/**`. After a count moves, grep the old number across them; the provider test holds the truth.
+Counts of commands, MCP tools, `dowel:tapir:*` tools and registered extensions are not stated in prose anywhere: README, `llms.txt`, CLAUDE.md, `ARCHITECTURE.md`, `doc/**` and `skills/**` name verbs and never say how many. `test/tapir_dowel_provider_mcp_tools_test.dart` holds the truth, and a prose count drifts the first time a verb is added.
 
 ## Formats
 
 - `CHANGELOG.md`: Keep a Changelog 1.1.0. New bullets go under `## [Unreleased]` in `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed` or `Security`, with a bold lead sentence, then the why. A release promotes it to `## [X.Y.Z] - YYYY-MM-DD` with a footer compare link.
 - `README.md`: front page, feature table, quick start; under 200 lines. `ARCHITECTURE.md`: the contributor reference, not marketing prose.
-- `llms.txt`: the `llmstxt.org` shape (H1 `# tapir`, one blockquote sentence, then H2 lists of `[label](url): note`, URLs under `https://anilcancakir.com/tapir/docs/`). Add a line for every new doc page.
-- `doc/`: command pages are `commands/tapir-<verb>.md`; `doc/api/` is dartdoc output and stays ignored.
+- `llms.txt`: Wind's format, the standard in `REPO_SPEC.md` section 5 (H1 `# tapir`, a `>` summary, `**Stack**`, `**Setup**`, `## API`, `## Platforms`, `## Rules for agents`, `## Docs`, `## Links`). `## Docs` takes one line per page under `https://anilcancakir.com/tapir/docs/`; `## Links` may name GitHub, pub.dev and the changelog. Add a line for every new doc page.
+- `doc/`: `doc/<section>/<page>.md` with lowercase slug names and one `#` heading as the first line, in the sections `getting-started`, `commands`, `mcp`, `plugins` and `reference`. `commands/index.md` covers every command; a verb with more to say gets `commands/tapir-<verb>.md`. `doc/api/` is dartdoc output and stays ignored.
 - `skills/tapir/`: `SKILL.md` (frontmatter `name`, `description`, `version`; keep it short) plus `references/` for the long tables. Update both on a surface change; the version stamp moves only at a release.
 
 ## Commits
@@ -42,7 +42,7 @@ Conventional Commits with a scope: `feat(extensions): ...`, `fix(actionability):
 
 ## Before a release tag
 
-1. `## [Unreleased]` is promoted with its footer link, and every version stamp in CLAUDE.md Branching moved.
-2. Counts in README, `ARCHITECTURE.md` and `llms.txt` match the provider.
+1. `## [Unreleased]` is promoted with its footer link, and every version stamp in CLAUDE.md Release moved.
+2. No doc states a command, tool or extension count, and `python3 tool/check-docs.py` reports 0 issues.
 3. `dart pub publish --dry-run` is clean (exit 65 means warnings; fix or document them).
 4. Format, analyze, tests and the coverage floor are green on `master`.

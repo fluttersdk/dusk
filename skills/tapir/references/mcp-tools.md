@@ -1,820 +1,254 @@
 # MCP tools reference
 
-The `tapir_*` MCP tools an LLM agent calls to drive a running Flutter app.
-Each entry: one-line purpose, input schema, return shape, when to use it,
-common errors. Use this file as a lookup; the agent rarely needs every tool
-in the same session.
+Every `tapir_*` tool `TapirDowelProvider.mcpTools()` registers: parameters, return shape, and the traps. Look up the tool you are about to call; nobody needs all of them in one session.
 
 ## Contents
 
 - [How calls work](#how-calls-work)
-- [See: snap, screenshot, observe](#see-snap-screenshot-observe)
-- [Find: query handles](#find-query-handles)
-- [Click family: tap, dblclick, right_click, triple_click, hover, drag](#click-family-tap-dblclick-right_click-triple_click-hover-drag)
-- [Text input: type, clear, press_key, focus, blur, fill](#text-input-type-clear-press_key-focus-blur-fill)
+- [See: snap, observe, screenshot](#see-snap-observe-screenshot)
+- [Find](#find)
+- [Pointer: tap, dblclick, right_click, triple_click, hover, drag](#pointer-tap-dblclick-right_click-triple_click-hover-drag)
+- [Text and keys: fill, type, clear, press_key, focus, blur](#text-and-keys-fill-type-clear-press_key-focus-blur)
 - [Form controls: set_checkbox, select_option](#form-controls-set_checkbox-select_option)
 - [Scroll](#scroll)
 - [Wait](#wait)
-- [Navigation](#navigation)
-- [Diagnostics (crumbs bridge)](#diagnostics-crumbs-bridge)
-- [Evaluation (MCP-only)](#evaluation-mcp-only)
+- [Navigation and overlays](#navigation-and-overlays)
+- [Diagnostics](#diagnostics)
 - [App control](#app-control)
 - [Performance](#performance)
-- [Composite (substrate-routed)](#composite-substrate-routed)
-- [Device emulation (substrate-routed, CDP, web-only)](#device-emulation-substrate-routed-cdp-web-only)
+- [Substrate-routed: run, hot reload, viewport](#substrate-routed-run-hot-reload-viewport)
 
 ## How calls work
 
-The MCP client forwards `tools/call` to the dowel server
-(`dart run tapir mcp:serve`). The server dispatches to one of:
+The MCP server is dowel's (`./bin/dowel mcp:serve` or `dart run tapir mcp:serve`, client key `dowel`). Most tools call an `ext.tapir.*` extension inside the app isolate. `tapir_run`, `tapir_hot_reload_and_snap`, `tapir_perf_run`, `tapir_perf_compare`, `tapir_perf_trace`, `tapir_resize_viewport` and `tapir_device_profile` run a `dowel:tapir:*` command in the server's process instead.
 
-- An `ext.tapir.*` VM Service extension running inside the Flutter isolate
-  (most tools).
-- An `dowel:tapir:*` substrate command running outside the isolate:
-  `tapir_hot_reload_and_snap`, `tapir_resize_viewport`, `tapir_device_profile`,
-  `tapir_run`, `tapir_perf_run`, `tapir_perf_compare` and `tapir_perf_trace`.
+Every schema is closed (`additionalProperties: false`): an argument a tool does not list is refused with `Additional property "..." is not allowed`. A few knobs exist only on the CLI or for the perf runner (`tapir:resize --hold`, screenshot `geometry`, coordinate taps); do not send them over MCP.
 
-Every tool returns a JSON object via `ServiceExtensionResponse.result` on
-success. Failures return a `TapirErrorEnvelope`: at minimum `{ message }`,
-often with `{ reason, ref, method }` for agent branching.
-
-These fields can appear on any `ext.tapir.*`-backed success payload.
-
-`framesForced: true` means the desktop window was hidden and tapir woke it
-for this call: it delivers `AppLifecycleState.inactive`, waits for a frame,
-then `resumed`, at the start of every verb except the perf verbs, `boot_id`,
-`close_app`, `console`, `exceptions`, `semantics_hold` and `evaluate`. The
-result is fresh. A hidden browser tab cannot be woken. The app's lifecycle
-observers see `resumed`; `--dart-define=TAPIR_FORCE_FRAMES=false` turns the
-forcing off.
-
-`warnings` is present only while the app is not producing frames and tapir
-could not force them (that opt-out, or a `detached` app). It means the
-result cannot be trusted, because the semantics tree is not being rebuilt
-and dispatched gestures cannot take effect.
-
-```json
-{ "warnings": { "framesEnabled": false, "lifecycleState": "hidden", "platform": "macOS", "hint": "..." } }
-```
-
-`platform` and `hint` are platform-aware. On web a backgrounded browser tab
-is the usual cause: recover with one CDP call, `Page.bringToFront`. On
-desktop it is a hidden, minimised or occluded window or an asleep display:
-bring the window to front. Then retry. Never read an empty snapshot as an
-empty screen, or a clean action payload as an applied gesture, while this
-key is present. It is omitted entirely on a healthy engine.
-
-`reresolved: ["e5"]` means a stale `e<N>` ref was relocated by label to the
-control that replaced it.
-
-Prerequisites for every `tapir_*` MCP tool:
-
-1. The app is running (`./bin/dowel start --device=<dev>`).
-2. `TapirPlugin.install()` ran inside `!kReleaseMode` (handled by the
-   one-time `tapir:install` CLI command).
-3. The MCP server is wired in `.mcp.json` (handled by the one-time
-   `mcp:install` CLI command).
-
-Note that `tapir:install` and `tapir:doctor` are CLI commands run from a
-shell during setup, not MCP tools surfaced to the agent. If an MCP tool
-returns "VM Service URI absent", the app is not running or tapir is not
-attached; if a substrate-routed CDP tool (`tapir_resize_viewport`,
-`tapir_device_profile`) returns "CDP not enabled", Chrome was launched
-without `--cdp-port`. From the shell, `./bin/dowel tapir:doctor` runs the
-preflight checks.
-
----
-
-## See: snap, screenshot, observe
-
-### tapir_snap
-
-**Purpose.** Capture the running app's Semantics tree as a YAML document
-with stable `[ref=eN]` tokens.
-
-**Input.**
-
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `depth` | integer | no | unlimited | Maximum tree depth to walk |
-| `within` | string | no | whole tree | `e<N>` ref of the subtree to walk. `q<N>` handles are not addressable here |
-| `interactiveOnly` | boolean | no | false | Emit only ref-bearing nodes; drop the plain `- text` lines |
-| `grep` | string | no | none | Emit only nodes whose label or value matches this regex, plus the ancestors leading to them. An invalid regex is matched as a literal substring and the response carries `grepLiteral: true` |
-| `includeEnrichers` | boolean | no | false | Add the Magic and Wind enricher lines under each ref |
-
-**Returns.** `{ snapshot: "<yaml>", groupId: "snapshot-<timestamp>" }`.
-
-YAML format per interactive node: `- <role> "<label>": "<value>" [ref=eN]`
-followed by indented enricher lines (`magicFormField: email`, `magicRoute:
-/login`, `wind: { breakpoint: lg, states: [hover] }`, etc.). The line may
-end with ` [offscreen]` (outside the viewport) and/or ` [occluded]` (another
-widget covers its centre); a healthy screen has neither. A node can also carry
-`overflow: true` (an overflowing ancestor), and the response a `renderErrors`
-block when non-fatal render errors were captured.
-
-**Use it.** As the first call of any new agent session, or whenever the
-UI mutates (navigation, modal open, hot-reload). Re-snap after each act
-to refresh `e<N>` tokens against the live tree.
-
-**Narrow after the first read.** One unfiltered snap to see the shape,
-then `within` + `interactiveOnly` for everything after it. A full tree
-costs context on any real screen, and on a shell whose sidebar repeats
-page labels it is also the misleading read: the unscoped lookup resolves
-the nav item and you end up measuring the sidebar.
-
-**Common pitfalls.** `e<N>` tokens become defunct when their node
-unmounts. After a route push or a list rebuild, an old `e<N>` is relocated
-by label when the live tree has the same number of nodes with that label
-(the response lists it under `reresolved`); otherwise it fails the gate
-with `"defunct (element no longer mounted)"`; re-snap and pick
-a fresh ref. For multi-step flows prefer `tapir_find` / `tapir_observe` to
-mint `q<N>` handles that survive disposal.
-
----
-
-### tapir_observe
-
-**Purpose.** Return a structured list of every interactive widget on
-screen as `q<N>` query handles plus enricher fields. Stagehand pattern:
-observe once, then act many times without re-observing.
-
-**Input.**
-
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `intent` | string | no | (none) | Free-form hint for the agent's own reasoning; not used server-side |
-| `roles` | string | no | (all roles) | Comma-separated subset of `button`, `textbox`, `link`, `checkbox`, `heading`, `image` |
-| `limit` | integer | no | 50 | Caps the candidate count |
-| `includeEnrichers` | string | no | `"true"` | `"true"` (default subset), `"false"` (off), `"full"` (every enricher field) |
-
-**Returns.**
+An error is a JSON string with the human message and a machine envelope:
 
 ```json
 {
-  "candidates": [
-    {
-      "ref": "q3",
-      "role": "textbox",
-      "label": "Email",
-      "value": "",
-      "bounds": { "x": 24.0, "y": 120.0, "w": 320.0, "h": 48.0 },
-      "isEnabled": true,
-      "isVisible": true,
-      "inViewport": true,
-      "occluded": false,
-      "magicFormField": "email",
-      "magicRoute": "/login",
-      "wind": { "breakpoint": "lg", "states": "[]" }
-    }
-  ],
-  "count": 6
+  "message": "Widget ref=e7 is not actionable: not stable (rect changed by 1.2px)",
+  "envelope": { "type": "not_stable", "widget_path": "e7", "suggestions": [] }
 }
 ```
 
-`inViewport` is false when the bounds lie outside the view; `occluded` is
-true when a hit test at the bounds' centre reaches a widget painted above the
-candidate. Check both before tapping a candidate on a busy screen. A merged candidate
-whose centre is not on its own control also carries `tapOwner: {x, y, w, h}`, the control's
-rect; `tapir_tap` goes there.
+`envelope.type` is one of `timeout`, `not_found`, `obscured`, `disabled`, `stale`, `zero_rect`, `off_viewport`, `not_stable`, `missing_param`, `unexpected`. A `not_found` error lists up to three near matches in `suggestions`. The gate's reason substring sits verbatim inside `message`.
 
-**Use it.** When the agent needs to enumerate candidates (form fill,
-"find every submit button on the page", "list every link in the
-navigation"). One observe call replaces a snap + multiple finds; the
-candidates carry enough metadata to pick the right ref locally without
-extra round-trips.
+Keys any success payload can carry:
 
-**Pitfalls.** Observe walks the entire live tree; on a long ListView
-with many interactive rows, the candidates may exceed `limit` and
-truncate. Narrow with `roles=button` first, then a second call with
-`roles=textbox` if needed.
+| Key | Meaning |
+|---|---|
+| `framesForced: true` | A hidden or paused app was woken for this call. Normal. Not done by the perf verbs, `console`, `exceptions`, `close_app` and `evaluate`; `--dart-define=TAPIR_FORCE_FRAMES=false` turns it off. |
+| `warnings: {framesEnabled, lifecycleState, platform, hint}` | The app is not producing frames and could not be woken (a hidden browser tab, the opt-out, a `detached` app). The result cannot be trusted; follow `hint` and retry. Absent on a healthy engine. |
+| `reresolved: ["e5"]` | A stale `e<N>` was relocated by label to the control that replaced it. |
+| `checks: {receivesEvents, why?, overlapCandidates?, hint?}` | Gate step 5 could not confirm the target (`indeterminate`) or was skipped (`skipped`). Absent when confirmed. |
+| `effect` | What the widget holds after the action; see each verb. |
 
----
+The `snapshot` parameter (`full`, `diff`, `none`) overrides `includeSnapshot` on the tools that accept it. `diff` returns only the lines changed since the last unfiltered snapshot: a changed row is `- <old>` then `+ <new>`, then a `(K of N lines changed)` footer, and the payload adds `snapshotMode: "diff"`. A filtered `tapir_snap` (`grep`, `within`, `depth`, `interactiveOnly`) records no baseline, and a hot restart clears it, so the next diff is the full text.
+
+## See: snap, observe, screenshot
+
+### tapir_snap
+
+| Param | Type | Default | Note |
+|---|---|---|---|
+| `depth` | integer | full tree | Maximum depth from the root |
+| `within` | string | whole tree | `e<N>` of the subtree to walk; a `q<N>` is not accepted, an unknown ref is an error |
+| `interactiveOnly` | boolean | false | Only ref-bearing nodes, no `- text` lines |
+| `grep` | string | none | Nodes whose label or value match the regex, plus their ancestors; an invalid regex is matched as text and the payload adds `grepLiteral: true` |
+| `includeEnrichers` | boolean | false | Magic, Wind and custom enricher lines under each ref |
+
+Returns `{ snapshot: "<yaml>", groupId }`. A node line is `- <role> "<label>" [ref=eN]`, roles `textbox`, `checkbox`, `link`, `heading`, `image`, `button`. It may end with ` [offscreen]` or ` [occluded]`, and carry sub-lines `overflow: true` (inside an overflowing ancestor), `typeable: true` (the node `tapir_type` writes to when a field has two nested `textbox` nodes) and `tapOwner: {"x":..,"y":..,"w":..,"h":..}` (a merged boundary's own control). A `MergeSemantics` control is one line on its boundary. When non-fatal render errors were captured the payload adds `renderErrors: {count, recent: [{type, message}], hint}`.
+
+### tapir_observe
+
+| Param | Type | Default | Note |
+|---|---|---|---|
+| `intent` | string | none | Your own note; not used by the handler |
+| `roles` | string | all | Comma list of `button`, `textbox`, `link`, `checkbox`, `heading`, `image` |
+| `limit` | integer | 50 | Candidate cap |
+| `includeEnrichers` | string | `"true"` | `"true"` (`magicFormField`, `magicRoute`, `magicGateResult`, `wind.breakpoint`, `wind.states`), `"false"`, or `"full"` |
+
+Returns `{ candidates: [{ ref, role, label, value, bounds, isEnabled, isVisible, inViewport, occluded, tapOwner?, ...enricher fields }] }`. Each `ref` is a `q<N>`; a labelled candidate also carries its position among same-label nodes, so rows offering one action stay distinct while the list is unchanged; after a same-label row is added or removed the handle selects a neighbour and the action still succeeds, so observe again. An unlabelled candidate has no position: its handle matches its value text (and can land on another control with the same text), and one with no value is stale at once, so use a snapshot ref or a `key` for those. A long list can exceed `limit`; narrow with `roles`.
 
 ### tapir_screenshot
 
-**Purpose.** Capture a base64-encoded image of the running app, or a
-specific widget by ref, or a sub-rect within a widget.
+| Param | Type | Default | Note |
+|---|---|---|---|
+| `ref` | string | whole viewport | Capture only this widget (`e<N>` or `q<N>`) |
+| `rect` | string | ref bounds | `"x,y,w,h"` relative to the ref; without `ref` it is an error |
+| `format` | string | `jpeg` | `jpeg` or `png` |
+| `quality` | integer | 70 | JPEG quality |
 
-**Input.**
+Returns `{ format, base64, width, height }`. Prefer `ref`: a full tall page costs far more tokens and buries the component. On web the in-isolate capture can hang under CanvasKit; use the CLI `tapir:screenshot --ref=<ref> -o <path>`, which falls back to CDP `Page.captureScreenshot` when the session has a `cdpPort`.
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `ref` | string | no | full viewport | Target a specific `e<N>` / `q<N>` |
-| `rect` | string | no | full bounds | `"x,y,w,h"` logical pixels inside the ref's bounds |
-| `format` | string | no | `jpeg` | `jpeg` or `png` |
-| `quality` | integer | no | 70 | JPEG quality 1-100 |
-
-**Returns.** `{ format, base64, width, height }`. JPEG q70 is typically
-40-120 KB; PNG is 300-800 KB. A hidden or minimised desktop window is
-woken first, so the image is a fresh frame (`framesForced: true`), not the
-last cached one. The CLI infers `format` from the `-o` extension (`.png`,
-`.jpg`, `.jpeg`) when `--format` is not given.
-
-**Use it.** When the verification is visual (layout, colors, image
-content) and the snapshot tree alone is not enough. For pure
-correctness checks, snap is cheaper and faster than screenshot.
-
-**Pitfalls.** The MCP payload carries the full base64 string; on slow
-clients this can be lossy. Prefer ref-targeted screenshots when only one
-widget matters.
-
-`rect` without `ref` is a hard error, not a full-frame capture: a sub-rect
-is meaningless without the widget it is relative to.
-
-On web the MCP tool can hang (CanvasKit + DWDS), so use the CLI
-`tapir:screenshot --ref=<ref> -o <path>` there. It resolves the region
-through the extension's geometry mode and clips a CDP
-`Page.captureScreenshot`, so `--ref` and `--rect` behave the same on both
-paths. Reaching for `--ref` also removes the resize dance: without it, a
-component below the fold means growing the viewport to a size no device
-has, capturing, and putting the height back.
-
----
-
-## Find: query handles
+## Find
 
 ### tapir_find
 
-**Purpose.** Mint a re-resolvable `q<N>` handle that re-walks the live
-Semantics tree on every action. Playwright Locator equivalent.
-
-**Input.** At least one of:
-
 | Param | Type | Note |
 |---|---|---|
-| `text` | string | Exact match on Text widget data or semantics label |
-| `contains` | string | Substring match (looser; use when label is dynamic) |
-| `semanticsLabel` | string | Exact match on `Semantics(label: ...)` only, ignores Text widgets |
-| `key` | string | Stringified widget Key (`Key('login-submit')`) |
-| `within` | string | `e<N>` ref of the subtree to search in. Becomes part of the handle, so the scope survives every re-resolve. Use a ref from `tapir_snap`: one minted by `tapir_wait` carries no semantics node and is refused for `semanticsLabel` |
+| `text` | string | Exact match on the accessibility label, then `Text.data` |
+| `contains` | string | Case-sensitive substring of the same; for dynamic labels |
+| `semanticsLabel` | string | Exact match on `SemanticsNode.label` only |
+| `key` | string | A widget `Key`; for a `ValueKey` pass the value's `toString()` |
+| `within` | string | `e<N>` of the region to search; stored in the handle, so the scope survives every re-resolve |
 
-**Returns.** `{ ref: "q3", matched: true }` or `{ ref: null, matched: false }`.
+At least one of the first four; `within` alone is refused. Predicates are not all intersected: the resolver takes the first of these that is set and ignores the others except as noted. `key` wins (a `text` beside it must also appear in a `Text` below the widget; `semanticsLabel` and `contains` are ignored); then `semanticsLabel` (exact label; `text` and `contains` are ignored); then `text`; then `contains`. `within` bounds whichever one applies. When `semanticsLabel` or `text` meets several nodes with that label, the first interactive one wins, and the first in tree order only when none is. Returns `{ ref: "q<N>", matched: true, matchCount, diagnostic? }`, or `{ ref: null, matched: false, diagnostic? }` (the diagnostic names a scope that no longer resolves). `diagnostic` appears when `matchCount > 1`: the handle points at the first match, so narrow the predicate.
 
-**Use it.** For any retry-prone action: forms with validation errors,
-async-loading content, navigation buttons that appear after a wait.
-The same `q<N>` works after the widget rebuilds, after a scroll, after
-a hot-reload (as long as the predicate still matches something).
+## Pointer: tap, dblclick, right_click, triple_click, hover, drag
 
-**Pitfalls.** `tapir_find` returns the first match. When a label is not
-unique, reach for `within` first: a sidebar and the page it opens share
-their labels, and the unscoped match lands on the nav item. Otherwise
-scope with `contains` plus another predicate, or use
-`tapir_observe` to enumerate.
+All run the actionability gate and accept `snapshot`, `includeSnapshot` (default true), `checkStable` and `checkReceivesEvents` (default true).
 
----
+| Tool | Params | Returns | Gesture |
+|---|---|---|---|
+| `tapir_tap` | `ref`, `retarget` (default true), `until`, `untilTimeoutMs` (default 3000) | `{ ref, effect: {kind: "treeChanged", changed}, untilMatched?, retargeted?, tapPointOutsideOwner? }` | Down, 50ms, Up at the live centre, re-read after the gate |
+| `tapir_dblclick` | `ref` | `{ ref }` | Two taps about 100ms apart, one gate |
+| `tapir_right_click` | `ref` | `{ ref, button: "right" }` | Secondary mouse button |
+| `tapir_triple_click` | `ref` | `{ ref, clickCount: 3 }` | Three taps about 100ms apart |
+| `tapir_hover` | `ref` | `{ ref }` | Mouse hover at the centre; does nothing on a touch-only target |
+| `tapir_drag` | `startRef`, `endRef` | `{ startRef, endRef }` | Down, five moves 16ms apart, Up; both ends gated |
 
-## Click family: tap, dblclick, right_click, triple_click, hover, drag
+`tapir_tap` on a merged boundary goes to its one labelled control and adds `retargeted: {from, to, ownerRect, centreHandled?}`; `centreHandled: true` means the centre has its own handler, and `retarget: false` taps the centre. When retargeting is unsafe (several candidates, the control covered or off screen) the tap stays at the centre and adds `tapPointOutsideOwner: {ownerRect, point}`. Only `tapir_tap` retargets. `until` polls the live tree for a `Text` equal to the value after the tap.
 
-All gate-checked. All take `ref` (required, `e<N>` or `q<N>`; `tapir_drag` takes
-`startRef` and `endRef` instead), and accept
-`checkStable` (default true), `checkReceivesEvents` (default true),
-`includeSnapshot` (default true) and `snapshot` (`full` | `diff` | `none`,
-which overrides `includeSnapshot`).
-
-### tapir_tap
-
-`ref` (required), `snapshot` (`full` | `diff` | `none`, optional), `retarget`
-(default true, see below), `until` and `untilTimeoutMs` (optional). Down + 50ms
-hold + Up at the widget's center. Returns `{ ref, effect, snapshot? }`. With
-`until: "<text>"` the call also polls the live tree (up to `untilTimeoutMs`,
-default 3000) for a `Text` equal to it and adds an `untilMatched` boolean.
-
-`snapshot: "diff"` returns only the snapshot lines the tap changed since your
-last unfiltered snapshot (a `tapir_snap` or an earlier action): a changed row is
-`- <old line>` then `+ <new line>`, an added row `+ `, a removed row `- `, then
-`(K of N lines changed)`, and the payload adds `snapshotMode: "diff"`. With no
-baseline yet the full text comes back; a filtered `tapir_snap` never records
-one, and a hot restart clears it. `"none"` drops the snapshot.
-
-A tap on a merged (`MergeSemantics`) boundary goes to the one labelled control
-that owns the merged label and the response adds `retargeted: { from, to,
-ownerRect, centreHandled? }` (the gate still judges the boundary's centre).
-`centreHandled: true` means the centre has a tap handler of its own (a stage
-that pauses, a row that opens): pass `retarget: false` to tap that instead.
-When retargeting is not safe (several candidates, or the control is covered or
-off screen) the tap stays at the centre and the response adds
-`tapPointOutsideOwner: { ownerRect, point }`: it may have hit something else,
-so check the result. Snapshot and observe show the control ahead of time as
-`tapOwner` (with `retargets: false` when a tap cannot go there). Only `tapir_tap`
-retargets; the other pointer verbs use the centre.
-
-### tapir_dblclick
-
-`ref` (required). Two tap sequences ~100ms apart. Gate checked once
-on the same ref. Returns `{ ref, snapshot? }`.
-
-### tapir_right_click
-
-`ref` (required). Secondary mouse button click. Returns
-`{ ref, button: "right", snapshot? }`. Mouse-only.
-
-### tapir_triple_click
-
-`ref` (required). Three tap sequences ~100ms apart. Returns
-`{ ref, clickCount: 3, snapshot? }`.
-
-### tapir_hover
-
-`ref` (required). PointerHoverEvent at the widget's center. Mouse-only;
-on touch devices this is a no-op (`MouseRegion.onHover` will not fire
-without a mouse pointer). Returns `{ ref, snapshot? }`.
-
-### tapir_drag
-
-`startRef` and `endRef` (both required). Down at start + 5 Move events
-(16ms apart) + Up at end. Both endpoints gate-checked in order. Returns
-`{ startRef, endRef, snapshot? }`.
-
----
-
-## Text input: type, clear, press_key, focus, blur, fill
-
-### tapir_type
-
-`ref` (required), `text` (required). Calls `userUpdateTextEditingValue`
-on the resolved `EditableTextState`. This fires `onChanged` listeners,
-which is what Wind / Magic form data bindings subscribe to. Gate
-checked. Returns `{ text, snapshot? }`.
-
-**Pitfall.** `tapir_type` REPLACES the field content, it does not
-append. To add to existing text, snap or find the field, read its
-current value, then type the concatenation.
-
-### tapir_clear
-
-`ref` (required), `includeSnapshot` (default false). Resolves the
-TextEditingController and calls `.clear()`. No gate. Returns
-`{ ref, text: "", snapshot? }`.
-
-### tapir_press_key
-
-`key` (required), `modifiers` (optional array of `control` (or `ctrl`),
-`shift`, `alt`, `meta`, any case). Delivers a Down+Up through the binding's `onKeyData`, the
-path real key data takes, so `Focus.onKeyEvent` and `Shortcuts` on the
-currently focused widget hear it; it targets that widget, not a ref.
-Supported keys: `Enter`, `Tab`, `Escape`, `Backspace`, `Delete`, `Space`,
-`ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `Home`, `End`, `PageUp`,
-`PageDown`, `F1`-`F12` (case-insensitive), and one ASCII letter or digit,
-which presses the key carrying that character (text still goes through
-`tapir_type`). Returns `{ ok: true, key, snapshot? }`.
-
-Modifiers are held down before the key and released after it, even when
-delivery throws, so `{ "key": "S", "modifiers": ["control"] }` fires an
-exact-match Ctrl+S. An unknown modifier name is an error before anything is
-pressed.
-
-### tapir_focus
-
-`ref` (required). Walks for a `Focus` ancestor or `EditableText` descendant
-and calls `node.requestFocus()`. Returns `{ ref, focused: true, snapshot? }`.
-
-### tapir_blur
-
-`includeSnapshot` (default false). Calls
-`FocusManager.instance.primaryFocus?.unfocus()` regardless of ref.
-Returns `{ blurred: true, hadFocus, snapshot? }`.
+## Text and keys: fill, type, clear, press_key, focus, blur
 
 ### tapir_fill
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `ref` | string | yes | -- | Text-field ref (`e<N>` or `q<N>`) from a prior snap or find |
-| `text` | string | yes | -- | Value to set; replaces existing content. `""` clears the field |
-| `includeSnapshot` | boolean | no | true | Embed the post-fill snapshot |
-| `snapshot` | string | no | -- | `full`, `diff` or `none`; overrides `includeSnapshot` (see `tapir_tap` for the diff form) |
+`ref`, `text` (required; `""` clears), `includeSnapshot` (default true), `snapshot`, `checkStable`, `checkReceivesEvents`. Focus, clear, type and a two-frame settle in one call, retried once when the ref goes stale mid-fill; prefer a `q<N>` so that retry can re-resolve. Returns `{ ref, text, filled: true, effect }`.
 
-Focus, clear, type, and settle in one call. Composes the gated focus / clear /
-type handlers, so the actionability gate, IME focus, and `onChanged` plus
-validator firing all still run, and retries the whole sequence once when the
-ref goes stale mid-fill. Returns `{ ref, text, filled: true, effect }` plus the
-optional snapshot.
+`effect` is `{kind: "text", verified, value, target: {matchKind, label, rect}}`. `value` is read after the settle, so a formatter or echo that reverts the write gives `verified: false`. `matchKind` is `overlap`, `nearest` or `element`; on `nearest` the ref overlapped no field and the nearest one was written. A ref that is a button, checkbox, radio, switch, slider or link is refused with `ref eN is a <role>, not a text field`.
 
-The field is resolved once for focus, clear and type. A ref that is a button,
-checkbox, radio, switch, slider or link is refused with `ref eN is a <role>,
-not a text field`; a label or static-text handle keeps the nearest-field
-fallback. `effect.target` is `{ matchKind: overlap | nearest | element, label,
-rect }`: read it when `matchKind` is `nearest`. `effect.verified` is computed
-from the value read after the two-frame settle, so a formatter or echo that
-reverts the write reports `false`.
+### tapir_type
 
-Reach for this instead of the manual focus + clear + type + wait sequence.
-Prefer a `q<N>` handle from `tapir_find` when the field may rebuild between the
-snapshot and the fill: the stale-retry then re-resolves cleanly on the second
-pass, where a frozen `e<N>` would come back `defunct`.
+`ref`, `text` (required), `snapshot`, `includeSnapshot`, `checkStable`, `checkReceivesEvents`. Gated. Writes through `userUpdateTextEditingValue`, so `onChanged` and validators fire. It replaces the content; to append, read the value and type the whole string. Returns `{ text, effect }` with the same `effect` as fill.
 
-The CLI form defaults `includeSnapshot` to false, the opposite of this tool.
+### tapir_clear
 
----
+`ref` (required), `includeSnapshot` (default false). Not gated. Clears the field's controller. Returns `{ ref, text: "", effect }`.
+
+### tapir_press_key
+
+`key` (required), `modifiers`, `snapshot`, `includeSnapshot`. Not gated and not aimed at a ref: the key goes to the focused widget through the binding's key data path, so `Focus.onKeyEvent`, `Shortcuts` and `CallbackShortcuts` hear it. Keys: `Enter`, `Tab`, `Escape`, `Backspace`, `Delete`, `Space`, `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `Home`, `End`, `PageUp`, `PageDown`, `F1` to `F12`, or one letter or digit. `modifiers` is a list of `control` (or `ctrl`), `shift`, `alt`, `meta`, held before the key and released after it even when delivery throws; an unknown name fails before anything is pressed. Text goes through `tapir_type`, not key presses. Returns `{ ok: true, key }`.
+
+### tapir_focus, tapir_blur
+
+`tapir_focus`: `ref` (required), `includeSnapshot` (default false); requests focus on the nearest `Focus` (or the field's own) node. Returns `{ ref, focused: true }`. `tapir_blur`: `includeSnapshot`; unfocuses whatever holds focus. Returns `{ blurred: true, hadFocus }`.
 
 ## Form controls: set_checkbox, select_option
 
 ### tapir_set_checkbox
 
-`ref` (required), `value` (required, `"true"` or `"false"`). Reads the
-current Semantics `isChecked` flag; if it differs, taps the widget.
-Idempotent (no-op when state already matches). Returns
-`{ ref, previousValue, value, toggled, snapshot? }`.
+`ref`, `value` (`"true"` or `"false"`), both required. Not gated. Reads the checked or toggled flag of the ref's Semantics node (its own node, else the nearest ancestor node, else the first descendant node that has one), so a checkbox, switch or radio from any library works: Flutter material, `material_ui`, `wind_kit` or a hand-built `Semantics(checked: ...)`. It taps only when the state differs and reads it back. Returns `{ ref, previousValue, value, toggled, effect: {kind: "checked", verified, before, after} }`. A ref with no checked or toggled state is refused with an error, never assumed unchecked. A mixed checkbox is always tapped once and reports `previousValue: null`. When the state already equals `value` it does not tap and returns `toggled: false`.
 
 ### tapir_select_option
 
-`ref` (required), `value` (required). Walks the ref subtree for a
-`DropdownButton`, calls `onChanged(value)` directly. Skips the gate and
-the popup walk. Returns `{ selected: true, value }`.
-
-**Pitfall.** This only works on `DropdownButton`. For custom dropdowns
-(bottom sheets, dialogs), tap to open then tap the option.
-
----
+`ref`, `value`, both required. Not gated. Calls the `onChanged` of the first `DropdownButton` at or under the ref with `value` as a string, so the dropdown's value type has to be `String`. Returns `{ selected: true, value, effect: {kind: "selected", verified, value} }`. A custom picker (bottom sheet, menu) needs a tap to open and a tap on the option.
 
 ## Scroll
 
 ### tapir_scroll
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `ref` | string | no | root scrollable | The scrollable to drive, or any widget within one |
-| `dx` | number | no | 0 | Horizontal scroll in logical pixels |
-| `dy` | number | no | 0 | Vertical scroll in logical pixels (positive = down) |
-| `direction` | string | no | `down` | `up`, `down`, `left` or `right`; used only when `dx` and `dy` are absent |
-| `pixels` | number | no | 300 | Distance for `direction` |
-| `intoView` | boolean | no | false | When true with `ref`, calls `Scrollable.ensureVisible` instead of scrolling by delta |
-| `snapshot` | string | no | -- | `full`, `diff` or `none`; overrides `includeSnapshot` |
-| `includeSnapshot` | boolean | no | true | Append a post-scroll snapshot |
+| Param | Type | Default | Note |
+|---|---|---|---|
+| `ref` | string | first `Scrollable` | A widget inside the scrollable to drive |
+| `direction` | string | `down` | `up`, `down`, `left`, `right` |
+| `pixels` | number | 300 | Distance for `direction` |
+| `dx`, `dy` | number | none | Signed delta in logical pixels (positive is right, down); wins over `direction` |
+| `intoView` | boolean | false | `Scrollable.ensureVisible` on `ref` instead of a delta |
+| `snapshot`, `includeSnapshot` | | true | Post-scroll snapshot |
 
-`direction` (`up`, `down`, `left`, `right`; default `down`) and `pixels`
-(default 300) name the same delta as a signed pair; `dx` / `dy` win when both
-are given. A call with a `ref` and none of them moves nothing.
-
-**Returns.** `{ scrolled, finalOffset, effect, snapshot? }`. `scrolled` is
-true only when the offset moved; with no scrollable around the ref, or one
-already at its edge, it is false and `effect.changed` is false.
-
-**Use it.** Combine with `tapir_find` or `tapir_observe` to bring a
-known-but-off-screen widget into reach, then `tapir_tap` it. The
-actionability gate already auto-scrolls when a `Scrollable` ancestor
-exists, so explicit `tapir_scroll` is only needed for nested scrollables
-or horizontal scrolls where the gate's vertical default does not help.
-
----
+Not gated; a delta is a `jumpTo` clamped to the extents. Returns `{ scrolled, finalOffset, effect: {kind: "scrollOffset", changed, before, after} }`; `scrolled: false` means nothing moved (no scrollable around the ref, or already at the edge). Re-snap after: an off-screen row gets a ref only once Flutter builds it. The gate already scrolls a target into view under one `Scrollable`; reach for this for nested or horizontal lists.
 
 ## Wait
 
 ### tapir_wait_for
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `text` | string | one-of | (none) | Wait for this text to appear |
-| `textGone` | string | one-of | (none) | Wait for this text to disappear |
-| `expression` | string | one-of | (none) | Treated as text-presence; no Dart eval here |
-| `timeoutMs` | integer | no | 5000 | Hard cap; no maximum enforced |
-
-**Returns.** `{ matched: true, elapsedMs }` or `{ matched: false, reason:
-"timeout" }`. Polls every 200ms.
-
-**Pitfall.** Use exactly one of `text` / `textGone` / `expression`. For
-"wait until this widget is gone", `textGone` matches by text content,
-not by ref disappearance. To wait for a ref to vanish, snap in a loop
-until the ref is missing (or rely on `tapir_wait_for_network_idle` after
-the action that should remove it).
+`text`, `textGone` or `expression` (one of them; with several the first in that order wins), `timeoutMs` (default 5000). Polls every 200ms for a `Text` with that exact data. `expression` is matched as text, not evaluated. Returns `{ matched: true, elapsedMs }`, or `{ matched: false, reason: "timeout" }` as a normal result, so check `matched`.
 
 ### tapir_wait_for_network_idle
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `timeoutMs` | integer | no | 5000 | Hard cap |
-| `idleMs` | integer | no | 500 | Contiguous-zero window required |
-| `pollIntervalMs` | integer | no | 200 | Minimum 100 |
+`timeoutMs` (5000), `idleMs` (500, the contiguous zero window), `pollIntervalMs` (200, minimum 100). Returns `{ matched: true, idleAchievedMs }`; a timeout is an error of type `timeout` whose message names `maxPending`. The in-flight count comes from crumbs: without that wiring it is always 0 and the call returns `matched: true` at once.
 
-**Returns.** `{ matched: true, idleAchievedMs }` or error envelope with
-`type: "timeout", maxPending: <N>`.
-
-**Use it.** After any action that fires HTTP (form submit, navigation
-that loads data, manual refresh button). Combine with `tapir_wait_for`
-on the success text for the strongest verification.
-
-**Pitfall.** Requires `crumbs` wired via
-`MagicCrumbsIntegration.install()`. Without it, pending-count is
-constantly 0 and the call returns immediately with `matched: true`,
-even when HTTP is in flight. Verify crumbs is wired by calling
-`tapir_console { limit: 1 }` first; an empty array on a busy app means
-crumbs is not active.
-
----
-
-## Navigation
+## Navigation and overlays
 
 ### tapir_navigate
 
-`route` (required, must start with `/`), `includeSnapshot` (default
-true), `snapshot` (`full` | `diff` | `none`, overrides `includeSnapshot`).
-Tries three paths: (1) `Navigator.pushNamed(route)`, (2)
-consumer-registered `TapirNavigateAdapter`, (3)
-`SystemNavigator.routeInformationUpdated` (Router-based apps like
-GoRouter, auto_route). Before navigating, dismisses every modal.
-
-Returns `{ navigated: true|false, route, exactPath, reason?, snapshot? }`.
-When `navigated: false`, `reason` carries the diagnostic ("no navigator
-found", "adapter rejected", "router did not accept"). `navigated: true`
-also covers a page under the route (`/monitors/7` for `/monitors`);
-`exactPath: true` only when the Router shows the route itself.
+`route` (required, starts with `/`), `snapshot`, `includeSnapshot` (default true). Dismisses open modals, then pushes through the registered `TapirNavigateAdapter` (on a Magic app, typically `MagicRoute.to`), else `Navigator.pushNamed`, else a route-information update every `Router` hears. Two frames later it reads the mounted Router: `{ navigated, route, exactPath, reason? }`. `navigated: true` covers a page under the route (`/monitors/7` for `/monitors`); `exactPath: true` only for the route itself; `navigated: false` carries `reason` (dropped or redirected). A Navigator 1.0 app has no Router to read, so a push that landed there also reports `navigated: false`: check with a snapshot. Refs from before the navigation are gone; re-snap.
 
 ### tapir_navigate_back
 
-`includeSnapshot` (default true). Pops the top page of the outermost
-Navigator that can pop (a page stacked inside a shell included; a branch
-kept alive offstage by a `StatefulShellRoute` is skipped). Returns
-`{ navigatedBack, popped, snapshot? }`; `navigatedBack` equals `popped`, and
-`false` means nothing could pop (the root route) and the call did nothing.
+`snapshot`, `includeSnapshot` (default true). Pops the outermost Navigator that can pop, a page stacked inside a shell included; a branch hidden offstage (a `StatefulShellRoute`) is skipped. Returns `{ navigatedBack, popped }`; `false` means nothing could pop.
 
 ### tapir_get_routes
 
-No params. Returns `{ location, title, uri }`. `uri` is the mounted
-Router's location (what `tapir_navigate` verifies against), `null` while no
-Router is mounted, as on a loading screen right after a restart.
-`location` is the root Navigator's top page name, which a Router-based app
-(go_router, MagicRouter) leaves `""` on every screen: read `uri`.
+No params. Returns `{ location, title, uri }`. `uri` is the mounted Router's location (null before one mounts); `location` is the root Navigator's top page name, empty in a Router-based app. It does not list declared routes.
 
-**Pitfall.** Despite the name, this does NOT enumerate every declared
-route. It returns the current location only. To discover routes, snap
-and look for nav buttons, or read the source.
+### tapir_dismiss_modals, tapir_reset_overlays
 
-### tapir_dismiss_modals
+`tapir_dismiss_modals`: no params; pops every `PopupRoute` (dialog, sheet, popup menu) on every Navigator. Returns `{ popped }`. `tapir_reset_overlays`: no params; pops every `PopupRoute`, then presses Escape, then taps a Cancel, Dismiss, Close, OK or Done affordance, each layer a no-op once the screen is clear. Returns `{ popped, escaped, dismissTapped }`. Use it for an overlay that is not a `PopupRoute` (an `OverlayEntry`, a barrier dialog); it is safe to call between flows.
 
-No params. Returns `{ popped: <count> }`. Pops every `PopupRoute`
-subclass (dialog, bottom sheet) above the first persistent route.
-Does not touch page routes.
-
-### tapir_reset_overlays
-
-No params. Returns `{ popped: <count>, escaped: <bool>, dismissTapped: <bool> }`.
-
-Three escalating layers run in order, each a no-op when the previous one
-already cleared the screen: (1) pop every `PopupRoute` (dialogs, bottom
-sheets, popups) without touching the page stack; (2) press Escape, for
-overlays wired to the dismiss shortcut; (3) tap a Cancel / Dismiss / Close /
-OK / Done labelled affordance, for modal barriers that need an explicit tap.
-The return value names the layer that did the work.
-
-Idempotent, so it is safe to call speculatively between flows. Prefer it over
-`tapir_dismiss_modals` when the overlay is not a `PopupRoute`: a custom
-`OverlayEntry`, a dropdown menu, or a barrier dialog.
-
----
-
-## Diagnostics (crumbs bridge)
+## Diagnostics
 
 ### tapir_console
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `limit` | integer | no | 50 | Newest-first cap |
-| `minLevel` | string | no | (all) | `INFO`, `WARNING`, `ERROR`, etc. |
-
-Returns `{ logs: [{ level, logger, message, time, error?, stackTrace? }], count }`.
-It also lists the app's own `debugPrint` output (logger `debugPrint`), so it is
-not empty without crumbs; the crumbs entries are the part that needs the
-adapter.
+`limit` (50), `minLevel` (`INFO`, `WARNING`, `ERROR`). Returns `{ logs: [{ level, message, time, logger }], count }`: the app's own `debugPrint` output (logger `debugPrint`, newest first; a direct Dart `print` does not go through `debugPrint` and is not captured) followed by crumbs log entries when crumbs is wired. The two lists are appended, not sorted by `time`, and the `limit` clip cuts from the end, so a newer crumbs entry can sit below an older buffered one or be cut; sort by `time` yourself when order matters. A direct `developer.log` call is not captured.
 
 ### tapir_exceptions
 
-`limit` (default 20), `since` (ISO8601, entries strictly after it),
-`clear` (empty the in-package buffer AFTER the read). Returns
-`{ exceptions: [{ type, message, time, stackHead? }], count }`, where `type` is
-`overflow` for a layout overflow. Works without crumbs: tapir keeps its own
-non-fatal FlutterError buffer.
-
-**The buffer is cumulative, so read it as a delta.** One real fault at boot
-rides along on every later read, and a per-route sweep then reports it
-against every route: a 12-of-12 "overflow on every screen" finding once
-turned out to be a single 4.8px transient. Pass `clear: true` between
-routes, or pin a `since` from before the action. An instrument with a
-permanent false positive stops being consulted.
-
----
-
-## Evaluation (MCP-only)
-
-### tapir_evaluate
-
-`expression` (required, single Dart expression, no semicolons).
-Evaluates in the running app isolate via the VM Service `evaluate`
-RPC. Returns `{ expression, result: "<stringified result>" }`.
-
-**Use it.** When state lives behind a singleton the agent cannot reach
-through snap (e.g. `MyService.instance.state`,
-`SharedPreferences.getInstance()`). For richer REPL needs (multi-line,
-autocomplete, variable history), use `./bin/dowel tinker` instead.
-
-**Pitfall.** No multi-statement input. Wrap in an immediately-invoked
-closure if needed: `(() { final c = MyService.instance; return c.state.toString(); })()`.
-
----
+`limit` (20), `since` (ISO 8601; only entries strictly after it), `clear` (empty tapir's buffer after the read). Returns `{ exceptions: [{ type, message, stackHead, library, fatal, time }], count }`, deduped and newest first; a layout overflow has `type: "overflow"`. Tapir keeps its own non-fatal `FlutterError` buffer and merges crumbs when wired. The buffer is cumulative: one boot-time fault rides along on every later read, so pass `clear: true` between routes or pin a `since`.
 
 ## App control
 
+### tapir_evaluate
+
+`expression` (required). Over MCP, dowel's server answers the call itself with the VM Service `evaluate` RPC in the app's root library, so anything imported by `lib/main.dart` is in scope; an expression with `await` is wrapped in an async closure that the VM evaluates without waiting, so you get the `Future`, not its value. Returns `{ expression, result }`. A runtime exception, a compile error and a stale isolate (after a hot restart) come back as error results. Use it for a one-off expression; `dowel_tinker { eval: "..." }` and `./bin/dowel tinker --eval="..."` evaluate the same way. The `ext.tapir.evaluate` extension is a debug-only sentinel that never evaluates by itself.
+
 ### tapir_close_app
 
-No params. Returns `{ closed: true }`. Calls `SystemNavigator.pop()`
-on mobile / desktop, `SystemChannels.platform.invokeMethod` on web.
-The browser may silently ignore `window.close()` when the tab was not
-script-opened.
-
----
+No params. Calls `SystemNavigator.pop()` and answers `{ closed: true }`. A browser may ignore the close of a tab it did not open by script, and then the app and its VM Service stay up. Where the app does close, the next call finds no app.
 
 ## Performance
 
-One measurement session brackets a driven interaction. Open it, drive
-exactly one interaction, close it, then optionally drill into a ranked
-insight. Two host-side tools repeat a scenario from a clean start and
-judge one run against another; a third exports the closed session as a
-trace file.
-
 ### tapir_perf_begin
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `mode` | string | no | `attribution` | `attribution` profiles builds; `timing` touches no profiling flag and reports frame timings only |
-| `phases` | boolean | no | false | Attribution only: also profile layout and paint, not just builds |
-
-Zeroes the frame buffer and wind's / magic's counters, records the
-liveness baseline, and in attribution mode switches Flutter's build
-profiling on. Returns `{ sessionToken, mode, phases, livenessBaseline,
-restartedPreviousSession }`. A begin on an already-open session restarts
-it rather than failing. Pair every call with `tapir_perf_end`.
+`mode` (`attribution`, the default, profiles builds; `timing` touches no profiling flag), `phases` (attribution only: also layout and paint). Zeroes the frame buffer and the Wind and Magic counters and records the liveness baseline. Returns `{ sessionToken, mode, phases, livenessBaseline, restartedPreviousSession }`; a begin on an open session restarts it. Drive one interaction, then end.
 
 ### tapir_perf_end
 
-No params. Requires a prior `tapir_perf_begin`. Returns `{ sessionToken,
-refused, mode, env, coverage, summary, counters, insights, omitted }`,
-about 6 KB at most, and restores every profiling flag to its prior value.
-
-**Check `refused` first.** When the liveness counter advanced by 1 or
-less the engine rendered nothing, the response carries no metrics, and a
-zero report would have read as "fast"; a backgrounded browser tab (web) or
-a hidden desktop window is the usual cause, and the perf verbs do not force
-frames, so bring the window to front yourself. `insights` are sorted by severity then estimated savings;
-drill into one with `tapir_perf_insight`. Attribution milliseconds are
-inflated by the profiling itself; compare milliseconds only across
-`mode="timing"` sessions.
+No params. Returns `{ sessionToken, refused, mode, env, coverage, summary, counters, insights, omitted }` and restores every profiling flag to its earlier value. Read `refused` first: when the engine drew nothing the payload has `refused: true`, a `reason` and no metrics, and the perf verbs do not wake a hidden app. Then read `coverage.missing` (a source never read: `wind`, `blocks`, `blockSelfTime`). `summary.blocksBySelf` ranks by exclusive time. `insights` (id `I<n>`, `severity`, `title`, `evidence`, `estimatedSavingsMs?`, `nextStep`) are sorted by severity, then savings. Attribution milliseconds are inflated by profiling; compare milliseconds only between timing sessions.
 
 ### tapir_perf_insight
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `id` | string | yes | -- | Insight id (`I<n>`) from `tapir_perf_end`'s `insights[]` |
-| `token` | string | no | -- | The report's `sessionToken`, guards against reading a newer session |
+`id` (required, `I<n>`), `token` (the report's `sessionToken`; another session's is refused). Returns `{ sessionToken, id, severity, title, summary, detail, estimatedSavingsMs, nextStep }`; `detail` holds the rows behind it. Only the last closed session is kept.
 
-Returns `{ sessionToken, id, severity, title, summary, detail,
-estimatedSavingsMs, nextStep }`. `detail` holds the raw rows behind the
-insight. Only the most recent closed session is kept; an unknown id, a
-stale token, or a refused session returns an error naming what to read
-instead.
+### tapir_perf_run (substrate)
 
-### tapir_perf_run (substrate-routed)
+`scenario` (required, a YAML path), `variant`, `label` (`[a-z0-9_-]`, default `run`), `out` (default `build/perf`), `repeat`, `platform` (`chrome`, `android`, `ios`), `timing`, `against`, `semantics-pass`, `json`. Runs the scenario several times from a clean start (hot restart, or a relaunch on a profile build) and writes `<out>/<scenario>-<label>.json` with medians, spread, insights and every repeat. A refused repeat is left out of the medians; the call fails only when all refused. Chrome needs the app started with a CDP port.
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `scenario` | string | yes | -- | Path to the scenario YAML |
-| `variant` | string | no | -- | The `variants` key to run; required when the file declares `variants`, refused otherwise |
-| `label` | string | no | `run` | Run label in the output file name, `[a-z0-9_-]` |
-| `out` | string | no | `build/perf` | Output directory |
-| `repeat` | integer | no | scenario's own | Repeats per series |
-| `platform` | string | no | from session | `chrome`, `android`, or `ios` |
-| `timing` | boolean | no | false | Also run interleaved timing-mode repeats |
-| `against` | string | no | -- | Baseline scenario YAML run in the same rounds |
-| `semantics-pass` | boolean | no | false | CLI flag (`tapir:perf_run --semantics-pass`); not in the MCP schema. Also measures with the semantics tree released (unsupported for fill/type/scroll) |
-| `json` | boolean | no | false | Print the summary as JSON |
+### tapir_perf_compare (substrate)
 
-Repeats the scenario from a clean start (hot restart, or a relaunch on a
-profile build), running `tapir_perf_begin` / the steps / `tapir_perf_end`
-each time. Writes `<out>/<scenario>-<label>.json` with medians, a spread
-block, and every repeat. A refused repeat is recorded and excluded from
-the medians; the call fails only when every repeat refused. Chrome needs
-the app started with a CDP port.
+`a`, `b` (required, run files), `json`. Judges `b` against `a` on counts per painted frame, never raw counts (a run that drew fewer frames would read as faster), and on milliseconds only from timing-mode medians. Returns `{ verdict, thresholds, frames, rows, unchanged, timing }`; fails on an error-level regression.
 
-### tapir_perf_compare (substrate-routed)
+### tapir_perf_trace (substrate)
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `a` | string | yes | -- | Baseline `tapir_perf_run` file |
-| `b` | string | yes | -- | Candidate `tapir_perf_run` file |
-| `json` | boolean | no | false | Return the result as JSON instead of a table |
+`out` (required), `token`. Writes the last closed session as Chrome Trace JSON (ui.perfetto.dev, chrome://tracing) and returns only the path. Export before the next `tapir_perf_begin`, which clears the frames it reads.
 
-Gates on counts per painted frame, never on raw counts: a run that drew
-10% fewer frames reports 10% fewer of everything, which reads as an
-improvement and is not one. Milliseconds are gated only from
-timing-mode medians. Returns `{ verdict, thresholds, frames, rows,
-unchanged, timing }`; the call fails on an error-level regression.
-
-### tapir_perf_trace (substrate-routed)
-
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `out` | string | yes | -- | File to write |
-| `token` | string | no | -- | `sessionToken` of the session to export |
-
-Writes the last closed perf session's interactions, frames and host rows
-as Chrome Trace Event JSON (opens in ui.perfetto.dev or chrome://tracing)
-and returns only the path; the trace itself is too large for a context
-window. Export before the next `tapir_perf_begin`, which clears the frames
-the trace reads.
-
----
-
-## Composite (substrate-routed)
+## Substrate-routed: run, hot reload, viewport
 
 ### tapir_run
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `steps` | string[] | yes | -- | Verb lines without the `tapir:` prefix, e.g. `["tap --ref=q3", "fill --ref=q1 --text=\"a b\"", "snap --grep Total"]` |
-| `continue` | boolean | no | false | Keep running after a failing step |
-
-Runs several verbs in one call (routes as `dowel:tapir:run`). Each step is
-tokenised like a shell (quotes, backslash) and takes the options of the
-standalone command. The response is one line per step (`[1/3] tap --ref=e8 ok:
-Tapped e8`, the first output line cut to 120 characters), then the last step's
-full output. It stops at the first failing step with `step N failed (exit C):
-<step>` and that exit code; `continue: true` runs every step and reports the
-first failure. A step cannot be another `tapir_run`, an unknown verb, or a verb
-that does not run on the connected app (resize, device, install, doctor).
-
-`e<N>` refs are scoped to one snapshot, so between steps that change the
-screen use `--text`, `--key` or `q<N>` handles, and end the batch with `snap`
-to read the new refs.
+`steps` (required, verb lines without `tapir:`, such as `"tap --ref=q3"`, `"fill --ref=q1 --text=\"a b\""`, `"snap --grep Total"`), `continue` (default false). Each step is tokenised like a shell and takes that command's own flags. The answer is one line per step (`[1/3] tap --ref=q3 ok: <first output line>`) and then the last step's full output; it stops at the first failure with `step N failed (exit C): <step>`, and `continue: true` runs every step. A step cannot be another `run` or a verb that does not use the connected app (`resize`, `device`, `install`, `doctor`, `perf_campaign`, `perf_compare`); one that ends the app (`close_app`, `perf_run`) goes last.
 
 ### tapir_hot_reload_and_snap
 
-`screenshot` (boolean, default true). Runs CLI-side because an
-in-isolate handler cannot reload its own isolate. Sequence: write `r\n`
-to the `flutter run` stdin, tail-poll the log for "Reloaded N
-libraries" or a compile error, then call `ext.tapir.snap`,
-`ext.tapir.screenshot`, `ext.tapir.exceptions`.
-
-Returns on success:
-
-```json
-{
-  "reloaded": true,
-  "durationMs": 740,
-  "snapshot": "<yaml>",
-  "screenshot": "<base64 or null>",
-  "recentExceptions": []
-}
-```
-
-Returns on compile failure:
-
-```json
-{
-  "reloaded": false,
-  "durationMs": 215,
-  "error": "lib/views/login.dart:42: Undefined name 'submitt'",
-  "recentExceptions": []
-}
-```
-
-When `reloaded: true` but `screenshot` returned an error, the payload
-carries `screenshotError` alongside the successful snapshot.
-
-**Use it.** As the main step of any edit-test loop. After editing a
-file, one call returns enough state to reason about the result without
-manual snap + screenshot + exceptions chaining.
-
----
-
-## Device emulation (substrate-routed, CDP, web-only)
-
-Both require the app launched with `dowel start --cdp-port=9222`.
-On mobile, desktop, or web without the flag, returns
-`CDP not enabled. Run dowel start --cdp-port=9222 first.`
+`screenshot` (default true). Sends `r` to the `flutter run` of the dowel session, waits for the reload or a compile error, then snaps, screenshots and reads exceptions. Returns `{ reloaded: true, durationMs, snapshot, screenshot, recentExceptions }` (a failed capture adds `screenshotError`), or `{ reloaded: false, durationMs, error, recentExceptions }` as an error result. Read `recentExceptions` even on success.
 
 ### tapir_resize_viewport
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `width` | integer | unless `reset` | -- | CSS pixels; a resize without it is refused |
-| `height` | integer | unless `reset` | -- | CSS pixels |
-| `dpr` | number | no | 1.0 | Device pixel ratio (Retina simulation) |
-| `mobile` | boolean | no | false | Mobile UA hints |
-| `touch` | boolean | no | false | Touch emulation |
-| `reset` | boolean | no | false | Clear all overrides; `{ "reset": true }` alone is enough |
-
-The override ends when the call returns (the CLI's `--hold` keeps it). Every
-tool schema is closed: an argument it does not list, such as the old
-`deviceScaleFactor`, is refused with `Additional property "..." is not allowed`.
+`width`, `height` (required unless `reset`), `dpr` (1.0), `mobile`, `touch`, `reset`. Sets a CDP viewport override on Chrome. Needs the session started with `--cdp-port`, otherwise `CDP not enabled`. The override ends when the call returns; `./bin/dowel tapir:resize ... --hold` in the background keeps it.
 
 ### tapir_device_profile
 
-| Param | Type | Required | Default | Note |
-|---|---|---|---|---|
-| `preset` | string | no | -- | One of the 8 presets below |
-| `list` | boolean | no | false | Print presets, no CDP call |
-| `reset` | boolean | no | false | Clear overrides |
-
-Presets: `iphone-x` (375x812 @3.0), `iphone-13` (390x844 @3.0),
-`iphone-15-pro` (393x852 @3.0), `pixel-5` (393x851 @2.75),
-`pixel-8` (412x915 @2.625), `ipad-pro-12.9` (1024x1366 @2.0),
-`desktop-1440` (1440x900 @1.0), `desktop-1920` (1920x1080 @1.0).
-
-Sets viewport metrics + touch + user-agent + window bounds in one call.
+`preset`, `list`, `reset`. Presets: `iphone-x`, `iphone-13`, `iphone-15-pro`, `pixel-5`, `pixel-8`, `ipad-pro-12.9`, `desktop-1440`, `desktop-1920`. Sets viewport, pixel ratio, touch, user agent and window size; only the window size outlasts the call. Same CDP requirement as resize.

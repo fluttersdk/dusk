@@ -62,7 +62,7 @@ Pointer-driven actions that synthesise touch, mouse, or pen events at a widget l
 <a name="inputs"></a>
 ## Inputs
 
-Keyboard-shaped actions. `tapir:type` emits a character sequence; `tapir:press_key` synthesises a single hardware-key event; `tapir:clear` empties the focused text field; `tapir:select_option` drives `DropdownButton` / `PopupMenuButton`; `tapir:set_checkbox` drives `Checkbox` / `Switch`.
+Keyboard-shaped actions. `tapir:type` emits a character sequence; `tapir:press_key` synthesises a single hardware-key event; `tapir:clear` empties the focused text field; `tapir:select_option` calls the `onChanged` of a `DropdownButton`; `tapir:set_checkbox` sets a checkbox, switch or radio from its Semantics checked or toggled state.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
@@ -70,8 +70,8 @@ Keyboard-shaped actions. `tapir:type` emits a character sequence; `tapir:press_k
 | [`tapir:fill`](tapir-fill.md) | Focus, clear, type, and settle a text field by ref in one call (retries once on a stale handle). | connected | ext.tapir.fill |
 | `tapir:press_key` | Synthesise a hardware-key event on the currently focused widget. | connected | ext.tapir.press_key |
 | `tapir:clear` | Empty the text content of the focused widget by ref. | connected | ext.tapir.clear |
-| `tapir:select_option` | Select an option in a DropdownButton or PopupMenuButton by ref token. | connected | ext.tapir.select_option |
-| `tapir:set_checkbox` | Set the checked state of a checkbox, switch or radio by ref, read from Semantics. | connected | ext.tapir.set_checkbox |
+| `tapir:select_option` | Select an option in a DropdownButton by ref token (calls its `onChanged`). | connected | ext.tapir.select_option |
+| `tapir:set_checkbox` | Set the checked state of a checkbox, switch or radio by ref, from any library. | connected | ext.tapir.set_checkbox |
 | `tapir:wait` | Wait for a text, text-gone, or expression condition in the running app. | connected | ext.tapir.wait_for |
 | `tapir:wait_for_network_idle` | Wait until the running app reports zero in-flight HTTP requests for a contiguous idleMs window. | connected | ext.tapir.wait_for_network_idle |
 

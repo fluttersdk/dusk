@@ -41,7 +41,7 @@ VM Service URI recorded in the project's dowel session file
 
 `dowel` ships a built-in MCP installer that writes the canonical `.mcp.json`
 entry for you. Once tapir is in `pubspec.yaml` and the provider is registered, the same
-single command wires Claude Code, Cursor, VS Code, Windsurf, and any other client that
+single command wires Claude Code, Cursor, Windsurf, and any other client that
 reads `.mcp.json` at the project root:
 
 ```bash
@@ -52,9 +52,6 @@ The installer is idempotent: pre-existing entries are preserved and the `dowel` 
 replaced in-place on re-run. Override the target path per client:
 
 ```bash
-# VS Code (per-project)
-dart run tapir mcp:install --path .vscode/mcp.json
-
 # Cursor (per-project)
 dart run tapir mcp:install --path .cursor/mcp.json
 ```
@@ -115,7 +112,7 @@ Trade-off: the fastcli path (level 1) requires the `./bin/dowel` AOT binary to b
 |:---|:---|:---|
 | Claude Code | `.mcp.json` (project) or `~/.claude.json` (user) | `/mcp reconnect dowel` |
 | Cursor | `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (user) | Auto-reload |
-| VS Code (GitHub Copilot Workspace) | `.vscode/mcp.json` with `"servers"` key + `"type": "stdio"` | Reload window |
+| VS Code | `code --add-mcp '{"name":"dowel","type":"stdio","command":"dart","args":["run","tapir","mcp:serve"]}'` | Reload window |
 | Continue | `.continue/config.json` `mcpServers` block | Restart Continue panel |
 | Windsurf | Windsurf MCP settings panel | Reload Cascade panel |
 | Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) / `%APPDATA%\Claude\claude_desktop_config.json` (Windows) | Fully quit + relaunch (close-window != quit) |
@@ -126,22 +123,6 @@ For Claude Code via CLI:
 claude mcp add dowel -- dart run tapir mcp:serve
 # or project-scoped:
 claude mcp add --scope project dowel -- dart run tapir mcp:serve
-```
-
-For the VS Code MCP shape (note the `"servers"` key, not `"mcpServers"`, plus the explicit
-transport type):
-
-```json
-{
-  "servers": {
-    "dowel": {
-      "type": "stdio",
-      "command": "dart",
-      "args": ["run", "tapir", "mcp:serve"],
-      "cwd": "."
-    }
-  }
-}
 ```
 
 <a name="reconnect-ritual"></a>
