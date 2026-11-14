@@ -106,7 +106,8 @@ The "no server-side LLM" property is the second half of the pattern: Stagehand-t
 Re-observe only when:
 
 - The agent navigated to a new screen (the handles minted on the previous screen become stale matches).
-- The candidate set itself changes (e.g. a modal opens, a list grows, a tab switches).
+- The candidate set itself changes (e.g. a modal opens, a list grows or shrinks, a tab switches).
+- Same-label rows are reordered (a sort, a filter, a drag to reorder): the held position then selects a different row without any candidate being added or removed.
 
 For incremental state changes on the same screen (clicking a button that disables another button, typing into a field that reveals a new form section), re-resolution on every action call is sufficient; no second `tapir:observe` is needed.
 
