@@ -78,7 +78,7 @@ alphabetically; each link jumps to the per-tool entry in [tool-reference.md](too
 | [`tapir_screenshot`](tool-reference.md#tapir_screenshot) | Capture a screenshot of the running app. |
 | [`tapir_scroll`](tool-reference.md#tapir_scroll) | Scroll a Scrollable widget by ref. |
 | [`tapir_select_option`](tool-reference.md#tapir_select_option) | Select an option in a DropdownButton. |
-| [`tapir_set_checkbox`](tool-reference.md#tapir_set_checkbox) | Read + conditionally toggle a Checkbox / Switch. |
+| [`tapir_set_checkbox`](tool-reference.md#tapir_set_checkbox) | Read the checked state from Semantics and tap only when it differs. |
 | [`tapir_snap`](tool-reference.md#tapir_snap) | Capture a YAML Semantics snapshot with `e<N>` refs. |
 | [`tapir_tap`](tool-reference.md#tapir_tap) | Tap a widget by ref. |
 | [`tapir_triple_click`](tool-reference.md#tapir_triple_click) | Fire three primary clicks (~100ms apart). |

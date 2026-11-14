@@ -74,8 +74,8 @@ build step, no `flutter drive` orchestration needed.
 
 | Dependency | Minimum Version | Notes |
 |:-----------|:----------------|:------|
-| Dart       | `>= 3.4.0`      | Records, sealed classes, class modifiers. |
-| Flutter    | `>= 3.22.0`     | `RepaintBoundary` render-tree walk and Semantics APIs used internally. |
+| Dart       | `^3.13.0`       | The floor `material_ui` needs; Flutter 3.50 deprecates `package:flutter/material.dart` in its favour. |
+| Flutter    | `>= 3.47.0`     | The Semantics APIs and `RepaintBoundary` render-tree walk used internally. |
 | dowel | `^0.0.21` | Provides the MCP server, CLI framework, and `registerExtensionIdempotent`. |
 
 `tapir` requires Flutter. It cannot run on a pure-Dart environment because
