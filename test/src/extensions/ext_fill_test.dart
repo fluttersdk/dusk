@@ -13,7 +13,7 @@ import 'package:tapir/src/utils/error_envelope.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('aiTestFillHandler', () {
+  group('tapirFillHandler', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -39,7 +39,7 @@ void main() {
         );
 
         final Element element = tester.element(find.byType(TextField));
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: const Rect.fromLTWH(100, 100, 200, 40),
           element: element,
           groupId: 'g',
@@ -50,7 +50,7 @@ void main() {
         // endOfFrame ticks; pump alongside so frames advance under fake-async.
         // checkStable / checkReceivesEvents opt-out: the synthetic rect does
         // not align with the live TextField geometry.
-        final future = aiTestFillHandler('ext.tapir.fill', <String, String>{
+        final future = tapirFillHandler('ext.tapir.fill', <String, String>{
           'ref': ref,
           'text': 'fresh text',
           'checkStable': 'false',
@@ -72,11 +72,57 @@ void main() {
       },
     );
 
+    testWidgets(
+      'carries the type step\'s gate checks, so a skipped or indeterminate '
+      'receives-events check is not read as a clean pass',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final TextEditingController controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(child: TextField(controller: controller)),
+            ),
+          ),
+        );
+
+        final String ref = registerRefForTesting(
+          rect: const Rect.fromLTWH(100, 100, 200, 40),
+          element: tester.element(find.byType(TextField)),
+          groupId: 'g',
+          isTextField: true,
+        );
+
+        final future = tapirFillHandler('ext.tapir.fill', <String, String>{
+          'ref': ref,
+          'text': 'checked',
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+          'includeSnapshot': 'false',
+        });
+        for (var i = 0; i < 8; i++) {
+          await tester.pump();
+        }
+        final Map<String, dynamic> json =
+            jsonDecode((await future).result!) as Map<String, dynamic>;
+
+        expect(
+          json['checks'],
+          equals(<String, dynamic>{'receivesEvents': 'skipped'}),
+        );
+      },
+    );
+
     testWidgets('missing ref returns a missing-param error', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
-      final response = await aiTestFillHandler(
+      final response = await tapirFillHandler(
         'ext.tapir.fill',
         const <String, String>{'text': 'hello'},
       );
@@ -88,7 +134,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
-      final response = await aiTestFillHandler(
+      final response = await tapirFillHandler(
         'ext.tapir.fill',
         const <String, String>{'ref': 'e999', 'text': 'hello'},
       );
@@ -124,7 +170,7 @@ void main() {
         const TapirQuery(keyValue: 'fill-field'),
       );
 
-      final future = aiTestFillHandler('ext.tapir.fill', <String, String>{
+      final future = tapirFillHandler('ext.tapir.fill', <String, String>{
         'ref': ref,
         'text': 'retry value',
         'checkStable': 'false',
@@ -163,7 +209,7 @@ void main() {
           const TapirQuery(keyValue: 'never-matches'),
         );
 
-        final response = await aiTestFillHandler(
+        final response = await tapirFillHandler(
           'ext.tapir.fill',
           <String, String>{
             'ref': ref,
@@ -202,14 +248,14 @@ void main() {
         await tapirSnapBuild();
 
         final Element element = tester.element(find.byType(TextField));
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: const Rect.fromLTWH(100, 100, 200, 40),
           element: element,
           groupId: 'g',
           isTextField: true,
         );
 
-        final future = aiTestFillHandler('ext.tapir.fill', <String, String>{
+        final future = tapirFillHandler('ext.tapir.fill', <String, String>{
           'ref': ref,
           'text': 'after',
           'checkStable': 'false',
@@ -253,14 +299,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(TextField));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 200, 40),
         element: element,
         groupId: 'g',
         isTextField: true,
       );
 
-      final future = aiTestFillHandler('ext.tapir.fill', <String, String>{
+      final future = tapirFillHandler('ext.tapir.fill', <String, String>{
         'ref': ref,
         'text': 'x',
         'checkStable': 'false',
@@ -279,7 +325,7 @@ void main() {
     });
   });
 
-  group('aiTestFillHandler on a ref that is not a text field', () {
+  group('tapirFillHandler on a ref that is not a text field', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -297,7 +343,7 @@ void main() {
       );
       final response = await _drive(
         tester,
-        aiTestFillHandler('ext.tapir.fill', _quietParams(ref, 'Bob')),
+        tapirFillHandler('ext.tapir.fill', _quietParams(ref, 'Bob')),
       );
 
       expect(response.result, isNull);
@@ -320,7 +366,7 @@ void main() {
         final String ref = _registerNodeRef(tester, find.text('Full name'));
         final response = await _drive(
           tester,
-          aiTestFillHandler('ext.tapir.fill', _quietParams(ref, 'Ada')),
+          tapirFillHandler('ext.tapir.fill', _quietParams(ref, 'Ada')),
         );
 
         expect(response.result, isNotNull, reason: response.errorDetail);
@@ -366,7 +412,7 @@ void main() {
         );
         final response = await _drive(
           tester,
-          aiTestFillHandler('ext.tapir.fill', _quietParams(ref, 'fresh')),
+          tapirFillHandler('ext.tapir.fill', _quietParams(ref, 'fresh')),
         );
 
         expect(response.result, isNotNull, reason: response.errorDetail);

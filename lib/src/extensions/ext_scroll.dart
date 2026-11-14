@@ -17,12 +17,12 @@ import 'ext_snapshot.dart' show snapshotForAction;
 /// Registers the `ext.tapir.scroll` and `ext.tapir.select_option` VM Service
 /// extensions.
 ///
-/// Call this once from the Wave 3 aggregator (`registerAllAiTestExtensions()`
-/// in `extensions.dart`). Each call is idempotent via
+/// Called once from `registerAllTapirExtensions`
+/// (`register_tapir_extensions.dart`). Each call is idempotent via
 /// [registerExtensionIdempotent], so hot-restart is safe.
 void registerScrollExtensions() {
-  registerTapirExtension('ext.tapir.scroll', aiTestScrollHandler);
-  registerTapirExtension('ext.tapir.select_option', aiTestSelectOptionHandler);
+  registerTapirExtension('ext.tapir.scroll', tapirScrollHandler);
+  registerTapirExtension('ext.tapir.select_option', tapirSelectOptionHandler);
 }
 
 // -----------------------------------------------------------------------------
@@ -106,7 +106,7 @@ double? _scrollNumber(Map<String, String> params, String key) {
 ///
 /// Must NOT use [PointerScrollEvent] (mouse-only; would not work on touch or
 /// programmatic scroll).
-Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
+Future<developer.ServiceExtensionResponse> tapirScrollHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -148,7 +148,7 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       await runPerfInteraction<void>(
         'scroll',
         ref,
-        () => aiTestScrollEnsureVisible(
+        () => tapirScrollEnsureVisible(
           context,
           alignment: 0.5,
           duration: const Duration(milliseconds: 300),
@@ -187,14 +187,11 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       }
 
       if (scrollable == null) {
-        return developer.ServiceExtensionResponse.error(
-          developer.ServiceExtensionResponse.extensionError,
-          wrapErrorDetail(
-            'No scrollable found in the widget tree.',
-            TapirErrorEnvelope.notFound(
-              ref: ref ?? 'scrollable',
-              candidates: collectSnapshotCandidates(),
-            ),
+        return tapirError(
+          'No scrollable found in the widget tree.',
+          TapirErrorEnvelope.notFound(
+            ref: ref ?? 'scrollable',
+            candidates: collectSnapshotCandidates(),
           ),
         );
       }
@@ -210,7 +207,7 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
       await runPerfInteraction<void>(
         'scroll',
         ref,
-        () => aiTestScrollByDelta(driven, target),
+        () => tapirScrollByDelta(driven, target),
       );
       finalOffset = scrollable.position.pixels;
       endOffset = finalOffset;
@@ -241,22 +238,16 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
 
     return tapirResult(payload);
   } on FormatException catch (e) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.invalidParams,
-      wrapErrorDetail(
-        '[tapir] ext.tapir.scroll: ${e.message}',
-        TapirErrorEnvelope.unexpected(),
-      ),
+    return tapirError(
+      '[tapir] ext.tapir.scroll: ${e.message}',
+      TapirErrorEnvelope.invalidParam('delta'),
     );
   } catch (e, stackTrace) {
     developer.log(
       '[tapir] ext.tapir.scroll error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -270,7 +261,7 @@ Future<developer.ServiceExtensionResponse> aiTestScrollHandler(
 /// - [alignment]: fractional position within the viewport (0 = leading edge,
 ///   0.5 = center, 1 = trailing edge). Defaults to `0.5`.
 /// - [duration]: animation duration. Defaults to 300 ms.
-Future<void> aiTestScrollEnsureVisible(
+Future<void> tapirScrollEnsureVisible(
   BuildContext context, {
   double alignment = 0.5,
   Duration duration = const Duration(milliseconds: 300),
@@ -292,7 +283,7 @@ Future<void> aiTestScrollEnsureVisible(
 ///
 /// Extracted as a top-level function so widget tests can call it directly
 /// without going through the VM Service extension channel.
-Future<void> aiTestScrollByDelta(
+Future<void> tapirScrollByDelta(
   ScrollableState scrollable,
   double targetPixels,
 ) async {
@@ -397,7 +388,7 @@ ScrollableState? _findRootScrollable() {
 ///
 /// Must NOT use canvas hit-test coordinates to trigger the selection; the
 /// widget's `onChanged` callback is the only safe hook.
-Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
+Future<developer.ServiceExtensionResponse> tapirSelectOptionHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -407,12 +398,9 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
     final String? value = params['value'];
 
     if (value == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'Missing required parameter: value.',
-          TapirErrorEnvelope.missingParam('value'),
-        ),
+      return tapirError(
+        'Missing required parameter: value.',
+        TapirErrorEnvelope.missingParam('value'),
       );
     }
 
@@ -425,19 +413,16 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
       'select_option',
       ref,
       () async => targetContext != null
-          ? aiTestSelectOptionInElement(targetContext, value: value)
+          ? tapirSelectOptionInElement(targetContext, value: value)
           : _selectOptionInTree(value),
     );
 
     if (!invoked) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'No selectable widget found for ref=$ref value=$value.',
-          TapirErrorEnvelope.notFound(
-            ref: ref ?? 'select',
-            candidates: collectSnapshotCandidates(),
-          ),
+      return tapirError(
+        'No selectable widget found for ref=$ref value=$value.',
+        TapirErrorEnvelope.notFound(
+          ref: ref ?? 'select',
+          candidates: collectSnapshotCandidates(),
         ),
       );
     }
@@ -466,10 +451,7 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
       '[tapir] ext.tapir.select_option error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -481,10 +463,7 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
 ///
 /// Returns `true` when a [DropdownButton] with a non-null `onChanged` was
 /// found and invoked; `false` otherwise.
-bool aiTestSelectOptionInElement(
-  BuildContext context, {
-  required String value,
-}) {
+bool tapirSelectOptionInElement(BuildContext context, {required String value}) {
   bool invoked = false;
 
   void visitor(Element element) {

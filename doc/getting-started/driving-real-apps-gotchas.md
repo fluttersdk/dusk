@@ -68,7 +68,7 @@ A wind `WInput` (and any `TextField` wrapped in `Semantics(textField: true)`)
 historically snapshotted as TWO nested `textbox` nodes, because `RenderEditable`
 unconditionally owns its own `textField` Semantics node and `MergeSemantics`
 cannot absorb it. Agents naturally targeted the inner leaf, where `tapir:type`
-threw a `-32000`.
+failed.
 
 **Workaround:**
 
@@ -120,7 +120,7 @@ positives when you are checking whether YOUR action raised something new.
 ## 5. restart preserves the CDP port
 
 When dowel was started with `--cdp-port` (the web path that backs
-`tapir:screenshot` CDP fallback, `tapir:resize`, `tapir:device`), a naive restart
+`tapir:screenshot` CDP fallback, `tapir:resize_viewport`, `tapir:device_profile`), a naive restart
 used to drop the port, breaking those CDP-routed tools until you restarted with
 the flag again.
 
@@ -136,7 +136,7 @@ the flag again.
 ## 6. Overlays get stuck
 
 A left-over dialog, bottom sheet, dropdown menu, or barrier modal blocks the
-next screen from rendering, and a single `tapir:modal` (dismiss-modals) does not
+next screen from rendering, and a single `tapir:dismiss_modals` does not
 clear overlays that are not `PopupRoute`s.
 
 **Workaround:**

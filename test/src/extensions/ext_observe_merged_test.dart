@@ -224,7 +224,7 @@ void main() {
         expect(ref, startsWith('q'));
         expect(resolveQuery(RefRegistry.lookupQuery(ref)!), isNotNull);
 
-        final Future<dynamic> pending = aiTestTapHandler(
+        final Future<dynamic> pending = tapirTapHandler(
           'ext.tapir.tap',
           <String, String>{
             'ref': ref,

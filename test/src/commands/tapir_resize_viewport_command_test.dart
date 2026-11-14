@@ -5,7 +5,7 @@ import 'package:dowel/dowel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/cdp/cdp_client.dart';
-import 'package:tapir/src/commands/tapir_resize_command.dart';
+import 'package:tapir/src/commands/tapir_resize_viewport_command.dart';
 
 import '../cdp/fake_cdp_server.dart';
 
@@ -20,7 +20,7 @@ class _StubContext extends DowelContext {
 
 // ---------------------------------------------------------------------------
 // StateFile helper: writes a minimal state.json under a temp dir and wires
-// StateFile.debugHomeOverride so TapirResizeCommand.handle() reads it.
+// StateFile.debugHomeOverride so TapirResizeViewportCommand.handle() reads it.
 // ---------------------------------------------------------------------------
 
 Future<String> _writeState(Directory tempDir, Map<String, dynamic> data) async {
@@ -60,22 +60,25 @@ void main() {
     }
   });
 
-  group('TapirResizeCommand metadata', () {
-    test('name is tapir:resize', () {
-      expect(TapirResizeCommand().name, equals('tapir:resize'));
+  group('TapirResizeViewportCommand metadata', () {
+    test('name is tapir:resize_viewport', () {
+      expect(
+        TapirResizeViewportCommand().name,
+        equals('tapir:resize_viewport'),
+      );
     });
 
     test('description contains "viewport"', () {
-      expect(TapirResizeCommand().description, contains('viewport'));
+      expect(TapirResizeViewportCommand().description, contains('viewport'));
     });
 
     test('boot is CommandBoot.none', () {
-      expect(TapirResizeCommand().boot, equals(CommandBoot.none));
+      expect(TapirResizeViewportCommand().boot, equals(CommandBoot.none));
     });
 
     test('configure declares width, height, dpr, mobile, touch, reset', () {
       final parser = ArgParser();
-      TapirResizeCommand().configure(parser);
+      TapirResizeViewportCommand().configure(parser);
       expect(
         parser.options.keys,
         containsAll(<String>[
@@ -90,7 +93,7 @@ void main() {
     });
   });
 
-  group('TapirResizeCommand.handle', () {
+  group('TapirResizeViewportCommand.handle', () {
     // -----------------------------------------------------------------------
     // (0) The MCP schema no longer requires width and height (a bare
     //     `{"reset": true}` must be callable), so the command is what refuses a
@@ -107,7 +110,7 @@ void main() {
         final output = BufferedOutput();
         final ctx = _StubContext(input: MapInput(input), output: output);
 
-        final exit = await TapirResizeCommand().handle(ctx);
+        final exit = await TapirResizeViewportCommand().handle(ctx);
 
         expect(exit, equals(1));
         expect(output.content, contains('--width'));
@@ -124,7 +127,7 @@ void main() {
         output: output,
       );
 
-      final exit = await TapirResizeCommand().handle(ctx);
+      final exit = await TapirResizeViewportCommand().handle(ctx);
 
       expect(exit, equals(1));
       expect(output.content, contains('CDP not enabled'));
@@ -155,7 +158,7 @@ void main() {
         output: output,
       );
 
-      final exit = await TapirResizeCommand().handle(ctx);
+      final exit = await TapirResizeViewportCommand().handle(ctx);
 
       expect(exit, equals(1));
       expect(output.content, contains('CDP not enabled'));
@@ -182,7 +185,7 @@ void main() {
         output: output,
       );
 
-      final exit = await TapirResizeCommand().handle(ctx);
+      final exit = await TapirResizeViewportCommand().handle(ctx);
 
       expect(exit, equals(1));
       expect(output.content, contains('CDP not enabled'));
@@ -224,7 +227,7 @@ void main() {
           output: output,
         );
 
-        final exit = await TapirResizeCommand().handle(ctx);
+        final exit = await TapirResizeViewportCommand().handle(ctx);
 
         // 2. Assert exit 0 and correct CDP params.
         expect(exit, equals(0));
@@ -285,7 +288,7 @@ void main() {
         output: output,
       );
 
-      final exit = await TapirResizeCommand().handle(ctx);
+      final exit = await TapirResizeViewportCommand().handle(ctx);
 
       expect(exit, equals(0));
       expect(callOrder, equals(<String>['ua', 'touch', 'clear']));
@@ -328,7 +331,7 @@ void main() {
         output: output,
       );
 
-      final exit = await TapirResizeCommand().handle(ctx);
+      final exit = await TapirResizeViewportCommand().handle(ctx);
 
       expect(exit, equals(0));
       expect(capturedTouchParams, isNotNull);
@@ -360,7 +363,7 @@ void main() {
         output: output,
       );
 
-      final exit = await TapirResizeCommand().handle(ctx);
+      final exit = await TapirResizeViewportCommand().handle(ctx);
 
       expect(exit, equals(1));
       expect(output.content, contains('Failed to connect to Chrome CDP'));
@@ -396,7 +399,7 @@ void main() {
       // If finally block is missing, close() never runs and the WS socket
       // lingers; the test would hang at tearDown(server.stop). The assertion
       // below implicitly proves close() ran by verifying exit code.
-      final exit = await TapirResizeCommand().handle(ctx);
+      final exit = await TapirResizeViewportCommand().handle(ctx);
       expect(exit, equals(1));
     });
     // -----------------------------------------------------------------------
@@ -428,7 +431,7 @@ void main() {
         output: output,
       );
 
-      final exit = await TapirResizeCommand().handle(ctx);
+      final exit = await TapirResizeViewportCommand().handle(ctx);
 
       expect(exit, equals(0));
       expect(sent, <String, dynamic>{
@@ -464,7 +467,7 @@ void main() {
         );
 
         bool finished = false;
-        final Future<int> run = TapirResizeCommand()
+        final Future<int> run = TapirResizeViewportCommand()
             .handle(ctx)
             .whenComplete(() => finished = true);
 

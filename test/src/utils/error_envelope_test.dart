@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/utils/error_envelope.dart';
@@ -35,6 +37,73 @@ void main() {
         expect(json['type'], equals('unexpected'));
         expect(json.containsKey('widget_path'), isFalse);
         expect(json['suggestions'], equals(<String>[]));
+      },
+    );
+  });
+
+  group('TapirErrorEnvelope.code and tapirError', () {
+    test('a caller mistake answers with the invalid-params code', () {
+      expect(
+        TapirErrorEnvelope.invalidParam('value').code,
+        developer.ServiceExtensionResponse.invalidParams,
+      );
+      expect(
+        TapirErrorEnvelope.missingParam('ref').code,
+        developer.ServiceExtensionResponse.invalidParams,
+      );
+      expect(TapirErrorEnvelope.invalidParam('value').type, 'invalid_param');
+    });
+
+    test('a refusal answers with its own extension-error code', () {
+      final TapirErrorEnvelope refused = TapirErrorEnvelope.refused(
+        widgetPath: 'e3',
+      );
+
+      expect(refused.type, 'refused');
+      expect(refused.code, kTapirRefusedErrorCode);
+      expect(
+        kTapirRefusedErrorCode,
+        inInclusiveRange(
+          developer.ServiceExtensionResponse.extensionErrorMin,
+          developer.ServiceExtensionResponse.extensionErrorMax,
+        ),
+      );
+      expect(
+        kTapirRefusedErrorCode,
+        isNot(developer.ServiceExtensionResponse.extensionError),
+      );
+    });
+
+    test('every other type keeps the generic extension-error code', () {
+      for (final TapirErrorEnvelope envelope in <TapirErrorEnvelope>[
+        TapirErrorEnvelope.unexpected(),
+        TapirErrorEnvelope.stale('e1'),
+        TapirErrorEnvelope.timeout(),
+        TapirErrorEnvelope.notFound(ref: 'e1'),
+        TapirErrorEnvelope.fromActionabilityReason('e1', 'zero rect'),
+      ]) {
+        expect(
+          envelope.code,
+          developer.ServiceExtensionResponse.extensionError,
+          reason: envelope.type,
+        );
+      }
+    });
+
+    test(
+      'tapirError answers with the envelope\'s code and wraps the detail',
+      () {
+        final developer.ServiceExtensionResponse response = tapirError(
+          'nope',
+          TapirErrorEnvelope.refused(widgetPath: 'e3'),
+        );
+
+        expect(response.errorCode, kTapirRefusedErrorCode);
+        expect(parseMessageFromErrorDetail(response.errorDetail!), 'nope');
+        expect(
+          parseEnvelopeFromErrorDetail(response.errorDetail!)!['type'],
+          'refused',
+        );
       },
     );
   });

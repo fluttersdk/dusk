@@ -19,8 +19,8 @@ import 'package:tapir/src/cdp/cdp_client.dart';
 ///   1. `dowel start --cdp-port=<port>` boots Chrome with remote debugging,
 ///      writes vmServiceUri + chromePid + cdpPort + tmpProfileDir to
 ///      `~/.dowel/state.json`.
-///   2. `tapir:resize` round-trips a viewport change through CDP.
-///   3. `tapir:device --preset=iphone-x` resolves a curated preset and pushes
+///   2. `tapir:resize_viewport` round-trips a viewport change through CDP.
+///   3. `tapir:device_profile --preset=iphone-x` resolves a curated preset and pushes
 ///      the 3-call CDP chain.
 ///   4. Hot reload via the FIFO surfaces "Reloaded" in `flutter-dev.log`
 ///      (Oracle F1 mitigation against dart-lang/webdev#2642).
@@ -158,7 +158,7 @@ void main() {
   // ------------------------------------------------------------------
   // Test 1: happy path.
   // ------------------------------------------------------------------
-  test('dowel start --cdp-port boots Chrome + tapir:resize round-trips via CDP', () async {
+  test('dowel start --cdp-port boots Chrome + tapir:resize_viewport round-trips via CDP', () async {
     // 1. Spawn dowel start --cdp-port=$cdpPort. Foreground; the binary
     //    backgrounds the flutter run subprocess itself, so this Future
     //    resolves once state.json has the vmServiceUri populated OR the
@@ -210,11 +210,11 @@ void main() {
           'server (Edge / Brave / Electron).',
     );
 
-    // 4. tapir:resize sends Emulation.setDeviceMetricsOverride. iPhone-X
+    // 4. tapir:resize_viewport sends Emulation.setDeviceMetricsOverride. iPhone-X
     //    dimensions are the canonical smoke target (also exercised by the
     //    preset test).
     final ProcessResult resize = await runDowel(<String>[
-      'tapir:resize',
+      'tapir:resize_viewport',
       '--width=375',
       '--height=812',
       '--dpr=3',
@@ -225,12 +225,12 @@ void main() {
       resize.exitCode,
       equals(0),
       reason:
-          'tapir:resize must succeed. stdout=${resize.stdout} stderr=${resize.stderr}',
+          'tapir:resize_viewport must succeed. stdout=${resize.stdout} stderr=${resize.stderr}',
     );
 
     // 5. Independent CDP round-trip: a fresh CdpClient connects to the same
     //    port and reads Browser.getVersion. Confirms that the remote-
-    //    debugging endpoint is still up after tapir:resize and that the
+    //    debugging endpoint is still up after tapir:resize_viewport and that the
     //    CdpClient implementation works against a real Chrome (not just
     //    the FakeCdpServer used in unit tests).
     final CdpClient client = await CdpClient.connect(port: cdpPort);
@@ -344,10 +344,10 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 3)));
 
   // ------------------------------------------------------------------
-  // Test 3: preset smoke (tapir:device --preset=iphone-x).
+  // Test 3: preset smoke (tapir:device_profile --preset=iphone-x).
   // ------------------------------------------------------------------
   test(
-    'tapir:device --preset=iphone-x applies the 3-call Emulation chain',
+    'tapir:device_profile --preset=iphone-x applies the 3-call Emulation chain',
     () async {
       // 1. Same boot pattern.
       unawaited(
@@ -362,14 +362,14 @@ void main() {
 
       // 2. Apply the preset.
       final ProcessResult device = await runDowel(<String>[
-        'tapir:device',
+        'tapir:device_profile',
         '--preset=iphone-x',
       ], timeout: const Duration(seconds: 30));
       expect(
         device.exitCode,
         equals(0),
         reason:
-            'tapir:device --preset=iphone-x must exit 0. '
+            'tapir:device_profile --preset=iphone-x must exit 0. '
             'stdout=${device.stdout} stderr=${device.stderr}',
       );
 
@@ -381,7 +381,7 @@ void main() {
       //    asynchronously after override; the --reset round-trip is the
       //    deterministic check.
       final ProcessResult reset = await runDowel(<String>[
-        'tapir:resize',
+        'tapir:resize_viewport',
         '--width=1440',
         '--height=900',
         '--reset',
@@ -390,7 +390,7 @@ void main() {
         reset.exitCode,
         equals(0),
         reason:
-            'tapir:resize --reset must clear the override. '
+            'tapir:resize_viewport --reset must clear the override. '
             'stdout=${reset.stdout} stderr=${reset.stderr}',
       );
     },

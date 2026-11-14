@@ -45,6 +45,45 @@ void main() {
       expect(parser.options.keys, containsAll(<String>['ref', 'value']));
     });
 
+    test('configure declares both gate flags, on by default', () {
+      final parser = ArgParser();
+      TapirSetCheckboxCommand().configure(parser);
+      expect(parser.options['checkStable']!.defaultsTo, isTrue);
+      expect(parser.options['checkReceivesEvents']!.defaultsTo, isTrue);
+    });
+
+    test('handle forwards both gate flags as true by default', () async {
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e5', 'value': 'true'}),
+        output: BufferedOutput(),
+      );
+
+      await TapirSetCheckboxCommand().handle(ctx);
+
+      expect(ctx.lastParams, containsPair('checkStable', 'true'));
+      expect(ctx.lastParams, containsPair('checkReceivesEvents', 'true'));
+    });
+
+    test(
+      'handle forwards --no-checkStable and --no-checkReceivesEvents',
+      () async {
+        final ctx = _StubContext(
+          input: MapInput(const {
+            'ref': 'e5',
+            'value': 'true',
+            'checkStable': false,
+            'checkReceivesEvents': false,
+          }),
+          output: BufferedOutput(),
+        );
+
+        await TapirSetCheckboxCommand().handle(ctx);
+
+        expect(ctx.lastParams, containsPair('checkStable', 'false'));
+        expect(ctx.lastParams, containsPair('checkReceivesEvents', 'false'));
+      },
+    );
+
     test('handle calls ext.tapir.set_checkbox', () async {
       final ctx = _StubContext(
         input: MapInput(const {'ref': 'e5', 'value': 'true'}),

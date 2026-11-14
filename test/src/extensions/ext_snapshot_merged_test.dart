@@ -216,7 +216,7 @@ void main() {
             .firstMatch(snapshot);
         expect(match, isNotNull);
 
-        final Future<dynamic> pending = aiTestTapHandler(
+        final Future<dynamic> pending = tapirTapHandler(
           'ext.tapir.tap',
           <String, String>{
             'ref': match!.group(1)!,

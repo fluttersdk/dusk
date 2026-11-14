@@ -253,10 +253,7 @@ Future<developer.ServiceExtensionResponse> extTapirObserveHandler(
       '[tapir] ext.tapir.observe: unexpected error: $e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail('ext.tapir.observe: $e', TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError('ext.tapir.observe: $e', TapirErrorEnvelope.unexpected());
   }
 }
 

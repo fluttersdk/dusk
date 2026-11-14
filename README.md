@@ -32,7 +32,7 @@
 | Import | `package:tapir/tapir.dart` (`TapirPlugin.install()`, behind `if (!kReleaseMode)`) |
 | Entry points | `dart run tapir <command>`, `./bin/dowel <command>`, `TapirPlugin.install()`, `TapirPlugin.enrichers`, `TapirDowelProvider` (`package:tapir/cli.dart`), `dart run tapir mcp:serve` |
 | Platforms | Any Flutter target that exposes a VM Service in a debug or profile build: Android, iOS, web, macOS, Windows, Linux; viewport and device emulation need Chrome with a CDP port; `tapir_hot_reload_and_snap` writes to the `flutter run` stdin FIFO, so it needs a POSIX host; on a Windows host `mcp:install` writes a `dart run` entry, never `./bin/dowel` |
-| Requires | Dart 3.13, Flutter 3.47; a plugin of [`dowel`](https://pub.dev/packages/dowel) (`^0.0.21`) |
+| Requires | Dart 3.13, Flutter 3.47; a plugin of [`dowel`](https://pub.dev/packages/dowel) (`^1.0.0`) |
 | Dependencies | `dowel`, `image`, `meta`, `wind_kit_diagnostics_contracts`, `yaml`, the Flutter SDK |
 | License | MIT |
 
@@ -86,7 +86,7 @@ dart run tapir tapir:tap --ref=e2 --snapshot=diff
 dart run tapir tapir:fill --ref=e1 --text="ada@example.com" --json
 ```
 
-Gestures (`tap`, `hover`, `drag`, `scroll`, `dblclick`, `right_click`, `triple_click`) and text verbs (`type`, `clear`, `fill`, `press_key`) dispatch real pointer and key events into the widget tree. `tap`, `hover`, `drag`, the click variants, `type` and `fill` first pass the gate (`clear`, `scroll`, `press_key`, `select_option` and `set_checkbox` skip it), in a fixed order, and a refusal names the reason an agent can branch on:
+Gestures (`tap`, `hover`, `drag`, `scroll`, `double_click`, `right_click`, `triple_click`) and text verbs (`type`, `clear`, `fill`, `press_key`) dispatch real pointer and key events into the widget tree. `tap`, `hover`, `drag`, the click variants, `type`, `fill` and `set_checkbox` (on the control it taps) first pass the gate (`clear`, `scroll`, `press_key` and `select_option` skip it), in a fixed order, and a refusal names the reason an agent can branch on:
 
 | Check | Refusal substring | Recovery |
 |---|---|---|
@@ -97,18 +97,18 @@ Gestures (`tap`, `hover`, `drag`, `scroll`, `dblclick`, `right_click`, `triple_c
 | Stable across two frames | `not stable` | Wait for the animation; `--no-checkStable` |
 | Receives events (hit test) | `obscured by` | Dismiss the overlay (`tapir:reset_overlays`); `--no-checkReceivesEvents` |
 
-A green tick is dispatch, not effect. Add `--json` to print the whole response and read the `effect` block: `effect.changed` for `tap` and `scroll`, `effect.verified` and `effect.value` for `type`, `fill` and `clear`. When the hit test could not answer (routine on a web debug build) the response of a gated verb such as `tap` or `type` carries a `checks` block with `receivesEvents: indeterminate` instead of a silent pass; `fill` reports only its `effect`. `tapir:run "tap --ref=e5" "snap --grep Counter"` batches verbs into one round trip.
+A green tick is dispatch, not effect. Add `--json` to print the whole response and read the `effect` block: `effect.changed` for `tap` and `scroll`, `effect.verified` and `effect.value` for `type`, `fill` and `clear`. When the hit test could not answer (routine on a web debug build) the response of a gated verb such as `tap`, `type` or `fill` carries a `checks` block with `receivesEvents: indeterminate` instead of a silent pass. A target tapir will not act on at all (a ref that is not a text field, say) answers the error type `refused` (code `-32001`), and a value it cannot use answers `invalid_param`. `tapir:run "tap --ref=e5" "snap --grep Counter"` batches verbs into one round trip.
 
 ## Waiting and observing
 
 ```bash
 dart run tapir tapir:observe --roles=button,textbox   # q<N> handles, re-resolved per action
-dart run tapir tapir:wait --text="Welcome back" --timeoutMs=5000
+dart run tapir tapir:wait_for --text="Welcome back" --timeoutMs=5000
 ```
 
 | Verb | Returns |
 |---|---|
-| `tapir:wait` | Waits for `--text`, `--textGone` or `--expression` |
+| `tapir:wait_for` | Waits for `--text`, `--textGone` or `--expression` |
 | `tapir:wait_for_network_idle` | Waits until in-flight HTTP requests stay at zero for `--idleMs` |
 | `tapir:observe` | A flat candidate list of interactive widgets with `q<N>` handles: observe once, act many times (no model call inside tapir) |
 | `tapir:console`, `tapir:exceptions` | In-app `debugPrint` output and `FlutterError`s, overflow included; `--since=<iso8601>` scopes errors to one action |
@@ -121,14 +121,14 @@ When the app is not producing frames (a hidden window or a backgrounded tab) tap
 ```bash
 dart run tapir tapir:screenshot --output=shot.jpg
 dart run tapir start --device=chrome --cdp-port=9333
-dart run tapir tapir:device --preset=pixel-8
+dart run tapir tapir:device_profile --preset=pixel-8
 ```
 
 | Surface | Behaviour |
 |---|---|
 | `tapir:screenshot` | JPEG (default) or PNG of the viewport, or of one widget with `--ref` (and a sub-rect of it with `--rect`) |
 | Web screenshot | With `--cdp-port`, the CLI captures through CDP `Page.captureScreenshot`; the `tapir_screenshot` MCP tool stays in-isolate and can time out under CanvasKit, so prefer the CLI on web |
-| `tapir:device` | Presets `iphone-x`, `iphone-13`, `iphone-15-pro`, `pixel-5`, `pixel-8`, `ipad-pro-12.9`, `desktop-1440`, `desktop-1920` (viewport, DPR, touch, user agent); the emulation ends with the command, the window size stays. `tapir:resize --width --height` overrides the viewport until exit, or longer with `--hold` |
+| `tapir:device_profile` | Presets `iphone-x`, `iphone-13`, `iphone-15-pro`, `pixel-5`, `pixel-8`, `ipad-pro-12.9`, `desktop-1440`, `desktop-1920` (viewport, DPR, touch, user agent); the emulation ends with the command, the window size stays. `tapir:resize_viewport --width --height` overrides the viewport until exit, or longer with `--hold` |
 | `tapir:hot_reload_and_snap` | Hot reload, then snapshot, screenshot and recent exceptions in one round trip |
 
 ## Performance tracing
@@ -164,10 +164,7 @@ The `tapir_*` tools ride on the `dowel` MCP server, so the client config key is 
 | Claude Desktop | `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`, Windows: `%APPDATA%\Claude\`) |
 | Codex | `codex mcp add dowel ./bin/dowel mcp:serve` |
 
-| Without tapir | With tapir |
-|---|---|
-| You hot reload, screenshot, drag the PNG into the chat, paste widget source and ask why the button does nothing. | The agent calls `tapir_snap`, then `tapir_tap` on `e7`; the gate checks the button, the tap lands, a fresh snap confirms it. |
-| You add `Future.delayed` and re-run to tell a timing issue from a bug. | The gate refuses with a reason (`not stable`, `obscured by`, `off-viewport`) that names the cause. |
+Without tapir you hot reload, take a screenshot, drag the PNG into the chat, paste the widget source and ask why the button does nothing. With it the agent calls `tapir_snap`, then `tapir_tap` on `e7`: the gate checks the button, the tap lands and a fresh snap confirms it. A timing issue no longer needs a `Future.delayed` and a re-run to tell it from a bug, because the gate refuses with a reason that names the cause (`not stable`, `obscured by`, `off-viewport`).
 
 ## For AI coding agents
 
@@ -189,7 +186,7 @@ The `tapir_*` tools ride on the `dowel` MCP server, so the client config key is 
 
 ## Links
 
-- [Documentation](https://anilcancakir.com/tapir/docs/getting-started/installation): installation, quickstart, every command, MCP setup, the actionability gate, Magic and Wind integration, and the [MCP tool reference](https://anilcancakir.com/tapir/docs/mcp/tool-reference)
+- [Documentation](https://anilcancakir.com/tapir/docs/getting-started/installation): installation, quickstart, every command, MCP setup, the actionability gate, Magic and Wind integration, and the [MCP tool reference](https://anilcancakir.com/tapir/docs/mcp/tool-reference), and [moving from `fluttersdk_dusk`](https://anilcancakir.com/tapir/docs/getting-started/migrating-from-fluttersdk-dusk)
 - [API reference](https://pub.dev/documentation/tapir/latest/)
 - [llms.txt](llms.txt) and the [agent skill](skills/tapir/SKILL.md) for AI coding agents: `npx skills add anilcancakir/tapir`
 - [Changelog](CHANGELOG.md), [report an issue](https://github.com/anilcancakir/tapir/issues), [security policy](https://github.com/anilcancakir/tapir/security/policy)

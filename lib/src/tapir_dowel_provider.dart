@@ -4,8 +4,8 @@ import 'commands/tapir_blur_command.dart';
 import 'commands/tapir_clear_command.dart';
 import 'commands/tapir_close_app_command.dart';
 import 'commands/tapir_console_command.dart';
-import 'commands/tapir_dblclick_command.dart';
-import 'commands/tapir_device_command.dart';
+import 'commands/tapir_double_click_command.dart';
+import 'commands/tapir_device_profile_command.dart';
 import 'commands/tapir_focus_command.dart';
 import 'commands/tapir_right_click_command.dart';
 import 'commands/tapir_run_command.dart';
@@ -19,7 +19,7 @@ import 'commands/tapir_get_routes_command.dart';
 import 'commands/tapir_hot_reload_and_snap_command.dart';
 import 'commands/tapir_hover_command.dart';
 import 'commands/tapir_install_command.dart';
-import 'commands/tapir_modal_command.dart';
+import 'commands/tapir_dismiss_modals_command.dart';
 import 'commands/tapir_navigate_back_command.dart';
 import 'commands/tapir_navigate_command.dart';
 import 'commands/tapir_observe_command.dart';
@@ -32,7 +32,7 @@ import 'commands/tapir_perf_run_command.dart';
 import 'commands/tapir_perf_trace_command.dart';
 import 'commands/tapir_press_key_command.dart';
 import 'commands/tapir_reset_overlays_command.dart';
-import 'commands/tapir_resize_command.dart';
+import 'commands/tapir_resize_viewport_command.dart';
 import 'commands/tapir_screenshot_command.dart';
 import 'commands/tapir_scroll_command.dart';
 import 'commands/tapir_select_option_command.dart';
@@ -40,7 +40,7 @@ import 'commands/tapir_set_checkbox_command.dart';
 import 'commands/tapir_snap_command.dart';
 import 'commands/tapir_tap_command.dart';
 import 'commands/tapir_type_command.dart';
-import 'commands/tapir_wait_command.dart';
+import 'commands/tapir_wait_for_command.dart';
 import 'commands/tapir_wait_for_network_idle_command.dart';
 
 // Schema properties shared by the verbs that embed a post-action snapshot or
@@ -49,7 +49,7 @@ import 'commands/tapir_wait_for_network_idle_command.dart';
 // reads has to be listed here to be passable over MCP. The perf runner and the
 // CLI call the extensions directly: coordinate dispatch (x, y, toX, toY, drag
 // dx/dy), `reportPoint`, perf_end's `full` and screenshot's `geometry` are
-// theirs, and `tapir:resize --hold` keeps a CDP session an MCP call cannot hold.
+// theirs, and `tapir:resize_viewport --hold` keeps a CDP session an MCP call cannot hold.
 // None of them is part of the MCP surface.
 
 /// `snapshot`: the post-action snapshot mode, overriding `includeSnapshot`.
@@ -112,10 +112,10 @@ class TapirDowelProvider extends DowelServiceProvider {
     // Type, scroll, wait, hover, drag, modal.
     TapirTypeCommand(),
     TapirScrollCommand(),
-    TapirWaitCommand(),
+    TapirWaitForCommand(),
     TapirHoverCommand(),
     TapirDragCommand(),
-    TapirModalCommand(),
+    TapirDismissModalsCommand(),
     // Diagnostics.
     TapirDoctorCommand(),
     // CLI symmetry pass: every E2E-driver MCP tool has a matching
@@ -139,7 +139,7 @@ class TapirDowelProvider extends DowelServiceProvider {
     // Step 3.5: crumbs readers + double-click + checkbox setter.
     TapirConsoleCommand(),
     TapirExceptionsCommand(),
-    TapirDblclickCommand(),
+    TapirDoubleClickCommand(),
     TapirSetCheckboxCommand(),
     // Wave 4 Step 4.1: structured candidate list (Stagehand observe-once-
     // act-many; no server-side LLM).
@@ -156,8 +156,8 @@ class TapirDowelProvider extends DowelServiceProvider {
     TapirRightClickCommand(),
     TapirTripleClickCommand(),
     // Wave 4 Step 6+7 (CDP): device emulation commands.
-    TapirResizeCommand(),
-    TapirDeviceCommand(),
+    TapirResizeViewportCommand(),
+    TapirDeviceProfileCommand(),
     // D7: harness workarounds promoted to first-class commands.
     // tapir:fill = focus + clear + type + settle + stale-retry in one call.
     // tapir:reset_overlays = dismiss + Escape + Cancel-tap fallback.
@@ -1297,7 +1297,7 @@ class TapirDowelProvider extends DowelServiceProvider {
     // 21. Double-click: two tap sequences at ref center (~100ms apart).
     // ---------------------------------------------------------------------
     McpToolDescriptor(
-      name: 'tapir_dblclick',
+      name: 'tapir_double_click',
       description:
           'Double-click a widget by ref token from a prior '
           'tapir_snap.\n'
@@ -1338,7 +1338,7 @@ class TapirDowelProvider extends DowelServiceProvider {
         'required': <String>['ref'],
         'additionalProperties': false,
       },
-      extensionMethod: 'ext.tapir.dblclick',
+      extensionMethod: 'ext.tapir.double_click',
     ),
     // ---------------------------------------------------------------------
     // 22. Set checkbox: read + conditionally toggle a checkable control.
@@ -1352,17 +1352,24 @@ class TapirDowelProvider extends DowelServiceProvider {
           '(or of the control inside it), so a checkable control from any '
           'widget library works. When the current value already matches '
           '`value` the call returns an idempotent success without tapping. '
-          'When it differs, or the control is mixed, injects one tap at '
-          'the widget\'s centre. A ref with no checked or toggled state is '
-          'refused with an error, never guessed at.\n'
+          'When it differs, or the control is mixed, runs the actionability '
+          'gate on the control (scrolling it into view, refusing one that is '
+          'disabled, covered or moving with the gate\'s reason) and injects '
+          'one tap on it. A ref with no checked or toggled state, or one '
+          'holding several controls, is refused with an error, never guessed '
+          'at.\n'
           '\n'
           'Usage:\n'
           '- Call tapir_snap first to get a ref token for the control.\n'
           '- Pass `value: "true"` to check or `value: "false"` to uncheck.\n'
           '- Returns `{ref, previousValue, value, toggled, effect}`: '
           '`toggled` says whether a tap was issued, `previousValue` is null '
-          'for a mixed control, and `effect.after` and `effect.verified` '
-          'report the state read back after the tap.\n'
+          'for a mixed control, and `value`, `effect.after` and '
+          '`effect.verified` report the state read back after the tap.\n'
+          '- A control the tap removes or rebuilds (an "I agree" box that '
+          'hides once ticked) has nothing left to read back, so it answers '
+          '`verified: false` although the toggle worked; snap again to '
+          'confirm.\n'
           '\n'
           'Example: `{ "ref": "e4", "value": "true" }`',
       inputSchema: <String, dynamic>{
@@ -1381,6 +1388,8 @@ class TapirDowelProvider extends DowelServiceProvider {
                 'Target checked state. `"true"` checks the '
                 'widget; `"false"` unchecks it.',
           },
+          'checkStable': _kCheckStableProperty,
+          'checkReceivesEvents': _kCheckReceivesEventsProperty,
         },
         'required': <String>['ref', 'value'],
         'additionalProperties': false,
@@ -1726,7 +1735,7 @@ class TapirDowelProvider extends DowelServiceProvider {
           'opens, and the call closes that session when it returns: '
           'Chrome then drops the override, so a later snapshot or '
           'screenshot sees the page at its own size. This tool cannot '
-          'keep it; the CLI `tapir:resize --hold`, run in the background, '
+          'keep it; the CLI `tapir:resize_viewport --hold`, run in the background, '
           'holds the session and so the override while you drive the '
           'app.\n'
           '\n'
@@ -1799,10 +1808,10 @@ class TapirDowelProvider extends DowelServiceProvider {
         },
         // No `required`: `{"reset": true}` names no size, and dowel
         // refuses a call that lacks a required key before the command
-        // runs. TapirResizeCommand refuses a resize without a size.
+        // runs. TapirResizeViewportCommand refuses a resize without a size.
         'additionalProperties': false,
       },
-      extensionMethod: 'dowel:tapir:resize',
+      extensionMethod: 'dowel:tapir:resize_viewport',
     ),
     // -------------------------------------------------------------------
     // 26. Device profile: emulate a named device preset via CDP.
@@ -1824,7 +1833,7 @@ class TapirDowelProvider extends DowelServiceProvider {
           'The emulated viewport, DPR, touch and user agent last only as '
           'long as the CDP session this call opens, which closes when it '
           'returns; only the Chrome window size it sets stays. For a '
-          'viewport that lasts, run the CLI `tapir:resize --hold` in the '
+          'viewport that lasts, run the CLI `tapir:resize_viewport --hold` in the '
           'background.\n'
           '\n'
           'Usage:\n'
@@ -1880,7 +1889,7 @@ class TapirDowelProvider extends DowelServiceProvider {
         },
         'additionalProperties': false,
       },
-      extensionMethod: 'dowel:tapir:device',
+      extensionMethod: 'dowel:tapir:device_profile',
     ),
     // -------------------------------------------------------------------
     // 27. Fill (D7): focus + clear + type + settle + stale-retry in one

@@ -1,7 +1,7 @@
 import 'package:dowel/dowel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:tapir/src/commands/tapir_modal_command.dart';
+import 'package:tapir/src/commands/tapir_dismiss_modals_command.dart';
 
 /// Stubs [DowelContext.callExtension] so tests never hit a real VM Service.
 class _StubContext extends DowelContext {
@@ -27,17 +27,17 @@ class _StubContext extends DowelContext {
 }
 
 void main() {
-  group('TapirModalCommand', () {
-    test('name is tapir:modal', () {
-      expect(TapirModalCommand().name, equals('tapir:modal'));
+  group('TapirDismissModalsCommand', () {
+    test('name is tapir:dismiss_modals', () {
+      expect(TapirDismissModalsCommand().name, equals('tapir:dismiss_modals'));
     });
 
     test('boot is CommandBoot.connected', () {
-      expect(TapirModalCommand().boot, equals(CommandBoot.connected));
+      expect(TapirDismissModalsCommand().boot, equals(CommandBoot.connected));
     });
 
     test('description is non-empty', () {
-      expect(TapirModalCommand().description, isNotEmpty);
+      expect(TapirDismissModalsCommand().description, isNotEmpty);
     });
 
     test('handle calls ext.tapir.dismiss_modals', () async {
@@ -47,7 +47,7 @@ void main() {
         response: const {'dismissed': 1},
       );
 
-      await TapirModalCommand().handle(ctx);
+      await TapirDismissModalsCommand().handle(ctx);
 
       expect(ctx.lastMethod, equals('ext.tapir.dismiss_modals'));
     });
@@ -59,7 +59,7 @@ void main() {
         response: const {'dismissed': 1},
       );
 
-      await TapirModalCommand().handle(ctx);
+      await TapirDismissModalsCommand().handle(ctx);
 
       expect(ctx.lastParams, isNull);
     });
@@ -71,7 +71,7 @@ void main() {
         response: const {'dismissed': 0},
       );
 
-      expect(await TapirModalCommand().handle(ctx), equals(0));
+      expect(await TapirDismissModalsCommand().handle(ctx), equals(0));
     });
   });
 }

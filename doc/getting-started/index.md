@@ -18,6 +18,8 @@ snapshot, and drive real user gestures from an AI agent or CLI session.
   the MCP tools to your AI client.
 - [**Quickstart**](quickstart.md): 3-step walkthrough from zero to driving the example
   app with snap, tap, and screenshot.
+- [**Migrating from fluttersdk_dusk**](migrating-from-fluttersdk-dusk.md): Move an app
+  that ran the predecessor package onto tapir and dowel.
 - [**MCP setup**](../mcp/setup.md): Register the tapir MCP tools in Claude Code, Cursor,
   Windsurf, or any MCP-compliant client.
 - [**Driving real apps: gotchas for agents**](driving-real-apps-gotchas.md): the
@@ -76,7 +78,7 @@ build step, no `flutter drive` orchestration needed.
 |:-----------|:----------------|:------|
 | Dart       | `^3.13.0`       | The floor `material_ui` needs; Flutter 3.50 deprecates `package:flutter/material.dart` in its favour. |
 | Flutter    | `>= 3.47.0`     | The Semantics APIs and `RepaintBoundary` render-tree walk used internally. |
-| dowel | `^0.0.21` | Provides the MCP server, CLI framework, and `registerExtensionIdempotent`. |
+| dowel | `^1.0.0` | Provides the MCP server, CLI framework, and `registerExtensionIdempotent`. |
 
 `tapir` requires Flutter. It cannot run on a pure-Dart environment because
 it synthesises pointer events against a live widget tree and walks the Semantics tree
@@ -115,5 +117,6 @@ viewport.
 
 - [Installation](installation.md): new here? Start with adding the package and wiring `TapirPlugin.install()`.
 - [Quickstart](quickstart.md): already installed? Run a first snap, tap and screenshot.
+- [Migrating from fluttersdk_dusk](migrating-from-fluttersdk-dusk.md): coming from the predecessor package? Start here.
 - [Commands](../commands/index.md): every `tapir:*` command grouped by intent.
 - [Reference: Actionability gate](../reference/actionability-gate.md): how tapir decides whether a widget is safe to act on.

@@ -1,7 +1,7 @@
 import 'package:dowel/dowel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:tapir/src/commands/tapir_resize_command.dart';
+import 'package:tapir/src/commands/tapir_resize_viewport_command.dart';
 import 'package:tapir/src/commands/tapir_run_command.dart';
 
 /// A connected verb that records what it was handed and answers [exitCode].
@@ -72,7 +72,7 @@ void main() {
           broken,
           missing,
           mandatory,
-          TapirResizeCommand(),
+          TapirResizeViewportCommand(),
         ]);
     });
 
@@ -174,11 +174,13 @@ void main() {
     test('rejects a verb that does not run on the connected app', () async {
       final BufferedOutput output = BufferedOutput();
       final int exit = await TapirRunCommand().handle(
-        cliContext(<String>['resize --width=400 --height=800'], output),
+        cliContext(<String>[
+          'resize_viewport --width=400 --height=800',
+        ], output),
       );
 
       expect(exit, isNot(0));
-      expect(output.content, contains('tapir:resize'));
+      expect(output.content, contains('tapir:resize_viewport'));
       expect(output.content, contains('does not run on the connected app'));
     });
 

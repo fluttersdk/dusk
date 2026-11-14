@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img_lib;
 
 import 'package:tapir/src/extensions/ext_screenshot.dart';
 import 'package:tapir/src/ref_registry.dart';
+import 'package:tapir/src/utils/error_envelope.dart';
 
 bool _isError(developer.ServiceExtensionResponse response) =>
     response.errorCode != null;
@@ -31,6 +32,14 @@ void main() {
         'rect': 'not,a,rect',
       });
       expect(_isError(response), isTrue);
+      expect(
+        response.errorCode,
+        developer.ServiceExtensionResponse.invalidParams,
+      );
+      expect(
+        parseEnvelopeFromErrorDetail(response.errorDetail!)!['type'],
+        'invalid_param',
+      );
     });
 
     testWidgets('errors on rect with negative dimensions', (tester) async {

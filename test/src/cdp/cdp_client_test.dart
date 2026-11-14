@@ -66,7 +66,7 @@ void main() {
     test('connect() throws TapirCdpException when the WebSocket handshake is refused', () async {
       // The HTTP /json/version step succeeds (handshake URL parsed) but
       // the WebSocket connect throws. CdpClient must rethrow as a typed
-      // TapirCdpException so callers (TapirResizeCommand, etc.) can branch
+      // TapirCdpException so callers (TapirResizeViewportCommand, etc.) can branch
       // on a single exception type.
       final FakeCdpServer server = await FakeCdpServer.start();
       addTearDown(server.stop);

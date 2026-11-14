@@ -75,11 +75,11 @@ dart run tapir tapir:perf_insight --id=<I1> [--token=<perf-1>] [--json]
 
 Each names what to read instead:
 
-- No `--id`: an `invalidParams` error asking for an id from `insights[]`.
-- No session has closed yet: run `tapir:perf_begin`, drive, `tapir:perf_end`.
-- A stale `--token`: the error names the session that IS held.
-- The last session was refused: it has no insights; rerun it with an interaction driven inside.
-- An id the session never issued: the error points at the `insights[]` list of `tapir:perf_end`.
+- No `--id`: a `missing_param` error (code `-32602`) asking for an id from `insights[]`.
+- No session has closed yet: a `refused` error (code `-32001`); run `tapir:perf_begin`, drive, `tapir:perf_end`.
+- A stale `--token`: a `refused` error that names the session that IS held.
+- The last session was refused: a `refused` error; it has no insights, so rerun it with an interaction driven inside.
+- An id the session never issued: a `not_found` error that points at the `insights[]` list of `tapir:perf_end`.
 
 ---
 

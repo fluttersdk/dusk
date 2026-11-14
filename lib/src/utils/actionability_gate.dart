@@ -319,9 +319,15 @@ Future<ActionabilityReport> ensureActionableForViews(
     );
   }
 
+  // The probe point is the one the verb dispatches at: the centre of the
+  // part on screen, so a target straddling the edge is probed where the
+  // pointer will land rather than outside the view.
+  final Rect onScreen = currentRect.overlaps(viewport)
+      ? currentRect.intersect(viewport)
+      : currentRect;
   final HitProbe probe = probeHitAt(
     target: target,
-    point: currentRect.center,
+    point: onScreen.center,
     viewId: view.viewId,
   );
   switch (probe.verdict) {
@@ -433,10 +439,33 @@ Rect _visibleViewportOf(FlutterView view) {
 /// [RefEntry.rect] center in that case; the guard mirrors the
 /// `renderObject.attached` precondition Flutter's `localToGlobal` asserts.
 ///
+/// The rect is clipped to the visible viewport when it straddles an edge: the
+/// gate passes a target that is partly on screen and has no `Scrollable` to
+/// bring it in, and a pointer at its centre would land outside the view and
+/// reach nothing.
+///
 /// This helper is purely additive to the FROZEN actionability gate: it runs
 /// AFTER the gate passes and BEFORE pointer dispatch, never touching the gate
 /// order or any failure-reason substring.
-Rect? dispatchRectOf(RefEntry entry) => _liveRectOf(entry.element);
+Rect? dispatchRectOf(RefEntry entry) {
+  final Rect? live = _liveRectOf(entry.element);
+  return live == null ? null : _clippedToViewport(live, entry.element);
+}
+
+/// [rect] intersected with the visible viewport of [element]'s view when
+/// the two overlap, else [rect] unchanged (no view, or wholly off screen,
+/// which the gate has already refused).
+Rect _clippedToViewport(Rect rect, Element element) {
+  final PlatformDispatcher dispatcher =
+      WidgetsBinding.instance.platformDispatcher;
+  final FlutterView? view =
+      View.maybeOf(element) ??
+      dispatcher.implicitView ??
+      dispatcher.views.firstOrNull;
+  if (view == null) return rect;
+  final Rect viewport = _visibleViewportOf(view);
+  return rect.overlaps(viewport) ? rect.intersect(viewport) : rect;
+}
 
 /// Re-resolves the global-coordinate bounding rect of [element] from its
 /// live [RenderBox]. Returns `null` when the element is detached, the

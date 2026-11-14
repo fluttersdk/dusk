@@ -43,7 +43,7 @@ Three kinds of step are rejected, each as a failed step with exit `1`:
 
 - `tapir:run` inside a `tapir:run`.
 - A verb that does not exist (`unknown verb tapir:tapp`).
-- A verb that does not run on the connected app: any command that does not boot connected, such as `tapir:resize`, `tapir:device`, `tapir:install`, `tapir:doctor`, `tapir:perf_campaign` and `tapir:perf_compare`. Call those on their own.
+- A verb that does not run on the connected app: any command that does not boot connected, such as `tapir:resize_viewport`, `tapir:device_profile`, `tapir:install`, `tapir:doctor`, `tapir:perf_campaign` and `tapir:perf_compare`. Call those on their own.
 
 A step that ends or restarts the app (`tapir:close_app`, `tapir:perf_run`) is accepted, but every later step then talks to a dead connection and fails, so make it the last step.
 

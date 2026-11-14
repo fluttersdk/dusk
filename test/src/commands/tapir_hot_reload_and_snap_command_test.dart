@@ -47,6 +47,27 @@ HotReloadFn _fakeReload(HotReloadResult result, {int delayMs = 5}) {
   };
 }
 
+/// Appends [text] to [logFile] once the `r\n` keystroke lands in [pipeFile].
+/// `_defaultReload` records the log's baseline length before it writes the
+/// keystroke, so a marker written on a timer could fall inside the baseline
+/// and never be seen.
+Future<void> _appendAfterKeystroke(
+  File pipeFile,
+  File logFile,
+  String text,
+) async {
+  final Stopwatch waited = Stopwatch()..start();
+  while (waited.elapsed < const Duration(seconds: 10)) {
+    // A test that failed before the keystroke has torn its directory down.
+    if (!pipeFile.existsSync()) return;
+    if (pipeFile.readAsStringSync().contains('r\n')) {
+      logFile.writeAsStringSync(text, mode: FileMode.append);
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+}
+
 void main() {
   group('TapirHotReloadAndSnapCommand', () {
     test('name is tapir:hot_reload_and_snap', () {
@@ -435,16 +456,12 @@ void main() {
         }),
       );
 
-      // Append the success marker shortly after handle() starts polling.
-      // 120ms gives the printf write time to complete; the loop polls
-      // every 50ms so the marker is seen within ~one extra cycle.
       unawaited(
-        Future<void>.delayed(const Duration(milliseconds: 120), () {
-          logFile.writeAsStringSync(
-            'Reloaded 0 of 1 libraries in 50ms (compile: 5 ms, reload: 0 ms).\n',
-            mode: FileMode.append,
-          );
-        }),
+        _appendAfterKeystroke(
+          pipeFile,
+          logFile,
+          'Reloaded 0 of 1 libraries in 50ms (compile: 5 ms, reload: 0 ms).\n',
+        ),
       );
 
       final cmd = TapirHotReloadAndSnapCommand();
@@ -467,6 +484,54 @@ void main() {
       expect(pipeFile.readAsStringSync(), equals('r\n'));
     });
 
+    // flutter_tools prints the elapsed time with a decimal grouping pattern,
+    // so a reload of a second or more reads `1,234ms`, and the web runner
+    // says `Reloaded application` with no library count at all.
+    for (final String line in <String>[
+      'Reloaded application in 312ms.',
+      'Reloaded application in 1,234ms.',
+      'Reloaded 3 of 812 libraries in 1,234ms (compile: 900 ms, reload: '
+          '200 ms, reassemble: 134 ms).',
+      'Reloaded 1 library in 2.345ms.',
+    ]) {
+      test('reloaded=true on the line "$line"', () async {
+        final pipeFile = File('${tempHome.path}/.dowel/pipe')..createSync();
+        final logFile = File('${tempHome.path}/.dowel/flutter-dev.log')
+          ..writeAsStringSync('Launching app...\n');
+        File('${tempHome.path}/.dowel/state.json').writeAsStringSync(
+          jsonEncode({
+            'pid': 1,
+            'stdinPipe': pipeFile.path,
+            'logPath': logFile.path,
+          }),
+        );
+        unawaited(_appendAfterKeystroke(pipeFile, logFile, '$line\n'));
+
+        final Stopwatch elapsed = Stopwatch()..start();
+        final cmd = TapirHotReloadAndSnapCommand();
+        final ctx = _StubContext(
+          input: MapInput(const {'screenshot': false}),
+          output: BufferedOutput(),
+          responses: <String, Map<String, dynamic>>{
+            'ext.tapir.snap': const {'snapshot': '- root', 'groupId': 'g'},
+            'ext.tapir.exceptions': const {
+              'exceptions': <Map<String, dynamic>>[],
+              'count': 0,
+            },
+          },
+        );
+
+        await cmd.handle(ctx);
+
+        expect(cmd.lastResult!['reloaded'], isTrue);
+        expect(
+          elapsed.elapsed,
+          lessThan(const Duration(seconds: 5)),
+          reason: 'the marker must be recognised, not waited out',
+        );
+      });
+    }
+
     test('reads the per-session log next to the state file when state.json has '
         'no logPath', () async {
       final sessionDir = Directory('${tempHome.path}/.dowel/sessions/abc123')
@@ -482,12 +547,11 @@ void main() {
       addTearDown(() => StateFile.pathOverride = null);
 
       unawaited(
-        Future<void>.delayed(const Duration(milliseconds: 120), () {
-          logFile.writeAsStringSync(
-            'Reloaded 0 of 1 libraries in 50ms (compile: 5 ms, reload: 0 ms).\n',
-            mode: FileMode.append,
-          );
-        }),
+        _appendAfterKeystroke(
+          pipeFile,
+          logFile,
+          'Reloaded 0 of 1 libraries in 50ms (compile: 5 ms, reload: 0 ms).\n',
+        ),
       );
 
       final cmd = TapirHotReloadAndSnapCommand();
@@ -522,13 +586,12 @@ void main() {
       );
 
       unawaited(
-        Future<void>.delayed(const Duration(milliseconds: 120), () {
-          logFile.writeAsStringSync(
-            "lib/main.dart:5:1: Error: expected ';'\n"
-            'Try again after fixing the above error(s).\n',
-            mode: FileMode.append,
-          );
-        }),
+        _appendAfterKeystroke(
+          pipeFile,
+          logFile,
+          "lib/main.dart:5:1: Error: expected ';'\n"
+          'Try again after fixing the above error(s).\n',
+        ),
       );
 
       final cmd = TapirHotReloadAndSnapCommand();

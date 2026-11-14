@@ -15,7 +15,7 @@ One file per command, `lib/src/commands/tapir_<verb>_command.dart`, extending `D
 
 ## Boot
 
-`CommandBoot.connected` needs a running app (the session state under `~/.dowel/`). `CommandBoot.none` runs without one (`tapir:install`, `tapir:doctor`, `tapir:perf_campaign`, `tapir:perf_compare`, and the CDP verbs `tapir:resize` and `tapir:device`, which drive Chrome from the host). `tapir:run` accepts connected verbs only.
+`CommandBoot.connected` needs a running app (the session state under `~/.dowel/`). `CommandBoot.none` runs without one (`tapir:install`, `tapir:doctor`, `tapir:perf_campaign`, `tapir:perf_compare`, and the CDP verbs `tapir:resize_viewport` and `tapir:device_profile`, which drive Chrome from the host). `tapir:run` accepts connected verbs only.
 
 An MCP tool routes through `dowel:tapir:*` instead of an `ext.tapir.*` call when the work cannot run in the target isolate or spans several calls: `hot_reload_and_snap` (an in-isolate self-reload deadlocks), `resize_viewport` and `device_profile` (CDP), `perf_run`, `perf_compare`, `perf_trace`, `run`.
 

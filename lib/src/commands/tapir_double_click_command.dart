@@ -5,16 +5,16 @@ import 'package:dowel/dowel.dart';
 import 'frame_warning_output.dart';
 import 'json_output.dart';
 
-/// `dowel tapir:dblclick --ref=<ref>` — fire a double-click at the widget
+/// `dowel tapir:double_click --ref=<ref>` — fire a double-click at the widget
 /// identified by a snapshot ref.
 ///
-/// Wraps the `ext.tapir.dblclick` VM Service extension which injects two tap
+/// Wraps the `ext.tapir.double_click` VM Service extension which injects two tap
 /// sequences with a ~100ms inter-tap delay, matching Playwright's double-click
 /// model. The 4-gate actionability check runs before both taps; the post-action
 /// snapshot is captured once after the second tap completes.
-class TapirDblclickCommand extends DowelCommand {
+class TapirDoubleClickCommand extends DowelCommand {
   @override
-  String get name => 'tapir:dblclick';
+  String get name => 'tapir:double_click';
 
   @override
   String get description =>
@@ -32,7 +32,7 @@ class TapirDblclickCommand extends DowelCommand {
     );
     parser.addFlag(
       'includeSnapshot',
-      help: 'Embed the post-dblclick snapshot in the response.',
+      help: 'Embed the post-double_click snapshot in the response.',
       defaultsTo: false,
     );
     parser.addFlag(
@@ -62,7 +62,7 @@ class TapirDblclickCommand extends DowelCommand {
         (ctx.input.option('checkReceivesEvents') as bool?) ?? true;
 
     final response = await ctx.callExtension<Map<String, dynamic>>(
-      'ext.tapir.dblclick',
+      'ext.tapir.double_click',
       {
         'ref': ref,
         'includeSnapshot': includeSnapshot.toString(),

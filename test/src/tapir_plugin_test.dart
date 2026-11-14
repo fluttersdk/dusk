@@ -5,72 +5,53 @@ import 'package:tapir/src/tapir_plugin.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() {
-    TapirPlugin.aiTestDisableEnvValue = '';
-  });
+  tearDown(() => debugTapirDisabledOverride = null);
 
   test('install() registers extensions on first call (counter increments)', () {
-    final before = TapirPlugin.installCount;
+    final before = tapirInstallCount;
     TapirPlugin.install();
-    expect(TapirPlugin.installCount, equals(before + 1));
+    expect(tapirInstallCount, equals(before + 1));
   });
 
   test(
-    'install() is idempotent — second call increments counter but no-ops',
+    'install() is idempotent: a second call increments the counter but no-ops',
     () {
-      final before = TapirPlugin.installCount;
+      final before = tapirInstallCount;
       TapirPlugin.install();
       TapirPlugin.install();
       TapirPlugin.install();
-      expect(TapirPlugin.installCount, greaterThan(before));
+      expect(tapirInstallCount, greaterThan(before));
     },
   );
 
-  test('install() skips when TAPIR_DISABLE=1', () {
-    TapirPlugin.aiTestDisableEnvValue = '1';
-    final before = TapirPlugin.installCount;
-    TapirPlugin.install();
-    expect(TapirPlugin.installCount, equals(before));
-  });
+  group('TapirPlugin.isDisabled', () {
+    test('is false in a build without --dart-define=TAPIR_DISABLE', () {
+      expect(TapirPlugin.isDisabled, isFalse);
+    });
 
-  test('install() skips when TAPIR_DISABLE=true', () {
-    TapirPlugin.aiTestDisableEnvValue = 'true';
-    final before = TapirPlugin.installCount;
-    TapirPlugin.install();
-    expect(TapirPlugin.installCount, equals(before));
-  });
+    test('install() skips while disabled and installs once enabled', () {
+      debugTapirDisabledOverride = true;
+      expect(TapirPlugin.isDisabled, isTrue);
+      final before = tapirInstallCount;
+      TapirPlugin.install();
+      expect(tapirInstallCount, equals(before));
 
-  test('install() skips when TAPIR_DISABLE=yes', () {
-    TapirPlugin.aiTestDisableEnvValue = 'yes';
-    final before = TapirPlugin.installCount;
-    TapirPlugin.install();
-    expect(TapirPlugin.installCount, equals(before));
-  });
+      debugTapirDisabledOverride = false;
+      TapirPlugin.install();
+      expect(tapirInstallCount, greaterThan(before));
+    });
 
-  test('install() skips when TAPIR_DISABLE is mixed case (TRUE / Yes)', () {
-    TapirPlugin.aiTestDisableEnvValue = 'TRUE';
-    final beforeA = TapirPlugin.installCount;
-    TapirPlugin.install();
-    expect(TapirPlugin.installCount, equals(beforeA));
+    for (final String value in <String>['1', 'true', 'yes', 'TRUE', ' Yes ']) {
+      test('the define value "$value" disables tapir', () {
+        expect(tapirDisableValueDisables(value), isTrue);
+      });
+    }
 
-    TapirPlugin.aiTestDisableEnvValue = 'Yes';
-    final beforeB = TapirPlugin.installCount;
-    TapirPlugin.install();
-    expect(TapirPlugin.installCount, equals(beforeB));
-  });
-
-  test('install() proceeds when TAPIR_DISABLE is the empty string', () {
-    TapirPlugin.aiTestDisableEnvValue = '';
-    final before = TapirPlugin.installCount;
-    TapirPlugin.install();
-    expect(TapirPlugin.installCount, greaterThan(before));
-  });
-
-  test('install() proceeds when TAPIR_DISABLE has unrecognized value', () {
-    TapirPlugin.aiTestDisableEnvValue = 'no';
-    final before = TapirPlugin.installCount;
-    TapirPlugin.install();
-    expect(TapirPlugin.installCount, greaterThan(before));
+    for (final String value in <String>['', '0', 'no', 'false', 'off']) {
+      test('the define value "$value" leaves tapir on', () {
+        expect(tapirDisableValueDisables(value), isFalse);
+      });
+    }
   });
 
   test('enrichers list is mutable and starts shared across the isolate', () {
@@ -83,26 +64,26 @@ void main() {
   });
 
   group('semantics handle', () {
-    tearDown(TapirPlugin.resetSemanticsForTesting);
+    tearDown(resetTapirSemanticsForTesting);
 
     test(
       'acquire is idempotent and release reports whether it dropped one',
       () {
-        TapirPlugin.resetSemanticsForTesting();
-        expect(TapirPlugin.acquireSemantics(), isTrue);
-        expect(TapirPlugin.acquireSemantics(), isFalse);
-        expect(TapirPlugin.releaseSemantics(), isTrue);
-        expect(TapirPlugin.semanticsReleased, isTrue);
-        expect(TapirPlugin.releaseSemantics(), isFalse);
+        resetTapirSemanticsForTesting();
+        expect(acquireTapirSemantics(), isTrue);
+        expect(acquireTapirSemantics(), isFalse);
+        expect(releaseTapirSemantics(), isTrue);
+        expect(tapirSemanticsReleased, isTrue);
+        expect(releaseTapirSemantics(), isFalse);
       },
     );
 
     test('acquire clears the released flag', () {
-      TapirPlugin.resetSemanticsForTesting();
-      TapirPlugin.acquireSemantics();
-      TapirPlugin.releaseSemantics();
-      TapirPlugin.acquireSemantics();
-      expect(TapirPlugin.semanticsReleased, isFalse);
+      resetTapirSemanticsForTesting();
+      acquireTapirSemantics();
+      releaseTapirSemantics();
+      acquireTapirSemantics();
+      expect(tapirSemanticsReleased, isFalse);
     });
   });
 }

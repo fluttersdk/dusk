@@ -82,7 +82,7 @@ When `--format` is not given, the format follows the `--output` extension: `.png
 
 On a hidden or minimised desktop window tapir wakes the app before the in-isolate capture (the response carries `framesForced: true`), so the image is a fresh frame rather than the last cached one. The CDP path on web is unaffected by the lifecycle. See [Frame production](../reference/frame-production.md).
 
-The handler never resizes the screenshot; the captured image matches the running viewport's pixel dimensions (logical size times DPR). To capture at a controlled viewport, run `tapir:resize` or `tapir:device` first.
+The handler never resizes the screenshot; the captured image matches the running viewport's pixel dimensions (logical size times DPR). To capture at a controlled viewport, run `tapir:resize_viewport` or `tapir:device_profile` first.
 
 ---
 
@@ -94,7 +94,7 @@ The handler never resizes the screenshot; the captured image matches the running
 | No `cdpPort` in state (native target) | `ext.tapir.screenshot` (in-isolate) |
 | `cdpPort` set (web target) | CDP `Page.captureScreenshot` |
 
-The CDP path sends `Page.enable` first (required by Chrome before `Page.captureScreenshot`), then `Page.captureScreenshot` with `fromSurface: true`. The resulting dimensions reflect the `Emulation.setDeviceMetricsOverride` still in force, which is only one whose DevTools session is still open (`tapir:resize --hold`); Chrome drops it when the session that sent it detaches.
+The CDP path sends `Page.enable` first (required by Chrome before `Page.captureScreenshot`), then `Page.captureScreenshot` with `fromSurface: true`. The resulting dimensions reflect the `Emulation.setDeviceMetricsOverride` still in force, which is only one whose DevTools session is still open (`tapir:resize_viewport --hold`); Chrome drops it when the session that sent it detaches.
 
 **`--ref` works on both paths, by different routes.** In-isolate, `ext.tapir.screenshot` rasterises the ref's own render-object region directly. Over CDP there is no notion of a Flutter ref, so the command first asks the extension for the region in geometry mode, which resolves `--ref` / `--rect` and returns the rect without rasterising (the rasterise is exactly what hangs on this target), then passes it to `Page.captureScreenshot` as a `clip`. Flutter logical pixels and CDP CSS pixels are the same unit, so the rect crosses over unscaled.
 
@@ -135,7 +135,7 @@ dart run tapir tapir:screenshot --output=/tmp/hifi.jpeg --quality=92
 
 ```bash
 # The override lives only as long as the session that sent it: hold it.
-dart run tapir tapir:resize --width=1440 --height=900 --hold &
+dart run tapir tapir:resize_viewport --width=1440 --height=900 --hold &
 dart run tapir tapir:screenshot --output=/tmp/desktop.jpeg
 ```
 
@@ -163,4 +163,4 @@ dart run tapir tapir:screenshot --output=/tmp/card-header.png --ref=e42 --rect=0
 
 - [tapir:snap](tapir-snap.md): the structured-text counterpart; agents typically pair `tapir:snap` and `tapir:screenshot` to read both the Semantics tree and the pixels in a single round.
 - [tapir:hot_reload_and_snap](index.md#hot-reload-and-snap): captures snapshot + screenshot + recent exceptions in one round trip.
-- [tapir:resize](index.md#cdp) and [tapir:device](index.md#cdp): control the viewport that `tapir:screenshot` captures from on web targets.
+- [tapir:resize_viewport](index.md#cdp) and [tapir:device_profile](index.md#cdp): control the viewport that `tapir:screenshot` captures from on web targets.

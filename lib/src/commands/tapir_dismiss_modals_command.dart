@@ -2,10 +2,10 @@ import 'package:dowel/dowel.dart';
 
 import 'frame_warning_output.dart';
 
-/// `dowel tapir:modal` — dismiss all open modals, bottom sheets, and dialogs.
-class TapirModalCommand extends DowelCommand {
+/// `dowel tapir:dismiss_modals` — dismiss all open modals, bottom sheets, and dialogs.
+class TapirDismissModalsCommand extends DowelCommand {
   @override
-  String get name => 'tapir:modal';
+  String get name => 'tapir:dismiss_modals';
 
   @override
   String get description =>

@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-// `hide Error`: the installer's `Error` result would shadow dart:core's.
-import 'package:dowel/dowel.dart' hide Error;
+import 'package:dowel/dowel.dart';
 
 import '../perf/campaign.dart';
 import '../perf/perf_actions.dart';

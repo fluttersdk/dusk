@@ -8,8 +8,7 @@ library;
 
 import 'dart:async';
 
-// `hide Error`: the installer's `Error` result would shadow dart:core's.
-import 'package:dowel/dowel.dart' hide Error;
+import 'package:dowel/dowel.dart';
 
 import 'scenario.dart';
 

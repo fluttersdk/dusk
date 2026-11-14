@@ -252,7 +252,7 @@ String _pointTarget(Offset point) => '@${point.dx},${point.dy}';
 /// coordinate dispatch proves nothing about what it landed on.
 Map<String, dynamic> _coordinateChecks() => <String, dynamic>{
   'gate': 'skipped',
-  'semantics': TapirPlugin.semanticsReleased ? 'released' : 'held',
+  'semantics': tapirSemanticsReleased ? 'released' : 'held',
   'why':
       'Dispatched at raw coordinates: there is no element to gate, so '
       'the enabled, zero-rect, off-viewport, stable and receives-events '
@@ -352,7 +352,7 @@ Future<void> _injectTap(
 /// - `requestKeyboard()` after the pointer events produces `hasPrimaryFocus == true`.
 ///
 /// Parameters:
-/// - `ref` (required): opaque ref string from a prior `ext.tapir.snapshot` call.
+/// - `ref` (required): opaque ref string from a prior `ext.tapir.snap` call.
 /// - `checkStable` (optional, default `'true'`): when `'false'`, skip the
 ///   Playwright stable-rect gate. Production callers leave the default;
 ///   tests that fabricate synthetic [RefEntry] rects opt out so the gate
@@ -396,7 +396,7 @@ Future<void> _injectTap(
 /// ```json
 /// { "ref": "e3", "untilMatched": true, "snapshot": "<yaml>" }
 /// ```
-Future<developer.ServiceExtensionResponse> aiTestTapHandler(
+Future<developer.ServiceExtensionResponse> tapirTapHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -407,12 +407,9 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   if (ref == null || ref.isEmpty) {
     final Offset? point = _pointParam(params, 'x', 'y');
     if (point != null) return _coordinateTap(point);
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.tap: missing required param "ref"',
-        TapirErrorEnvelope.missingParam('ref'),
-      ),
+    return tapirError(
+      'ext.tapir.tap: missing required param "ref"',
+      TapirErrorEnvelope.missingParam('ref'),
     );
   }
 
@@ -420,20 +417,14 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   try {
     entry = resolveRefForAction(ref);
   } on TapirStaleHandleException catch (e) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
-    );
+    return tapirError(e.message, TapirErrorEnvelope.stale(ref));
   }
   if (entry == null) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.tap: ref "$ref" not found in registry',
-        TapirErrorEnvelope.notFound(
-          ref: ref,
-          candidates: collectSnapshotCandidates(),
-        ),
+    return tapirError(
+      'ext.tapir.tap: ref "$ref" not found in registry',
+      TapirErrorEnvelope.notFound(
+        ref: ref,
+        candidates: collectSnapshotCandidates(),
       ),
     );
   }
@@ -462,12 +453,9 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
       checkReceivesEvents: checkReceivesEvents,
     );
   } on TapirActionabilityException catch (e) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        e.message,
-        TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
-      ),
+    return tapirError(
+      e.message,
+      TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
     );
   }
 
@@ -517,12 +505,9 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
       '$e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.tap: injectTap failed: $e',
-        TapirErrorEnvelope.unexpected(widgetPath: ref),
-      ),
+    return tapirError(
+      'ext.tapir.tap: injectTap failed: $e',
+      TapirErrorEnvelope.unexpected(widgetPath: ref),
     );
   }
 
@@ -652,12 +637,9 @@ Future<developer.ServiceExtensionResponse> _coordinateTap(Offset point) async {
       '[tapir] ext.tapir.tap: _injectTap failed at $point: $e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.tap: injectTap failed: $e',
-        TapirErrorEnvelope.unexpected(),
-      ),
+    return tapirError(
+      'ext.tapir.tap: injectTap failed: $e',
+      TapirErrorEnvelope.unexpected(),
     );
   }
   return tapirResult(<String, dynamic>{
@@ -673,9 +655,9 @@ Future<developer.ServiceExtensionResponse> _coordinateTap(Offset point) async {
 /// fire in response to hover events; touch-kind events do not trigger them.
 ///
 /// Parameters:
-/// - `ref` (required): opaque ref string from `ext.tapir.snapshot`.
+/// - `ref` (required): opaque ref string from `ext.tapir.snap`.
 /// - `checkStable` / `checkReceivesEvents` (optional, default `'true'`):
-///   Playwright actionability opt-outs. See [aiTestTapHandler] for details.
+///   Playwright actionability opt-outs. See [tapirTapHandler] for details.
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
 ///   embedding the post-action snapshot in the response.
 ///
@@ -683,19 +665,16 @@ Future<developer.ServiceExtensionResponse> _coordinateTap(Offset point) async {
 /// ```json
 /// { "ref": "e5", "snapshot": "<yaml>" }
 /// ```
-Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
+Future<developer.ServiceExtensionResponse> tapirHoverHandler(
   String method,
   Map<String, String> params,
 ) async {
   try {
     final ref = params['ref'];
     if (ref == null || ref.isEmpty) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.hover: missing required param "ref"',
-          TapirErrorEnvelope.missingParam('ref'),
-        ),
+      return tapirError(
+        'ext.tapir.hover: missing required param "ref"',
+        TapirErrorEnvelope.missingParam('ref'),
       );
     }
 
@@ -703,20 +682,14 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     try {
       entry = resolveRefForAction(ref);
     } on TapirStaleHandleException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
-      );
+      return tapirError(e.message, TapirErrorEnvelope.stale(ref));
     }
     if (entry == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.hover: ref "$ref" not found in registry',
-          TapirErrorEnvelope.notFound(
-            ref: ref,
-            candidates: collectSnapshotCandidates(),
-          ),
+      return tapirError(
+        'ext.tapir.hover: ref "$ref" not found in registry',
+        TapirErrorEnvelope.notFound(
+          ref: ref,
+          candidates: collectSnapshotCandidates(),
         ),
       );
     }
@@ -743,12 +716,9 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
         checkReceivesEvents: checkReceivesEvents,
       );
     } on TapirActionabilityException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          e.message,
-          TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
-        ),
+      return tapirError(
+        e.message,
+        TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
       );
     }
 
@@ -798,10 +768,7 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
       '[tapir] ext.tapir.hover: unexpected error: $e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail('ext.tapir.hover: $e', TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError('ext.tapir.hover: $e', TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -829,7 +796,7 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
 /// Parameters:
 /// - `checkStable` / `checkReceivesEvents` (optional, default `'true'`):
 ///   Playwright actionability opt-outs applied to every gated end. See
-///   [aiTestTapHandler].
+///   [tapirTapHandler].
 /// - `includeSnapshot` (optional, default `'true'`): when `'false'`, skip
 ///   embedding the post-action snapshot in the response. Ignored for the
 ///   coordinate shape, which never builds one.
@@ -841,7 +808,7 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
 /// ```json
 /// { "startRef": "e1", "endRef": "e2", "snapshot": "<yaml>" }
 /// ```
-Future<developer.ServiceExtensionResponse> aiTestDragHandler(
+Future<developer.ServiceExtensionResponse> tapirDragHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -860,12 +827,9 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
           'checks': _coordinateChecks(),
         });
       }
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.drag: missing required param "startRef"',
-          TapirErrorEnvelope.missingParam('startRef'),
-        ),
+      return tapirError(
+        'ext.tapir.drag: missing required param "startRef"',
+        TapirErrorEnvelope.missingParam('startRef'),
       );
     }
 
@@ -876,12 +840,9 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       double.tryParse(params['dy'] ?? '') ?? 0,
     );
     if (byOffset && offset == Offset.zero) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.drag: missing required param "endRef"',
-          TapirErrorEnvelope.missingParam('endRef'),
-        ),
+      return tapirError(
+        'ext.tapir.drag: missing required param "endRef"',
+        TapirErrorEnvelope.missingParam('endRef'),
       );
     }
 
@@ -889,20 +850,14 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     try {
       startEntry = resolveRefForAction(startRef);
     } on TapirStaleHandleException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(startRef)),
-      );
+      return tapirError(e.message, TapirErrorEnvelope.stale(startRef));
     }
     if (startEntry == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.drag: startRef "$startRef" not found in registry',
-          TapirErrorEnvelope.notFound(
-            ref: startRef,
-            candidates: collectSnapshotCandidates(),
-          ),
+      return tapirError(
+        'ext.tapir.drag: startRef "$startRef" not found in registry',
+        TapirErrorEnvelope.notFound(
+          ref: startRef,
+          candidates: collectSnapshotCandidates(),
         ),
       );
     }
@@ -912,20 +867,14 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       try {
         endEntry = resolveRefForAction(endRef);
       } on TapirStaleHandleException catch (e) {
-        return developer.ServiceExtensionResponse.error(
-          developer.ServiceExtensionResponse.extensionError,
-          wrapErrorDetail(e.message, TapirErrorEnvelope.stale(endRef)),
-        );
+        return tapirError(e.message, TapirErrorEnvelope.stale(endRef));
       }
       if (endEntry == null) {
-        return developer.ServiceExtensionResponse.error(
-          developer.ServiceExtensionResponse.extensionError,
-          wrapErrorDetail(
-            'ext.tapir.drag: endRef "$endRef" not found in registry',
-            TapirErrorEnvelope.notFound(
-              ref: endRef,
-              candidates: collectSnapshotCandidates(),
-            ),
+        return tapirError(
+          'ext.tapir.drag: endRef "$endRef" not found in registry',
+          TapirErrorEnvelope.notFound(
+            ref: endRef,
+            candidates: collectSnapshotCandidates(),
           ),
         );
       }
@@ -964,12 +913,9 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
         );
       }
     } on TapirActionabilityException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          e.message,
-          TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
-        ),
+      return tapirError(
+        e.message,
+        TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
       );
     }
 
@@ -1015,10 +961,7 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
       '[tapir] ext.tapir.drag: unexpected error: $e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail('ext.tapir.drag: $e', TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError('ext.tapir.drag: $e', TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -1085,41 +1028,38 @@ Future<void> _injectDrag(
   await awaitFramesOrTimeout(2);
 }
 
-/// Handler for the `ext.tapir.dblclick` VM Service extension.
+/// Handler for the `ext.tapir.double_click` VM Service extension.
 ///
 /// Fires two tap sequences at the widget identified by `ref` with a ~100ms
 /// delay between them, matching Playwright's double-click model. Both taps
 /// share the same pointer ID ([_kSinglePointer]) since the Up event from
 /// the first tap closes the hit-test cache entry before the second Down.
 ///
-/// Passes through the same 4-gate actionability check as [aiTestTapHandler]
+/// Passes through the same 4-gate actionability check as [tapirTapHandler]
 /// (enabled, zero-rect, off-viewport, stable/receives-events). The snapshot
 /// is embedded ONCE, after both taps complete, so `includeSnapshot` fires
 /// exactly once regardless of tap count. This matches the briefing's
-/// requirement that dblclick is a single handler — latency is minimised and
-/// the snapshot only captures the final post-dblclick tree.
+/// requirement that double_click is a single handler — latency is minimised and
+/// the snapshot only captures the final post-double_click tree.
 ///
-/// Parameters: identical to [aiTestTapHandler] — `ref`, `checkStable`,
+/// Parameters: identical to [tapirTapHandler] — `ref`, `checkStable`,
 /// `checkReceivesEvents`, `includeSnapshot`.
 ///
 /// Response JSON (default):
 /// ```json
 /// { "ref": "e3", "snapshot": "<yaml>" }
 /// ```
-Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
+Future<developer.ServiceExtensionResponse> tapirDoubleClickHandler(
   String method,
   Map<String, String> params,
 ) async {
-  // PRE-DISPATCH: hard error gates — same guard-clause shape as aiTestTapHandler.
+  // PRE-DISPATCH: hard error gates — same guard-clause shape as tapirTapHandler.
 
   final ref = params['ref'];
   if (ref == null || ref.isEmpty) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.dblclick: missing required param "ref"',
-        TapirErrorEnvelope.missingParam('ref'),
-      ),
+    return tapirError(
+      'ext.tapir.double_click: missing required param "ref"',
+      TapirErrorEnvelope.missingParam('ref'),
     );
   }
 
@@ -1127,20 +1067,14 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
   try {
     entry = resolveRefForAction(ref);
   } on TapirStaleHandleException catch (e) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
-    );
+    return tapirError(e.message, TapirErrorEnvelope.stale(ref));
   }
   if (entry == null) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.dblclick: ref "$ref" not found in registry',
-        TapirErrorEnvelope.notFound(
-          ref: ref,
-          candidates: collectSnapshotCandidates(),
-        ),
+    return tapirError(
+      'ext.tapir.double_click: ref "$ref" not found in registry',
+      TapirErrorEnvelope.notFound(
+        ref: ref,
+        candidates: collectSnapshotCandidates(),
       ),
     );
   }
@@ -1164,12 +1098,9 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
       checkReceivesEvents: checkReceivesEvents,
     );
   } on TapirActionabilityException catch (e) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        e.message,
-        TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
-      ),
+    return tapirError(
+      e.message,
+      TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
     );
   }
 
@@ -1177,7 +1108,7 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
   // answers the error response a failed tap produces, or null.
   final RefEntry target = entry;
   final developer.ServiceExtensionResponse? failed = await runPerfInteraction(
-    'dblclick',
+    'double_click',
     ref,
     () async {
       // 1. First tap at the LIVE center (D1): re-resolve via `dispatchRectOf`
@@ -1189,16 +1120,13 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
         );
       } catch (e, st) {
         developer.log(
-          '[tapir] ext.tapir.dblclick: first _injectTap failed for ref '
+          '[tapir] ext.tapir.double_click: first _injectTap failed for ref '
           '"$ref": $e\n$st',
           name: 'tapir',
         );
-        return developer.ServiceExtensionResponse.error(
-          developer.ServiceExtensionResponse.extensionError,
-          wrapErrorDetail(
-            'ext.tapir.dblclick: first injectTap failed: $e',
-            TapirErrorEnvelope.unexpected(widgetPath: ref),
-          ),
+        return tapirError(
+          'ext.tapir.double_click: first injectTap failed: $e',
+          TapirErrorEnvelope.unexpected(widgetPath: ref),
         );
       }
 
@@ -1216,16 +1144,13 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
         );
       } catch (e, st) {
         developer.log(
-          '[tapir] ext.tapir.dblclick: second _injectTap failed for ref '
+          '[tapir] ext.tapir.double_click: second _injectTap failed for ref '
           '"$ref": $e\n$st',
           name: 'tapir',
         );
-        return developer.ServiceExtensionResponse.error(
-          developer.ServiceExtensionResponse.extensionError,
-          wrapErrorDetail(
-            'ext.tapir.dblclick: second injectTap failed: $e',
-            TapirErrorEnvelope.unexpected(widgetPath: ref),
-          ),
+        return tapirError(
+          'ext.tapir.double_click: second injectTap failed: $e',
+          TapirErrorEnvelope.unexpected(widgetPath: ref),
         );
       }
       return null;
@@ -1234,14 +1159,14 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
   if (failed != null) return failed;
 
   // POST-DISPATCH: best-effort enrichment — snapshot fires once, after both
-  // taps, so the agent sees the final post-dblclick accessibility tree.
+  // taps, so the agent sees the final post-double_click accessibility tree.
   final Map<String, dynamic> payload = <String, dynamic>{'ref': ref};
   stampChecks(payload, gate);
   try {
     payload.addAll(await snapshotForAction(params));
   } catch (e) {
     developer.log(
-      '[tapir] ext.tapir.dblclick: post-dispatch snapshot build '
+      '[tapir] ext.tapir.double_click: post-dispatch snapshot build '
       'swallowed for ref "$ref": $e',
       name: 'tapir',
     );
@@ -1252,7 +1177,7 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
 
 /// Registers all pointer-event VM Service extensions.
 ///
-/// Called by the Wave 3 aggregator (`extensions.dart#registerAllAiTestExtensions`)
+/// Called by `registerAllTapirExtensions` (`register_tapir_extensions.dart`)
 /// during [TapirPlugin.install]. This module uses [registerExtensionIdempotent]
 /// for each registration so hot-restart is safe (the VM extension table persists
 /// across hot-restart while Dart statics reset — try/catch on ArgumentError is
@@ -1262,51 +1187,42 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
 /// - `ext.tapir.tap` — pointer Down+50ms+Up at ref center; requestKeyboard for text fields.
 /// - `ext.tapir.hover` — PointerHoverEvent (mouse kind) at ref center.
 /// - `ext.tapir.drag` — Down+5×Move+Up from startRef to endRef.
-/// - `ext.tapir.dblclick` — two tap sequences (~100ms apart) at ref center.
+/// - `ext.tapir.double_click` — two tap sequences (~100ms apart) at ref center.
 void registerPointerExtensions() {
-  registerTapirExtension('ext.tapir.tap', aiTestTapHandler);
-  registerTapirExtension('ext.tapir.hover', aiTestHoverHandler);
-  registerTapirExtension('ext.tapir.drag', aiTestDragHandler);
-  registerTapirExtension('ext.tapir.dblclick', aiTestDoubleClickHandler);
-  registerTapirExtension('ext.tapir.right_click', aiTestRightClickHandler);
-  registerTapirExtension('ext.tapir.triple_click', aiTestTripleClickHandler);
+  registerTapirExtension('ext.tapir.tap', tapirTapHandler);
+  registerTapirExtension('ext.tapir.hover', tapirHoverHandler);
+  registerTapirExtension('ext.tapir.drag', tapirDragHandler);
+  registerTapirExtension('ext.tapir.double_click', tapirDoubleClickHandler);
+  registerTapirExtension('ext.tapir.right_click', tapirRightClickHandler);
+  registerTapirExtension('ext.tapir.triple_click', tapirTripleClickHandler);
 }
 
 /// Right-click (secondary mouse button) at the ref center. Playwright parity:
 /// `locator.click({ button: 'right' })`. Useful for context menus.
-Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
+Future<developer.ServiceExtensionResponse> tapirRightClickHandler(
   String method,
   Map<String, String> params,
 ) async {
   try {
     final String? ref = params['ref'];
     if (ref == null || ref.isEmpty) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.right_click: missing required param "ref"',
-          TapirErrorEnvelope.missingParam('ref'),
-        ),
+      return tapirError(
+        'ext.tapir.right_click: missing required param "ref"',
+        TapirErrorEnvelope.missingParam('ref'),
       );
     }
     final RefEntry? entry;
     try {
       entry = resolveRefForAction(ref);
     } on TapirStaleHandleException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
-      );
+      return tapirError(e.message, TapirErrorEnvelope.stale(ref));
     }
     if (entry == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.right_click: ref "$ref" not found in registry',
-          TapirErrorEnvelope.notFound(
-            ref: ref,
-            candidates: collectSnapshotCandidates(),
-          ),
+      return tapirError(
+        'ext.tapir.right_click: ref "$ref" not found in registry',
+        TapirErrorEnvelope.notFound(
+          ref: ref,
+          candidates: collectSnapshotCandidates(),
         ),
       );
     }
@@ -1329,12 +1245,9 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
         checkReceivesEvents: checkReceivesEvents,
       );
     } on TapirActionabilityException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          e.message,
-          TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
-        ),
+      return tapirError(
+        e.message,
+        TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
       );
     }
     final viewId = resolveViewFor(entry.element).viewId;
@@ -1379,49 +1292,37 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
       '[tapir] ext.tapir.right_click error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
 /// Three primary taps at ref center with ~100ms inter-tap delay. Playwright
 /// parity: `locator.click({ clickCount: 3 })`. Selects an entire paragraph
 /// in Material text fields.
-Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
+Future<developer.ServiceExtensionResponse> tapirTripleClickHandler(
   String method,
   Map<String, String> params,
 ) async {
   try {
     final String? ref = params['ref'];
     if (ref == null || ref.isEmpty) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.triple_click: missing required param "ref"',
-          TapirErrorEnvelope.missingParam('ref'),
-        ),
+      return tapirError(
+        'ext.tapir.triple_click: missing required param "ref"',
+        TapirErrorEnvelope.missingParam('ref'),
       );
     }
     final RefEntry? entry;
     try {
       entry = resolveRefForAction(ref);
     } on TapirStaleHandleException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
-      );
+      return tapirError(e.message, TapirErrorEnvelope.stale(ref));
     }
     if (entry == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.triple_click: ref "$ref" not found in registry',
-          TapirErrorEnvelope.notFound(
-            ref: ref,
-            candidates: collectSnapshotCandidates(),
-          ),
+      return tapirError(
+        'ext.tapir.triple_click: ref "$ref" not found in registry',
+        TapirErrorEnvelope.notFound(
+          ref: ref,
+          candidates: collectSnapshotCandidates(),
         ),
       );
     }
@@ -1444,12 +1345,9 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
         checkReceivesEvents: checkReceivesEvents,
       );
     } on TapirActionabilityException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          e.message,
-          TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
-        ),
+      return tapirError(
+        e.message,
+        TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
       );
     }
     // Each tap dispatches at the LIVE center (D1): re-resolve via
@@ -1480,9 +1378,6 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
       '[tapir] ext.tapir.triple_click error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }

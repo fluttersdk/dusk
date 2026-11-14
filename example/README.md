@@ -12,7 +12,7 @@ dart run tapir tapir:snap
 dart run tapir stop
 ```
 
-`start` records the session (the app's VM Service URI) under `~/.dowel/`, and every later `dart run tapir <command>` dials it. `tapir:resize` and `tapir:device` drive Chrome over the DevTools Protocol, so they need the `--cdp-port` start.
+`start` records the session (the app's VM Service URI) under `~/.dowel/`, and every later `dart run tapir <command>` dials it. `tapir:resize_viewport` and `tapir:device_profile` drive Chrome over the DevTools Protocol, so they need the `--cdp-port` start.
 
 ## What is on screen
 
@@ -22,9 +22,9 @@ dart run tapir stop
 | Write verification | A digits-only field and a field whose formatter restores the old value | `tapir:type`, `tapir:fill` |
 | Merged semantics | A `MergeSemantics` stage holding an off-centre "Skip intro" button | `tapir:tap`, `tapir:observe` |
 | Selection | DropdownButton, Checkbox, Switch | `tapir:select_option`, `tapir:set_checkbox` |
-| Clicks | Counter button | `tapir:tap`, `tapir:dblclick`, `tapir:triple_click`, `tapir:right_click`, `tapir:hover` |
+| Clicks | Counter button | `tapir:tap`, `tapir:double_click`, `tapir:triple_click`, `tapir:right_click`, `tapir:hover` |
 | Drag | `Draggable<String>` and `DragTarget<String>` | `tapir:drag` |
-| Modals | Dialog and bottom-sheet triggers | `tapir:modal`, `tapir:reset_overlays` |
+| Modals | Dialog and bottom-sheet triggers | `tapir:dismiss_modals`, `tapir:reset_overlays` |
 | Navigation | Details button and the app bar settings icon | `tapir:navigate`, `tapir:navigate_back`, `tapir:get_routes` |
 | Diagnostics | Log, exception and fake-network buttons | `tapir:console`, `tapir:exceptions`, `tapir:wait_for_network_idle` |
 | Long list | ListTile rows below the fold | `tapir:scroll` |
@@ -36,7 +36,7 @@ The routes are `/`, `/details` and `/settings`; only `/` has targets.
 1. `tapir:snap` prints the tree with an `e<N>` ref on every interactive widget.
 2. `tapir:tap --ref=<counter ref>`, then snap again: the label reads `Counter: 1`.
 3. `tapir:type --ref=<name field ref> --text="hello"`: the snap shows `textbox "Name": "hello"`.
-4. Tap the dialog button, then `tapir:modal` dismisses it.
+4. Tap the dialog button, then `tapir:dismiss_modals` dismisses it.
 5. `tapir:navigate --route=/settings`, then `tapir:navigate_back`.
 
 ## License

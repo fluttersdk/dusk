@@ -224,16 +224,13 @@ Future<developer.ServiceExtensionResponse> tapirPerfBeginHandler(
   final PerfMode? mode = PerfMode.tryParse(modeName);
   final bool phases = params['phases'] == 'true';
   if (mode == null || (mode == PerfMode.timing && phases)) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.invalidParams,
-      wrapErrorDetail(
-        mode == null
-            ? 'ext.tapir.perf_begin: mode "$modeName" is not one of '
-                  'attribution, timing.'
-            : 'ext.tapir.perf_begin: phases=true profiles layout and paint, '
-                  'and mode=timing profiles nothing; pick one.',
-        TapirErrorEnvelope.unexpected(),
-      ),
+    return tapirError(
+      mode == null
+          ? 'ext.tapir.perf_begin: mode "$modeName" is not one of '
+                'attribution, timing.'
+          : 'ext.tapir.perf_begin: phases=true profiles layout and paint, '
+                'and mode=timing profiles nothing; pick one.',
+      TapirErrorEnvelope.invalidParam('mode'),
     );
   }
 
@@ -313,12 +310,9 @@ Future<developer.ServiceExtensionResponse> tapirPerfBeginHandler(
     // host closure leaves profiling running with no automatic recovery.
     final _PerfSession? open = _session;
     if (open != null) _closeSession(open);
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.perf_begin: $e',
-        TapirErrorEnvelope.unexpected(),
-      ),
+    return tapirError(
+      'ext.tapir.perf_begin: $e',
+      TapirErrorEnvelope.unexpected(),
     );
   }
 }
@@ -393,15 +387,12 @@ Future<developer.ServiceExtensionResponse> tapirPerfEndHandler(
 ) async {
   final _PerfSession? session = _session;
   if (session == null) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.perf_end: no measurement session is open. Call '
-        'ext.tapir.perf_begin first; the session carries the flag values to '
-        'restore and the liveness baseline this report is judged against, '
-        'and neither can be reconstructed afterwards.',
-        TapirErrorEnvelope.unexpected(),
-      ),
+    return tapirError(
+      'ext.tapir.perf_end: no measurement session is open. Call '
+      'ext.tapir.perf_begin first; the session carries the flag values to '
+      'restore and the liveness baseline this report is judged against, '
+      'and neither can be reconstructed afterwards.',
+      TapirErrorEnvelope.refused(),
     );
   }
 
@@ -427,14 +418,11 @@ Future<developer.ServiceExtensionResponse> tapirPerfEndHandler(
     // deliberately NOT as a `refused` report: a refusal is a measurement
     // outcome and this is not one.
     if (baseline == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.perf_end: the open session never completed its baseline '
-          'read, so there is nothing to judge a run against. Call '
-          'ext.tapir.perf_begin again.',
-          TapirErrorEnvelope.unexpected(),
-        ),
+      return tapirError(
+        'ext.tapir.perf_end: the open session never completed its baseline '
+        'read, so there is nothing to judge a run against. Call '
+        'ext.tapir.perf_begin again.',
+        TapirErrorEnvelope.unexpected(),
       );
     }
 
@@ -532,12 +520,9 @@ Future<developer.ServiceExtensionResponse> tapirPerfEndHandler(
       '[tapir] ext.tapir.perf_end: unexpected error: $e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.perf_end: $e',
-        TapirErrorEnvelope.unexpected(),
-      ),
+    return tapirError(
+      'ext.tapir.perf_end: $e',
+      TapirErrorEnvelope.unexpected(),
     );
   } finally {
     // Runs on the report, the refusal and the failure alike. Leaving the
@@ -588,13 +573,10 @@ Future<developer.ServiceExtensionResponse> tapirPerfInsightHandler(
   final String? token = params['token'];
 
   if (id.isEmpty) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.invalidParams,
-      wrapErrorDetail(
-        'ext.tapir.perf_insight: id is required, an insight id such as I1 '
-        'from the insights[] list ext.tapir.perf_end returned.',
-        TapirErrorEnvelope.missingParam('id'),
-      ),
+    return tapirError(
+      'ext.tapir.perf_insight: id is required, an insight id such as I1 '
+      'from the insights[] list ext.tapir.perf_end returned.',
+      TapirErrorEnvelope.missingParam('id'),
     );
   }
 
@@ -613,26 +595,20 @@ Future<developer.ServiceExtensionResponse> tapirPerfInsightHandler(
     _ => null,
   };
   if (problem != null) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.perf_insight: $problem',
-        TapirErrorEnvelope.unexpected(),
-      ),
+    return tapirError(
+      'ext.tapir.perf_insight: $problem',
+      TapirErrorEnvelope.refused(),
     );
   }
 
   final Map<String, Object?>? drill = closed!.analysis!.drillDown(id);
   if (drill == null) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.perf_insight: session ${closed.token} issued no insight '
-        '$id. Read the ids from the insights[] list ext.tapir.perf_end '
-        'returned; one cut from that list is counted in omitted.insights and '
-        'is still drillable by its id.',
-        TapirErrorEnvelope.notFound(ref: id),
-      ),
+    return tapirError(
+      'ext.tapir.perf_insight: session ${closed.token} issued no insight '
+      '$id. Read the ids from the insights[] list ext.tapir.perf_end '
+      'returned; one cut from that list is counted in omitted.insights and '
+      'is still drillable by its id.',
+      TapirErrorEnvelope.notFound(ref: id),
     );
   }
 
@@ -747,7 +723,7 @@ void _closeSession(_PerfSession session) {
   // A semantics pass whose driver died between `semantics_hold release` and
   // its `acquire` would otherwise leave every later snapshot and ref-based
   // action reading an empty tree. The session is the receipt for that too.
-  if (TapirPlugin.semanticsReleased) TapirPlugin.acquireSemantics();
+  if (tapirSemanticsReleased) acquireTapirSemantics();
   // Session dropped BEFORE the host hook runs. That hook is assigned in
   // another repository and can throw; from `perf_end`'s `finally` a throw
   // would replace the response and cross the VM Service boundary, which this

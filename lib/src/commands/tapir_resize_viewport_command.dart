@@ -8,7 +8,7 @@ import '../cdp/cdp_client.dart';
 /// How often a held session checks that Chrome is still there.
 const Duration _kHoldPoll = Duration(milliseconds: 250);
 
-/// `dowel tapir:resize --width=<px> --height=<px>`: resize the running
+/// `dowel tapir:resize_viewport --width=<px> --height=<px>`: resize the running
 /// Flutter web app viewport via Chrome DevTools Protocol Emulation methods.
 ///
 /// Reads the CDP port from `~/.dowel/state.json` (written by
@@ -21,9 +21,9 @@ const Duration _kHoldPoll = Duration(milliseconds: 250);
 /// afterwards is back at its own size. `--hold` keeps the session open, and
 /// so the override, until Chrome goes away or the command is interrupted; run
 /// it in the background and drive the app meanwhile.
-final class TapirResizeCommand extends DowelCommand {
+final class TapirResizeViewportCommand extends DowelCommand {
   @override
-  String get name => 'tapir:resize';
+  String get name => 'tapir:resize_viewport';
 
   @override
   String get description =>

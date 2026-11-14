@@ -163,10 +163,6 @@ final class _FakeDriver implements PerfRunDriver {
         }
         final bool miss = unresolved.contains(params['text']);
         return <String, dynamic>{'ref': miss ? null : 'q1', 'matched': !miss};
-      case 'ext.tapir.find_by_label':
-        // What the live app answers: find_by_label walks only the root
-        // pipeline owner, which holds no semantics tree, so it finds nothing.
-        return <String, dynamic>{'refs': <String>[]};
       case 'ext.tapir.find_by_text':
         return <String, dynamic>{
           'refs': <String>['e1', 'e2', 'e3'],

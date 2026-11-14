@@ -1,6 +1,5 @@
 import 'dart:developer' as developer;
 
-import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -26,14 +25,14 @@ void main() {
   // wait_for's polling loop uses real Future.delayed which hangs under the
   // flutter_test fake-clock harness, so we only exercise the missing-param
   // gate here. Live drive coverage is captured by the example/ playground
-  // E2E (tapir:wait against Forms screen) — see CHANGELOG.
+  // E2E (tapir:wait_for against Forms screen) — see CHANGELOG.
 
-  group('aiTestWaitForHandler', () {
+  group('tapirWaitForHandler', () {
     testWidgets('returns extensionError when no condition is supplied', (
       tester,
     ) async {
       await tester.pumpWidget(_wrap(const SizedBox()));
-      final response = await aiTestWaitForHandler(
+      final response = await tapirWaitForHandler(
         'ext.tapir.wait_for',
         const <String, String>{},
       );
@@ -41,12 +40,12 @@ void main() {
     });
   });
 
-  group('aiTestFindByTextHandler', () {
+  group('tapirFindByTextHandler', () {
     testWidgets('returns extensionError when text param is missing', (
       tester,
     ) async {
       await tester.pumpWidget(_wrap(const SizedBox()));
-      final response = await aiTestFindByTextHandler(
+      final response = await tapirFindByTextHandler(
         'ext.tapir.find_by_text',
         const <String, String>{},
       );
@@ -57,7 +56,7 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(_wrap(const Text('Hello tapir')));
-      final response = await aiTestFindByTextHandler(
+      final response = await tapirFindByTextHandler(
         'ext.tapir.find_by_text',
         const {'text': 'Hello tapir'},
       );
@@ -66,7 +65,7 @@ void main() {
 
     testWidgets('returns empty refs when no Text matches', (tester) async {
       await tester.pumpWidget(_wrap(const Text('Other content')));
-      final response = await aiTestFindByTextHandler(
+      final response = await tapirFindByTextHandler(
         'ext.tapir.find_by_text',
         const {'text': 'Will not match'},
       );
@@ -75,7 +74,7 @@ void main() {
 
     testWidgets('substring match when exact=false', (tester) async {
       await tester.pumpWidget(_wrap(const Text('Welcome to tapir testing')));
-      final response = await aiTestFindByTextHandler(
+      final response = await tapirFindByTextHandler(
         'ext.tapir.find_by_text',
         const {'text': 'tapir', 'exact': 'false'},
       );
@@ -84,69 +83,9 @@ void main() {
 
     testWidgets('exact=true requires full string match', (tester) async {
       await tester.pumpWidget(_wrap(const Text('Welcome to tapir testing')));
-      final response = await aiTestFindByTextHandler(
+      final response = await tapirFindByTextHandler(
         'ext.tapir.find_by_text',
         const {'text': 'tapir', 'exact': 'true'},
-      );
-      expect(_isSuccess(response), isTrue);
-    });
-  });
-
-  group('aiTestFindByLabelHandler', () {
-    testWidgets('returns extensionError when label param is missing', (
-      tester,
-    ) async {
-      await tester.pumpWidget(_wrap(const SizedBox()));
-      final response = await aiTestFindByLabelHandler(
-        'ext.tapir.find_by_label',
-        const <String, String>{},
-      );
-      expect(_isError(response), isTrue);
-    });
-
-    testWidgets('finds a Semantics widget by exact label match', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(
-          Semantics(
-            label: 'Submit form',
-            container: true,
-            child: const SizedBox(width: 40, height: 40),
-          ),
-        ),
-      );
-      final response = await aiTestFindByLabelHandler(
-        'ext.tapir.find_by_label',
-        const {'label': 'Submit form'},
-      );
-      expect(_isSuccess(response), isTrue);
-    });
-
-    testWidgets('returns empty refs when no Semantics matches', (tester) async {
-      await tester.pumpWidget(_wrap(const SizedBox()));
-      final response = await aiTestFindByLabelHandler(
-        'ext.tapir.find_by_label',
-        const {'label': 'No widget here'},
-      );
-      expect(_isSuccess(response), isTrue);
-    });
-
-    testWidgets('role param filters matches by SemanticsFlag role', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(
-          Semantics(
-            label: 'Confirm',
-            button: true,
-            child: const SizedBox(width: 40, height: 40),
-          ),
-        ),
-      );
-      final response = await aiTestFindByLabelHandler(
-        'ext.tapir.find_by_label',
-        const {'label': 'Confirm', 'role': 'button'},
       );
       expect(_isSuccess(response), isTrue);
     });
@@ -216,11 +155,11 @@ void main() {
       expect(result['reason'], equals('timeout'));
     });
 
-    testWidgets('aiTestWaitForHandler with timeoutMs=0 surfaces the timeout', (
+    testWidgets('tapirWaitForHandler with timeoutMs=0 surfaces the timeout', (
       tester,
     ) async {
       await tester.pumpWidget(_wrap(const Text('absent')));
-      final response = await aiTestWaitForHandler('ext.tapir.wait_for', const {
+      final response = await tapirWaitForHandler('ext.tapir.wait_for', const {
         'text': 'never appears',
         'timeoutMs': '0',
       });
@@ -228,15 +167,14 @@ void main() {
     });
   });
 
-  group('aiTestWaitForHandler — fast path success branches', () {
+  group('tapirWaitForHandler — fast path success branches', () {
     testWidgets(
       'text param: returns matched JSON when text is already present',
       (tester) async {
         await tester.pumpWidget(_wrap(const Text('hello')));
-        final response = await aiTestWaitForHandler(
-          'ext.tapir.wait_for',
-          const {'text': 'hello'},
-        );
+        final response = await tapirWaitForHandler('ext.tapir.wait_for', const {
+          'text': 'hello',
+        });
         expect(_isSuccess(response), isTrue);
       },
     );
@@ -245,10 +183,9 @@ void main() {
       'textGone param: returns matched JSON when text is absent immediately',
       (tester) async {
         await tester.pumpWidget(_wrap(const Text('other')));
-        final response = await aiTestWaitForHandler(
-          'ext.tapir.wait_for',
-          const {'textGone': 'gone-already'},
-        );
+        final response = await tapirWaitForHandler('ext.tapir.wait_for', const {
+          'textGone': 'gone-already',
+        });
         expect(_isSuccess(response), isTrue);
       },
     );
@@ -257,7 +194,7 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(_wrap(const Text('hello tapir')));
-      final response = await aiTestWaitForHandler('ext.tapir.wait_for', const {
+      final response = await tapirWaitForHandler('ext.tapir.wait_for', const {
         'expression': 'hello tapir',
       });
       expect(_isSuccess(response), isTrue);
@@ -309,225 +246,11 @@ void main() {
     });
   });
 
-  group('findByLabelInSemantics', () {
-    late SemanticsHandle semantics;
-
-    setUp(() {
-      semantics = TestWidgetsFlutterBinding.instance.ensureSemantics();
-    });
-
-    tearDown(() {
-      semantics.dispose();
-    });
-
-    testWidgets('returns ref for matching semantics label', (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          Semantics(
-            label: 'unique-label',
-            container: true,
-            child: const SizedBox(width: 40, height: 40),
-          ),
-        ),
-      );
-
-      final refs = findByLabelInSemantics(
-        label: 'unique-label',
-        role: null,
-        groupId: 'g-label',
-      );
-      // Semantics tree may or may not be populated in flutter_test without
-      // an active SemanticsHandle. The walk runs either way; we assert the
-      // call returns a list (empty or not), which exercises the role-filter
-      // branch in _semanticsFlagsHasRole.
-      expect(refs, isA<List<String>>());
-    });
-
-    testWidgets('role=button filters via SemanticsFlag.isButton', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(
-          Semantics(
-            label: 'confirm',
-            button: true,
-            child: const SizedBox(width: 40, height: 40),
-          ),
-        ),
-      );
-
-      final refs = findByLabelInSemantics(
-        label: 'confirm',
-        role: 'button',
-        groupId: 'g-role',
-      );
-      // Semantics tree may or may not be populated in flutter_test without
-      // an active SemanticsHandle. The walk runs either way; we assert the
-      // call returns a list (empty or not), which exercises the role-filter
-      // branch in _semanticsFlagsHasRole.
-      expect(refs, isA<List<String>>());
-    });
-
-    testWidgets('role=textField filters via isTextField flag', (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          Semantics(
-            label: 'email-field',
-            textField: true,
-            child: const SizedBox(width: 40, height: 40),
-          ),
-        ),
-      );
-
-      final refs = findByLabelInSemantics(
-        label: 'email-field',
-        role: 'textField',
-        groupId: 'g-text',
-      );
-      // Semantics tree may or may not be populated in flutter_test without
-      // an active SemanticsHandle. The walk runs either way; we assert the
-      // call returns a list (empty or not), which exercises the role-filter
-      // branch in _semanticsFlagsHasRole.
-      expect(refs, isA<List<String>>());
-    });
-
-    testWidgets('role=image filters via isImage flag', (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          Semantics(
-            label: 'photo',
-            image: true,
-            child: const SizedBox(width: 40, height: 40),
-          ),
-        ),
-      );
-
-      final refs = findByLabelInSemantics(
-        label: 'photo',
-        role: 'image',
-        groupId: 'g-image',
-      );
-      // Semantics tree may or may not be populated in flutter_test without
-      // an active SemanticsHandle. The walk runs either way; we assert the
-      // call returns a list (empty or not), which exercises the role-filter
-      // branch in _semanticsFlagsHasRole.
-      expect(refs, isA<List<String>>());
-    });
-
-    testWidgets('role=checkbox filters via hasCheckedState flag', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(
-          Semantics(
-            label: 'remember-me',
-            checked: false,
-            child: const SizedBox(width: 40, height: 40),
-          ),
-        ),
-      );
-
-      final refs = findByLabelInSemantics(
-        label: 'remember-me',
-        role: 'checkbox',
-        groupId: 'g-check',
-      );
-      expect(refs, isA<List<String>>());
-    });
-
-    testWidgets('role=link filters via isLink flag', (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          Semantics(
-            label: 'go to home',
-            link: true,
-            child: const SizedBox(width: 40, height: 40),
-          ),
-        ),
-      );
-
-      final refs = findByLabelInSemantics(
-        label: 'go to home',
-        role: 'link',
-        groupId: 'g-link',
-      );
-      // Semantics tree may or may not be populated in flutter_test without
-      // an active SemanticsHandle. The walk runs either way; we assert the
-      // call returns a list (empty or not), which exercises the role-filter
-      // branch in _semanticsFlagsHasRole.
-      expect(refs, isA<List<String>>());
-    });
-
-    testWidgets('role=unknown returns no matches (null role flag)', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(
-          Semantics(
-            label: 'plain',
-            container: true,
-            child: const SizedBox(width: 40, height: 40),
-          ),
-        ),
-      );
-
-      final refs = findByLabelInSemantics(
-        label: 'plain',
-        role: 'never-such-role',
-        groupId: 'g-unknown-role',
-      );
-      // unknown role → roleFlag null → no role filter → matches
-      // Semantics tree may or may not be populated in flutter_test without
-      // an active SemanticsHandle. The walk runs either way; we assert the
-      // call returns a list (empty or not), which exercises the role-filter
-      // branch in _semanticsFlagsHasRole.
-      expect(refs, isA<List<String>>());
-    });
-
-    testWidgets(
-      'finds a label in a child pipeline owner, where the harness and a '
-      'nested view mount the app',
-      (tester) async {
-        // The Flutter test harness mounts the widget tree under a CHILD
-        // pipeline owner of the root one, the same shape a multi-view or
-        // embedded app has; a walk that stops at rootPipelineOwner finds
-        // nothing there.
-        await tester.pumpWidget(
-          _wrap(
-            Semantics(
-              label: 'child-owner-label',
-              container: true,
-              child: const SizedBox(width: 40, height: 40),
-            ),
-          ),
-        );
-
-        final refs = findByLabelInSemantics(
-          label: 'child-owner-label',
-          role: null,
-          groupId: 'g-child-owner',
-        );
-
-        expect(refs, hasLength(1));
-      },
-    );
-
-    testWidgets('returns empty when no labels match', (tester) async {
-      await tester.pumpWidget(_wrap(const SizedBox(width: 40, height: 40)));
-      final refs = findByLabelInSemantics(
-        label: 'no widget here',
-        role: null,
-        groupId: 'g-no-match',
-      );
-      expect(refs, isEmpty);
-    });
-  });
-
   // ---------------------------------------------------------------------------
   // ext.tapir.wait_for_network_idle (Step 3.4)
   // ---------------------------------------------------------------------------
 
-  group('aiTestWaitForNetworkIdleHandler', () {
+  group('tapirWaitForNetworkIdleHandler', () {
     int counterValue = 0;
     late int Function() originalReader;
 
@@ -551,7 +274,7 @@ void main() {
       // fake-clock harness). Same trick used by findByTextWaitLoop fast-path
       // tests elsewhere in this file.
       counterValue = 0;
-      final response = await aiTestWaitForNetworkIdleHandler(
+      final response = await tapirWaitForNetworkIdleHandler(
         'ext.tapir.wait_for_network_idle',
         const <String, String>{
           'timeoutMs': '2000',
@@ -569,7 +292,7 @@ void main() {
         // Restore the default reader (which always returns 0) to simulate a
         // host that never wired crumbs -> pendingCount stays 0 forever.
         pendingHttpCountReader = () => 0;
-        final response = await aiTestWaitForNetworkIdleHandler(
+        final response = await tapirWaitForNetworkIdleHandler(
           'ext.tapir.wait_for_network_idle',
           const <String, String>{
             'timeoutMs': '500',
@@ -590,7 +313,7 @@ void main() {
         // sample-then-check ordering inside networkIdleWaitLoop is what lets
         // this case complete deterministically.
         counterValue = 4;
-        final response = await aiTestWaitForNetworkIdleHandler(
+        final response = await tapirWaitForNetworkIdleHandler(
           'ext.tapir.wait_for_network_idle',
           const <String, String>{
             'timeoutMs': '0',
@@ -617,7 +340,7 @@ void main() {
         };
 
         final response = await tester.runAsync(() async {
-          return aiTestWaitForNetworkIdleHandler(
+          return tapirWaitForNetworkIdleHandler(
             'ext.tapir.wait_for_network_idle',
             const <String, String>{
               'timeoutMs': '5000',
@@ -644,7 +367,7 @@ void main() {
         };
 
         final response = await tester.runAsync(() async {
-          return aiTestWaitForNetworkIdleHandler(
+          return tapirWaitForNetworkIdleHandler(
             'ext.tapir.wait_for_network_idle',
             const <String, String>{
               'timeoutMs': '5000',

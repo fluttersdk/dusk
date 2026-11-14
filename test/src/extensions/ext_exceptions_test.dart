@@ -12,7 +12,7 @@ void main() {
   group('ext_exceptions — recentExceptionsReader function-pointer indirection', () {
     setUp(() {
       // 1. Reset the reader to the default (empty list) before each test.
-      recentExceptionsReader = ({int limit = 20}) => const [];
+      recentExceptionsReader = (ExceptionsRequest request) => const [];
     });
 
     // -------------------------------------------------------------------------
@@ -20,7 +20,7 @@ void main() {
     // -------------------------------------------------------------------------
 
     test('(a) default reader returns empty list and count 0', () async {
-      final response = await aiTestExceptionsHandler(
+      final response = await tapirExceptionsHandler(
         'ext.tapir.exceptions',
         <String, String>{},
       );
@@ -39,12 +39,12 @@ void main() {
 
     test('(b) custom limit param forwarded to reader', () async {
       int? capturedLimit;
-      recentExceptionsReader = ({int limit = 20}) {
-        capturedLimit = limit;
+      recentExceptionsReader = (ExceptionsRequest request) {
+        capturedLimit = request.limit;
         return const [];
       };
 
-      await aiTestExceptionsHandler('ext.tapir.exceptions', <String, String>{
+      await tapirExceptionsHandler('ext.tapir.exceptions', <String, String>{
         'limit': '5',
       });
 
@@ -59,7 +59,7 @@ void main() {
       '(c) missing-crumbs graceful: default reader returns empty list',
       () async {
         // Default state: recentExceptionsReader = () => const []
-        final response = await aiTestExceptionsHandler(
+        final response = await tapirExceptionsHandler(
           'ext.tapir.exceptions',
           <String, String>{'limit': '10'},
         );
@@ -78,7 +78,7 @@ void main() {
     test(
       '(d) reader returning exceptions: response carries correct shape',
       () async {
-        recentExceptionsReader = ({int limit = 20}) => [
+        recentExceptionsReader = (ExceptionsRequest request) => [
           {
             'type': 'ArgumentError',
             'message': 'bad arg',
@@ -87,7 +87,7 @@ void main() {
           },
         ];
 
-        final response = await aiTestExceptionsHandler(
+        final response = await tapirExceptionsHandler(
           'ext.tapir.exceptions',
           <String, String>{},
         );
@@ -113,7 +113,7 @@ void main() {
   group('ext_exceptions — in-package buffer merge', () {
     setUp(() {
       // 1. Reset reader to the default (empty list) before each test.
-      recentExceptionsReader = ({int limit = 20}) => const [];
+      recentExceptionsReader = (ExceptionsRequest request) => const [];
       // 2. Reset in-package buffer so no captured errors leak from prior tests.
       resetCapturedExceptionsForTesting();
     });
@@ -140,7 +140,7 @@ void main() {
           ),
         );
 
-        final response = await aiTestExceptionsHandler(
+        final response = await tapirExceptionsHandler(
           'ext.tapir.exceptions',
           <String, String>{},
         );
@@ -164,7 +164,7 @@ void main() {
 
     test('(f) both sources populated: merged union is returned', () async {
       // Crumbs reader returns one entry.
-      recentExceptionsReader = ({int limit = 20}) => [
+      recentExceptionsReader = (ExceptionsRequest request) => [
         {
           'type': 'ArgumentError',
           'message': 'crumbs error',
@@ -185,7 +185,7 @@ void main() {
         ),
       );
 
-      final response = await aiTestExceptionsHandler(
+      final response = await tapirExceptionsHandler(
         'ext.tapir.exceptions',
         <String, String>{},
       );
@@ -226,7 +226,7 @@ void main() {
       final Map<String, dynamic> captured = buffered.first;
 
       // 3. Wire the crumbs reader to return the same entry shape.
-      recentExceptionsReader = ({int limit = 20}) => [
+      recentExceptionsReader = (ExceptionsRequest request) => [
         {
           'type': captured['type'],
           'message': captured['message'],
@@ -237,7 +237,7 @@ void main() {
         },
       ];
 
-      final response = await aiTestExceptionsHandler(
+      final response = await tapirExceptionsHandler(
         'ext.tapir.exceptions',
         <String, String>{},
       );
@@ -254,7 +254,7 @@ void main() {
 
     test('(h) limit applied to merged union, not per-source', () async {
       // Crumbs reader returns 3 entries.
-      recentExceptionsReader = ({int limit = 20}) =>
+      recentExceptionsReader = (ExceptionsRequest request) =>
           List<Map<String, dynamic>>.generate(
             3,
             (int i) => <String, dynamic>{
@@ -280,7 +280,7 @@ void main() {
       }
 
       // Request only 4 from the merged set of 6.
-      final response = await aiTestExceptionsHandler(
+      final response = await tapirExceptionsHandler(
         'ext.tapir.exceptions',
         <String, String>{'limit': '4'},
       );
@@ -309,7 +309,7 @@ void main() {
   group('ext_exceptions — since filter', () {
     setUp(() {
       // 1. Reset reader and buffer before each test.
-      recentExceptionsReader = ({int limit = 20}) => const [];
+      recentExceptionsReader = (ExceptionsRequest request) => const [];
       resetCapturedExceptionsForTesting();
     });
 
@@ -325,7 +325,7 @@ void main() {
       '(i) since filter: only exceptions strictly after since are returned',
       () async {
         // Seed two entries with distinct timestamps via the crumbs reader.
-        recentExceptionsReader = ({int limit = 20}) => [
+        recentExceptionsReader = (ExceptionsRequest request) => [
           {
             'type': 'StateError',
             'message': 'early error',
@@ -345,7 +345,7 @@ void main() {
         ];
 
         // since = 11:00 — only 'late error' (12:00) is strictly after.
-        final response = await aiTestExceptionsHandler(
+        final response = await tapirExceptionsHandler(
           'ext.tapir.exceptions',
           <String, String>{'since': '2024-01-01T11:00:00.000Z'},
         );
@@ -368,7 +368,7 @@ void main() {
     // -------------------------------------------------------------------------
 
     test('(j) no since param: cumulative list returned with identical payload keys', () async {
-      recentExceptionsReader = ({int limit = 20}) => [
+      recentExceptionsReader = (ExceptionsRequest request) => [
         {
           'type': 'ArgumentError',
           'message': 'first error',
@@ -387,7 +387,7 @@ void main() {
         },
       ];
 
-      final response = await aiTestExceptionsHandler(
+      final response = await tapirExceptionsHandler(
         'ext.tapir.exceptions',
         <String, String>{},
       );
@@ -419,7 +419,7 @@ void main() {
       '(k) since equal to entry time: entry is excluded (strictly after only)',
       () async {
         const String ts = '2024-01-01T10:00:00.000Z';
-        recentExceptionsReader = ({int limit = 20}) => [
+        recentExceptionsReader = (ExceptionsRequest request) => [
           {
             'type': 'StateError',
             'message': 'exact time error',
@@ -430,7 +430,7 @@ void main() {
           },
         ];
 
-        final response = await aiTestExceptionsHandler(
+        final response = await tapirExceptionsHandler(
           'ext.tapir.exceptions',
           <String, String>{'since': ts},
         );
@@ -451,7 +451,7 @@ void main() {
     test(
       '(l) unparseable since: treated as no filter, returns full list',
       () async {
-        recentExceptionsReader = ({int limit = 20}) => [
+        recentExceptionsReader = (ExceptionsRequest request) => [
           {
             'type': 'StateError',
             'message': 'any error',
@@ -462,7 +462,7 @@ void main() {
           },
         ];
 
-        final response = await aiTestExceptionsHandler(
+        final response = await tapirExceptionsHandler(
           'ext.tapir.exceptions',
           <String, String>{'since': 'not-a-date'},
         );
@@ -482,14 +482,14 @@ void main() {
 
   group('ext_exceptions — clear', () {
     setUp(() {
-      recentExceptionsReader = ({int limit = 20}) => const [];
+      recentExceptionsReader = (ExceptionsRequest request) => const [];
       resetCapturedExceptionsForTesting();
     });
 
     tearDown(resetCapturedExceptionsForTesting);
 
     Future<List<dynamic>> callHandler(Map<String, String> params) async {
-      final response = await aiTestExceptionsHandler(
+      final response = await tapirExceptionsHandler(
         'ext.tapir.exceptions',
         params,
       );

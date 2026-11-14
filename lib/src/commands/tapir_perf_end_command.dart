@@ -33,7 +33,7 @@ class TapirPerfEndCommand extends DowelCommand {
 
     // A refusal is a success envelope carrying `refused: true`, not an
     // error. Exiting 0 on it would let a shell caller chain on a report that
-    // does not exist, which is the same failure `tapir:wait` had on a
+    // does not exist, which is the same failure `tapir:wait_for` had on a
     // timed-out condition.
     if (response['refused'] == true) {
       emitEnvelope(ctx, response, () {

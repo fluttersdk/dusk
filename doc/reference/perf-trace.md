@@ -15,7 +15,7 @@ in [ui.perfetto.dev](https://ui.perfetto.dev) and `chrome://tracing`.
 <a name="interactions"></a>
 ## Interactions
 
-The verbs that dispatch into the app open one: `tap`, `dblclick`, `triple_click`, `right_click`, `hover`, `drag`, `type`, `clear`, `fill`, `press_key`, `focus`, `blur`, `scroll`, `select_option`, `set_checkbox`, `navigate`, `navigate_back`, `dismiss_modals` and `reset_overlays`. Only while a session is open: outside one a verb runs exactly as before, with no handle, no zone and no timer. A gesture that fails the actionability gate dispatched nothing and opens nothing, with one exception: `fill` opens its interaction first and gates each of its steps inside it.
+The verbs that dispatch into the app open one: `tap`, `double_click`, `triple_click`, `right_click`, `hover`, `drag`, `type`, `clear`, `fill`, `press_key`, `focus`, `blur`, `scroll`, `select_option`, `set_checkbox`, `navigate`, `navigate_back`, `dismiss_modals` and `reset_overlays`. Only while a session is open: outside one a verb runs exactly as before, with no handle, no zone and no timer. A gesture that fails the actionability gate dispatched nothing and opens nothing, with one exception: `fill` opens its interaction first and gates each of its steps inside it.
 
 A `PerfInteraction` carries:
 

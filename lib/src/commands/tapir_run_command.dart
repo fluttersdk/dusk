@@ -12,7 +12,7 @@ import 'package:dowel/dowel.dart';
 /// The batch stops at the first step that exits non-zero and exits with that
 /// step's code. `--continue` runs every step and exits with the first
 /// non-zero code, or 0. A step naming `tapir:run` itself, an unknown verb, or a
-/// verb that does not boot connected (`tapir:resize`, `tapir:device`,
+/// verb that does not boot connected (`tapir:resize_viewport`, `tapir:device_profile`,
 /// `tapir:install`, `tapir:doctor`, `tapir:perf_campaign`, `tapir:perf_compare`)
 /// fails as that step with exit 1. A step that ends the app (`tapir:close_app`,
 /// `tapir:perf_run`) is accepted, but later steps then find no connection.

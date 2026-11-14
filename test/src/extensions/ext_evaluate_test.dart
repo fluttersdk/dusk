@@ -14,10 +14,10 @@ void main() {
 
   group('ext.tapir.evaluate', () {
     // -------------------------------------------------------------------------
-    // (a) Missing expression parameter returns extensionError
+    // (a) Missing expression parameter returns invalidParams
     // -------------------------------------------------------------------------
 
-    test('(a) missing expression param returns extensionError', () async {
+    test('(a) missing expression param returns invalidParams', () async {
       final developer.ServiceExtensionResponse response =
           await extTapirEvaluateHandler(
             'ext.tapir.evaluate',
@@ -27,7 +27,7 @@ void main() {
 
       expect(
         response.errorCode,
-        equals(developer.ServiceExtensionResponse.extensionError),
+        equals(developer.ServiceExtensionResponse.invalidParams),
       );
 
       // Step 3.3: error responses now carry the structured envelope wrapper.

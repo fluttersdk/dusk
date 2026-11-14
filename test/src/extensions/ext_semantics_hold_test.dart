@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tapir/src/tapir_plugin.dart';
 import 'package:tapir/src/extensions/ext_perf.dart';
 import 'package:tapir/src/extensions/ext_semantics_hold.dart';
+import 'package:tapir/src/utils/error_envelope.dart';
 
 /// The root semantics node of whichever pipeline owner hosts the tree.
 ///
@@ -42,7 +43,7 @@ void main() {
   tearDown(() {
     // Never leave a handle for the next test: the harness asserts every
     // SemanticsHandle is disposed when a testWidgets body ends.
-    TapirPlugin.resetSemanticsForTesting();
+    resetTapirSemanticsForTesting();
     resetPerfSessionForTesting();
   });
 
@@ -57,7 +58,7 @@ void main() {
         await tester.pumpWidget(
           const MaterialApp(home: Scaffold(body: Text('held'))),
         );
-        TapirPlugin.acquireSemantics();
+        acquireTapirSemantics();
         await tester.pump();
         expect(_rootSemanticsNode(), isNotNull, reason: 'baseline: held on');
 
@@ -71,7 +72,7 @@ void main() {
         expect(_result(released)['released'], isTrue);
         expect(_result(released)['semanticsEnabled'], isFalse);
         expect(_result(released)['heldByPlatform'], isFalse);
-        expect(TapirPlugin.semanticsReleased, isTrue);
+        expect(tapirSemanticsReleased, isTrue);
         await tester.pump();
         expect(_rootSemanticsNode(), isNull);
 
@@ -85,7 +86,7 @@ void main() {
         final Map<String, dynamic> acquired = _result(await acquiring);
 
         expect(acquired['acquired'], isTrue);
-        expect(TapirPlugin.semanticsReleased, isFalse);
+        expect(tapirSemanticsReleased, isFalse);
         expect(
           _rootSemanticsNode(),
           isNotNull,
@@ -94,7 +95,7 @@ void main() {
 
         // Inside the body: the harness checks for live handles before any
         // tearDown runs.
-        TapirPlugin.resetSemanticsForTesting();
+        resetTapirSemanticsForTesting();
       },
     );
 
@@ -109,7 +110,7 @@ void main() {
         await tester.pumpWidget(
           const MaterialApp(home: Scaffold(body: Text('held'))),
         );
-        TapirPlugin.acquireSemantics();
+        acquireTapirSemantics();
         tester.binding.platformDispatcher.semanticsEnabledTestValue = true;
         await _openTimingSession();
 
@@ -128,7 +129,7 @@ void main() {
         // when the test value is cleared, and the harness checks handles
         // before any tearDown runs.
         tester.binding.platformDispatcher.clearSemanticsEnabledTestValue();
-        TapirPlugin.resetSemanticsForTesting();
+        resetTapirSemanticsForTesting();
       },
     );
 
@@ -140,7 +141,11 @@ void main() {
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('perf session'));
-      expect(TapirPlugin.semanticsReleased, isFalse);
+      expect(
+        parseEnvelopeFromErrorDetail(response.errorDetail!)!['type'],
+        'refused',
+      );
+      expect(tapirSemanticsReleased, isFalse);
     });
 
     test('an unknown or missing action is an invalid-params error', () async {
@@ -155,6 +160,10 @@ void main() {
 
       expect(missing.errorCode, ServiceExtensionResponse.invalidParams);
       expect(unknown.errorDetail, contains('toggle'));
+      expect(
+        parseEnvelopeFromErrorDetail(unknown.errorDetail!)!['type'],
+        'invalid_param',
+      );
     });
   });
 }

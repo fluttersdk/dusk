@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 
 import 'package:dowel/dowel.dart';
+import 'package:flutter/foundation.dart' show immutable;
 
 import '../tapir_log_capture.dart';
 import '../utils/tapir_register.dart';
@@ -21,6 +22,23 @@ const String kTapirConsoleMcpExtension = 'ext.tapir.console';
 // Function-pointer indirection — same pattern as pendingHttpCountReader
 // ---------------------------------------------------------------------------
 
+/// What `ext.tapir.console` asks [recentLogsReader] for.
+///
+/// One object rather than named parameters, so a filter added later is a new
+/// field with a default and a reader assigned today keeps compiling.
+@immutable
+final class ConsoleRequest {
+  /// A request for up to [limit] entries at [minLevel] or above.
+  const ConsoleRequest({this.limit = 50, this.minLevel});
+
+  /// The most entries to return, newest first.
+  final int limit;
+
+  /// The lowest `package:logging` level name to include (`INFO`, `WARNING`,
+  /// `SEVERE`, ...); null includes every level.
+  final String? minLevel;
+}
+
 /// Reader for recent log entries from CrumbsStore.
 ///
 /// Defaults to a function that returns an empty list so tapir compiles and
@@ -29,8 +47,10 @@ const String kTapirConsoleMcpExtension = 'ext.tapir.console';
 /// Hosts that ship `crumbs` wire the real source by assigning:
 ///
 /// ```dart
-/// recentLogsReader = ({int limit = 50, String? minLevel}) =>
-///     CrumbsStore.recentLogs(limit: limit, minLevel: minLevel);
+/// recentLogsReader = (ConsoleRequest request) => CrumbsStore.recentLogs(
+///   limit: request.limit,
+///   minLevel: request.minLevel,
+/// );
 /// ```
 ///
 /// The indirection keeps tapir's pubspec free of a crumbs dependency while
@@ -40,8 +60,9 @@ const String kTapirConsoleMcpExtension = 'ext.tapir.console';
 /// Reset to the empty-list default by `MagicCrumbsIntegration.resetForTesting()`
 /// so downstream tests asserting the missing-crumbs default do not see leaked
 /// bindings.
-List<Map<String, dynamic>> Function({int limit, String? minLevel})
-recentLogsReader = ({int limit = 50, String? minLevel}) => const [];
+List<Map<String, Object?>> Function(ConsoleRequest request) recentLogsReader = (
+  ConsoleRequest request,
+) => const <Map<String, Object?>>[];
 
 // ---------------------------------------------------------------------------
 // Aggregator
@@ -54,7 +75,7 @@ recentLogsReader = ({int limit = 50, String? minLevel}) => const [];
 void registerConsoleExtensions() {
   registerTapirExtension(
     kTapirConsoleMcpExtension,
-    aiTestConsoleHandler,
+    tapirConsoleHandler,
     ensureFrames: false,
   );
 }
@@ -90,7 +111,7 @@ void registerConsoleExtensions() {
 /// ```json
 /// { "logs": [{"level": "INFO", "message": "...", "time": "...", "logger": "..."}], "count": 2 }
 /// ```
-Future<developer.ServiceExtensionResponse> aiTestConsoleHandler(
+Future<developer.ServiceExtensionResponse> tapirConsoleHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -108,9 +129,8 @@ Future<developer.ServiceExtensionResponse> aiTestConsoleHandler(
       limit: limit,
       minLevel: minLevel,
     );
-    final List<Map<String, dynamic>> crumbs = recentLogsReader(
-      limit: limit,
-      minLevel: minLevel,
+    final List<Map<String, Object?>> crumbs = recentLogsReader(
+      ConsoleRequest(limit: limit, minLevel: minLevel),
     );
 
     // 3. Merge, dedup by (level, message, logger), keep newest-first (in-package
@@ -142,10 +162,7 @@ Future<developer.ServiceExtensionResponse> aiTestConsoleHandler(
       '[tapir] ext.tapir.console: unexpected error: $e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail('ext.tapir.console: $e', TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError('ext.tapir.console: $e', TapirErrorEnvelope.unexpected());
   }
 }
 

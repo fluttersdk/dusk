@@ -1,7 +1,7 @@
 import 'package:dowel/dowel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:tapir/src/commands/tapir_wait_command.dart';
+import 'package:tapir/src/commands/tapir_wait_for_command.dart';
 
 /// Stubs [DowelContext.callExtension] so tests never hit a real VM Service.
 class _StubContext extends DowelContext {
@@ -27,17 +27,17 @@ class _StubContext extends DowelContext {
 }
 
 void main() {
-  group('TapirWaitCommand', () {
-    test('name is tapir:wait', () {
-      expect(TapirWaitCommand().name, equals('tapir:wait'));
+  group('TapirWaitForCommand', () {
+    test('name is tapir:wait_for', () {
+      expect(TapirWaitForCommand().name, equals('tapir:wait_for'));
     });
 
     test('boot is CommandBoot.connected', () {
-      expect(TapirWaitCommand().boot, equals(CommandBoot.connected));
+      expect(TapirWaitForCommand().boot, equals(CommandBoot.connected));
     });
 
     test('description is non-empty', () {
-      expect(TapirWaitCommand().description, isNotEmpty);
+      expect(TapirWaitForCommand().description, isNotEmpty);
     });
 
     test(
@@ -48,7 +48,7 @@ void main() {
         // signature-parser strict-lowercase rule. Inspect the configured
         // parser directly.
         final parser = ArgParser();
-        TapirWaitCommand().configure(parser);
+        TapirWaitForCommand().configure(parser);
         expect(
           parser.options.keys,
           containsAll(<String>['text', 'textGone', 'expression', 'timeoutMs']),
@@ -63,7 +63,7 @@ void main() {
         response: const {'matched': true},
       );
 
-      await TapirWaitCommand().handle(ctx);
+      await TapirWaitForCommand().handle(ctx);
 
       expect(ctx.lastMethod, equals('ext.tapir.wait_for'));
     });
@@ -75,7 +75,7 @@ void main() {
         response: const {'matched': true},
       );
 
-      await TapirWaitCommand().handle(ctx);
+      await TapirWaitForCommand().handle(ctx);
 
       expect(ctx.lastParams, containsPair('text', 'Done'));
     });
@@ -87,7 +87,7 @@ void main() {
         response: const {'matched': true},
       );
 
-      await TapirWaitCommand().handle(ctx);
+      await TapirWaitForCommand().handle(ctx);
 
       expect(ctx.lastParams, containsPair('textGone', 'Loading'));
     });
@@ -99,7 +99,7 @@ void main() {
         response: const {'matched': true},
       );
 
-      await TapirWaitCommand().handle(ctx);
+      await TapirWaitForCommand().handle(ctx);
 
       expect(ctx.lastParams, containsPair('expression', 'controller.isReady'));
     });
@@ -113,7 +113,7 @@ void main() {
           response: const {'matched': true},
         );
 
-        await TapirWaitCommand().handle(ctx);
+        await TapirWaitForCommand().handle(ctx);
 
         expect(ctx.lastParams, containsPair('timeoutMs', '5000'));
       },
@@ -123,7 +123,7 @@ void main() {
       final output = BufferedOutput();
       final ctx = _StubContext(input: MapInput(const {}), output: output);
 
-      final code = await TapirWaitCommand().handle(ctx);
+      final code = await TapirWaitForCommand().handle(ctx);
 
       expect(code, equals(1));
     });
@@ -135,7 +135,7 @@ void main() {
         response: const {'matched': true},
       );
 
-      expect(await TapirWaitCommand().handle(ctx), equals(0));
+      expect(await TapirWaitForCommand().handle(ctx), equals(0));
     });
 
     // -------------------------------------------------------------------------
@@ -150,7 +150,7 @@ void main() {
         response: const {'matched': true},
       );
 
-      final exit = await TapirWaitCommand().handle(ctx);
+      final exit = await TapirWaitForCommand().handle(ctx);
 
       expect(exit, equals(0));
       expect(output.content, contains('Condition matched'));
@@ -169,7 +169,7 @@ void main() {
         response: const {'matched': false},
       );
 
-      final exit = await TapirWaitCommand().handle(ctx);
+      final exit = await TapirWaitForCommand().handle(ctx);
 
       expect(exit, equals(1));
       expect(output.content, isNot(contains('Condition matched')));
@@ -184,7 +184,7 @@ void main() {
         response: const {'matched': true, 'elapsedMs': 42},
       );
 
-      final exit = await TapirWaitCommand().handle(ctx);
+      final exit = await TapirWaitForCommand().handle(ctx);
 
       expect(exit, equals(0));
       expect(output.content, contains('"matched":true'));
@@ -193,7 +193,7 @@ void main() {
 
     test('configure declares --json', () {
       final parser = ArgParser();
-      TapirWaitCommand().configure(parser);
+      TapirWaitForCommand().configure(parser);
       expect(parser.options.keys, contains('json'));
     });
   });

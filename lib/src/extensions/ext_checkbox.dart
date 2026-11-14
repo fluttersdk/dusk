@@ -7,7 +7,13 @@ import 'package:flutter/widgets.dart';
 import 'package:dowel/dowel.dart';
 
 import '../ref_registry.dart';
-import '../utils/actionability_gate.dart' show resolveViewFor;
+import '../utils/actionability_gate.dart'
+    show
+        ActionabilityReport,
+        dispatchRectOf,
+        ensureActionable,
+        resolveViewFor,
+        stampChecks;
 import '../utils/tapir_exceptions.dart';
 import '../utils/tapir_register.dart';
 import '../utils/tapir_response.dart';
@@ -38,7 +44,7 @@ const String kTapirSetCheckboxMcpExtension = 'ext.tapir.set_checkbox';
 void registerCheckboxExtensions() {
   registerTapirExtension(
     kTapirSetCheckboxMcpExtension,
-    aiTestSetCheckboxHandler,
+    tapirSetCheckboxHandler,
   );
 }
 
@@ -51,17 +57,22 @@ void registerCheckboxExtensions() {
 /// Reads the current checked (or toggled) state of the control identified by
 /// `ref` from its Semantics node, so a material, material_ui, wind_kit or
 /// hand-built checkbox or switch answers the same way. When the current value
-/// differs from the requested [value], injects a tap to toggle it; when
-/// they already match, returns an idempotent success without touching the
-/// widget.
+/// differs from the requested `value`, runs the actionability gate on the
+/// control (scrolling it into view, refusing one that is disabled, covered or
+/// moving with the gate's reason) and injects a tap to toggle it; when they
+/// already match, returns an idempotent success without touching the widget.
 ///
 /// Params (all string-valued):
-/// - `ref` (required): opaque ref string from a prior `ext.tapir.snapshot` call.
-/// - `value` (required): target value, `'true'` or `'false'`.
+/// - `ref` (required): opaque ref string from a prior `ext.tapir.snap` call.
+/// - `value` (required): target value, `'true'` or `'false'` (`'1'` and
+///   `'0'` too); anything else is refused as `invalid_param`.
+/// - `checkStable` / `checkReceivesEvents` (optional, default `'true'`): the
+///   gate opt-outs the other gated verbs take.
 /// - `includeSnapshot`: accepted and ignored. The response never embeds a
 ///   snapshot; run `ext.tapir.snap` afterwards to see the post-toggle tree.
 ///
-/// Response JSON (default):
+/// Response JSON (default); `value` is the state read back after the tap,
+/// not the request, so it equals `effect.after`:
 /// ```json
 /// {
 ///   "ref": "e3",
@@ -70,54 +81,56 @@ void registerCheckboxExtensions() {
 ///   "toggled": true
 /// }
 /// ```
-Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
+Future<developer.ServiceExtensionResponse> tapirSetCheckboxHandler(
   String method,
   Map<String, String> params,
 ) async {
   // 1. Validate required params before any widget-tree access.
   final String? ref = params['ref'];
   if (ref == null || ref.isEmpty) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.set_checkbox: missing required param "ref"',
-        TapirErrorEnvelope.missingParam('ref'),
-      ),
+    return tapirError(
+      'ext.tapir.set_checkbox: missing required param "ref"',
+      TapirErrorEnvelope.missingParam('ref'),
     );
   }
 
   final String? rawValue = params['value'];
   if (rawValue == null || rawValue.isEmpty) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.set_checkbox: missing required param "value"',
-        TapirErrorEnvelope.missingParam('value'),
-      ),
+    return tapirError(
+      'ext.tapir.set_checkbox: missing required param "value"',
+      TapirErrorEnvelope.missingParam('value'),
     );
   }
 
-  final bool targetValue = rawValue != 'false' && rawValue != '0';
+  // Only a boolean the CLI or MCP can send counts: anything else ("flase")
+  // used to read as true and tick the box.
+  final bool targetValue;
+  switch (rawValue) {
+    case 'true' || '1':
+      targetValue = true;
+    case 'false' || '0':
+      targetValue = false;
+    default:
+      return tapirError(
+        'ext.tapir.set_checkbox: value "$rawValue" is not a boolean; pass '
+        'true or false',
+        TapirErrorEnvelope.invalidParam('value'),
+      );
+  }
 
   // 2. Resolve the ref to a live widget entry.
   final RefEntry? entry;
   try {
     entry = resolveRefForAction(ref);
   } on TapirStaleHandleException catch (e) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
-    );
+    return tapirError(e.message, TapirErrorEnvelope.stale(ref));
   }
   if (entry == null) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.set_checkbox: ref "$ref" not found in registry',
-        TapirErrorEnvelope.notFound(
-          ref: ref,
-          candidates: collectSnapshotCandidates(),
-        ),
+    return tapirError(
+      'ext.tapir.set_checkbox: ref "$ref" not found in registry',
+      TapirErrorEnvelope.notFound(
+        ref: ref,
+        candidates: collectSnapshotCandidates(),
       ),
     );
   }
@@ -128,23 +141,17 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
   //    container holding several controls: no single tap target names them.
   final _CheckedRead current = _readCheckedState(entry);
   if (current.ambiguous) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.set_checkbox: ref "$ref" holds more than one checkbox, '
-        'switch or radio; pass the ref of one of them',
-        TapirErrorEnvelope.unexpected(widgetPath: ref),
-      ),
+    return tapirError(
+      'ext.tapir.set_checkbox: ref "$ref" holds more than one checkbox, '
+      'switch or radio; pass the ref of one of them',
+      TapirErrorEnvelope.refused(widgetPath: ref),
     );
   }
   if (!current.found) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.set_checkbox: ref "$ref" has no checked or toggled state '
-        'in its Semantics node; pass the ref of a checkbox, switch or radio',
-        TapirErrorEnvelope.unexpected(widgetPath: ref),
-      ),
+    return tapirError(
+      'ext.tapir.set_checkbox: ref "$ref" has no checked or toggled state '
+      'in its Semantics node; pass the ref of a checkbox, switch or radio',
+      TapirErrorEnvelope.refused(widgetPath: ref),
     );
   }
   final bool? currentValue = current.value;
@@ -152,26 +159,47 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
   // 4. Idempotent: no-op when the current value already matches the target.
   //    A mixed control (null) matches neither target, so it is always tapped.
   if (currentValue == targetValue) {
-    return tapirResult(<String, dynamic>{
-      'ref': ref,
-      'previousValue': currentValue,
-      'value': currentValue,
-      'toggled': false,
-      'effect': checkedEffect(
-        expected: targetValue,
-        before: currentValue,
-        after: currentValue,
-      ),
-    });
+    return _untoggled(ref, targetValue, before: currentValue);
   }
 
-  // 5. Inject a tap to toggle the checkbox. Reuse the same
+  // 5. The gate the other tapping verbs run, on the control the tap is for:
+  //    one below the fold is scrolled into view, and one that is disabled,
+  //    covered or moving is refused with the gate's reason rather than
+  //    tapped where it is not.
+  final RefEntry target = _controlEntry(entry, current.control);
+  final ActionabilityReport gate;
+  try {
+    gate = await ensureActionable(
+      target,
+      ref: ref,
+      checkStable: !_offValues.contains(params['checkStable']),
+      checkReceivesEvents: !_offValues.contains(params['checkReceivesEvents']),
+    );
+  } on TapirActionabilityException catch (e) {
+    return tapirError(
+      e.message,
+      TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
+    );
+  }
+
+  // 6. Read the state again: the gate awaits frames, and an app that set
+  //    the control to the target meanwhile would have it flipped back.
+  final bool? gatedValue = _readCheckedState(entry).value;
+  if (gatedValue == targetValue) {
+    return _untoggled(ref, targetValue, before: currentValue);
+  }
+
+  // 7. Inject a tap to toggle the checkbox. Reuse the same
   //    PointerDownEvent+delay+PointerUpEvent sequence as ext_pointer.dart
   //    (duplicate here to keep the checkbox module self-contained and avoid
-  //    a circular import on the private _injectTap function). A state read
-  //    off a descendant node is tapped at that node: the ref's own centre
-  //    can sit on a sibling control or on nothing at all.
-  final Offset center = (current.rect ?? entry.rect).center;
+  //    a circular import on the private _injectTap function). The point is
+  //    read live because the gate may have scrolled: a state read off a
+  //    control is tapped at that control, since the ref's own centre can sit
+  //    on a sibling control or on nothing at all.
+  final Rect? live = identical(target, entry)
+      ? _readCheckedState(entry).rect ?? dispatchRectOf(entry)
+      : dispatchRectOf(target);
+  final Offset center = (live ?? target.rect).center;
   final Element element = entry.element;
   try {
     await runPerfInteraction<void>(
@@ -185,52 +213,79 @@ Future<developer.ServiceExtensionResponse> aiTestSetCheckboxHandler(
       '"$ref": $e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.set_checkbox: injectTap failed: $e',
-        TapirErrorEnvelope.unexpected(widgetPath: ref),
-      ),
+    return tapirError(
+      'ext.tapir.set_checkbox: injectTap failed: $e',
+      TapirErrorEnvelope.unexpected(widgetPath: ref),
     );
   }
 
-  // 6. Re-read the widget rather than reporting the value we asked for. A
+  // 8. Re-read the widget rather than reporting the value we asked for. A
   //    control whose parent rejects the change, or one whose tap landed on
   //    an overlay, keeps its old state, and `value: targetValue` would call
   //    that a success.
   final bool? settledValue = _readCheckedState(entry).value;
 
-  return tapirResult(<String, dynamic>{
+  final Map<String, dynamic> payload = <String, dynamic>{
     'ref': ref,
     'previousValue': currentValue,
-    'value': targetValue,
+    'value': settledValue,
     'toggled': true,
     'effect': checkedEffect(
       expected: targetValue,
       before: currentValue,
       after: settledValue,
     ),
-  });
+  };
+  stampChecks(payload, gate);
+  return tapirResult(payload);
 }
 
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
 
+/// The no-tap answer for a control that already holds [target]; [before] is
+/// the state first read, which differs from [target] when the app set the
+/// control while the gate ran.
+developer.ServiceExtensionResponse _untoggled(
+  String ref,
+  bool target, {
+  required bool? before,
+}) {
+  return tapirResult(<String, dynamic>{
+    'ref': ref,
+    'previousValue': before,
+    'value': target,
+    'toggled': false,
+    'effect': checkedEffect(expected: target, before: before, after: target),
+  });
+}
+
+/// The values that switch a gate check off, as the other gated verbs read
+/// them.
+const Set<String> _offValues = <String>{'false', '0'};
+
 /// A checked-state read: [found] is false when no checkable state was
 /// detectable, and [ambiguous] is true when the ref holds several controls
 /// that each have one; [value] is null with [found] true for a mixed
 /// checkbox, which is neither checked nor unchecked. [rect] is the global
-/// logical rect of the descendant node the state came from, and null when
-/// the state is the ref's own (or an ancestor's), whose tap target is the
-/// ref's rect.
-typedef _CheckedRead = ({bool found, bool ambiguous, bool? value, Rect? rect});
+/// logical rect of the control the state came from, and [control] the render
+/// object that draws it; both are null when the ref's own rect is the tap
+/// target (a state read off an ancestor, or no single control to name).
+typedef _CheckedRead = ({
+  bool found,
+  bool ambiguous,
+  bool? value,
+  Rect? rect,
+  RenderBox? control,
+});
 
 const _CheckedRead _notFound = (
   found: false,
   ambiguous: false,
   value: null,
   rect: null,
+  control: null,
 );
 
 const _CheckedRead _ambiguous = (
@@ -238,7 +293,41 @@ const _CheckedRead _ambiguous = (
   ambiguous: true,
   value: null,
   rect: null,
+  control: null,
 );
+
+/// The entry the gate and the tap address: the element that builds [control]
+/// under [entry], or [entry] itself when there is no control to name or its
+/// element is not under the ref.
+///
+/// Gating the ref instead measures its centre, which for a labelled container
+/// is often empty space the hit test passes through, and passing a covered
+/// ref would let the tap land on a control the gate never looked at.
+RefEntry _controlEntry(RefEntry entry, RenderBox? control) {
+  if (control == null || !control.attached || !control.hasSize) return entry;
+  Element? owner;
+  void visit(Element element) {
+    if (owner != null) return;
+    if (element is RenderObjectElement &&
+        identical(element.renderObject, control)) {
+      owner = element;
+      return;
+    }
+    element.visitChildElements(visit);
+  }
+
+  visit(entry.element);
+  final Element? found = owner;
+  if (found == null) return entry;
+  return RefEntry(
+    rect: control.localToGlobal(Offset.zero) & control.size,
+    element: found,
+    groupId: entry.groupId,
+    isTextField: false,
+    node: control.debugSemantics ?? entry.node,
+    renderObject: control,
+  );
+}
 
 /// Reads the checked (checkbox, radio) or toggled (switch) state of the
 /// control that [entry] names, from its Semantics node.
@@ -268,9 +357,25 @@ _CheckedRead _readCheckedState(RefEntry entry) {
   if (node == null) return _notFound;
 
   // 2. The merged data carries the flags of every descendant folded into the
-  //    node, which is how a merging tile reports its inner checkbox.
+  //    node, which is how a merging tile reports its inner checkbox, and how
+  //    a bare switch in a labelled container reports its state: a switch is
+  //    no semantics boundary, so its flag lands on the container's node. On
+  //    the ref's own node, the tap goes to the render object that set the
+  //    flag; the container's centre can sit beside the control.
   final _CheckedRead? own = _flagsOf(node);
-  if (own != null) return own;
+  if (own != null) {
+    final RenderBox? annotated = owned && start != null
+        ? _annotatedControl(start)
+        : null;
+    if (annotated == null) return own;
+    return (
+      found: true,
+      ambiguous: false,
+      value: own.value,
+      rect: annotated.localToGlobal(Offset.zero) & annotated.size,
+      control: annotated,
+    );
+  }
 
   // 3. A labelled container that does not merge keeps the control in a
   //    child node. Only the ref's own node is searched: an ancestor's
@@ -281,14 +386,33 @@ _CheckedRead _readCheckedState(RefEntry entry) {
   if (controls.length > 1) return _ambiguous;
 
   // 4. The tap has to land on the control that was read, so the read
-  //    carries that node's own rect.
+  //    carries that node's own rect, and the render object that owns the
+  //    node so the gate can measure the control rather than the container.
   final SemanticsNode control = controls.single;
   return (
     found: true,
     ambiguous: false,
     value: _flagsOf(control)!.value,
     rect: _globalRectOf(control, resolveViewFor(entry.element)),
+    control: start == null ? null : _nodeOwner(start, control),
   );
+}
+
+/// The render box at or under [root] that owns [node], or null when none
+/// does (a node owned outside the ref's render subtree).
+RenderBox? _nodeOwner(RenderObject root, SemanticsNode node) {
+  RenderBox? owner;
+  void visit(RenderObject render) {
+    if (owner != null) return;
+    if (render is RenderBox && identical(render.debugSemantics, node)) {
+      owner = render;
+      return;
+    }
+    render.visitChildren(visit);
+  }
+
+  visit(root);
+  return owner;
 }
 
 /// The checked or toggled state [node] itself reports, or null when it has
@@ -305,6 +429,7 @@ _CheckedRead? _flagsOf(SemanticsNode node) {
         _ => false,
       },
       rect: null,
+      control: null,
     );
   }
   if (flags.isToggled != Tristate.none) {
@@ -313,6 +438,7 @@ _CheckedRead? _flagsOf(SemanticsNode node) {
       ambiguous: false,
       value: flags.isToggled == Tristate.isTrue,
       rect: null,
+      control: null,
     );
   }
   return null;
@@ -336,6 +462,31 @@ List<SemanticsNode> _checkableDescendants(SemanticsNode node) {
 
   visit(node);
   return controls;
+}
+
+/// The one laid-out render box at or under [root] whose semantics
+/// annotations set a checked, mixed or toggled state, or null when none or
+/// several do: with several, no single tap names the state that was read,
+/// and the ref's own rect is the honest fallback.
+RenderBox? _annotatedControl(RenderObject root) {
+  final List<RenderBox> found = <RenderBox>[];
+  void visit(RenderObject node) {
+    if (found.length > 1) return;
+    if (node is SemanticsAnnotationsMixin &&
+        node is RenderBox &&
+        (node.properties.checked != null ||
+            node.properties.mixed != null ||
+            node.properties.toggled != null)) {
+      found.add(node as RenderBox);
+      return;
+    }
+    node.visitChildren(visit);
+  }
+
+  visit(root);
+  if (found.length != 1) return null;
+  final RenderBox box = found.single;
+  return box.attached && box.hasSize ? box : null;
 }
 
 /// [node]'s rect in global logical pixels, the space pointer events use.

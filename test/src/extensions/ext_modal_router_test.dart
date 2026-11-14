@@ -147,7 +147,7 @@ void main() {
     });
   });
 
-  group('aiTestResetOverlaysHandler', () {
+  group('tapirResetOverlaysHandler', () {
     testWidgets('its Escape reaches the focused widget, as a real press does', (
       tester,
     ) async {
@@ -167,7 +167,7 @@ void main() {
       );
 
       await tester.runAsync(
-        () => aiTestResetOverlaysHandler(
+        () => tapirResetOverlaysHandler(
           'ext.tapir.reset_overlays',
           const <String, String>{},
         ),
@@ -189,7 +189,7 @@ void main() {
         addTearDown(() => dispatcher.onKeyData = saved);
 
         final response = await tester.runAsync(
-          () => aiTestResetOverlaysHandler(
+          () => tapirResetOverlaysHandler(
             'ext.tapir.reset_overlays',
             const <String, String>{},
           ),
@@ -212,7 +212,7 @@ void main() {
       // First call: nothing to dismiss. runAsync drives the handler's
       // endOfFrame.timeout settle steps against a real clock.
       final first = await tester.runAsync(() async {
-        return aiTestResetOverlaysHandler(
+        return tapirResetOverlaysHandler(
           'ext.tapir.reset_overlays',
           const <String, String>{},
         );
@@ -224,7 +224,7 @@ void main() {
 
       // Second call on the same idle tree: identical result (idempotent).
       final second = await tester.runAsync(() async {
-        return aiTestResetOverlaysHandler(
+        return tapirResetOverlaysHandler(
           'ext.tapir.reset_overlays',
           const <String, String>{},
         );
@@ -262,7 +262,7 @@ void main() {
       expect(find.text('reset-sheet'), findsOneWidget);
 
       final response = await tester.runAsync(() async {
-        return aiTestResetOverlaysHandler(
+        return tapirResetOverlaysHandler(
           'ext.tapir.reset_overlays',
           const <String, String>{},
         );
@@ -277,7 +277,7 @@ void main() {
 
       // Calling again on the now-clean tree is a no-op (idempotent).
       final again = await tester.runAsync(() async {
-        return aiTestResetOverlaysHandler(
+        return tapirResetOverlaysHandler(
           'ext.tapir.reset_overlays',
           const <String, String>{},
         );
@@ -299,13 +299,13 @@ void main() {
     });
   });
 
-  group('aiTestDismissModalsHandler envelope', () {
+  group('tapirDismissModalsHandler envelope', () {
     testWidgets('returns popped=0 when no modals are open', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: Text('idle'))),
       );
 
-      final response = await aiTestDismissModalsHandler(
+      final response = await tapirDismissModalsHandler(
         'ext.tapir.dismiss_modals',
         const <String, String>{},
       );
@@ -332,7 +332,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(navigator.canPop(), isTrue);
 
-        final response = await aiTestDismissModalsHandler(
+        final response = await tapirDismissModalsHandler(
           'ext.tapir.dismiss_modals',
           const <String, String>{},
         );
@@ -367,7 +367,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('handler-sheet'), findsOneWidget);
 
-      final response = await aiTestDismissModalsHandler(
+      final response = await tapirDismissModalsHandler(
         'ext.tapir.dismiss_modals',
         const <String, String>{},
       );

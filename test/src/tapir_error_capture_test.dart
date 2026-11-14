@@ -112,6 +112,52 @@ void main() {
         expect(recentCapturedExceptions(), hasLength(1));
       });
 
+      test('keeps pairs whose message and stackHead only join equal', () {
+        final FlutterExceptionHandler? prior = FlutterError.onError;
+        addTearDown(() => FlutterError.onError = prior);
+
+        installErrorCapture();
+        addTearDown(uninstallErrorCapture);
+
+        FlutterError.onError!(
+          FlutterErrorDetails(
+            exception: 'ab',
+            stack: StackTrace.fromString('c'),
+          ),
+        );
+        FlutterError.onError!(
+          FlutterErrorDetails(
+            exception: 'a',
+            stack: StackTrace.fromString('bc'),
+          ),
+        );
+
+        expect(recentCapturedExceptions(), hasLength(2));
+      });
+
+      test('records an evicted error again when it recurs', () {
+        final FlutterExceptionHandler? prior = FlutterError.onError;
+        addTearDown(() => FlutterError.onError = prior);
+
+        installErrorCapture();
+        addTearDown(uninstallErrorCapture);
+
+        FlutterErrorDetails detailsFor(int i) => FlutterErrorDetails(
+          exception: ArgumentError('error number $i'),
+          stack: StackTrace.fromString('frame for $i'),
+        );
+
+        for (int i = 0; i < 51; i++) {
+          FlutterError.onError!(detailsFor(i));
+        }
+        FlutterError.onError!(detailsFor(0));
+
+        expect(
+          recentCapturedExceptions().first['message'] as String,
+          contains('error number 0'),
+        );
+      });
+
       test('caps the buffer at 50 entries, newest-first', () {
         final FlutterExceptionHandler? prior = FlutterError.onError;
         addTearDown(() => FlutterError.onError = prior);

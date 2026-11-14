@@ -9,7 +9,7 @@ import 'package:meta/meta.dart';
 ///
 /// One concrete type covers every failure mode (port unreachable, malformed
 /// JSON, WebSocket refused, per-request timeout, CDP error envelope). Callers
-/// (TapirResizeCommand, TapirDeviceCommand, StartCommand's post-scrape Page.navigate)
+/// (TapirResizeViewportCommand, TapirDeviceProfileCommand, StartCommand's post-scrape Page.navigate)
 /// branch on this single type rather than parse error strings.
 final class TapirCdpException implements Exception {
   final String message;
@@ -49,8 +49,8 @@ typedef WsConnect = Future<WebSocket> Function(String url);
 /// ```
 ///
 /// V1 surface intentionally narrow: [connect], [send], [close]. Typed wrappers
-/// for individual CDP methods live in the consumer (TapirResizeCommand,
-/// TapirDeviceCommand, StartCommand). CDP events (frames without an `id` field)
+/// for individual CDP methods live in the consumer (TapirResizeViewportCommand,
+/// TapirDeviceProfileCommand, StartCommand). CDP events (frames without an `id` field)
 /// are ignored; the Emulation methods used by V1 are all request/response.
 ///
 /// V1 connects to the browser-level WebSocket (i.e. `webSocketDebuggerUrl`

@@ -138,14 +138,14 @@ Widget _screen(List<String> events) {
 /// Gates are opted out because the ref is minted by `registerForTesting`,
 /// whose rect is the widget's own but whose semantics node is synthetic.
 Future<void> _tapirTap(WidgetTester tester, Key key) async {
-  final String ref = RefRegistry.registerForTesting(
+  final String ref = registerRefForTesting(
     rect: tester.getRect(find.byKey(key)),
     element: tester.element(find.byKey(key)),
     groupId: 'g',
     isTextField: false,
   );
 
-  final Future<void> done = aiTestTapHandler('ext.tapir.tap', <String, String>{
+  final Future<void> done = tapirTapHandler('ext.tapir.tap', <String, String>{
     'ref': ref,
     'checkStable': 'false',
     'checkReceivesEvents': 'false',
@@ -160,7 +160,7 @@ Future<void> _tapirTap(WidgetTester tester, Key key) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('aiTestTapHandler against a WPopover-style dismiss guard', () {
+  group('tapirTapHandler against a WPopover-style dismiss guard', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 

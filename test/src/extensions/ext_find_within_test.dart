@@ -179,7 +179,7 @@ void main() {
       await tester.pumpWidget(_shell());
 
       // `find_by_text` mints an element-only entry (ext_wait_find.dart:433
-      // registers without a `node`), so a ref taken from a `tapir:wait`
+      // registers without a `node`), so a ref taken from a `tapir:wait_for`
       // result arrives here carrying no semantics node. The scope still has
       // to hold: falling back to a whole-tree semantics walk would answer a
       // different question than the caller asked, and answer it plausibly.

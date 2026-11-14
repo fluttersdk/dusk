@@ -28,13 +28,13 @@ Future<void> _openSession() async {
 /// Taps [finder] through `ext.tapir.tap`, pumping the harness the way the
 /// handler's 50 ms hold and two frame awaits need.
 Future<void> _tap(WidgetTester tester, Finder finder) async {
-  final String ref = RefRegistry.registerForTesting(
+  final String ref = registerRefForTesting(
     rect: tester.getRect(finder),
     element: tester.element(finder),
     groupId: 'g',
     isTextField: false,
   );
-  final Future<Object?> response = aiTestTapHandler(
+  final Future<Object?> response = tapirTapHandler(
     'ext.tapir.tap',
     <String, String>{
       'ref': ref,

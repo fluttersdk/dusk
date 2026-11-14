@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
+import 'dart:ui' show Tristate;
 
+import 'package:flutter/semantics.dart' show SemanticsNode;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,7 +31,7 @@ void _testWithSemantics(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('aiTestSetCheckboxHandler', () {
+  group('tapirSetCheckboxHandler', () {
     setUp(RefRegistry.resetForTesting);
 
     // -------------------------------------------------------------------------
@@ -59,21 +63,18 @@ void main() {
         final Element element = tester.element(find.byType(Checkbox));
         final RenderBox box = element.findRenderObject()! as RenderBox;
         final Rect rect = box.localToGlobal(Offset.zero) & box.size;
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: rect,
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final future = aiTestSetCheckboxHandler(
+        final future = tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'true'},
         );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+        final response = await _drive(tester, future);
 
         expect(response.result, isNotNull);
         final Map<String, dynamic> decoded =
@@ -89,6 +90,69 @@ void main() {
         expect(effect['before'], isFalse);
         expect(effect['after'], isTrue);
         expect(effect['verified'], isTrue);
+      },
+    );
+
+    _testWithSemantics(
+      'a checkbox the app sets to the target during the gate is not tapped',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        bool checkValue = false;
+        int changes = 0;
+        late StateSetter setOuterState;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) {
+                setOuterState = setState;
+                return Scaffold(
+                  body: Checkbox(
+                    value: checkValue,
+                    onChanged: (v) => setState(() {
+                      changes++;
+                      checkValue = v ?? false;
+                    }),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Checkbox));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = registerRefForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        // The handler reads `false` synchronously, then awaits the gate's
+        // frames; the app ticks the box before the first of them.
+        final Future<developer.ServiceExtensionResponse> future =
+            tapirSetCheckboxHandler('ext.tapir.set_checkbox', <String, String>{
+              'ref': ref,
+              'value': 'true',
+            });
+        setOuterState(() => checkValue = true);
+        final response = await _drive(tester, future);
+
+        expect(changes, 0, reason: 'a tap would have unticked it');
+        expect(checkValue, isTrue);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['toggled'], isFalse);
+        expect(decoded['previousValue'], isFalse);
+        expect(decoded['value'], isTrue);
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['verified'], isTrue);
+        expect(effect['after'], isTrue);
       },
     );
 
@@ -121,21 +185,18 @@ void main() {
         final Element element = tester.element(find.byType(Checkbox));
         final RenderBox box = element.findRenderObject()! as RenderBox;
         final Rect rect = box.localToGlobal(Offset.zero) & box.size;
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: rect,
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final future = aiTestSetCheckboxHandler(
+        final future = tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'false'},
         );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+        final response = await _drive(tester, future);
 
         expect(response.result, isNotNull);
         final Map<String, dynamic> decoded =
@@ -144,9 +205,9 @@ void main() {
         expect(decoded['value'], equals(false));
         expect(decoded['previousValue'], equals(true));
 
-        // `value` echoes what was requested. `effect.after` is read back off
-        // the widget, so a control that ignored the tap is distinguishable
-        // from one that took it.
+        // `value` and `effect.after` are both read back off the widget, so a
+        // control that ignored the tap is distinguishable from one that
+        // took it (case (w)).
         final Map<String, dynamic> effect =
             decoded['effect'] as Map<String, dynamic>;
         expect(effect['kind'], equals('checked'));
@@ -185,7 +246,7 @@ void main() {
         final Element element = tester.element(find.byType(Checkbox));
         final RenderBox box = element.findRenderObject()! as RenderBox;
         final Rect rect = box.localToGlobal(Offset.zero) & box.size;
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: rect,
           element: element,
           groupId: 'g',
@@ -193,7 +254,7 @@ void main() {
         );
 
         // Ask to set to true when already true — should be a no-op.
-        final response = await aiTestSetCheckboxHandler(
+        final response = await tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'true'},
         );
@@ -212,7 +273,7 @@ void main() {
     // -------------------------------------------------------------------------
 
     test('(d) ref not found returns not_found error envelope', () async {
-      final response = await aiTestSetCheckboxHandler(
+      final response = await tapirSetCheckboxHandler(
         'ext.tapir.set_checkbox',
         <String, String>{'ref': 'e999', 'value': 'true'},
       );
@@ -229,7 +290,7 @@ void main() {
     test(
       '(e) missing value param returns missing_param error envelope',
       () async {
-        final response = await aiTestSetCheckboxHandler(
+        final response = await tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': 'e1'},
         );
@@ -246,7 +307,7 @@ void main() {
     test(
       '(f) missing ref param returns missing_param error envelope',
       () async {
-        final response = await aiTestSetCheckboxHandler(
+        final response = await tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           const <String, String>{'value': 'true'},
         );
@@ -257,7 +318,7 @@ void main() {
     );
 
     test('(g) empty ref string returns missing_param error envelope', () async {
-      final response = await aiTestSetCheckboxHandler(
+      final response = await tapirSetCheckboxHandler(
         'ext.tapir.set_checkbox',
         const <String, String>{'ref': '', 'value': 'true'},
       );
@@ -268,7 +329,7 @@ void main() {
     test(
       '(h) empty value string returns missing_param error envelope',
       () async {
-        final response = await aiTestSetCheckboxHandler(
+        final response = await tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           const <String, String>{'ref': 'e1', 'value': ''},
         );
@@ -307,21 +368,18 @@ void main() {
         final Element element = tester.element(find.byType(Switch));
         final RenderBox box = element.findRenderObject()! as RenderBox;
         final Rect rect = box.localToGlobal(Offset.zero) & box.size;
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: rect,
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final future = aiTestSetCheckboxHandler(
+        final future = tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'true'},
         );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+        final response = await _drive(tester, future);
 
         expect(response.result, isNotNull);
         expect(switchValue, isTrue);
@@ -366,14 +424,14 @@ void main() {
 
         final Element element = tester.element(find.byType(GestureDetector));
         final RenderBox box = element.findRenderObject()! as RenderBox;
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: box.localToGlobal(Offset.zero) & box.size,
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final response = await aiTestSetCheckboxHandler(
+        final response = await tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'true'},
         );
@@ -409,7 +467,7 @@ void main() {
 
         final Element element = tester.element(find.byType(Checkbox));
         final RenderBox box = element.findRenderObject()! as RenderBox;
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: box.localToGlobal(Offset.zero) & box.size,
           element: element,
           groupId: 'g',
@@ -417,7 +475,7 @@ void main() {
           node: tester.getSemantics(find.byType(Checkbox)),
         );
 
-        final response = await aiTestSetCheckboxHandler(
+        final response = await tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'true'},
         );
@@ -459,7 +517,7 @@ void main() {
 
           final Element element = tester.element(find.byType(Checkbox));
           final RenderBox box = element.findRenderObject()! as RenderBox;
-          final String ref = RefRegistry.registerForTesting(
+          final String ref = registerRefForTesting(
             rect: box.localToGlobal(Offset.zero) & box.size,
             element: element,
             groupId: 'g',
@@ -467,14 +525,11 @@ void main() {
             node: tester.getSemantics(find.byType(Checkbox)),
           );
 
-          final future = aiTestSetCheckboxHandler(
+          final future = tapirSetCheckboxHandler(
             'ext.tapir.set_checkbox',
             <String, String>{'ref': ref, 'value': target},
           );
-          await tester.pump(const Duration(milliseconds: 100));
-          await tester.pump();
-          await tester.pump();
-          final response = await future;
+          final response = await _drive(tester, future);
 
           final Map<String, dynamic> decoded =
               jsonDecode(response.result!) as Map<String, dynamic>;
@@ -525,7 +580,7 @@ void main() {
         );
         final Element element = tester.element(wrapper);
         final RenderBox box = element.findRenderObject()! as RenderBox;
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: box.localToGlobal(Offset.zero) & box.size,
           element: element,
           groupId: 'g',
@@ -535,14 +590,11 @@ void main() {
 
         // Pumped so a wrong read that taps still completes and fails on the
         // assertions below rather than hanging on the tap's delay.
-        final future = aiTestSetCheckboxHandler(
+        final future = tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'true'},
         );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+        final response = await _drive(tester, future);
 
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
@@ -577,21 +629,18 @@ void main() {
 
         final Element element = tester.element(find.text('Terms of service'));
         final RenderBox box = element.findRenderObject()! as RenderBox;
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: box.localToGlobal(Offset.zero) & box.size,
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final future = aiTestSetCheckboxHandler(
+        final future = tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'true'},
         );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+        final response = await _drive(tester, future);
 
         expect(response.result, isNull);
         final Map<String, dynamic> detail =
@@ -635,21 +684,18 @@ void main() {
 
         final Element element = tester.element(find.byKey(decorationKey));
         final RenderBox box = element.findRenderObject()! as RenderBox;
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: box.localToGlobal(Offset.zero) & box.size,
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final future = aiTestSetCheckboxHandler(
+        final future = tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'false'},
         );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+        final response = await _drive(tester, future);
 
         expect(response.result, isNull);
         expect(
@@ -695,21 +741,18 @@ void main() {
 
         final Element element = tester.element(find.byKey(decorationKey));
         final RenderBox box = element.findRenderObject()! as RenderBox;
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: box.localToGlobal(Offset.zero) & box.size,
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final future = aiTestSetCheckboxHandler(
+        final future = tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'false'},
         );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+        final response = await _drive(tester, future);
 
         // The group reads as checked, so asking for unchecked taps once; the
         // decoration cannot toggle anything, and the read-back says so.
@@ -771,7 +814,7 @@ void main() {
         );
         final Element element = tester.element(wrapper);
         final RenderBox box = element.findRenderObject()! as RenderBox;
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: box.localToGlobal(Offset.zero) & box.size,
           element: element,
           groupId: 'g',
@@ -779,14 +822,11 @@ void main() {
           node: tester.getSemantics(wrapper),
         );
 
-        final future = aiTestSetCheckboxHandler(
+        final future = tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'true'},
         );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+        final response = await _drive(tester, future);
 
         expect(response.result, isNull);
         final Map<String, dynamic> detail =
@@ -858,7 +898,7 @@ void main() {
           isFalse,
           reason: 'the container centre must miss the switch',
         );
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: rect,
           element: element,
           groupId: 'g',
@@ -866,14 +906,11 @@ void main() {
           node: tester.getSemantics(wrapper),
         );
 
-        final future = aiTestSetCheckboxHandler(
+        final future = tapirSetCheckboxHandler(
           'ext.tapir.set_checkbox',
           <String, String>{'ref': ref, 'value': 'true'},
         );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+        final response = await _drive(tester, future);
 
         expect(wifi, isTrue);
         final Map<String, dynamic> decoded =
@@ -886,5 +923,388 @@ void main() {
         expect(effect['verified'], isTrue);
       },
     );
+
+    // -------------------------------------------------------------------------
+    // (s) A bare Switch inside a labelled container: the Switch is no
+    //     semantics boundary, so its toggled flag lands on the container's
+    //     node. The tap still has to reach the switch, not the container
+    //     centre.
+    // -------------------------------------------------------------------------
+
+    _testWithSemantics(
+      '(s) a bare Switch whose flag sits on its labelled container toggles '
+      'the switch, not the container centre',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1600, 1200);
+        tester.view.devicePixelRatio = 2.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        bool dark = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) => Scaffold(
+                body: Semantics(
+                  container: true,
+                  label: 'Dark mode',
+                  child: Row(
+                    children: <Widget>[
+                      const SizedBox(width: 500, height: 48),
+                      Switch(
+                        value: dark,
+                        onChanged: (v) => setState(() => dark = v),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Finder wrapper = find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Semantics && widget.properties.label == 'Dark mode',
+        );
+        final Element element = tester.element(wrapper);
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final Rect rect = box.localToGlobal(Offset.zero) & box.size;
+        expect(
+          tester.getRect(find.byType(Switch)).contains(rect.center),
+          isFalse,
+          reason: 'the container centre must miss the switch',
+        );
+        final SemanticsNode node = tester.getSemantics(wrapper);
+        expect(
+          node.getSemanticsData().flagsCollection.isToggled,
+          isNot(Tristate.none),
+          reason: 'the toggled flag must sit on the container node itself',
+        );
+        final String ref = registerRefForTesting(
+          rect: rect,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+          node: node,
+        );
+
+        final response = await _drive(
+          tester,
+          tapirSetCheckboxHandler('ext.tapir.set_checkbox', <String, String>{
+            'ref': ref,
+            'value': 'true',
+          }),
+        );
+
+        expect(dark, isTrue);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['verified'], isTrue);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (t) The actionability gate runs on the control: one below the fold is
+    //     scrolled into view before the tap, and one under an overlay is
+    //     refused with the gate's reason.
+    // -------------------------------------------------------------------------
+
+    _testWithSemantics(
+      '(t) a checkbox below the fold is scrolled into view and toggled',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        bool accepted = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) => Scaffold(
+                body: SingleChildScrollView(
+                  child: Column(
+                    children: <Widget>[
+                      const SizedBox(height: 2000),
+                      Checkbox(
+                        value: accepted,
+                        onChanged: (v) => setState(() => accepted = v!),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Checkbox));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = registerRefForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final response = await _drive(
+          tester,
+          tapirSetCheckboxHandler('ext.tapir.set_checkbox', <String, String>{
+            'ref': ref,
+            'value': 'true',
+          }),
+        );
+
+        expect(accepted, isTrue);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['verified'], isTrue);
+      },
+    );
+
+    _testWithSemantics(
+      '(u) a checkbox under an overlay is refused with the gate reason and '
+      'left alone',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        bool accepted = false;
+        int overlayTaps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) => Scaffold(
+                body: Stack(
+                  children: <Widget>[
+                    Checkbox(
+                      value: accepted,
+                      onChanged: (v) => setState(() => accepted = v!),
+                    ),
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => overlayTaps++,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Checkbox));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = registerRefForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final response = await _drive(
+          tester,
+          tapirSetCheckboxHandler('ext.tapir.set_checkbox', <String, String>{
+            'ref': ref,
+            'value': 'true',
+          }),
+        );
+
+        expect(response.result, isNull);
+        final Map<String, dynamic> detail =
+            jsonDecode(response.errorDetail!) as Map<String, dynamic>;
+        expect(detail['message'], contains('obscured by other widget'));
+        expect(
+          (detail['envelope'] as Map<String, dynamic>)['type'],
+          equals('obscured'),
+        );
+        expect(accepted, isFalse);
+        expect(overlayTaps, 0);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (v) A value that is not a boolean is refused before anything is read
+    //     or tapped: "flase" used to count as true.
+    // -------------------------------------------------------------------------
+
+    for (final String bad in <String>['flase', 'yes', 'TRUE', '2']) {
+      test('(v) value "$bad" is refused as an invalid parameter', () async {
+        final response = await tapirSetCheckboxHandler(
+          'ext.tapir.set_checkbox',
+          <String, String>{'ref': 'e1', 'value': bad},
+        );
+
+        expect(response.result, isNull);
+        expect(
+          response.errorCode,
+          equals(developer.ServiceExtensionResponse.invalidParams),
+        );
+        final Map<String, dynamic> detail =
+            jsonDecode(response.errorDetail!) as Map<String, dynamic>;
+        expect(detail['message'], contains('"$bad"'));
+        expect(
+          (detail['envelope'] as Map<String, dynamic>)['type'],
+          equals('invalid_param'),
+        );
+      });
+    }
+
+    for (final MapEntry<String, bool> accepted in <String, bool>{
+      'true': true,
+      '1': true,
+      'false': false,
+      '0': false,
+    }.entries) {
+      _testWithSemantics(
+        '(v) value "${accepted.key}" reads as ${accepted.value}',
+        (WidgetTester tester) async {
+          bool? checked = accepted.value;
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Checkbox(value: checked, onChanged: (v) => checked = v),
+              ),
+            ),
+          );
+          final Element element = tester.element(find.byType(Checkbox));
+          final RenderBox box = element.findRenderObject()! as RenderBox;
+          final String ref = registerRefForTesting(
+            rect: box.localToGlobal(Offset.zero) & box.size,
+            element: element,
+            groupId: 'g',
+            isTextField: false,
+          );
+
+          final response = await tapirSetCheckboxHandler(
+            'ext.tapir.set_checkbox',
+            <String, String>{'ref': ref, 'value': accepted.key},
+          );
+
+          final Map<String, dynamic> decoded =
+              jsonDecode(response.result!) as Map<String, dynamic>;
+          expect(decoded['toggled'], isFalse, reason: 'already matches');
+          expect(decoded['value'], equals(accepted.value));
+        },
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // (w) `value` is the state read back after the tap, not the request: a
+    //     control whose owner ignores the change reports what it shows.
+    // -------------------------------------------------------------------------
+
+    _testWithSemantics(
+      '(w) a checkbox that ignores the tap reports the value it kept',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        int changes = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Checkbox(value: false, onChanged: (_) => changes++),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Checkbox));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = registerRefForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final response = await _drive(
+          tester,
+          tapirSetCheckboxHandler('ext.tapir.set_checkbox', <String, String>{
+            'ref': ref,
+            'value': 'true',
+          }),
+        );
+
+        expect(changes, 1, reason: 'the tap reached the checkbox');
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['value'], isFalse);
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['after'], isFalse);
+        expect(effect['verified'], isFalse);
+      },
+    );
+
+    _testWithSemantics(
+      'a checkbox that removes itself when ticked toggles but reads '
+      'verified: false, since nothing is left to read back',
+      (WidgetTester tester) async {
+        bool agreed = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) => Scaffold(
+                body: agreed
+                    ? const Text('Agreed')
+                    : Checkbox(
+                        value: false,
+                        onChanged: (v) => setState(() => agreed = v ?? false),
+                      ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Checkbox));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = registerRefForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final response = await _drive(
+          tester,
+          tapirSetCheckboxHandler('ext.tapir.set_checkbox', <String, String>{
+            'ref': ref,
+            'value': 'true',
+          }),
+        );
+
+        expect(agreed, isTrue, reason: 'the tap reached the checkbox');
+        expect(find.text('Agreed'), findsOneWidget);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['toggled'], isTrue);
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['verified'], isFalse);
+      },
+    );
   });
+}
+
+/// Pumps frames until [future] completes, so a handler that awaits frames
+/// and timers (the gate's stable check, the tap's 50 ms hold) finishes
+/// under the fake clock whatever its number of waits.
+Future<T> _drive<T>(WidgetTester tester, Future<T> future) async {
+  bool done = false;
+  unawaited(future.whenComplete(() => done = true));
+  for (int i = 0; i < 100 && !done; i++) {
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+  return future;
 }

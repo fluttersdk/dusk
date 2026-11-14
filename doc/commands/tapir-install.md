@@ -7,6 +7,8 @@ It runs in two phases, both idempotent:
 1. **Patch `lib/main.dart`**: inject the imports (including `import 'package:magic_devtools/tapir.dart';` when applicable), `WidgetsFlutterBinding.ensureInitialized()`, and a `!kReleaseMode`-gated `TapirPlugin.install()` block before `runApp(` (debug and profile builds carry tapir, so `tapir:perf_run` can measure a profile build; release tree-shakes it). Magic-stack apps additionally wire `MagicTapirIntegration.install()` after `Magic.init(` when `magic_devtools:` is present in `pubspec.yaml` and the resolved `magic_devtools` ships `lib/tapir.dart`.
 2. **Chain fastcli setup**: best-effort `dart run tapir install` (scaffolds `bin/dispatcher.dart` + `./bin/dowel` AOT wrapper) + `dart run tapir plugin:install tapir` (registers `TapirDowelProvider`). Both sub-process calls are skipped when their idempotency markers already exist (`bin/dispatcher.dart` for the scaffold, `.dowel/installed/tapir.json` for the plugin record). Failures are swallowed with a warning; the Phase 1 patch always succeeds on its own, so the consumer can still drive tapir via `dart run tapir <cmd>` even when the chain skipped.
 
+Between the two phases it looks for what an install of tapir's predecessor, `fluttersdk_dusk`, left in the project and prints it (see [Examples](#examples)): an old `bin/dispatcher.dart` also satisfies the Phase 2 marker, so without that notice `dowel install` would be skipped in silence.
+
 Together, the two phases mean a fresh consumer needs only:
 
 ```bash
@@ -42,13 +44,14 @@ dart run tapir tapir:install
 <a name="arguments"></a>
 ## Arguments
 
-`tapir:install` takes no options. Its two inputs come from the current working directory:
+`tapir:install` takes no options. Its inputs come from the current working directory:
 
 | Input | Purpose |
 |-------|---------|
 | `lib/main.dart` | Target file for snippet injection. |
 | `pubspec.yaml` | Inspected for a `magic_devtools:` dependency entry. Drives the conditional Magic wiring described under [Anchor modes](#anchor-modes). |
-| `.dart_tool/package_config.json` | Read only when the Magic wiring applies, to find the resolved `magic_devtools` and check that it ships `lib/tapir.dart`. The nearest one at or above the project is used, so a pub workspace member reads the workspace root's; an unreadable or invalid one counts as unresolved and gets the warning. |
+| `.dart_tool/package_config.json` | Read only when the Magic wiring applies, to find the resolved `magic_devtools` and check that it ships `lib/tapir.dart`. The nearest one at or above the project is used, so a pub workspace member reads the workspace root's; an unreadable or invalid one counts as unresolved and gets the warning. A `rootUri` that points outside the project resolves too: the relative `../../magic_devtools` pub writes for `path: ../magic_devtools`, a path with a trailing slash, percent-encoded characters or an absolute `file:` URI. |
+| `bin/dispatcher.dart`, `bin/fsa`, `lib/app/commands/`, `.mcp.json` | Read only for the leftover notice of an earlier `fluttersdk_dusk` install; never written. |
 
 ---
 
@@ -129,6 +132,22 @@ dart run tapir tapir:install
 ```
 
 The injector early-returns on every duplicate snippet. The output still prints `tapir:install complete`; the file is left untouched.
+
+### 4. A project that still carries the predecessor's files
+
+When a project moves from `fluttersdk_dusk`, the install patches `lib/main.dart` as usual and then prints one warning that lists each finding, one line per file that is there, and the commands to run:
+
+```
+⚠ Leftovers from fluttersdk_dusk found:
+  - bin/dispatcher.dart (imports fluttersdk_artisan): delete it
+  - bin/fsa: delete it
+  - lib/app/commands/_index.g.dart: delete it
+  - lib/app/commands/deploy_command.dart (uses Artisan* classes): port it to the Dowel* classes
+  - .mcp.json: delete the "fluttersdk" server entry
+Then run `dart run dowel install`, `dart run dowel commands:refresh` and `dart run tapir tapir:install`.
+```
+
+The installer deletes none of them and still exits `0`. When it cannot read one of the files it looks at (an unreadable `.mcp.json`, say), it prints `Could not check for fluttersdk_dusk leftovers: <path>: <reason>` instead and carries on. [`tapir:doctor`](tapir-doctor.md) reports the same list as a warning, and [Migrating from fluttersdk_dusk](../getting-started/migrating-from-fluttersdk-dusk.md) walks through the whole move.
 
 ### 3. Magic-stack app with the wind resolver
 

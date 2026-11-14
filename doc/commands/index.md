@@ -32,7 +32,7 @@ Each group section ships a single table with four columns:
 
 - **Command** is the canonical name you type after `dart run tapir` (or via the dowel dispatcher).
 - **Description** is a one-line summary of the command; `dart run dowel list` prints each command's own wording, which differs for a few.
-- **Boot Mode** is the `CommandBoot` value the dispatcher reads before invoking `handle()`. `none` means pure CLI: no VM Service connection. `connected` means the command dials the VM Service URI recorded for this project's dowel session and fails fast if no app is running.
+- **Boot Mode** is the `CommandBoot` value the dispatcher reads before invoking `handle()`. `none` means pure CLI: the dispatcher opens no VM Service connection for it (`tapir:doctor` opens its own, to ask the app a question). `connected` means the command dials the VM Service URI recorded for this project's dowel session and fails fast if no app is running.
 - **VM Extension** is the `ext.tapir.*` method the command calls over the VM Service. `none` for commands that operate purely on the consumer filesystem.
 
 Deep-dive pages exist for the commands whose flag surface, return shape, or composition rules outgrow a single table row; the tables below link them. The other commands share this index page; reach for `dart run dowel help <name>` for their full flag surface.
@@ -62,7 +62,7 @@ Pointer-driven actions that synthesise touch, mouse, or pen events at a widget l
 <a name="inputs"></a>
 ## Inputs
 
-Keyboard-shaped actions. `tapir:type` emits a character sequence; `tapir:press_key` synthesises a single hardware-key event; `tapir:clear` empties the focused text field; `tapir:select_option` calls the `onChanged` of a `DropdownButton`; `tapir:set_checkbox` sets a checkbox, switch or radio from its Semantics checked or toggled state.
+Keyboard-shaped actions. `tapir:type` emits a character sequence; `tapir:press_key` synthesises a single hardware-key event; `tapir:clear` empties the focused text field; `tapir:select_option` calls the `onChanged` of a `DropdownButton`; `tapir:set_checkbox` sets a checkbox, switch or radio from its Semantics checked or toggled state, behind the same actionability gate as the gesture commands.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
@@ -71,21 +71,21 @@ Keyboard-shaped actions. `tapir:type` emits a character sequence; `tapir:press_k
 | `tapir:press_key` | Synthesise a hardware-key event on the currently focused widget. | connected | ext.tapir.press_key |
 | `tapir:clear` | Empty the text content of the focused widget by ref. | connected | ext.tapir.clear |
 | `tapir:select_option` | Select an option in a DropdownButton by ref token (calls its `onChanged`). | connected | ext.tapir.select_option |
-| `tapir:set_checkbox` | Set the checked state of a checkbox, switch or radio by ref, from any library. | connected | ext.tapir.set_checkbox |
-| `tapir:wait` | Wait for a text, text-gone, or expression condition in the running app. | connected | ext.tapir.wait_for |
+| `tapir:set_checkbox` | Set the checked state of a checkbox, switch or radio by ref, from any library. The control is scrolled into view and gated like a tap, with the same `--[no-]checkStable` and `--[no-]checkReceivesEvents` flags; `--value` takes `true`, `false`, `1` or `0`. | connected | ext.tapir.set_checkbox |
+| `tapir:wait_for` | Wait for a text, text-gone, or expression condition in the running app. | connected | ext.tapir.wait_for |
 | `tapir:wait_for_network_idle` | Wait until the running app reports zero in-flight HTTP requests for a contiguous idleMs window. | connected | ext.tapir.wait_for_network_idle |
 
 <a name="navigation"></a>
 ## Navigation
 
-Route-table manipulation against the active `Navigator`. `tapir:modal` dismisses any open modal, sheet, or dialog. `tapir:close_app` ends the session via `SystemNavigator.pop()`.
+Route-table manipulation against the active `Navigator`. `tapir:dismiss_modals` dismisses any open modal, sheet, or dialog. `tapir:close_app` ends the session via `SystemNavigator.pop()`.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
 | `tapir:navigate` | Navigate the running app to a named route via the active Navigator. | connected | ext.tapir.navigate |
 | `tapir:navigate_back` | Pop the topmost route off the active Navigator (mirrors browser back). | connected | ext.tapir.navigate_back |
 | `tapir:get_routes` | Print the mounted Router's location (`uri`), the top page name and a title hint as JSON. | connected | ext.tapir.get_routes |
-| `tapir:modal` | Dismiss all open modals, bottom sheets, and dialogs in the running app. | connected | ext.tapir.dismiss_modals |
+| `tapir:dismiss_modals` | Dismiss all open modals, bottom sheets, and dialogs in the running app. | connected | ext.tapir.dismiss_modals |
 | [`tapir:reset_overlays`](tapir-reset-overlays.md) | Reset to a clean screen: dismiss modals + Escape + Cancel-tap fallback (idempotent). | connected | ext.tapir.reset_overlays |
 | `tapir:close_app` | Gracefully close the running app via SystemNavigator.pop(). | connected | ext.tapir.close_app |
 
@@ -101,16 +101,16 @@ The Playwright Locator surface: mint a re-resolvable `q<N>` handle backed by tex
 <a name="diagnostics"></a>
 ## Diagnostics
 
-Pure-CLI checks that verify the consumer wiring and the running session health. Neither command dials the VM Service.
+The health check for the consumer wiring and the running session. It boots with `CommandBoot.none`, so it runs before any session exists, and it dials the recorded VM Service itself, once, for what only the running app can report.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| [`tapir:doctor`](tapir-doctor.md) | Verify tapir plugin runtime + consumer wiring health | none | none |
+| [`tapir:doctor`](tapir-doctor.md) | Verify tapir plugin runtime + consumer wiring health | none | `ext.tapir.boot_id`, when a session is recorded |
 
 <a name="install"></a>
 ## Install
 
-The one-shot bootstrap. Patches the consumer's `lib/main.dart`, then chains `dowel install` and `plugin:install tapir` on a best-effort basis; `tapir` ships its own Flutter-free CLI entry point, so the chain only adds the faster `./bin/dowel` path. Idempotent on re-run.
+The one-shot bootstrap. Patches the consumer's `lib/main.dart`, then chains `dowel install` and `plugin:install tapir` on a best-effort basis; `tapir` ships its own Flutter-free CLI entry point, so the chain only adds the faster `./bin/dowel` path. Idempotent on re-run. It also lists what an earlier `fluttersdk_dusk` install left in the project; see [Migrating from fluttersdk_dusk](../getting-started/migrating-from-fluttersdk-dusk.md).
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
@@ -123,8 +123,8 @@ Chrome DevTools Protocol commands that manipulate the browser viewport directly.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `tapir:device` | Emulate a device profile (viewport + DPR + touch + user agent) via Chrome DevTools Protocol. The emulation lasts only as long as the command's CDP session, which closes on exit; only the window size stays. | none | none (CDP direct) |
-| `tapir:resize` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. Chrome drops the override when the command exits; `--hold` keeps it until Ctrl-C or Chrome exits. | none | none (CDP direct) |
+| `tapir:device_profile` | Emulate a device profile (viewport + DPR + touch + user agent) via Chrome DevTools Protocol. The emulation lasts only as long as the command's CDP session, which closes on exit; only the window size stays. | none | none (CDP direct) |
+| `tapir:resize_viewport` | Resize the running Flutter web app viewport via Chrome DevTools Protocol. Chrome drops the override when the command exits; `--hold` keeps it until Ctrl-C or Chrome exits. | none | none (CDP direct) |
 
 <a name="click-variants"></a>
 ## Click variants
@@ -133,7 +133,7 @@ Pointer gestures that go beyond the primary tap. All three route through the act
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
-| `tapir:dblclick` | Fire a double-click at the widget identified by a snapshot ref. | connected | ext.tapir.dblclick |
+| `tapir:double_click` | Fire a double-click at the widget identified by a snapshot ref. | connected | ext.tapir.double_click |
 | `tapir:triple_click` | Fire three primary clicks (~100ms apart) at the widget identified by --ref. | connected | ext.tapir.triple_click |
 | `tapir:right_click` | Fire a right (secondary mouse button) click at the widget identified by --ref. | connected | ext.tapir.right_click |
 
@@ -183,7 +183,7 @@ The Stagehand observe-once-act-many surface. Returns a structured candidate list
 <a name="hot-reload-and-snap"></a>
 ## Hot reload and snap
 
-The single-round-trip composite that hot-reloads the running app and then captures snapshot, screenshot, and recent exceptions in one shot. Dispatched via the `dowel:` substrate routing prefix to avoid a same-isolate deadlock. The reload itself is a keystroke, not a VM Service `reloadSources` call: the command writes `r` to the stdin FIFO recorded in the session state and waits for the "Reloaded N libraries" line in the `flutter run` log. A session started by `dart run tapir start` has that FIFO; one started by plain `flutter run` does not, and the command reports it as missing.
+The single-round-trip composite that hot-reloads the running app and then captures snapshot, screenshot, and recent exceptions in one shot. Dispatched via the `dowel:` substrate routing prefix to avoid a same-isolate deadlock. The reload itself is a keystroke, not a VM Service `reloadSources` call: the command writes `r` to the stdin FIFO recorded in the session state and waits up to 10 seconds for the reload line in the `flutter run` log (`Reloaded N libraries in Nms`, or `Reloaded application in Nms` from the web runner; a reload of a second or more prints its time as `1,234ms`, and that matches too). A compile error prints `Try again after fixing the above error(s)` instead, and the command reports `reloaded: false` and exits `1`. A session started by `dart run tapir start` has that FIFO; one started by plain `flutter run` does not, and the command reports it as missing.
 
 | Command | Description | Boot Mode | VM Extension |
 |---------|-------------|-----------|--------------|
@@ -216,7 +216,7 @@ One measurement session and its drill-down. `tapir:perf_begin` opens it (`--mode
 <a name="boot-mode-and-deep-dives"></a>
 ## Boot mode and deep-dives
 
-`tapir:install`, `tapir:doctor`, `tapir:perf_compare`, `tapir:perf_campaign`, `tapir:device` and `tapir:resize` run with `CommandBoot.none` (the last two dial Chrome DevTools Protocol directly rather than the VM Service). Every other command is `CommandBoot.connected`: it dials the VM Service URI recorded for the project's dowel session and fails fast when the running app cannot be reached.
+`tapir:install`, `tapir:doctor`, `tapir:perf_compare`, `tapir:perf_campaign`, `tapir:device_profile` and `tapir:resize_viewport` run with `CommandBoot.none` (the last two dial Chrome DevTools Protocol directly rather than the VM Service). Every other command is `CommandBoot.connected`: it dials the VM Service URI recorded for the project's dowel session and fails fast when the running app cannot be reached.
 
 These commands earn their own pages: [tapir:install](tapir-install.md), [tapir:run](tapir-run.md), [tapir:snap](tapir-snap.md), [tapir:tap](tapir-tap.md), [tapir:fill](tapir-fill.md), [tapir:reset_overlays](tapir-reset-overlays.md), [tapir:screenshot](tapir-screenshot.md), [tapir:find](tapir-find.md), [tapir:doctor](tapir-doctor.md), [tapir:observe](tapir-observe.md), [tapir:perf_begin](tapir-perf-begin.md), [tapir:perf_end](tapir-perf-end.md), [tapir:perf_insight](tapir-perf-insight.md), [tapir:perf_run](tapir-perf-run.md), [tapir:perf_compare](tapir-perf-compare.md), [tapir:perf_trace](tapir-perf-trace.md), [tapir:perf_campaign](tapir-perf-campaign.md). Slug rule: the URL replaces the `:` separator with `-`. The other commands share this index page; reach for `dart run dowel help <name>` for their full flag surface.
 

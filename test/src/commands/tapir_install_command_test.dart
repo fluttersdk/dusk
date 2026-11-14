@@ -363,6 +363,84 @@ Future<void> main() async {
       expect(output.content, contains('has no tapir integration yet'));
     });
 
+    group('a path dependency outside the project', () {
+      // pub writes `magic_devtools: path: ../magic_devtools` as a rootUri two
+      // levels up from `.dart_tool`, so the walk to the config must not add
+      // a path segment the resolution then climbs out of.
+      late Directory app;
+
+      setUp(() {
+        app = Directory('${tempDir.path}/app')..createSync();
+        File('${app.path}/pubspec.yaml').writeAsStringSync('name: app\n');
+        Directory('${app.path}/.dart_tool').createSync();
+      });
+
+      void writeConfig(String rootUri) {
+        File('${app.path}/.dart_tool/package_config.json').writeAsStringSync(
+          jsonEncode(<String, Object>{
+            'configVersion': 2,
+            'packages': <Map<String, String>>[
+              <String, String>{
+                'name': 'magic_devtools',
+                'rootUri': rootUri,
+                'packageUri': 'lib/',
+              },
+            ],
+          }),
+        );
+      }
+
+      for (final String rootUri in <String>[
+        '../../magic_devtools',
+        '../../magic_devtools/',
+      ]) {
+        test('a rootUri of $rootUri reads as available when the sibling '
+            'ships tapir.dart, missing when it does not', () {
+          final Directory lib = Directory('${tempDir.path}/magic_devtools/lib')
+            ..createSync(recursive: true);
+          File('${lib.path}/dusk.dart').writeAsStringSync('// stub\n');
+          writeConfig(rootUri);
+          expect(
+            TapirInstallCommand.magicDevtoolsTapirSupport(app.path),
+            equals(MagicDevtoolsTapirSupport.missing),
+          );
+
+          File('${lib.path}/tapir.dart').writeAsStringSync('// stub\n');
+          expect(
+            TapirInstallCommand.magicDevtoolsTapirSupport(app.path),
+            equals(MagicDevtoolsTapirSupport.available),
+          );
+        });
+      }
+
+      test('a percent-encoded rootUri resolves to the decoded directory', () {
+        Directory('${tempDir.path}/magic devtools #2/lib')
+            .createSync(recursive: true);
+        File('${tempDir.path}/magic devtools #2/lib/tapir.dart')
+            .writeAsStringSync('// stub\n');
+        writeConfig('../../magic%20devtools%20%232/');
+
+        expect(
+          TapirInstallCommand.magicDevtoolsTapirSupport(app.path),
+          equals(MagicDevtoolsTapirSupport.available),
+        );
+      });
+
+      test('an absolute percent-encoded file URI resolves too', () {
+        final Directory root = Directory('${tempDir.path}/pub cache/md')
+          ..createSync(recursive: true);
+        Directory('${root.path}/lib').createSync();
+        File('${root.path}/lib/tapir.dart').writeAsStringSync('// stub\n');
+        writeConfig(root.uri.toString());
+
+        expect(root.uri.toString(), contains('%20'));
+        expect(
+          TapirInstallCommand.magicDevtoolsTapirSupport(app.path),
+          equals(MagicDevtoolsTapirSupport.available),
+        );
+      });
+    });
+
     for (final MapEntry<String, Map<String, Object>> malformed
         in <String, Map<String, Object>>{
           'no rootUri': <String, Object>{
@@ -951,6 +1029,173 @@ class MyApp extends StatelessWidget {
         expect(result.contains('TapirPlugin.install();'), isTrue);
       },
     );
+
+    group('leftovers from fluttersdk_dusk', () {
+      void seedLegacy() {
+        Directory('${tempDir.path}/bin').createSync(recursive: true);
+        File('${tempDir.path}/bin/dispatcher.dart').writeAsStringSync(
+          "import 'package:fluttersdk_artisan/fluttersdk_artisan.dart';\n"
+          'void main(List<String> args) {}\n',
+        );
+        File('${tempDir.path}/bin/fsa').writeAsStringSync('#!/bin/sh\n');
+        Directory('${tempDir.path}/lib/app/commands')
+            .createSync(recursive: true);
+        File(
+          '${tempDir.path}/lib/app/commands/_index.g.dart',
+        ).writeAsStringSync(
+          "import 'package:fluttersdk_artisan/artisan.dart';\n"
+          'List<ArtisanCommand> get commands => const <ArtisanCommand>[];\n',
+        );
+        File(
+          '${tempDir.path}/lib/app/commands/greet_command.dart',
+        ).writeAsStringSync('class GreetCommand extends ArtisanCommand {}\n');
+        File('${tempDir.path}/.mcp.json').writeAsStringSync(
+          '{"mcpServers": {"fluttersdk": {"command": "./bin/fsa"}}}',
+        );
+      }
+
+      test('legacyDuskLeftovers names every leftover and nothing on a clean '
+          'project', () {
+        _seedProject(tempDir, mainDartContents: 'void main() {}\n');
+        expect(TapirInstallCommand.legacyDuskLeftovers(tempDir.path), isEmpty);
+
+        seedLegacy();
+        final List<String> found = TapirInstallCommand.legacyDuskLeftovers(
+          tempDir.path,
+        );
+
+        expect(found, hasLength(5));
+        expect(found.join('\n'), contains('bin/dispatcher.dart'));
+        expect(found.join('\n'), contains('bin/fsa'));
+        expect(found.join('\n'), contains('lib/app/commands/_index.g.dart'));
+        expect(found.join('\n'), contains('greet_command.dart'));
+        expect(found.join('\n'), contains('.mcp.json'));
+      });
+
+      test('a dowel dispatcher and a dowel .mcp.json are not leftovers', () {
+        _seedProject(tempDir, mainDartContents: 'void main() {}\n');
+        Directory('${tempDir.path}/bin').createSync();
+        File('${tempDir.path}/bin/dispatcher.dart')
+            .writeAsStringSync("import 'package:dowel/dowel.dart';\n");
+        File(
+          '${tempDir.path}/.mcp.json',
+        ).writeAsStringSync('{"mcpServers": {"dowel": {"command": "dart"}}}');
+
+        expect(TapirInstallCommand.legacyDuskLeftovers(tempDir.path), isEmpty);
+      });
+
+      test('the command index dowel generates is not a leftover', () {
+        _seedProject(tempDir, mainDartContents: 'void main() {\n}\n');
+        Directory('${tempDir.path}/lib/app/commands')
+            .createSync(recursive: true);
+        File('${tempDir.path}/lib/app/commands/_index.g.dart')
+            .writeAsStringSync(
+              '// AUTO-GENERATED: DO NOT EDIT.\n'
+              "import 'package:dowel/dowel.dart';\n"
+              'List<DowelCommand> get commands => const <DowelCommand>[];\n',
+            );
+
+        expect(TapirInstallCommand.legacyDuskLeftovers(tempDir.path), isEmpty);
+      });
+
+      test('a command index importing fluttersdk_artisan or naming a removed '
+          'class is a leftover', () {
+        _seedProject(tempDir, mainDartContents: 'void main() {\n}\n');
+        Directory('${tempDir.path}/lib/app/commands')
+            .createSync(recursive: true);
+        final File index = File(
+          '${tempDir.path}/lib/app/commands/_index.g.dart',
+        );
+
+        for (final String source in <String>[
+          "import 'package:fluttersdk_artisan/artisan.dart';\n",
+          "import 'package:fluttersdk_dusk/fluttersdk_dusk.dart';\n",
+          'List<ArtisanCommand> get commands => const <ArtisanCommand>[];\n',
+        ]) {
+          index.writeAsStringSync(source);
+
+          expect(
+            TapirInstallCommand.legacyDuskLeftovers(tempDir.path),
+            <String>['lib/app/commands/_index.g.dart: delete it'],
+            reason: source,
+          );
+        }
+      });
+
+      test('tapir:install prints what to delete and the commands to run, and '
+          'still wires main.dart', () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+        );
+        seedLegacy();
+        TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+        TapirInstallCommand.pubspecPathResolver = () =>
+            '${tempDir.path}/pubspec.yaml';
+        final output = BufferedOutput();
+
+        final exit = await TapirInstallCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
+
+        expect(exit, equals(0));
+        expect(output.content, contains('fluttersdk_dusk'));
+        expect(output.content, contains('bin/fsa'));
+        expect(output.content, contains('dart run dowel install'));
+        expect(output.content, contains('dart run dowel commands:refresh'));
+        expect(output.content, contains('dart run tapir tapir:install'));
+        expect(
+          File(mainDartPath).readAsStringSync(),
+          contains('TapirPlugin.install();'),
+        );
+      });
+
+      test(
+        'an unreadable .mcp.json warns and the install still succeeds',
+        () async {
+          final mainDartPath = _seedProject(
+            tempDir,
+            mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+          );
+          File('${tempDir.path}/.mcp.json').writeAsBytesSync(<int>[0xff, 0xfe]);
+          TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+          TapirInstallCommand.pubspecPathResolver = () =>
+              '${tempDir.path}/pubspec.yaml';
+          final output = BufferedOutput();
+
+          final exit = await TapirInstallCommand().handle(
+            DowelContext.bare(MapInput(const {}), output),
+          );
+
+          expect(exit, equals(0));
+          expect(
+            output.content,
+            contains('Could not check for fluttersdk_dusk'),
+          );
+          expect(
+            File(mainDartPath).readAsStringSync(),
+            contains('TapirPlugin.install();'),
+          );
+        },
+      );
+
+      test('a clean project prints no migration notice', () async {
+        final mainDartPath = _seedProject(
+          tempDir,
+          mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+        );
+        TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+        TapirInstallCommand.pubspecPathResolver = () =>
+            '${tempDir.path}/pubspec.yaml';
+        final output = BufferedOutput();
+
+        await TapirInstallCommand().handle(
+          DowelContext.bare(MapInput(const {}), output),
+        );
+
+        expect(output.content, isNot(contains('fluttersdk_dusk')));
+      });
+    });
 
     test('chained Phase 2 skips dowel install when bin/dispatcher.dart '
         'already exists (idempotent re-run)', () async {

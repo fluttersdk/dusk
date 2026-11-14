@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_focus.dart';
 import 'package:tapir/src/ref_registry.dart';
+import 'package:tapir/src/utils/error_envelope.dart';
 
 /// Decodes a SUCCESS response payload. Asserts that the response is
 /// success-shaped (`result != null`) before parsing.
@@ -23,13 +24,13 @@ Map<String, dynamic> _decodeResult(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('aiTestFocusHandler', () {
+  group('tapirFocusHandler', () {
     setUp(RefRegistry.resetForTesting);
 
     test(
       '(a) missing ref param returns missing_param error envelope',
       () async {
-        final response = await aiTestFocusHandler(
+        final response = await tapirFocusHandler(
           'ext.tapir.focus',
           <String, String>{},
         );
@@ -42,7 +43,7 @@ void main() {
     );
 
     test('(b) empty ref param returns missing_param error envelope', () async {
-      final response = await aiTestFocusHandler(
+      final response = await tapirFocusHandler(
         'ext.tapir.focus',
         const <String, String>{'ref': ''},
       );
@@ -51,7 +52,7 @@ void main() {
     });
 
     test('(c) unknown ref token returns not-found error envelope', () async {
-      final response = await aiTestFocusHandler(
+      final response = await tapirFocusHandler(
         'ext.tapir.focus',
         const <String, String>{'ref': 'e9999'},
       );
@@ -94,7 +95,7 @@ void main() {
       );
       final RenderBox box = element.findRenderObject()! as RenderBox;
       final Rect rect = box.localToGlobal(Offset.zero) & box.size;
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: rect,
         element: element,
         groupId: 'g',
@@ -104,7 +105,7 @@ void main() {
       // Don't await the handler directly — its internal
       // `await WidgetsBinding.instance.endOfFrame` blocks until a frame
       // pumps, and `flutter_test`'s FakeAsync only advances on tester.pump.
-      final future = aiTestFocusHandler('ext.tapir.focus', <String, String>{
+      final future = tapirFocusHandler('ext.tapir.focus', <String, String>{
         'ref': ref,
       });
       await tester.pump(const Duration(milliseconds: 50));
@@ -129,23 +130,27 @@ void main() {
       final Element element = tester.element(find.byType(SizedBox));
       final RenderBox box = element.findRenderObject()! as RenderBox;
       final Rect rect = box.localToGlobal(Offset.zero) & box.size;
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: rect,
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final response = await aiTestFocusHandler(
+      final response = await tapirFocusHandler(
         'ext.tapir.focus',
         <String, String>{'ref': ref},
       );
       expect(response.result, isNull);
       expect(response.errorDetail ?? '', contains('no Focus ancestor'));
+      expect(
+        parseEnvelopeFromErrorDetail(response.errorDetail!)!['type'],
+        'refused',
+      );
     });
   });
 
-  group('aiTestBlurHandler', () {
+  group('tapirBlurHandler', () {
     setUp(RefRegistry.resetForTesting);
 
     testWidgets('(a) blurs the primary focus when one exists', (
@@ -173,7 +178,7 @@ void main() {
       await tester.pump();
       expect(FocusManager.instance.primaryFocus, equals(node));
 
-      final future = aiTestBlurHandler(
+      final future = tapirBlurHandler(
         'ext.tapir.blur',
         const <String, String>{},
       );
@@ -196,7 +201,7 @@ void main() {
       // No widget called requestFocus; primaryFocus may still be a synthetic
       // root node depending on the test binding. The handler always reports
       // a stable shape — the test asserts only on the envelope keys.
-      final future = aiTestBlurHandler(
+      final future = tapirBlurHandler(
         'ext.tapir.blur',
         const <String, String>{},
       );

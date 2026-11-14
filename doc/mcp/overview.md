@@ -49,9 +49,9 @@ alphabetically; each link jumps to the per-tool entry in [tool-reference.md](too
 | [`tapir_clear`](tool-reference.md#tapir_clear) | Empty the `TextEditingController` of a resolved text field. |
 | [`tapir_close_app`](tool-reference.md#tapir_close_app) | Request a graceful shutdown via `SystemNavigator.pop()`. |
 | [`tapir_console`](tool-reference.md#tapir_console) | Read recent log entries: tapir's `debugPrint` capture, plus crumbs when it is wired. |
-| [`tapir_dblclick`](tool-reference.md#tapir_dblclick) | Double-click a widget by ref. |
 | [`tapir_device_profile`](tool-reference.md#tapir_device_profile) | Emulate a named device profile via CDP. |
 | [`tapir_dismiss_modals`](tool-reference.md#tapir_dismiss_modals) | Pop every modal route above the first persistent route. |
+| [`tapir_double_click`](tool-reference.md#tapir_double_click) | Double-click a widget by ref. |
 | [`tapir_drag`](tool-reference.md#tapir_drag) | Drag from one widget to another by ref. |
 | [`tapir_evaluate`](tool-reference.md#tapir_evaluate) | Evaluate a Dart expression in the running isolate. |
 | [`tapir_exceptions`](tool-reference.md#tapir_exceptions) | Read recent exceptions: tapir's `FlutterError` capture, plus crumbs when it is wired. |
@@ -78,7 +78,7 @@ alphabetically; each link jumps to the per-tool entry in [tool-reference.md](too
 | [`tapir_screenshot`](tool-reference.md#tapir_screenshot) | Capture a screenshot of the running app. |
 | [`tapir_scroll`](tool-reference.md#tapir_scroll) | Scroll a Scrollable widget by ref. |
 | [`tapir_select_option`](tool-reference.md#tapir_select_option) | Select an option in a DropdownButton. |
-| [`tapir_set_checkbox`](tool-reference.md#tapir_set_checkbox) | Read the checked state from Semantics and tap only when it differs. |
+| [`tapir_set_checkbox`](tool-reference.md#tapir_set_checkbox) | Read the checked state from Semantics and, only when it differs, gate and tap the control. |
 | [`tapir_snap`](tool-reference.md#tapir_snap) | Capture a YAML Semantics snapshot with `e<N>` refs. |
 | [`tapir_tap`](tool-reference.md#tapir_tap) | Tap a widget by ref. |
 | [`tapir_triple_click`](tool-reference.md#tapir_triple_click) | Fire three primary clicks (~100ms apart). |
@@ -103,8 +103,8 @@ dispatch path. Tapir uses two:
   Service. The handler runs inside the app isolate and returns a `ServiceExtensionResponse`.
 - **`dowel:tapir:*`.** Dispatched in-process by the MCP server via the dowel
   registry, executing the matching CLI command: `tapir_hot_reload_and_snap`
-  (`tapir:hot_reload_and_snap`), `tapir_resize_viewport` (`tapir:resize`),
-  `tapir_device_profile` (`tapir:device`), `tapir_perf_run` (`tapir:perf_run`),
+  (`tapir:hot_reload_and_snap`), `tapir_resize_viewport` (`tapir:resize_viewport`),
+  `tapir_device_profile` (`tapir:device_profile`), `tapir_perf_run` (`tapir:perf_run`),
   `tapir_perf_compare` (`tapir:perf_compare`), `tapir_perf_trace` (`tapir:perf_trace`) and
   `tapir_run` (`tapir:run`). `tapir_hot_reload_and_snap` reloads the app and then reads it back, which
   from inside the target isolate would deadlock. It reloads by writing `r` to the `flutter run`
