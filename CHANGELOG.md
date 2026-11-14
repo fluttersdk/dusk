@@ -8,6 +8,8 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-14
+
 ### Added
 
 - **`TapirPlugin.isDisabled`.** Whether the build set `--dart-define=TAPIR_DISABLE=1` (or `true`, `yes`), read once from the define. `install()` returned early with no signal, so an integration went on installing its watchers and perf hooks around a tapir that registered nothing; it can now check the same flag `install()` does. (`lib/src/tapir_plugin.dart`)
