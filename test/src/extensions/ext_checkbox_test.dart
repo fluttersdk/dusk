@@ -658,5 +658,72 @@ void main() {
         );
       },
     );
+
+    // -------------------------------------------------------------------------
+    // (p) Inside a merged group the ref names the group: Flutter folds the
+    //     checked flag of the sibling into the group's node, so the ancestor's
+    //     own flags cannot be told apart from it. A tap that changes nothing
+    //     is reported as `verified: false`, never as success.
+    // -------------------------------------------------------------------------
+
+    _testWithSemantics(
+      '(p) a ref inside a merged group reads the group and reports an '
+      'unverified tap',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        const Key decorationKey = ValueKey<String>('decoration');
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: MergeSemantics(
+              child: Column(
+                children: <Widget>[
+                  const SizedBox(key: decorationKey, width: 40, height: 40),
+                  Semantics(
+                    checked: true,
+                    child: const SizedBox(width: 40, height: 40),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byKey(decorationKey));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = RefRegistry.registerForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final future = aiTestSetCheckboxHandler(
+          'ext.tapir.set_checkbox',
+          <String, String>{'ref': ref, 'value': 'false'},
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        // The group reads as checked, so asking for unchecked taps once; the
+        // decoration cannot toggle anything, and the read-back says so.
+        expect(response.result, isNotNull);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['previousValue'], isTrue);
+        expect(decoded['toggled'], isTrue);
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['before'], isTrue);
+        expect(effect['after'], isTrue);
+        expect(effect['verified'], isFalse);
+      },
+    );
   });
 }
