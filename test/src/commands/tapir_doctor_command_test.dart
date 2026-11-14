@@ -1438,6 +1438,38 @@ Future<void> main() async {
         'bin/fsa: delete it',
       ]);
     });
+
+    test('WARN naming the file when the scan cannot read it, never "none '
+        'found", and the doctor still finishes', () async {
+      final Directory tmp = Directory.systemTemp.createTempSync(
+        'tapir_doctor_unreadable_',
+      );
+      final Directory originalCwd = Directory.current;
+      addTearDown(() {
+        Directory.current = originalCwd;
+        tmp.deleteSync(recursive: true);
+      });
+      // Invalid UTF-8 makes readAsStringSync throw on every platform, where
+      // a permission bit would not stop a root user.
+      File('${tmp.path}/.mcp.json').writeAsBytesSync(<int>[0xff, 0xfe, 0xfd]);
+      Directory.current = tmp;
+      TapirDoctorCommand.legacyLeftoversProbe =
+          TapirDoctorCommand.defaultLegacyLeftoversProbe;
+
+      final output = BufferedOutput();
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, equals(0), reason: 'WARN never fails the command');
+      expect(output.content, contains('hot-restart staleness'));
+      expect(
+        output.content,
+        contains('fluttersdk_dusk leftovers: could not inspect'),
+      );
+      expect(output.content, contains('.mcp.json'));
+      expect(output.content, isNot(contains('none found')));
+    });
   });
 
   group('TapirDoctorCommand.defaultCdpSessionProbe on a hijacked port', () {

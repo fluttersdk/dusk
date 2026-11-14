@@ -1040,8 +1040,12 @@ class MyApp extends StatelessWidget {
         File('${tempDir.path}/bin/fsa').writeAsStringSync('#!/bin/sh\n');
         Directory('${tempDir.path}/lib/app/commands')
             .createSync(recursive: true);
-        File('${tempDir.path}/lib/app/commands/_index.g.dart')
-            .writeAsStringSync('// generated\n');
+        File(
+          '${tempDir.path}/lib/app/commands/_index.g.dart',
+        ).writeAsStringSync(
+          "import 'package:fluttersdk_artisan/artisan.dart';\n"
+          'List<ArtisanCommand> get commands => const <ArtisanCommand>[];\n',
+        );
         File(
           '${tempDir.path}/lib/app/commands/greet_command.dart',
         ).writeAsStringSync('class GreetCommand extends ArtisanCommand {}\n');
@@ -1080,6 +1084,44 @@ class MyApp extends StatelessWidget {
         expect(TapirInstallCommand.legacyDuskLeftovers(tempDir.path), isEmpty);
       });
 
+      test('the command index dowel generates is not a leftover', () {
+        _seedProject(tempDir, mainDartContents: 'void main() {\n}\n');
+        Directory('${tempDir.path}/lib/app/commands')
+            .createSync(recursive: true);
+        File('${tempDir.path}/lib/app/commands/_index.g.dart')
+            .writeAsStringSync(
+              '// AUTO-GENERATED: DO NOT EDIT.\n'
+              "import 'package:dowel/dowel.dart';\n"
+              'List<DowelCommand> get commands => const <DowelCommand>[];\n',
+            );
+
+        expect(TapirInstallCommand.legacyDuskLeftovers(tempDir.path), isEmpty);
+      });
+
+      test('a command index importing fluttersdk_artisan or naming a removed '
+          'class is a leftover', () {
+        _seedProject(tempDir, mainDartContents: 'void main() {\n}\n');
+        Directory('${tempDir.path}/lib/app/commands')
+            .createSync(recursive: true);
+        final File index = File(
+          '${tempDir.path}/lib/app/commands/_index.g.dart',
+        );
+
+        for (final String source in <String>[
+          "import 'package:fluttersdk_artisan/artisan.dart';\n",
+          "import 'package:fluttersdk_dusk/fluttersdk_dusk.dart';\n",
+          'List<ArtisanCommand> get commands => const <ArtisanCommand>[];\n',
+        ]) {
+          index.writeAsStringSync(source);
+
+          expect(
+            TapirInstallCommand.legacyDuskLeftovers(tempDir.path),
+            <String>['lib/app/commands/_index.g.dart: delete it'],
+            reason: source,
+          );
+        }
+      });
+
       test('tapir:install prints what to delete and the commands to run, and '
           'still wires main.dart', () async {
         final mainDartPath = _seedProject(
@@ -1107,6 +1149,35 @@ class MyApp extends StatelessWidget {
           contains('TapirPlugin.install();'),
         );
       });
+
+      test(
+        'an unreadable .mcp.json warns and the install still succeeds',
+        () async {
+          final mainDartPath = _seedProject(
+            tempDir,
+            mainDartContents: 'void main() {\n  runApp(MyApp());\n}\n',
+          );
+          File('${tempDir.path}/.mcp.json').writeAsBytesSync(<int>[0xff, 0xfe]);
+          TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+          TapirInstallCommand.pubspecPathResolver = () =>
+              '${tempDir.path}/pubspec.yaml';
+          final output = BufferedOutput();
+
+          final exit = await TapirInstallCommand().handle(
+            DowelContext.bare(MapInput(const {}), output),
+          );
+
+          expect(exit, equals(0));
+          expect(
+            output.content,
+            contains('Could not check for fluttersdk_dusk'),
+          );
+          expect(
+            File(mainDartPath).readAsStringSync(),
+            contains('TapirPlugin.install();'),
+          );
+        },
+      );
 
       test('a clean project prints no migration notice', () async {
         final mainDartPath = _seedProject(

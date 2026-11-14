@@ -159,17 +159,7 @@ Future<developer.ServiceExtensionResponse> tapirSetCheckboxHandler(
   // 4. Idempotent: no-op when the current value already matches the target.
   //    A mixed control (null) matches neither target, so it is always tapped.
   if (currentValue == targetValue) {
-    return tapirResult(<String, dynamic>{
-      'ref': ref,
-      'previousValue': currentValue,
-      'value': currentValue,
-      'toggled': false,
-      'effect': checkedEffect(
-        expected: targetValue,
-        before: currentValue,
-        after: currentValue,
-      ),
-    });
+    return _untoggled(ref, targetValue, before: currentValue);
   }
 
   // 5. The gate the other tapping verbs run, on the control the tap is for:
@@ -192,7 +182,14 @@ Future<developer.ServiceExtensionResponse> tapirSetCheckboxHandler(
     );
   }
 
-  // 6. Inject a tap to toggle the checkbox. Reuse the same
+  // 6. Read the state again: the gate awaits frames, and an app that set
+  //    the control to the target meanwhile would have it flipped back.
+  final bool? gatedValue = _readCheckedState(entry).value;
+  if (gatedValue == targetValue) {
+    return _untoggled(ref, targetValue, before: currentValue);
+  }
+
+  // 7. Inject a tap to toggle the checkbox. Reuse the same
   //    PointerDownEvent+delay+PointerUpEvent sequence as ext_pointer.dart
   //    (duplicate here to keep the checkbox module self-contained and avoid
   //    a circular import on the private _injectTap function). The point is
@@ -222,7 +219,7 @@ Future<developer.ServiceExtensionResponse> tapirSetCheckboxHandler(
     );
   }
 
-  // 7. Re-read the widget rather than reporting the value we asked for. A
+  // 8. Re-read the widget rather than reporting the value we asked for. A
   //    control whose parent rejects the change, or one whose tap landed on
   //    an overlay, keeps its old state, and `value: targetValue` would call
   //    that a success.
@@ -246,6 +243,23 @@ Future<developer.ServiceExtensionResponse> tapirSetCheckboxHandler(
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
+
+/// The no-tap answer for a control that already holds [target]; [before] is
+/// the state first read, which differs from [target] when the app set the
+/// control while the gate ran.
+developer.ServiceExtensionResponse _untoggled(
+  String ref,
+  bool target, {
+  required bool? before,
+}) {
+  return tapirResult(<String, dynamic>{
+    'ref': ref,
+    'previousValue': before,
+    'value': target,
+    'toggled': false,
+    'effect': checkedEffect(expected: target, before: before, after: target),
+  });
+}
 
 /// The values that switch a gate check off, as the other gated verbs read
 /// them.

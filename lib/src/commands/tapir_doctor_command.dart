@@ -573,7 +573,16 @@ class TapirDoctorCommand extends DowelCommand {
 
   void _renderLegacyLeftovers(DowelContext ctx) {
     const String label = 'fluttersdk_dusk leftovers';
-    final List<String> leftovers = legacyLeftoversProbe();
+    final List<String> leftovers;
+    try {
+      leftovers = legacyLeftoversProbe();
+    } on FileSystemException catch (e) {
+      // A scan that stopped part way has not shown the project is clean.
+      ctx.output.warning(
+        '$label: could not inspect ${e.path ?? 'the project'}: ${e.message}',
+      );
+      return;
+    }
     if (leftovers.isEmpty) {
       ctx.output.success('$label: none found');
       return;

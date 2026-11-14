@@ -90,9 +90,17 @@ class TapirInstallCommand extends DowelCommand {
 
     // A project moving from fluttersdk_dusk keeps its old dispatcher, which
     // also makes Phase 2 skip `dowel install`; say what to clear first.
-    final List<String> leftovers = legacyDuskLeftovers(
-      File(pubspecPathResolver()).parent.path,
-    );
+    // The scan is advisory: a file it cannot read must not stop the install
+    // after main.dart was patched.
+    List<String> leftovers = const <String>[];
+    try {
+      leftovers = legacyDuskLeftovers(File(pubspecPathResolver()).parent.path);
+    } on FileSystemException catch (e) {
+      ctx.output.warning(
+        'Could not check for fluttersdk_dusk leftovers: '
+        '${e.path ?? e.message}: ${e.message}',
+      );
+    }
     if (leftovers.isNotEmpty) {
       ctx.output.warning(
         'Leftovers from fluttersdk_dusk found:\n'
@@ -398,13 +406,30 @@ class TapirInstallCommand extends DowelCommand {
     }
   }
 
+  /// Source the old packages generated: an import of `fluttersdk_artisan` or
+  /// `fluttersdk_dusk`, or a name `fluttersdk_artisan` exported that dowel
+  /// renamed. The list is dowel's own leftover check, so the two agree on a
+  /// command index; a class of the app's own that only starts with
+  /// `Artisan` is not one.
+  static final RegExp _legacyReference = RegExp(
+    r'package:fluttersdk_(?:artisan|dusk)/|\b(?:'
+    r'ArtisanApplication|ArtisanCommand|ArtisanCommandCollisionException|'
+    r'ArtisanContext|ArtisanGeneratorCommand|ArtisanInput|'
+    r'ArtisanInstallCommand|ArtisanMcpToolCollisionException|ArtisanOutput|'
+    r'ArtisanRegistry|ArtisanServiceProvider|InstallArtisanCommand|runArtisan'
+    r')\b',
+  );
+
   /// What a `fluttersdk_dusk` install left in [projectRoot] that stops the
   /// dowel setup working, one line per item naming the file: a
   /// `bin/dispatcher.dart` that imports `fluttersdk_artisan` (Phase 2 keeps
-  /// it, and `bin/` no longer analyses), `bin/fsa`,
-  /// `lib/app/commands/_index.g.dart`, an app command still written against
-  /// the `Artisan*` classes, and the `fluttersdk` server in `.mcp.json`.
+  /// it, and `bin/` no longer analyses), `bin/fsa`, a
+  /// `lib/app/commands/_index.g.dart` that still imports an old package or
+  /// names a class it exported, an app command still written against the
+  /// `Artisan*` classes, and the `fluttersdk` server in `.mcp.json`.
   /// Empty on a clean project. `tapir:doctor` reports the same list.
+  ///
+  /// @throws FileSystemException When a file it inspects cannot be read.
   static List<String> legacyDuskLeftovers(String projectRoot) {
     final List<String> found = <String>[];
     final String root = Directory(projectRoot).absolute.path;
@@ -417,7 +442,11 @@ class TapirInstallCommand extends DowelCommand {
     if (File('$root/bin/fsa').existsSync()) {
       found.add('bin/fsa: delete it');
     }
-    if (File('$root/lib/app/commands/_index.g.dart').existsSync()) {
+    // `dowel install` and `commands:refresh` write this file too, so only a
+    // copy the old packages generated is stale.
+    final File index = File('$root/lib/app/commands/_index.g.dart');
+    if (index.existsSync() &&
+        _legacyReference.hasMatch(index.readAsStringSync())) {
       found.add('lib/app/commands/_index.g.dart: delete it');
     }
 

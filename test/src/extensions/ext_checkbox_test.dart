@@ -93,6 +93,69 @@ void main() {
       },
     );
 
+    _testWithSemantics(
+      'a checkbox the app sets to the target during the gate is not tapped',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        bool checkValue = false;
+        int changes = 0;
+        late StateSetter setOuterState;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) {
+                setOuterState = setState;
+                return Scaffold(
+                  body: Checkbox(
+                    value: checkValue,
+                    onChanged: (v) => setState(() {
+                      changes++;
+                      checkValue = v ?? false;
+                    }),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Checkbox));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = registerRefForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        // The handler reads `false` synchronously, then awaits the gate's
+        // frames; the app ticks the box before the first of them.
+        final Future<developer.ServiceExtensionResponse> future =
+            tapirSetCheckboxHandler('ext.tapir.set_checkbox', <String, String>{
+              'ref': ref,
+              'value': 'true',
+            });
+        setOuterState(() => checkValue = true);
+        final response = await _drive(tester, future);
+
+        expect(changes, 0, reason: 'a tap would have unticked it');
+        expect(checkValue, isTrue);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['toggled'], isFalse);
+        expect(decoded['previousValue'], isFalse);
+        expect(decoded['value'], isTrue);
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['verified'], isTrue);
+        expect(effect['after'], isTrue);
+      },
+    );
+
     // -------------------------------------------------------------------------
     // (b) set-false-on-true — checkbox starts checked, toggled to unchecked.
     // -------------------------------------------------------------------------

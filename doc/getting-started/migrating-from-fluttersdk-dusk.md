@@ -51,10 +51,11 @@ Run them in this order. `tapir:install` can run at any point and prints what is 
    dart run dowel install
    dart run dowel commands:refresh
    dart run tapir tapir:install
+   dart run dowel plugin:install <package>
    dart run tapir mcp:install
    ```
 
-   `dowel install` writes the dispatcher, the barrels and `bin/dowel`, `commands:refresh` registers your commands again, and `tapir:install` patches `lib/main.dart` and registers the plugin. `mcp:install` writes the `dowel` entry; reconnect your MCP client afterwards, because a stdio server is not reloaded on its own.
+   `dowel install` writes the dispatcher, the barrels and `bin/dowel`, `commands:refresh` registers your commands again, and `tapir:install` patches `lib/main.dart` and registers the plugin. Step 2 deleted `.dowel/plugins.json`, so the barrel now registers tapir alone: run `dart run dowel plugin:install <package>` once for every other plugin the app uses, or its commands are gone. `mcp:install` writes the `dowel` entry; reconnect your MCP client afterwards, because a stdio server is not reloaded on its own.
 7. **Check the result.**
 
    ```bash
@@ -75,7 +76,7 @@ A Magic app has one more step: see [Magic Apps](#magic-apps).
 |:---|:---|
 | `bin/dispatcher.dart (imports fluttersdk_artisan): delete it` | The file exists and mentions `fluttersdk_artisan`. |
 | `bin/fsa: delete it` | The file exists. |
-| `lib/app/commands/_index.g.dart: delete it` | The file exists. |
+| `lib/app/commands/_index.g.dart: delete it` | The file imports `package:fluttersdk_artisan/` or `package:fluttersdk_dusk/`, or names a class the old package exported (`ArtisanCommand`, `ArtisanContext` and the rest dowel renamed) or `runArtisan`. The index `dowel install` and `commands:refresh` write is not reported. |
 | `<path> (uses Artisan* classes): port it to the Dowel* classes` | A `.dart` file under `lib/app/commands/` (other than the index) mentions an `Artisan` class. One line per file. |
 | `.mcp.json: delete the "fluttersdk" server entry` | The file has a `"fluttersdk"` key. |
 

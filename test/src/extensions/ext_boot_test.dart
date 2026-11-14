@@ -1,18 +1,33 @@
 import 'dart:convert';
 import 'dart:developer';
 
+import 'package:flutter/foundation.dart'
+    show DebugPrintCallback, FlutterExceptionHandler;
 import 'package:flutter/semantics.dart' show SemanticsBinding;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_boot.dart';
 import 'package:tapir/src/ref_registry.dart';
+import 'package:tapir/src/tapir_error_capture.dart';
+import 'package:tapir/src/tapir_log_capture.dart';
 import 'package:tapir/src/tapir_plugin.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('ext.tapir.boot_id', () {
+    // install() chains FlutterError.onError and debugPrint into the capture
+    // buffers; put the originals back so no later test inherits them.
+    final FlutterExceptionHandler? originalOnError = FlutterError.onError;
+    final DebugPrintCallback originalDebugPrint = debugPrint;
+    tearDown(() {
+      uninstallErrorCapture();
+      uninstallLogCapture();
+      FlutterError.onError = originalOnError;
+      debugPrint = originalDebugPrint;
+    });
+
     Future<Map<String, dynamic>> bootPayload() async {
       final ServiceExtensionResponse response = await tapirBootIdHandler(
         'ext.tapir.boot_id',
