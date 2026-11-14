@@ -13,7 +13,7 @@ void main() {
     setUp(() {
       // Reset the reader to the default (empty list) and clear the in-package
       // buffer so tests start from a known state.
-      recentLogsReader = ({int limit = 50, String? minLevel}) => const [];
+      recentLogsReader = (ConsoleRequest request) => const [];
       resetCapturedLogsForTesting();
     });
 
@@ -24,7 +24,7 @@ void main() {
     // -------------------------------------------------------------------------
 
     test('(a) default reader returns empty list and count 0', () async {
-      final response = await aiTestConsoleHandler(
+      final response = await tapirConsoleHandler(
         'ext.tapir.console',
         <String, String>{},
       );
@@ -46,13 +46,13 @@ void main() {
       () async {
         int? capturedLimit;
         String? capturedMinLevel;
-        recentLogsReader = ({int limit = 50, String? minLevel}) {
-          capturedLimit = limit;
-          capturedMinLevel = minLevel;
+        recentLogsReader = (ConsoleRequest request) {
+          capturedLimit = request.limit;
+          capturedMinLevel = request.minLevel;
           return const [];
         };
 
-        await aiTestConsoleHandler('ext.tapir.console', <String, String>{});
+        await tapirConsoleHandler('ext.tapir.console', <String, String>{});
 
         expect(capturedLimit, equals(50));
         expect(capturedMinLevel, isNull);
@@ -65,12 +65,12 @@ void main() {
 
     test('(c) custom limit param forwarded to reader', () async {
       int? capturedLimit;
-      recentLogsReader = ({int limit = 50, String? minLevel}) {
-        capturedLimit = limit;
+      recentLogsReader = (ConsoleRequest request) {
+        capturedLimit = request.limit;
         return const [];
       };
 
-      await aiTestConsoleHandler('ext.tapir.console', <String, String>{
+      await tapirConsoleHandler('ext.tapir.console', <String, String>{
         'limit': '10',
       });
 
@@ -83,12 +83,12 @@ void main() {
 
     test('(d) minLevel param forwarded to reader', () async {
       String? capturedMinLevel;
-      recentLogsReader = ({int limit = 50, String? minLevel}) {
-        capturedMinLevel = minLevel;
+      recentLogsReader = (ConsoleRequest request) {
+        capturedMinLevel = request.minLevel;
         return const [];
       };
 
-      await aiTestConsoleHandler('ext.tapir.console', <String, String>{
+      await tapirConsoleHandler('ext.tapir.console', <String, String>{
         'minLevel': 'WARNING',
       });
 
@@ -102,7 +102,7 @@ void main() {
     test(
       '(e) reader returning logs: response carries correct shape and count',
       () async {
-        recentLogsReader = ({int limit = 50, String? minLevel}) => [
+        recentLogsReader = (ConsoleRequest request) => [
           {
             'level': 'INFO',
             'message': 'hello',
@@ -117,7 +117,7 @@ void main() {
           },
         ];
 
-        final response = await aiTestConsoleHandler(
+        final response = await tapirConsoleHandler(
           'ext.tapir.console',
           <String, String>{},
         );
@@ -144,7 +144,7 @@ void main() {
   group('ext_console — in-package capture (crumbs absent)', () {
     setUp(() {
       // Keep crumbs reader empty so it cannot pollute assertions.
-      recentLogsReader = ({int limit = 50, String? minLevel}) => const [];
+      recentLogsReader = (ConsoleRequest request) => const [];
       resetCapturedLogsForTesting();
     });
 
@@ -161,7 +161,7 @@ void main() {
 
         debugPrint('captured without crumbs');
 
-        final response = await aiTestConsoleHandler(
+        final response = await tapirConsoleHandler(
           'ext.tapir.console',
           <String, String>{},
         );
@@ -188,7 +188,7 @@ void main() {
 
       debugPrint('info level message');
 
-      final response = await aiTestConsoleHandler(
+      final response = await tapirConsoleHandler(
         'ext.tapir.console',
         <String, String>{'minLevel': 'WARNING'},
       );
@@ -225,7 +225,7 @@ void main() {
         debugPrint('shared message');
 
         // Crumbs reader returns the same entry (same level+message+logger).
-        recentLogsReader = ({int limit = 50, String? minLevel}) => [
+        recentLogsReader = (ConsoleRequest request) => [
           <String, dynamic>{
             'level': 'INFO',
             'message': 'shared message',
@@ -234,7 +234,7 @@ void main() {
           },
         ];
 
-        final response = await aiTestConsoleHandler(
+        final response = await tapirConsoleHandler(
           'ext.tapir.console',
           <String, String>{},
         );
@@ -264,7 +264,7 @@ void main() {
         debugPrint('from debugPrint');
 
         // Crumbs contributes a distinct entry.
-        recentLogsReader = ({int limit = 50, String? minLevel}) => [
+        recentLogsReader = (ConsoleRequest request) => [
           <String, dynamic>{
             'level': 'WARNING',
             'message': 'from crumbs',
@@ -273,7 +273,7 @@ void main() {
           },
         ];
 
-        final response = await aiTestConsoleHandler(
+        final response = await tapirConsoleHandler(
           'ext.tapir.console',
           <String, String>{},
         );

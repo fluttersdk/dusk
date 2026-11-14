@@ -21,7 +21,7 @@ import 'package:flutter/widgets.dart';
 ///   to call `requestKeyboard()` after the pointer events (Step 1 spike
 ///   verified the chain produces `hasPrimaryFocus == true`).
 /// * [groupId] — identifies the snapshot (or `find_by_*` call) that minted
-///   the token. Disposing the group via [RefRegistry.disposeGroup] removes
+///   the token. Disposing the group via [disposeRefGroup] removes
 ///   every entry under it atomically.
 ///
 /// **Inspection fields** (snapshot enrichment / debugging):
@@ -196,7 +196,7 @@ final class RefBinding {
 /// newer snapshot.
 ///
 /// Tokens are scoped to a `groupId` (e.g. `snapshot-1700000000000`). The
-/// owning extension calls [disposeGroup] when the group is superseded
+/// owning extension calls [disposeRefGroup] when the group is superseded
 /// (next snapshot, or page navigation) — every entry **whose current
 /// `groupId` matches** is removed atomically.
 ///
@@ -231,7 +231,7 @@ class RefRegistry {
   /// SemanticsNode.id → token. Powers the cache-hit semantics of
   /// [register]: the same node always maps to the same token regardless
   /// of which snapshot's `groupId` minted it. Cleared by [disposeAll];
-  /// individual entries are removed by [disposeGroup] when the entry's
+  /// individual entries are removed by [disposeRefGroup] when the entry's
   /// current `groupId` matches.
   static final Map<int, String> _byNodeId = <int, String>{};
 
@@ -395,47 +395,10 @@ class RefRegistry {
     _byNodeId.putIfAbsent(node.id, () => ref);
   }
 
-  /// Removes every entry whose current `groupId` equals [groupId].
-  /// Subsequent [lookup] calls for those tokens return `null`.
-  ///
-  /// Entries that were registered under [groupId] but later refreshed
-  /// (cache hit) by a newer snapshot now carry the newer snapshot's
-  /// groupId — those are NOT removed by this call. This is what lets
-  /// older snapshot ids be disposed without invalidating refs the agent
-  /// is still using.
-  ///
-  /// No-op when no entry currently carries [groupId].
-  static void disposeGroup(String groupId) {
-    // 1. Collect tokens to remove. Iterate before mutation to avoid
-    //    concurrent-modification on the entries map.
-    final List<String> toRemove = <String>[];
-    final List<int> nodeIdsToRemove = <int>[];
-    for (final MapEntry<String, RefEntry> entry in _entries.entries) {
-      if (entry.value.groupId == groupId) {
-        toRemove.add(entry.key);
-      }
-    }
-    // 2. Drop entries and the bindings that relocate them.
-    for (final String token in toRemove) {
-      _entries.remove(token);
-      _bindings.remove(token);
-    }
-    // 3. Drop dedupe-cache mappings whose token is gone. Iterate the
-    //    node-id map separately because entries[X] just disappeared.
-    for (final MapEntry<int, String> entry in _byNodeId.entries) {
-      if (toRemove.contains(entry.value)) {
-        nodeIdsToRemove.add(entry.key);
-      }
-    }
-    for (final int nodeId in nodeIdsToRemove) {
-      _byNodeId.remove(nodeId);
-    }
-  }
-
   /// Removes every entry in the registry and resets the counter.
   ///
   /// Used by tests to reset global state between test cases. Production
-  /// code must call [disposeGroup] for ordinary lifecycle management.
+  /// code must call [disposeRefGroup] for ordinary lifecycle management.
   static void disposeAll() {
     _entries.clear();
     _byNodeId.clear();
@@ -445,25 +408,9 @@ class RefRegistry {
     _queryCounter = 0;
   }
 
-  /// Returns every currently-registered ref token (both `eN` and `qN`).
-  ///
-  /// Used by the fuzzy-match suggestion path in
-  /// `utils/error_envelope.dart#collectSnapshotCandidates` to surface
-  /// "did you mean?" candidates when an action handler receives an unknown
-  /// ref. Order is iteration order of the underlying maps, which is
-  /// stable-insertion in Dart — callers must not rely on it.
-  static Iterable<String> activeRefs() sync* {
-    for (final String token in _entries.keys) {
-      yield token;
-    }
-    for (final String token in _queries.keys) {
-      yield token;
-    }
-  }
-
   /// Returns every token whose current `groupId` equals [groupId].
   ///
-  /// Used by tests to verify [disposeGroup] semantics; production code
+  /// Used by tests to verify [disposeRefGroup] semantics; production code
   /// should look up by token, not iterate.
   static List<String> refsForGroup(String groupId) {
     final List<String> out = <String>[];
@@ -485,27 +432,83 @@ class RefRegistry {
   /// `setUp(RefRegistry.disposeAll)`. Both clear every static.
   @visibleForTesting
   static void resetForTesting() => disposeAll();
-
-  /// Registers an entry directly, bypassing the Semantics walk.
-  ///
-  /// **Test-only.** Provides the same hot-path fields as [register] so
-  /// widget tests for action extensions (tap, type, scroll, …) can
-  /// construct entries without running the snapshot extension.
-  ///
-  /// The returned ref string is identical in format to production refs (`eN`).
-  /// Pass [node] to mirror a snapshot ref, which always carries the
-  /// Semantics node it was minted from.
-  static String registerForTesting({
-    required Rect rect,
-    required Element element,
-    required String groupId,
-    required bool isTextField,
-    SemanticsNode? node,
-  }) => register(
-    rect: rect,
-    element: element,
-    groupId: groupId,
-    isTextField: isTextField,
-    node: node,
-  );
 }
+
+// -----------------------------------------------------------------------------
+// Internal to tapir: top-level, so the barrel's `show RefRegistry` keeps them
+// out of the public API.
+// -----------------------------------------------------------------------------
+
+/// Removes every entry whose current `groupId` equals [groupId].
+/// Subsequent [RefRegistry.lookup] calls for those tokens return `null`.
+///
+/// Entries that were registered under [groupId] but later refreshed
+/// (cache hit) by a newer snapshot now carry the newer snapshot's
+/// groupId; those are NOT removed by this call. This is what lets
+/// older snapshot ids be disposed without invalidating refs the agent
+/// is still using.
+///
+/// No-op when no entry currently carries [groupId].
+void disposeRefGroup(String groupId) {
+  // 1. Collect tokens to remove. Iterate before mutation to avoid
+  //    concurrent-modification on the entries map.
+  final List<String> toRemove = <String>[];
+  final List<int> nodeIdsToRemove = <int>[];
+  for (final MapEntry<String, RefEntry> entry in RefRegistry._entries.entries) {
+    if (entry.value.groupId == groupId) {
+      toRemove.add(entry.key);
+    }
+  }
+  // 2. Drop entries and the bindings that relocate them.
+  for (final String token in toRemove) {
+    RefRegistry._entries.remove(token);
+    RefRegistry._bindings.remove(token);
+  }
+  // 3. Drop dedupe-cache mappings whose token is gone. Iterate the
+  //    node-id map separately because entries[X] just disappeared.
+  for (final MapEntry<int, String> entry in RefRegistry._byNodeId.entries) {
+    if (toRemove.contains(entry.value)) {
+      nodeIdsToRemove.add(entry.key);
+    }
+  }
+  for (final int nodeId in nodeIdsToRemove) {
+    RefRegistry._byNodeId.remove(nodeId);
+  }
+}
+
+/// Returns every currently-registered ref token (both `eN` and `qN`).
+///
+/// Used by the fuzzy-match suggestion path in
+/// `utils/error_envelope.dart#collectSnapshotCandidates` to surface
+/// "did you mean?" candidates when an action handler receives an unknown
+/// ref. Order is iteration order of the underlying maps, which is
+/// stable-insertion in Dart; callers must not rely on it.
+Iterable<String> activeRefTokens() sync* {
+  yield* RefRegistry._entries.keys;
+  yield* RefRegistry._queries.keys;
+}
+
+/// Registers an entry directly, bypassing the Semantics walk.
+///
+/// **Test-only.** Provides the same hot-path fields as
+/// [RefRegistry.register] so widget tests for action extensions (tap, type,
+/// scroll, ...) can construct entries without running the snapshot
+/// extension.
+///
+/// The returned ref string is identical in format to production refs (`eN`).
+/// Pass [node] to mirror a snapshot ref, which always carries the
+/// Semantics node it was minted from.
+@visibleForTesting
+String registerRefForTesting({
+  required Rect rect,
+  required Element element,
+  required String groupId,
+  required bool isTextField,
+  SemanticsNode? node,
+}) => RefRegistry.register(
+  rect: rect,
+  element: element,
+  groupId: groupId,
+  isTextField: isTextField,
+  node: node,
+);

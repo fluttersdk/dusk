@@ -3,7 +3,7 @@ import 'package:dowel/dowel.dart';
 import '../cdp/cdp_client.dart';
 import '../cdp/device_presets.dart';
 
-/// `dowel tapir:device --preset=<name>`: emulate a device profile
+/// `dowel tapir:device_profile --preset=<name>`: emulate a device profile
 /// (viewport, DPR, touch events, user agent) in the running Chrome
 /// instance via the Chrome DevTools Protocol.
 ///
@@ -16,10 +16,10 @@ import '../cdp/device_presets.dart';
 /// The `Emulation.*` overrides belong to the DevTools session that sent them,
 /// and Chrome drops them when this command closes it on exit: only the OS
 /// window bounds (`Browser.setWindowBounds`) outlive the command. A lasting
-/// viewport is `tapir:resize --hold`, run in the background.
-final class TapirDeviceCommand extends DowelCommand {
+/// viewport is `tapir:resize_viewport --hold`, run in the background.
+final class TapirDeviceProfileCommand extends DowelCommand {
   @override
-  String get name => 'tapir:device';
+  String get name => 'tapir:device_profile';
 
   @override
   String get description =>
@@ -47,7 +47,7 @@ final class TapirDeviceCommand extends DowelCommand {
       )
       ..addFlag(
         'reset',
-        help: 'Clear emulation (delegates to tapir:resize --reset semantics).',
+        help: 'Clear emulation (delegates to tapir:resize_viewport --reset semantics).',
         defaultsTo: false,
         negatable: false,
       );
@@ -108,7 +108,7 @@ final class TapirDeviceCommand extends DowelCommand {
       if (preset == null) {
         ctx.output.error(
           "Unknown preset '$presetInput'."
-          ' Run tapir:device --list to see available.',
+          ' Run tapir:device_profile --list to see available.',
         );
         return 1;
       }
@@ -146,7 +146,7 @@ final class TapirDeviceCommand extends DowelCommand {
       ctx.output.warning(
         'The emulation lasts only as long as this command\'s CDP session, '
         'which closes as it exits; only the Chrome window size stays. Run '
-        'tapir:resize --hold in the background for a viewport that lasts '
+        'tapir:resize_viewport --hold in the background for a viewport that lasts '
         'while you drive the app.',
       );
       return 0;

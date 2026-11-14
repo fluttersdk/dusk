@@ -9,6 +9,7 @@ import 'package:wind_kit_diagnostics_contracts/wind_kit_diagnostics_contracts.da
 
 import 'package:tapir/src/tapir_plugin.dart';
 import 'package:tapir/src/extensions/ext_perf.dart';
+import 'package:tapir/src/utils/error_envelope.dart';
 import 'package:tapir/src/utils/perf_insights.dart';
 import 'package:tapir/src/utils/perf_readers.dart';
 
@@ -306,7 +307,12 @@ void main() {
         expect(response.errorDetail, contains('perf_begin'));
         final Map<String, dynamic> detail =
             jsonDecode(response.errorDetail!) as Map<String, dynamic>;
-        expect((detail['envelope'] as Map<String, dynamic>)['type'], isNotNull);
+        expect(
+          (detail['envelope'] as Map<String, dynamic>)['type'],
+          equals('refused'),
+          reason: 'no session is a state tapir will not act on, not a crash',
+        );
+        expect(response.errorCode, kTapirRefusedErrorCode);
       },
     );
 
@@ -1148,18 +1154,18 @@ void main() {
   });
 
   group('semantics receipt', () {
-    tearDown(TapirPlugin.resetSemanticsForTesting);
+    tearDown(resetTapirSemanticsForTesting);
 
     test(
       'perf_end re-acquires a semantics handle a dead driver left released',
       () async {
-        TapirPlugin.acquireSemantics();
+        acquireTapirSemantics();
         await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-        expect(TapirPlugin.releaseSemantics(), isTrue);
+        expect(releaseTapirSemantics(), isTrue);
 
         await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
-        expect(TapirPlugin.semanticsReleased, isFalse);
+        expect(tapirSemanticsReleased, isFalse);
         expect(RendererBinding.instance.semanticsEnabled, isTrue);
       },
     );

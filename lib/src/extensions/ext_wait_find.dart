@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'dart:ui' show CheckedState;
 
-import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../ref_registry.dart';
@@ -16,11 +14,10 @@ import 'package:dowel/dowel.dart';
 // Self-registration entry point
 // ---------------------------------------------------------------------------
 
-/// Registers the `ext.tapir.wait_for`, `ext.tapir.find_by_text`,
-/// `ext.tapir.find_by_label`, and `ext.tapir.wait_for_network_idle` VM Service
-/// extensions.
+/// Registers the `ext.tapir.wait_for`, `ext.tapir.find_by_text` and
+/// `ext.tapir.wait_for_network_idle` VM Service extensions.
 ///
-/// All four extensions help LLM agents synchronise with dynamic UI state
+/// All three extensions help LLM agents synchronise with dynamic UI state
 /// without busy-polling from the MCP client (which adds network round-trip
 /// overhead). The wait loop runs Dart-side so a single RPC call blocks until
 /// the condition is met or the timeout expires.
@@ -29,15 +26,14 @@ import 'package:dowel/dowel.dart';
 /// the [ArgumentError] thrown by [developer.registerExtension] on hot-restart
 /// duplicate registration (V3 plan Stage 3 D12).
 ///
-/// Call this once from the Wave 3 aggregator
-/// (`extensions.dart#registerAllAiTestExtensions`).
+/// Called once from `registerAllTapirExtensions`
+/// (`register_tapir_extensions.dart`).
 void registerWaitFindExtensions() {
-  registerTapirExtension('ext.tapir.wait_for', aiTestWaitForHandler);
-  registerTapirExtension('ext.tapir.find_by_text', aiTestFindByTextHandler);
-  registerTapirExtension('ext.tapir.find_by_label', aiTestFindByLabelHandler);
+  registerTapirExtension('ext.tapir.wait_for', tapirWaitForHandler);
+  registerTapirExtension('ext.tapir.find_by_text', tapirFindByTextHandler);
   registerTapirExtension(
     'ext.tapir.wait_for_network_idle',
-    aiTestWaitForNetworkIdleHandler,
+    tapirWaitForNetworkIdleHandler,
   );
 }
 
@@ -100,7 +96,7 @@ int Function() pendingHttpCountReader = () => 0;
 ///
 /// Exactly one of `text`, `textGone`, or `expression` must be present;
 /// returns an error response if none are provided.
-Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
+Future<developer.ServiceExtensionResponse> tapirWaitForHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -111,13 +107,10 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
     final int timeoutMs = _parseInt(params['timeoutMs']) ?? _kDefaultTimeoutMs;
 
     if (text == null && textGone == null && expression == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          '[tapir] ext.tapir.wait_for: at least one of text, textGone, '
-          'or expression is required',
-          TapirErrorEnvelope.missingParam('text|textGone|expression'),
-        ),
+      return tapirError(
+        '[tapir] ext.tapir.wait_for: at least one of text, textGone, '
+        'or expression is required',
+        TapirErrorEnvelope.missingParam('text|textGone|expression'),
       );
     }
 
@@ -155,10 +148,7 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
       '[tapir] ext.tapir.wait_for error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -184,19 +174,16 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForHandler(
 ///
 /// Each `eN` ref is registered in [RefRegistry] with a fresh group id and
 /// can be passed to action extensions (tap, hover, type) in subsequent calls.
-Future<developer.ServiceExtensionResponse> aiTestFindByTextHandler(
+Future<developer.ServiceExtensionResponse> tapirFindByTextHandler(
   String method,
   Map<String, String> params,
 ) async {
   try {
     final String? text = params['text'];
     if (text == null || text.isEmpty) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          '[tapir] ext.tapir.find_by_text: missing required param "text"',
-          TapirErrorEnvelope.missingParam('text'),
-        ),
+      return tapirError(
+        '[tapir] ext.tapir.find_by_text: missing required param "text"',
+        TapirErrorEnvelope.missingParam('text'),
       );
     }
 
@@ -217,71 +204,7 @@ Future<developer.ServiceExtensionResponse> aiTestFindByTextHandler(
       '[tapir] ext.tapir.find_by_text error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// ext.tapir.find_by_label
-// ---------------------------------------------------------------------------
-
-/// Handler for the `ext.tapir.find_by_label` VM Service extension.
-///
-/// Walks the live SemanticsNode tree synchronously and returns a ref string
-/// for every node whose [SemanticsNode.label] matches [label].
-/// An optional [role] param filters by semantic role flag name.
-///
-/// Params:
-/// - `label` (required): the accessibility label string to match (exact).
-/// - `role` (optional): one of `"button"`, `"textField"`, `"checkbox"`,
-///   `"link"`, `"image"`. When provided only nodes whose matching
-///   [SemanticsFlag] is set are returned.
-///
-/// Response:
-/// ```json
-/// { "refs": ["e7"] }
-/// ```
-Future<developer.ServiceExtensionResponse> aiTestFindByLabelHandler(
-  String method,
-  Map<String, String> params,
-) async {
-  try {
-    final String? label = params['label'];
-    if (label == null || label.isEmpty) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          '[tapir] ext.tapir.find_by_label: missing required param "label"',
-          TapirErrorEnvelope.missingParam('label'),
-        ),
-      );
-    }
-
-    final String? roleParam = params['role'];
-
-    // 1. Walk the SemanticsNode tree and register fresh refs. Read-only walk;
-    //    endOfFrame only guards mutations, not reads.
-    final String groupId =
-        'find-label-${DateTime.now().millisecondsSinceEpoch}';
-    final List<String> refs = findByLabelInSemantics(
-      label: label,
-      role: roleParam,
-      groupId: groupId,
-    );
-
-    return tapirResult(<String, dynamic>{'refs': refs});
-  } catch (e, stackTrace) {
-    developer.log(
-      '[tapir] ext.tapir.find_by_label error: $e\n$stackTrace',
-      name: 'tapir',
-    );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -432,84 +355,6 @@ List<String> findByTextInTree({
   return refs;
 }
 
-/// Walks the live SemanticsNode tree and registers a fresh [RefRegistry] entry
-/// for every node whose [SemanticsNode.label] matches [label].
-///
-/// When [role] is provided only nodes that have the corresponding
-/// [SemanticsFlag] set are included.
-///
-/// | role        | SemanticsFlag            |
-/// |-------------|--------------------------|
-/// | button      | isButton                 |
-/// | textField   | isTextField              |
-/// | checkbox    | hasCheckedState          |
-/// | link        | isLink                   |
-/// | image       | isImage                  |
-///
-/// The semantics tree is readable synchronously; no [endOfFrame] await is
-/// required before read-only walks.
-@visibleForTesting
-List<String> findByLabelInSemantics({
-  required String label,
-  String? role,
-  required String groupId,
-}) {
-  final List<String> refs = <String>[];
-
-  final SemanticsFlag? roleFlag = _roleToFlag(role);
-
-  void visit(SemanticsNode node) {
-    // 1. Check label match — node.label is the merged accessibility label.
-    if (node.label == label) {
-      // 2. Check optional role flag via SemanticsFlags named getters (Flutter 3.41+).
-      final bool roleMatches =
-          roleFlag == null ||
-          _semanticsFlagsHasRole(
-            node.getSemanticsData().flagsCollection,
-            roleFlag,
-          );
-
-      if (roleMatches) {
-        // 3. Resolve a bounding rect from the node's transform + rect.
-        final Rect rect = node.rect;
-
-        // 4. Attempt to locate a corresponding element via the semantics owner.
-        //    SemanticsNode does not directly expose its element, so we use the
-        //    node's rect center as a hit-test anchor to find the underlying
-        //    RenderObject, then climb to the nearest Element.
-        final Element? element = _elementForSemanticsNode(node);
-        if (element != null) {
-          final String ref = RefRegistry.register(
-            rect: rect,
-            element: element,
-            groupId: groupId,
-            isTextField: roleFlag == SemanticsFlag.isTextField,
-          );
-          refs.add(ref);
-        }
-      }
-    }
-
-    node.visitChildren((SemanticsNode child) {
-      visit(child);
-      return true;
-    });
-  }
-
-  // Every pipeline owner, not the root alone: a running app mounts its view
-  // under a child owner, so a root-only walk found nothing there. Same walk as
-  // ext_observe.dart and ext_snapshot.dart.
-  void visitOwner(PipelineOwner owner) {
-    final SemanticsNode? root = owner.semanticsOwner?.rootSemanticsNode;
-    if (root != null) visit(root);
-    owner.visitChildren(visitOwner);
-  }
-
-  visitOwner(RendererBinding.instance.rootPipelineOwner);
-
-  return refs;
-}
-
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
@@ -541,50 +386,6 @@ bool _elementTreeContainsText(String text, {required bool exact}) {
 
   WidgetsBinding.instance.rootElement?.visitChildElements(visit);
   return found;
-}
-
-/// Maps an optional [role] string to the corresponding [SemanticsFlag].
-///
-/// Returns null when [role] is null, blank, or unrecognised — callers treat
-/// null as "no role filter".
-SemanticsFlag? _roleToFlag(String? role) {
-  if (role == null || role.isEmpty) return null;
-  return switch (role.toLowerCase()) {
-    'button' => SemanticsFlag.isButton,
-    'textfield' => SemanticsFlag.isTextField,
-    'checkbox' => SemanticsFlag.hasCheckedState,
-    'link' => SemanticsFlag.isLink,
-    'image' => SemanticsFlag.isImage,
-    _ => null,
-  };
-}
-
-/// Dispatches [flag] to the matching named getter on [flags].
-///
-/// `SemanticsFlags` (Flutter 3.41+) exposes each flag as a named field rather
-/// than a `Set`-like `.contains()` method. This helper bridges the gap so
-/// callers can still work with the `SemanticsFlag` enum values returned by
-/// [_roleToFlag].
-///
-/// Only the five roles wired in [_roleToFlag] are handled; all others return
-/// `false`.
-bool _semanticsFlagsHasRole(SemanticsFlags flags, SemanticsFlag flag) {
-  if (flag == SemanticsFlag.isButton) return flags.isButton;
-  if (flag == SemanticsFlag.isTextField) return flags.isTextField;
-  if (flag == SemanticsFlag.hasCheckedState) {
-    return flags.isChecked != CheckedState.none;
-  }
-  if (flag == SemanticsFlag.isLink) return flags.isLink;
-  if (flag == SemanticsFlag.isImage) return flags.isImage;
-  return false;
-}
-
-Element? _elementForSemanticsNode(SemanticsNode node) {
-  // Use the root element as the anchor for semantics-node refs. The rect on
-  // the RefEntry comes from node.rect which is correct; the element field is
-  // a best-effort anchor used only for EditableText focus lookups (which do
-  // not apply to generic semantics-label refs).
-  return WidgetsBinding.instance.rootElement;
 }
 
 // ---------------------------------------------------------------------------
@@ -621,7 +422,7 @@ const int _kNetworkIdleDefaultPollIntervalMs = 200;
 /// Missing-crumbs graceful path: when the host has not overridden
 /// [pendingHttpCountReader] the default `() => 0` makes the loop satisfy
 /// `idleMs` on the very first poll, returning `matched: true` immediately.
-Future<developer.ServiceExtensionResponse> aiTestWaitForNetworkIdleHandler(
+Future<developer.ServiceExtensionResponse> tapirWaitForNetworkIdleHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -650,23 +451,17 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForNetworkIdleHandler(
     //    envelope branch on `type: "timeout"`; legacy callers still see the
     //    "max pending" substring inside the JSON-encoded message field.
     final int maxPending = (result['maxPending'] as int?) ?? 0;
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        '[tapir] ext.tapir.wait_for_network_idle: timeout after '
-        '${timeoutMs}ms (maxPending=$maxPending, idleMs=$idleMs)',
-        TapirErrorEnvelope.timeout(),
-      ),
+    return tapirError(
+      '[tapir] ext.tapir.wait_for_network_idle: timeout after '
+      '${timeoutMs}ms (maxPending=$maxPending, idleMs=$idleMs)',
+      TapirErrorEnvelope.timeout(),
     );
   } catch (e, stackTrace) {
     developer.log(
       '[tapir] ext.tapir.wait_for_network_idle error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 

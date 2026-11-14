@@ -52,7 +52,7 @@ class TapirObserveCommand extends DowelCommand {
     parser.addOption(
       'includeEnrichers',
       help:
-          'One of true (default — subset), false (none), full (every '
+          'One of true (default: a subset), false (none), full (every '
           'enricher field).',
       defaultsTo: 'true',
     );

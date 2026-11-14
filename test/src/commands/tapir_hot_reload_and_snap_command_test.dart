@@ -467,6 +467,58 @@ void main() {
       expect(pipeFile.readAsStringSync(), equals('r\n'));
     });
 
+    // flutter_tools prints the elapsed time with a decimal grouping pattern,
+    // so a reload of a second or more reads `1,234ms`, and the web runner
+    // says `Reloaded application` with no library count at all.
+    for (final String line in <String>[
+      'Reloaded application in 312ms.',
+      'Reloaded application in 1,234ms.',
+      'Reloaded 3 of 812 libraries in 1,234ms (compile: 900 ms, reload: '
+          '200 ms, reassemble: 134 ms).',
+      'Reloaded 1 library in 2.345ms.',
+    ]) {
+      test('reloaded=true on the line "$line"', () async {
+        final pipeFile = File('${tempHome.path}/.dowel/pipe')..createSync();
+        final logFile = File('${tempHome.path}/.dowel/flutter-dev.log')
+          ..writeAsStringSync('Launching app...\n');
+        File('${tempHome.path}/.dowel/state.json').writeAsStringSync(
+          jsonEncode({
+            'pid': 1,
+            'stdinPipe': pipeFile.path,
+            'logPath': logFile.path,
+          }),
+        );
+        unawaited(
+          Future<void>.delayed(const Duration(milliseconds: 120), () {
+            logFile.writeAsStringSync('$line\n', mode: FileMode.append);
+          }),
+        );
+
+        final Stopwatch elapsed = Stopwatch()..start();
+        final cmd = TapirHotReloadAndSnapCommand();
+        final ctx = _StubContext(
+          input: MapInput(const {'screenshot': false}),
+          output: BufferedOutput(),
+          responses: <String, Map<String, dynamic>>{
+            'ext.tapir.snap': const {'snapshot': '- root', 'groupId': 'g'},
+            'ext.tapir.exceptions': const {
+              'exceptions': <Map<String, dynamic>>[],
+              'count': 0,
+            },
+          },
+        );
+
+        await cmd.handle(ctx);
+
+        expect(cmd.lastResult!['reloaded'], isTrue);
+        expect(
+          elapsed.elapsed,
+          lessThan(const Duration(seconds: 5)),
+          reason: 'the marker must be recognised, not waited out',
+        );
+      });
+    }
+
     test('reads the per-session log next to the state file when state.json has '
         'no logPath', () async {
       final sessionDir = Directory('${tempHome.path}/.dowel/sessions/abc123')

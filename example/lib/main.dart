@@ -2,7 +2,7 @@
 // interactive widget on `/` is reachable via `tapir:snap` and acts as a
 // target for the gesture and input handlers. Three named routes cover
 // `tapir:navigate` and `tapir:navigate_back`; a dialog and bottom sheet
-// cover `tapir:modal`; a network simulator covers
+// cover `tapir:dismiss_modals`; a network simulator covers
 // `tapir:wait_for_network_idle`; a log+throw button covers
 // `tapir:console` and `tapir:exceptions`.
 
@@ -279,7 +279,7 @@ class _ShowroomHomeState extends State<ShowroomHome> {
             const SizedBox(height: 24),
 
             _section(
-              'Clicks: tap / dblclick / triple_click / right_click / hover',
+              'Clicks: tap / double_click / triple_click / right_click / hover',
             ),
             ElevatedButton(
               key: const Key('inc-counter'),

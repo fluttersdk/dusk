@@ -22,8 +22,8 @@ import 'ext_pointer.dart' show resolveRefForAction;
 /// JPEG default keeps payloads in the 40-120 KB range; PNG is opt-in for
 /// lossless use cases (e.g., pixel-exact test assertions).
 ///
-/// Call this from the Wave 3 aggregator (`registerAllAiTestExtensions`) — it
-/// is a no-op per extension name on repeated calls via
+/// Called from `registerAllTapirExtensions` (`register_tapir_extensions.dart`);
+/// it is a no-op per extension name on repeated calls via
 /// [registerExtensionIdempotent].
 void registerScreenshotExtension() {
   registerTapirExtension('ext.tapir.screenshot', screenshotHandler);
@@ -79,13 +79,10 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
     //    BEFORE we open the heavy capture path.
     final Rect? subRect = _parseSubRect(rectParam);
     if (rectParam != null && rectParam.isNotEmpty && subRect == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.screenshot: malformed rect "$rectParam". '
-          'Expected "x,y,w,h" with four non-negative numbers.',
-          TapirErrorEnvelope.missingParam('rect'),
-        ),
+      return tapirError(
+        'ext.tapir.screenshot: malformed rect "$rectParam". '
+        'Expected "x,y,w,h" with four non-negative numbers.',
+        TapirErrorEnvelope.invalidParam('rect'),
       );
     }
 
@@ -132,12 +129,9 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
         );
 
         if (byteData == null) {
-          return developer.ServiceExtensionResponse.error(
-            developer.ServiceExtensionResponse.extensionError,
-            wrapErrorDetail(
-              'toByteData returned null for PNG format',
-              TapirErrorEnvelope.unexpected(),
-            ),
+          return tapirError(
+            'toByteData returned null for PNG format',
+            TapirErrorEnvelope.unexpected(),
           );
         }
 
@@ -151,12 +145,9 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
         );
 
         if (pngByteData == null) {
-          return developer.ServiceExtensionResponse.error(
-            developer.ServiceExtensionResponse.extensionError,
-            wrapErrorDetail(
-              'toByteData returned null for intermediate PNG (JPEG path)',
-              TapirErrorEnvelope.unexpected(),
-            ),
+          return tapirError(
+            'toByteData returned null for intermediate PNG (JPEG path)',
+            TapirErrorEnvelope.unexpected(),
           );
         }
 
@@ -180,10 +171,7 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
       '[tapir] ext.tapir.screenshot error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -341,7 +329,7 @@ _CaptureTarget _resolveCaptureTarget({
     throw StateError(
       'ext.tapir.screenshot: repaint-boundary ancestor has no OffsetLayer '
       '(layer runtime type: ${boundaryLayer?.runtimeType}). The frame may '
-      'not have composited yet — re-pump and retry.',
+      'not have composited yet; re-pump and retry.',
     );
   }
 
@@ -397,7 +385,7 @@ RenderObject _resolveRootRenderObject() {
   final Element? rootEl = WidgetsBinding.instance.rootElement;
   if (rootEl == null) {
     throw StateError(
-      'ext.tapir.screenshot: no root element — was TapirPlugin.install '
+      'ext.tapir.screenshot: no root element; was TapirPlugin.install '
       'called after runApp()?',
     );
   }
@@ -437,7 +425,7 @@ RenderObject _resolveRefRenderObject(String ref) {
     throw StateError(
       'ext.tapir.screenshot: ref "$ref" resolved to an entry with no live '
       'render object. The widget may have unmounted between snapshot and '
-      'screenshot — re-snapshot and retry.',
+      'screenshot; re-snapshot and retry.',
     );
   }
   return ro;

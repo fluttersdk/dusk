@@ -238,7 +238,7 @@ const Map<String, _Key> _kKeyMap = <String, _Key>{
 // ---------------------------------------------------------------------------
 
 /// In-test registry that allows test code to inject an [Element] for a given
-/// ref string so that [aiTestTypeHandler] can resolve it without a live
+/// ref string so that [tapirTypeHandler] can resolve it without a live
 /// [RefRegistry] (which lands in Step 6, a parallel step).
 ///
 /// This class is only instantiated during testing. Production code routes
@@ -333,14 +333,11 @@ developer.ServiceExtensionResponse? refuseNonTextRef({
   final String? role = _nonTextControlRole(node);
   if (role == null) return null;
 
-  return developer.ServiceExtensionResponse.error(
-    developer.ServiceExtensionResponse.extensionError,
-    wrapErrorDetail(
-      '[tapir] ext.tapir.$verb: ref $ref is a $role, not a text '
-      'field. Target the field itself, or use the verb for a $role '
-      '(tap, select_option, set_checkbox).',
-      TapirErrorEnvelope.unexpected(widgetPath: ref),
-    ),
+  return tapirError(
+    '[tapir] ext.tapir.$verb: ref $ref is a $role, not a text '
+    'field. Target the field itself, or use the verb for a $role '
+    '(tap, select_option, set_checkbox).',
+    TapirErrorEnvelope.refused(widgetPath: ref),
   );
 }
 
@@ -636,7 +633,7 @@ List<String> _parseModifiers(String? raw) {
 ///   "snapshot": "<yaml>"
 /// }
 /// ```
-Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
+Future<developer.ServiceExtensionResponse> tapirTypeHandler(
   String method,
   Map<String, String> params, {
   TextFieldTarget? target,
@@ -646,12 +643,9 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     final String text = params['text'] ?? '';
 
     if (ref == null || ref.isEmpty) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          '[tapir] ext.tapir.type: missing required param "ref"',
-          TapirErrorEnvelope.missingParam('ref'),
-        ),
+      return tapirError(
+        '[tapir] ext.tapir.type: missing required param "ref"',
+        TapirErrorEnvelope.missingParam('ref'),
       );
     }
 
@@ -661,15 +655,12 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
     //    refs go through [RefRegistry.lookup]. The TestRefRegistry path is
     //    only consulted when the production registry has no entry; tests
     //    that need to exercise the gate must register through
-    //    [RefRegistry.registerForTesting] instead of [TestRefRegistry.inject].
+    //    [registerRefForTesting] instead of [TestRefRegistry.inject].
     final RefEntry? entry;
     try {
       entry = resolveRefForAction(ref);
     } on TapirStaleHandleException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
-      );
+      return tapirError(e.message, TapirErrorEnvelope.stale(ref));
     }
     if (target == null) {
       final developer.ServiceExtensionResponse? refusal = refuseNonTextRef(
@@ -704,26 +695,20 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
           checkReceivesEvents: checkReceivesEvents,
         );
       } on TapirActionabilityException catch (e) {
-        return developer.ServiceExtensionResponse.error(
-          developer.ServiceExtensionResponse.extensionError,
-          wrapErrorDetail(
-            e.message,
-            TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
-          ),
+        return tapirError(
+          e.message,
+          TapirErrorEnvelope.fromActionabilityReason(e.ref, e.reason),
         );
       }
     }
 
     final Element? element = entry?.element ?? TestRefRegistry.lookup(ref);
     if (element == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          '[tapir] ext.tapir.type: ref "$ref" not found in registry',
-          TapirErrorEnvelope.notFound(
-            ref: ref,
-            candidates: collectSnapshotCandidates(),
-          ),
+      return tapirError(
+        '[tapir] ext.tapir.type: ref "$ref" not found in registry',
+        TapirErrorEnvelope.notFound(
+          ref: ref,
+          candidates: collectSnapshotCandidates(),
         ),
       );
     }
@@ -780,10 +765,7 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
       '[tapir] ext.tapir.type error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -803,19 +785,16 @@ Future<developer.ServiceExtensionResponse> aiTestTypeHandler(
 /// ```json
 /// { "ok": true, "key": "Enter", "snapshot": "<yaml>" }
 /// ```
-Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
+Future<developer.ServiceExtensionResponse> tapirPressKeyHandler(
   String method,
   Map<String, String> params,
 ) async {
   try {
     final String? key = params['key'];
     if (key == null || key.isEmpty) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          '[tapir] ext.tapir.press_key: missing required param "key"',
-          TapirErrorEnvelope.missingParam('key'),
-        ),
+      return tapirError(
+        '[tapir] ext.tapir.press_key: missing required param "key"',
+        TapirErrorEnvelope.missingParam('key'),
       );
     }
 
@@ -865,10 +844,7 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
       '[tapir] ext.tapir.press_key error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -883,22 +859,22 @@ Future<developer.ServiceExtensionResponse> aiTestPressKeyHandler(
 /// which catches the [ArgumentError] thrown by [developer.registerExtension]
 /// on duplicate registration (hot-restart safety — per V3 plan Stage 3 D12).
 ///
-/// Called from `extensions.dart#registerAllAiTestExtensions()` once the Step
-/// 14b aggregator lands. May also be called standalone in tests.
+/// Called from `registerAllTapirExtensions` (`register_tapir_extensions.dart`).
+/// May also be called standalone in tests.
 void registerTextInputExtensions() {
-  registerTapirExtension('ext.tapir.type', aiTestTypeHandler);
-  registerTapirExtension('ext.tapir.press_key', aiTestPressKeyHandler);
-  registerTapirExtension('ext.tapir.clear', aiTestClearHandler);
+  registerTapirExtension('ext.tapir.type', tapirTypeHandler);
+  registerTapirExtension('ext.tapir.press_key', tapirPressKeyHandler);
+  registerTapirExtension('ext.tapir.clear', tapirClearHandler);
 }
 
 /// Handler for `ext.tapir.clear` — empties the [TextEditingController] backing
 /// the resolved text field. Playwright parity: `locator.clear()`.
 ///
 /// Resolves the field through [resolveTextFieldTarget], as
-/// [aiTestTypeHandler] does, unless `fill` hands its resolved [target] in,
+/// [tapirTypeHandler] does, unless `fill` hands its resolved [target] in,
 /// and refuses a non-text control ref the same way. Returns the post-clear
 /// value read back off the controller plus an optional snapshot.
-Future<developer.ServiceExtensionResponse> aiTestClearHandler(
+Future<developer.ServiceExtensionResponse> tapirClearHandler(
   String method,
   Map<String, String> params, {
   TextFieldTarget? target,
@@ -906,22 +882,16 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
   try {
     final String? ref = params['ref'];
     if (ref == null || ref.isEmpty) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.clear: missing required param "ref"',
-          TapirErrorEnvelope.missingParam('ref'),
-        ),
+      return tapirError(
+        'ext.tapir.clear: missing required param "ref"',
+        TapirErrorEnvelope.missingParam('ref'),
       );
     }
     final RefEntry? entry;
     try {
       entry = resolveRefForAction(ref);
     } on TapirStaleHandleException catch (e) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(e.message, TapirErrorEnvelope.stale(ref)),
-      );
+      return tapirError(e.message, TapirErrorEnvelope.stale(ref));
     }
     if (target == null) {
       final developer.ServiceExtensionResponse? refusal = refuseNonTextRef(
@@ -933,36 +903,27 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
     }
     final Element? element = entry?.element ?? TestRefRegistry.lookup(ref);
     if (element == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.clear: ref "$ref" not found in registry',
-          TapirErrorEnvelope.notFound(
-            ref: ref,
-            candidates: collectSnapshotCandidates(),
-          ),
+      return tapirError(
+        'ext.tapir.clear: ref "$ref" not found in registry',
+        TapirErrorEnvelope.notFound(
+          ref: ref,
+          candidates: collectSnapshotCandidates(),
         ),
       );
     }
     final TextFieldTarget? field =
         target ?? resolveTextFieldTarget(entry: entry, element: element);
     if (field == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.clear: no EditableText under ref "$ref"',
-          TapirErrorEnvelope.unexpected(),
-        ),
+      return tapirError(
+        'ext.tapir.clear: no EditableText under ref "$ref"',
+        TapirErrorEnvelope.refused(widgetPath: ref),
       );
     }
     final TextEditingController? controller = _extractController(field.state);
     if (controller == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.clear: could not resolve TextEditingController',
-          TapirErrorEnvelope.unexpected(),
-        ),
+      return tapirError(
+        'ext.tapir.clear: could not resolve TextEditingController',
+        TapirErrorEnvelope.unexpected(),
       );
     }
     await runPerfInteraction<void>('clear', ref, () async {
@@ -991,10 +952,7 @@ Future<developer.ServiceExtensionResponse> aiTestClearHandler(
       '[tapir] ext.tapir.clear error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 

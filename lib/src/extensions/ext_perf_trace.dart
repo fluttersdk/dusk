@@ -80,12 +80,9 @@ Future<developer.ServiceExtensionResponse> tapirPerfTraceHandler(
     _ => null,
   };
   if (problem != null || window == null) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.perf_trace: $problem',
-        TapirErrorEnvelope.unexpected(),
-      ),
+    return tapirError(
+      'ext.tapir.perf_trace: $problem',
+      TapirErrorEnvelope.refused(),
     );
   }
 
@@ -117,12 +114,9 @@ Future<developer.ServiceExtensionResponse> tapirPerfTraceHandler(
       '[tapir] ext.tapir.perf_trace: unexpected error: $e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.perf_trace: $e',
-        TapirErrorEnvelope.unexpected(),
-      ),
+    return tapirError(
+      'ext.tapir.perf_trace: $e',
+      TapirErrorEnvelope.unexpected(),
     );
   }
 }

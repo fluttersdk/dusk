@@ -64,17 +64,14 @@ Future<developer.ServiceExtensionResponse> tapirSemanticsHoldHandler(
   switch (action) {
     case 'release':
       if (!perfSessionOpen) {
-        return developer.ServiceExtensionResponse.error(
-          developer.ServiceExtensionResponse.extensionError,
-          wrapErrorDetail(
-            'ext.tapir.semantics_hold: release is only allowed inside an open '
-            'perf session, the timed window it exists for. Call '
-            'ext.tapir.perf_begin first, and acquire after ext.tapir.perf_end.',
-            TapirErrorEnvelope.unexpected(),
-          ),
+        return tapirError(
+          'ext.tapir.semantics_hold: release is only allowed inside an open '
+          'perf session, the timed window it exists for. Call '
+          'ext.tapir.perf_begin first, and acquire after ext.tapir.perf_end.',
+          TapirErrorEnvelope.refused(),
         );
       }
-      final bool released = TapirPlugin.releaseSemantics();
+      final bool released = releaseTapirSemantics();
       return tapirResult(<String, dynamic>{
         'action': action,
         'released': released,
@@ -83,7 +80,7 @@ Future<developer.ServiceExtensionResponse> tapirSemanticsHoldHandler(
             SemanticsBinding.instance.platformDispatcher.semanticsEnabled,
       });
     case 'acquire':
-      final bool acquired = TapirPlugin.acquireSemantics();
+      final bool acquired = acquireTapirSemantics();
       await awaitFrameOrTimeout();
       return tapirResult(<String, dynamic>{
         'action': action,
@@ -92,13 +89,10 @@ Future<developer.ServiceExtensionResponse> tapirSemanticsHoldHandler(
         'treeReady': _treeReady(),
       });
     default:
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.invalidParams,
-        wrapErrorDetail(
-          'ext.tapir.semantics_hold: action "$action" is not one of release, '
-          'acquire.',
-          TapirErrorEnvelope.missingParam('action'),
-        ),
+      return tapirError(
+        'ext.tapir.semantics_hold: action "$action" is not one of release, '
+        'acquire.',
+        TapirErrorEnvelope.invalidParam('action'),
       );
   }
 }

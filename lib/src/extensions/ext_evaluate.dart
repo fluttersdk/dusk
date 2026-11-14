@@ -50,12 +50,9 @@ Future<developer.ServiceExtensionResponse> extTapirEvaluateHandler(
   final String? expression = params['expression'];
 
   if (expression == null || expression.isEmpty) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'expression param is required',
-        TapirErrorEnvelope.missingParam('expression'),
-      ),
+    return tapirError(
+      'expression param is required',
+      TapirErrorEnvelope.missingParam('expression'),
     );
   }
 
@@ -76,10 +73,7 @@ Future<developer.ServiceExtensionResponse> extTapirEvaluateHandler(
       '[tapir] ext.tapir.evaluate error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 

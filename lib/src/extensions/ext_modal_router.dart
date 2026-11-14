@@ -27,16 +27,11 @@ import '../utils/perf_interaction.dart';
 /// Idempotent: [registerExtensionIdempotent] swallows the [ArgumentError]
 /// thrown on hot-restart duplicate registration.
 ///
-/// Call this once from [registerAllAiTestExtensions] in `extensions.dart`.
+/// Called once from `registerAllTapirExtensions`
+/// (`register_tapir_extensions.dart`).
 void registerModalRouterExtension() {
-  registerTapirExtension(
-    'ext.tapir.dismiss_modals',
-    aiTestDismissModalsHandler,
-  );
-  registerTapirExtension(
-    'ext.tapir.reset_overlays',
-    aiTestResetOverlaysHandler,
-  );
+  registerTapirExtension('ext.tapir.dismiss_modals', tapirDismissModalsHandler);
+  registerTapirExtension('ext.tapir.reset_overlays', tapirResetOverlaysHandler);
 }
 
 // ---------------------------------------------------------------------------
@@ -144,9 +139,9 @@ Future<int> dismissAllModals() async {
 /// On success: `{ "popped": N }` where N is the number of modal routes removed.
 /// The underlying page navigation stack is never touched.
 ///
-/// Use this before [aiTestNavigateHandler] navigates to a new route so that
+/// Use this before [extTapirNavigateHandler] navigates to a new route so that
 /// stuck modal sheets do not block the new page from rendering.
-Future<developer.ServiceExtensionResponse> aiTestDismissModalsHandler(
+Future<developer.ServiceExtensionResponse> tapirDismissModalsHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -160,13 +155,10 @@ Future<developer.ServiceExtensionResponse> aiTestDismissModalsHandler(
     return tapirResult(<String, dynamic>{'popped': popped});
   } catch (e, st) {
     developer.log(
-      '[tapir] aiTestDismissModalsHandler error: $e\n$st',
+      '[tapir] tapirDismissModalsHandler error: $e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -207,7 +199,7 @@ const List<String> _kDismissLabels = <String>[
 /// Params: none.
 ///
 /// Response: `{ "popped": N, "escaped": bool, "dismissTapped": bool }`.
-Future<developer.ServiceExtensionResponse> aiTestResetOverlaysHandler(
+Future<developer.ServiceExtensionResponse> tapirResetOverlaysHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -251,13 +243,10 @@ Future<developer.ServiceExtensionResponse> aiTestResetOverlaysHandler(
     });
   } catch (e, st) {
     developer.log(
-      '[tapir] aiTestResetOverlaysHandler error: $e\n$st',
+      '[tapir] tapirResetOverlaysHandler error: $e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 

@@ -43,29 +43,23 @@ Future<void> _appendSnapshotIfRequested(
 /// `EditableText` for text fields) and calls `FocusNode.requestFocus()`.
 /// Playwright parity: `locator.focus()` sets the keyboard focus to the
 /// element without triggering a click.
-Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
+Future<developer.ServiceExtensionResponse> tapirFocusHandler(
   String method,
   Map<String, String> params,
 ) async {
   try {
     final String? ref = params['ref'];
     if (ref == null || ref.isEmpty) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.focus: missing required param "ref"',
-          TapirErrorEnvelope.missingParam('ref'),
-        ),
+      return tapirError(
+        'ext.tapir.focus: missing required param "ref"',
+        TapirErrorEnvelope.missingParam('ref'),
       );
     }
     final entry = resolveRefForAction(ref);
     if (entry == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.focus: ref "$ref" not found in registry',
-          TapirErrorEnvelope.notFound(ref: ref),
-        ),
+      return tapirError(
+        'ext.tapir.focus: ref "$ref" not found in registry',
+        TapirErrorEnvelope.notFound(ref: ref),
       );
     }
     // Resolve the FocusNode in 3 stages so TextField (whose internal Focus
@@ -78,12 +72,9 @@ Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
     FocusNode? node = Focus.maybeOf(entry.element);
     node ??= _findDescendantFocusNode(entry.element);
     if (node == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.focus: no Focus ancestor or descendant for ref "$ref"',
-          TapirErrorEnvelope.unexpected(),
-        ),
+      return tapirError(
+        'ext.tapir.focus: no Focus ancestor or descendant for ref "$ref"',
+        TapirErrorEnvelope.refused(widgetPath: ref),
       );
     }
     final FocusNode target = node;
@@ -102,10 +93,7 @@ Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
       '[tapir] ext.tapir.focus error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -116,7 +104,7 @@ Future<developer.ServiceExtensionResponse> aiTestFocusHandler(
 /// primary focused node. When `ref` is omitted we clear whatever has
 /// primary focus (Playwright `page.evaluate(() => document.activeElement.blur())`
 /// equivalent).
-Future<developer.ServiceExtensionResponse> aiTestBlurHandler(
+Future<developer.ServiceExtensionResponse> tapirBlurHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -138,10 +126,7 @@ Future<developer.ServiceExtensionResponse> aiTestBlurHandler(
       '[tapir] ext.tapir.blur error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -172,6 +157,6 @@ FocusNode? _findDescendantFocusNode(Element element) {
 }
 
 void registerFocusExtensions() {
-  registerTapirExtension(kTapirFocusMcpExtension, aiTestFocusHandler);
-  registerTapirExtension(kTapirBlurMcpExtension, aiTestBlurHandler);
+  registerTapirExtension(kTapirFocusMcpExtension, tapirFocusHandler);
+  registerTapirExtension(kTapirBlurMcpExtension, tapirBlurHandler);
 }

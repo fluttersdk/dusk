@@ -88,6 +88,19 @@ class TapirInstallCommand extends DowelCommand {
     // Phase 1: patch lib/main.dart (always; this is the core inject).
     _injectRuntimeWiring(ctx, mainDartPath);
 
+    // A project moving from fluttersdk_dusk keeps its old dispatcher, which
+    // also makes Phase 2 skip `dowel install`; say what to clear first.
+    final List<String> leftovers = legacyDuskLeftovers(
+      File(pubspecPathResolver()).parent.path,
+    );
+    if (leftovers.isNotEmpty) {
+      ctx.output.warning(
+        'Leftovers from fluttersdk_dusk found:\n'
+        '${leftovers.map((String line) => '  - $line').join('\n')}\n'
+        '$legacyDuskFix',
+      );
+    }
+
     // Phase 2: scaffold fastcli + register tapir as a dowel plugin.
     //          Best-effort: failures here are logged but do NOT fail
     //          tapir:install, because `dart run tapir <cmd>`
@@ -344,14 +357,15 @@ class TapirInstallCommand extends DowelCommand {
       if (rootUri is! String || packageUri is! String) {
         return MagicDevtoolsTapirSupport.unresolved;
       }
+      // A file path round trip decodes `%20` and friends once, and the
+      // Directory's own uri gives the trailing slash `resolve` needs.
       final File tapirLibrary;
       try {
-        final Uri root = config.absolute.parent.uri.resolve(rootUri);
-        final Uri rootDir = root.path.endsWith('/')
-            ? root
-            : root.replace(path: '${root.path}/');
+        final Directory root = Directory(
+          config.parent.uri.resolve(rootUri).toFilePath(),
+        );
         tapirLibrary = File.fromUri(
-          rootDir.resolve(packageUri).resolve('tapir.dart'),
+          root.uri.resolve(packageUri).resolve('tapir.dart'),
         );
       } on FormatException {
         return MagicDevtoolsTapirSupport.unresolved;
@@ -369,17 +383,80 @@ class TapirInstallCommand extends DowelCommand {
   /// writes one shared config at the workspace root. Null when the walk
   /// reaches the filesystem root without finding one.
   static File? _nearestPackageConfig(String projectRoot) {
-    Directory dir = Directory(
-      Directory(projectRoot).absolute.uri.normalizePath().toFilePath(),
-    );
+    // Walk on directory URIs: a file path round trip keeps the trailing
+    // separator, and the `<root>//.dart_tool` it leads to makes a relative
+    // `rootUri` resolve one level too deep.
+    Uri dir = Directory(projectRoot).absolute.uri.normalizePath();
     while (true) {
-      final config = File('${dir.path}/.dart_tool/package_config.json');
+      final config = File.fromUri(
+        dir.resolve('.dart_tool/package_config.json'),
+      );
       if (config.existsSync()) return config;
-      final Directory parent = dir.parent;
-      if (parent.path == dir.path) return null;
+      final Uri parent = dir.resolve('..');
+      if (parent == dir) return null;
       dir = parent;
     }
   }
+
+  /// What a `fluttersdk_dusk` install left in [projectRoot] that stops the
+  /// dowel setup working, one line per item naming the file: a
+  /// `bin/dispatcher.dart` that imports `fluttersdk_artisan` (Phase 2 keeps
+  /// it, and `bin/` no longer analyses), `bin/fsa`,
+  /// `lib/app/commands/_index.g.dart`, an app command still written against
+  /// the `Artisan*` classes, and the `fluttersdk` server in `.mcp.json`.
+  /// Empty on a clean project. `tapir:doctor` reports the same list.
+  static List<String> legacyDuskLeftovers(String projectRoot) {
+    final List<String> found = <String>[];
+    final String root = Directory(projectRoot).absolute.path;
+
+    final File dispatcher = File('$root/bin/dispatcher.dart');
+    if (dispatcher.existsSync() &&
+        dispatcher.readAsStringSync().contains('fluttersdk_artisan')) {
+      found.add('bin/dispatcher.dart (imports fluttersdk_artisan): delete it');
+    }
+    if (File('$root/bin/fsa').existsSync()) {
+      found.add('bin/fsa: delete it');
+    }
+    if (File('$root/lib/app/commands/_index.g.dart').existsSync()) {
+      found.add('lib/app/commands/_index.g.dart: delete it');
+    }
+
+    final Directory commands = Directory('$root/lib/app/commands');
+    if (commands.existsSync()) {
+      final RegExp artisanClass = RegExp(r'\bArtisan[A-Z]\w*');
+      final List<File> files =
+          commands
+              .listSync(recursive: true)
+              .whereType<File>()
+              .where(
+                (File file) =>
+                    file.path.endsWith('.dart') &&
+                    !file.path.endsWith('_index.g.dart'),
+              )
+              .toList()
+            ..sort((File a, File b) => a.path.compareTo(b.path));
+      for (final File file in files) {
+        if (artisanClass.hasMatch(file.readAsStringSync())) {
+          found.add(
+            '${file.path.substring(root.length + 1)} (uses Artisan* '
+            'classes): port it to the Dowel* classes',
+          );
+        }
+      }
+    }
+
+    final File mcp = File('$root/.mcp.json');
+    if (mcp.existsSync() &&
+        RegExp(r'"fluttersdk"\s*:').hasMatch(mcp.readAsStringSync())) {
+      found.add('.mcp.json: delete the "fluttersdk" server entry');
+    }
+    return found;
+  }
+
+  /// The steps that follow clearing [legacyDuskLeftovers], in order.
+  static const String legacyDuskFix =
+      'Then run `dart run dowel install`, `dart run dowel commands:refresh` '
+      'and `dart run tapir tapir:install`.';
 
   /// Returns true when the consumer's pubspec.yaml lists `magic_devtools:`
   /// (the package that ships MagicTapirIntegration) under `dependencies:` or

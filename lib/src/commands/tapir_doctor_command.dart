@@ -37,9 +37,59 @@ final class TapirCdpSessionReport {
   final bool? hidden;
 }
 
+/// How the running app answered `tapir:doctor`'s `ext.tapir.boot_id` call.
+enum TapirAppStatus {
+  /// It answered; [TapirAppReport.semanticsEnabled] and
+  /// [TapirAppReport.enrichers] hold what it reported.
+  answered,
+
+  /// The app runs but registers no `ext.tapir.*`: no `TapirPlugin.install()`
+  /// call, or a build with `TAPIR_DISABLE`.
+  notRegistered,
+
+  /// The call failed or timed out; [TapirAppReport.reason] says how.
+  unreachable,
+}
+
+/// What the running app reported to `tapir:doctor`.
+@immutable
+final class TapirAppReport {
+  /// An answer. A null field is a key the app's tapir does not send yet.
+  const TapirAppReport.answered({
+    required this.semanticsEnabled,
+    required this.enrichers,
+  }) : status = TapirAppStatus.answered,
+       reason = null;
+
+  /// An app without `ext.tapir.*`.
+  const TapirAppReport.notRegistered()
+    : status = TapirAppStatus.notRegistered,
+      semanticsEnabled = null,
+      enrichers = null,
+      reason = null;
+
+  /// A call that did not come back, for [reason].
+  const TapirAppReport.unreachable(String this.reason)
+    : status = TapirAppStatus.unreachable,
+      semanticsEnabled = null,
+      enrichers = null;
+
+  /// How the call went.
+  final TapirAppStatus status;
+
+  /// Whether the app's semantics tree is on.
+  final bool? semanticsEnabled;
+
+  /// How many snapshot enrichers the app registered.
+  final int? enrichers;
+
+  /// The first line of the failure, for [TapirAppStatus.unreachable].
+  final String? reason;
+}
+
 /// `dowel tapir:doctor` ; environment + runtime preflight for tapir.
 ///
-/// Runs seven lightweight checks and prints one row per check via the
+/// Runs eight lightweight checks and prints one row per check via the
 /// [DowelOutput] facade (so colored ✓ / ⚠ / ✗ tokens flow through
 /// [ConsoleStyle] in TTY mode and degrade to plain text under
 /// [BufferedOutput] / [NullOutput]):
@@ -52,23 +102,17 @@ final class TapirCdpSessionReport {
 ///      check downgrades to an INFO "Skipped" row when no state.json exists,
 ///      no Chrome can be found, or the lstart probe fails (POSIX-only;
 ///      Windows skips through the chrome_reaper's session-scoped warning).
-///   2. **TAPIR_DISABLE env-var** ; reads [TapirPlugin.aiTestDisableEnvValue].
-///      Non-empty values WARN with the actual value echoed so the operator
-///      can confirm where the kill switch came from (a stale `.env` export,
-///      a `--dart-define`, etc.).
-///   3. **Enricher list non-empty** ; reads `TapirPlugin.enrichers.length`.
-///      Zero registered enrichers means the consumer wired TapirPlugin but
-///      neither Magic nor Wind glue ; snapshots will still work, just with
-///      less context. WARN, never fail.
-///   4. **Semantics tree forced on** ; reports whether
-///      `RendererBinding.instance.semanticsEnabled` is true. The only
-///      ERROR-class check; failure surfaces a non-zero exit code. NOTE:
-///      `tapir:doctor` runs in pure-Dart CLI context that cannot import
-///      `package:flutter/rendering.dart` (would drag `dart:ui` into a
-///      `dart run` invocation), so the default probe returns `true`
-///      unconditionally and ERROR is unreachable from CLI alone. The
-///      real-runtime check belongs to a future VM-Service-attached doctor
-///      invocation; tests override this probe to exercise both branches.
+///   2 to 4 ask the running app, once, over the session's VM Service
+///      ([appProbe], an `ext.tapir.boot_id` call); with no session, or an
+///      app that does not answer, each prints a skipped row.
+///   2. **TAPIR_DISABLE** ; WARN when the app registers no `ext.tapir.*`
+///      (built with `TAPIR_DISABLE`, or no `TapirPlugin.install()` call).
+///   3. **Snapshot enrichers** ; the count the app registered. Zero means
+///      neither Magic nor Wind glue is wired; snapshots still work, with
+///      less context. INFO, never fail.
+///   4. **Semantics tree forced on** ; the app's semantics state. The only
+///      ERROR-class check: a tree that is off, or an app with no tapir,
+///      exits non-zero.
 ///   5. **Magic-init detection** ; reads `lib/main.dart` and reports whether
 ///      the consumer wired `Magic.init(` alongside `MagicTapirIntegration.
 ///      install()`. INFO only ; never fails the doctor regardless of the
@@ -85,6 +129,10 @@ final class TapirCdpSessionReport {
 ///      serves no page on this run's `webPort` (an orphan browser holding the
 ///      old build), or the matching page is hidden (frame production off, so
 ///      snapshots lose their text and gestures cannot land). WARN.
+///   8. **fluttersdk_dusk leftovers** ; the files a `fluttersdk_dusk`
+///      install left that stop the dowel setup working
+///      ([TapirInstallCommand.legacyDuskLeftovers]), with the commands that
+///      follow deleting them. WARN.
 ///
 /// Test seams: every probe is a static field with a sensible default. Tests
 /// override per-check seams via `TapirDoctorCommand.<probe> = ...` in setUp
@@ -123,26 +171,26 @@ class TapirDoctorCommand extends DowelCommand {
   /// arithmetic.
   static DateTime Function() nowProvider = DateTime.now;
 
-  /// Reports whether the running Flutter app has forced Semantics on.
-  /// Defaults to `true` because `tapir:doctor` runs in a pure-Dart CLI
-  /// context that cannot import `package:flutter/rendering.dart` without
-  /// pulling `dart:ui`, which is unavailable outside the Flutter runtime.
-  /// In a real debug session the live state is reachable via VM Service +
-  /// the tapir:* extensions, not this probe; tests override to exercise
-  /// both branches deterministically.
-  static bool Function() semanticsEnabledProbe = _defaultSemanticsEnabled;
+  /// Asks the app the session state names for what only it can report:
+  /// whether tapir registered, the semantics state and the enricher count.
+  /// Returns null when the state names no app (no session), which skips the
+  /// three rows that need one.
+  ///
+  /// The CLI process cannot answer any of them itself: it runs on the plain
+  /// Dart VM, and its own `TAPIR_DISABLE` define says nothing about the
+  /// app's build.
+  static Future<TapirAppReport?> Function(Map<String, dynamic>? state)
+  appProbe = defaultAppProbe;
 
-  /// Reads the TAPIR_DISABLE env-var via [TapirPlugin.aiTestDisableEnvValue].
-  static String Function() tapirDisableEnvReader =
-      _defaultTapirDisableEnvReader;
+  /// Builds the VM Service client [defaultAppProbe] connects with; tests
+  /// substitute a fake.
+  static VmServiceClient Function(String wsUri) vmClientFactory =
+      VmServiceClient.new;
 
-  /// Reports the count of registered TapirPlugin enrichers. Returns 0 in
-  /// CLI context (pure-Dart doctor can't reach into Flutter without pulling
-  /// `dart:ui`); the WARN row is the right default outcome since enrichers
-  /// living in the running app are only visible via VM Service inspection,
-  /// not via static introspection from the CLI process. Tests override to
-  /// exercise both branches.
-  static int Function() enrichersProbe = _defaultEnrichersProbe;
+  /// Reports what `fluttersdk_dusk` left in the project
+  /// ([TapirInstallCommand.legacyDuskLeftovers] on the working directory).
+  static List<String> Function() legacyLeftoversProbe =
+      defaultLegacyLeftoversProbe;
 
   /// Resolves the path to the consumer's `lib/main.dart`. Defaults to the
   /// relative path `lib/main.dart`.
@@ -182,6 +230,51 @@ class TapirDoctorCommand extends DowelCommand {
   /// the working directory, so the advice and the install never disagree.
   static MagicDevtoolsTapirSupport defaultMagicDevtoolsTapirProbe() =>
       TapirInstallCommand.magicDevtoolsTapirSupport(Directory.current.path);
+
+  /// Production probe, and the value tests restore [legacyLeftoversProbe]
+  /// to: the installer's own check, so the two never disagree.
+  static List<String> defaultLegacyLeftoversProbe() =>
+      TapirInstallCommand.legacyDuskLeftovers(Directory.current.path);
+
+  /// Production probe, and the value tests restore [appProbe] to.
+  ///
+  /// One `ext.tapir.boot_id` call over the recorded `vmServiceUri`: an
+  /// answer proves every `ext.tapir.*` registered, and it carries the
+  /// semantics state and the enricher count. A method-not-found answer means
+  /// the app never ran `TapirPlugin.install()` or was built with
+  /// `TAPIR_DISABLE`. Any other failure (a dead URI, a refused socket, no
+  /// answer within the timeout) is a result the rows report, not an error
+  /// that ends the doctor run.
+  static Future<TapirAppReport?> defaultAppProbe(
+    Map<String, dynamic>? state,
+  ) async {
+    final Object? uri = state?['vmServiceUri'];
+    if (uri is! String || uri.isEmpty) return null;
+
+    final VmServiceClient client = vmClientFactory(uri);
+    try {
+      final Map<String, dynamic> answer = await () async {
+        await client.connect();
+        final String isolateId = await client.getMainIsolateId();
+        return client.callServiceExtension<Map<String, dynamic>>(
+          'ext.tapir.boot_id',
+          isolateId: isolateId,
+        );
+      }().timeout(const Duration(seconds: 5));
+      final Object? semantics = answer['semanticsEnabled'];
+      final Object? enrichers = answer['enrichers'];
+      return TapirAppReport.answered(
+        semanticsEnabled: semantics is bool ? semantics : null,
+        enrichers: enrichers is int ? enrichers : null,
+      );
+    } on ExtensionNotRegisteredException {
+      return const TapirAppReport.notRegistered();
+    } on Object catch (e) {
+      return TapirAppReport.unreachable('$e'.split('\n').first);
+    } finally {
+      await client.disconnect();
+    }
+  }
 
   /// Production probe, and the value tests restore [cdpSessionProbe] to.
   /// Public for the same reason [CdpClient.defaultHttpGet] is: a seam a test
@@ -285,47 +378,26 @@ class TapirDoctorCommand extends DowelCommand {
     }
   }
 
-  /// Reads the same compile-time TAPIR_DISABLE value
-  /// [TapirPlugin.aiTestDisableEnvValue] resolves to. Replicated here (rather
-  /// than imported from TapirPlugin) because the canonical getter on
-  /// TapirPlugin is marked `@visibleForTesting` ; reading it from another
-  /// production file would trip the analyzer. Both readers consume the same
-  /// `--dart-define=TAPIR_DISABLE=<value>` compile-time constant so they can
-  /// never drift.
-  static String _defaultTapirDisableEnvReader() =>
-      const String.fromEnvironment('TAPIR_DISABLE', defaultValue: '');
-
-  static int _defaultEnrichersProbe() => 0;
-
-  static bool _defaultSemanticsEnabled() {
-    // Pure-Dart CLI context cannot import package:flutter/rendering.dart
-    // without dragging dart:ui (which is unavailable outside the Flutter
-    // runtime), so the default returns true. Tests override this probe
-    // to exercise both ERROR and pass branches deterministically; the
-    // real-runtime check belongs in a future VM-Service-attached doctor
-    // invocation that queries ext.tapir.semantics_enabled or equivalent.
-    return true;
-  }
-
   // ---------------------------------------------------------------------------
   // handle()
   // ---------------------------------------------------------------------------
 
   @override
   Future<int> handle(DowelContext ctx) async {
-    bool hasError = false;
-
     // 1. Hot-restart staleness probe.
     await _renderStaleness(ctx);
 
-    // 2. TAPIR_DISABLE env-var probe.
-    _renderTapirDisable(ctx);
+    // 2 to 4 read the running app, asked once.
+    final TapirAppReport? app = await appProbe(await stateFileReader());
 
-    // 3. Enricher list non-empty probe.
-    _renderEnrichers(ctx);
+    // 2. Is tapir registered in the app, or did its build disable it?
+    _renderTapirDisable(ctx, app);
 
-    // 4. Semantics tree forced on probe (only ERROR-class check).
-    hasError = !_renderSemantics(ctx) || hasError;
+    // 3. Enricher count, as the app reports it.
+    _renderEnrichers(ctx, app);
+
+    // 4. Semantics tree forced on (only ERROR-class check).
+    final bool hasError = !_renderSemantics(ctx, app);
 
     // 5. Magic-init detection (INFO-only; never fails).
     _renderMagicInit(ctx);
@@ -336,8 +408,20 @@ class TapirDoctorCommand extends DowelCommand {
     // 7. CDP session: is the recorded port live, serving this run, visible?
     await _renderCdpSession(ctx);
 
+    // 8. What a fluttersdk_dusk install left behind.
+    _renderLegacyLeftovers(ctx);
+
     return hasError ? 1 : 0;
   }
+
+  /// The skipped-row reason for [app] when it holds no answer, or null when
+  /// it does.
+  static String? _skipReason(TapirAppReport? app) => switch (app?.status) {
+    null => 'Skipped (no running app; start one with `dowel start`)',
+    TapirAppStatus.unreachable =>
+      'Skipped (the running app did not answer: ${app!.reason})',
+    TapirAppStatus.notRegistered || TapirAppStatus.answered => null,
+  };
 
   // ---------------------------------------------------------------------------
   // Check 1 ; hot-restart staleness
@@ -383,28 +467,39 @@ class TapirDoctorCommand extends DowelCommand {
   }
 
   // ---------------------------------------------------------------------------
-  // Check 2 ; TAPIR_DISABLE env-var
+  // Check 2 ; TAPIR_DISABLE in the running app
   // ---------------------------------------------------------------------------
 
-  void _renderTapirDisable(DowelContext ctx) {
-    const String label = 'TAPIR_DISABLE env-var';
-    final String value = tapirDisableEnvReader();
-    if (value.isEmpty) {
-      ctx.output.success('$label: unset (runtime hooks active)');
+  void _renderTapirDisable(DowelContext ctx, TapirAppReport? app) {
+    const String label = 'TAPIR_DISABLE';
+    final String? skipped = _skipReason(app);
+    if (skipped != null) {
+      ctx.output.info('$label: $skipped');
       return;
     }
-    ctx.output.warning(
-      '$label: tapir disabled via TAPIR_DISABLE=$value, runtime hooks inactive',
-    );
+    if (app!.status == TapirAppStatus.notRegistered) {
+      ctx.output.warning(
+        '$label: the running app registers no ext.tapir.* extension; it was '
+        'built with --dart-define=TAPIR_DISABLE=1, or it never calls '
+        'TapirPlugin.install()',
+      );
+      return;
+    }
+    ctx.output.success('$label: not set in the running app (ext.tapir.* live)');
   }
 
   // ---------------------------------------------------------------------------
-  // Check 3 ; enricher list non-empty
+  // Check 3 ; enricher count in the running app
   // ---------------------------------------------------------------------------
 
-  void _renderEnrichers(DowelContext ctx) {
+  void _renderEnrichers(DowelContext ctx, TapirAppReport? app) {
     const String label = 'snapshot enrichers';
-    final int count = enrichersProbe();
+    final String? skipped = _skipReason(app);
+    final int? count = app?.enrichers;
+    if (skipped != null || count == null) {
+      ctx.output.info('$label: ${skipped ?? _unreported}');
+      return;
+    }
     if (count == 0) {
       ctx.output.info('$label: enrichers are opt-in; none registered');
       return;
@@ -416,18 +511,60 @@ class TapirDoctorCommand extends DowelCommand {
   // Check 4 ; Semantics tree forced on (only ERROR-class check)
   // ---------------------------------------------------------------------------
 
-  /// Returns true when the check passes, false when it fails (ERROR).
-  bool _renderSemantics(DowelContext ctx) {
+  /// Returns true when the check passes or cannot run, false when it fails
+  /// (ERROR): the app answers with the tree off, or registers no tapir.
+  bool _renderSemantics(DowelContext ctx, TapirAppReport? app) {
     const String label = 'Semantics tree forced on';
-    if (semanticsEnabledProbe()) {
-      ctx.output.success('$label: enabled');
+    final String? skipped = _skipReason(app);
+    if (skipped != null) {
+      ctx.output.info('$label: $skipped');
+      return true;
+    }
+    if (app!.status == TapirAppStatus.notRegistered) {
+      ctx.output.error(
+        '$label: Semantics tree not forced on; TapirPlugin.install has not '
+        'run in the running app',
+      );
+      return false;
+    }
+    final bool? enabled = app.semanticsEnabled;
+    if (enabled == null) {
+      ctx.output.info('$label: $_unreported');
+      return true;
+    }
+    if (enabled) {
+      ctx.output.success('$label: enabled in the running app');
       return true;
     }
     ctx.output.error(
-      '$label: Semantics tree not forced on; TapirPlugin.install may not have '
-      'run',
+      '$label: Semantics tree not forced on in the running app; refs cannot '
+      'resolve (a perf semantics pass left it released, or the handle was '
+      'disposed). Hot restart the app.',
     );
     return false;
+  }
+
+  /// The skipped-row reason for an app that answered without a key this
+  /// doctor reads: its tapir predates the key.
+  static const String _unreported =
+      'Skipped (the running app\'s tapir predates this check; upgrade it)';
+
+  // ---------------------------------------------------------------------------
+  // Check 8 ; leftovers from fluttersdk_dusk
+  // ---------------------------------------------------------------------------
+
+  void _renderLegacyLeftovers(DowelContext ctx) {
+    const String label = 'fluttersdk_dusk leftovers';
+    final List<String> leftovers = legacyLeftoversProbe();
+    if (leftovers.isEmpty) {
+      ctx.output.success('$label: none found');
+      return;
+    }
+    ctx.output.warning(
+      '$label: found\n'
+      '${leftovers.map((String line) => '  - $line').join('\n')}\n'
+      '${TapirInstallCommand.legacyDuskFix}',
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -622,7 +759,7 @@ class TapirDoctorCommand extends DowelCommand {
     if (cdpPort == null) {
       ctx.output.info(
         '$label: Skipped (no cdpPort recorded; start with --cdp-port=N to '
-        'enable tapir:resize, tapir:device and clipped web screenshots)',
+        'enable tapir:resize_viewport, tapir:device_profile and clipped web screenshots)',
       );
       return;
     }

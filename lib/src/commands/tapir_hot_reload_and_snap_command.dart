@@ -272,10 +272,12 @@ Future<HotReloadResult> _defaultReload(DowelContext ctx) async {
 
     // 2. Poll the log for a "Reloaded N libraries" line that appears after
     //    [baselineLogLength]. flutter_tools always emits this line on a
-    //    successful reload (even when N==0); a compile error emits
-    //    "Try again after fixing the above error(s)." instead.
+    //    successful reload (even when N==0), the web runner as "Reloaded
+    //    application", and both print the time with a grouping separator
+    //    from a second up ("1,234ms"); a compile error emits "Try again
+    //    after fixing the above error(s)." instead.
     final RegExp successMarker = RegExp(
-      r'Reloaded \d+( of \d+)? librar(y|ies) in \d+ms',
+      r'Reloaded (\d+( of \d+)? librar(y|ies)|application) in [\d,.]+ms',
     );
     final RegExp failureMarker = RegExp(
       r'Try again after fixing the above error',

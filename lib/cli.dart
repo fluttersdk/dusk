@@ -10,9 +10,9 @@
 /// `<PascalCasePackageName>DowelProvider`, which for this package is
 /// [TapirDowelProvider] itself, so no alias is needed.
 ///
-/// Runtime / widget code keeps using `package:tapir/tapir.dart`
-/// (the full barrel that re-exports `TapirPlugin` + gesture drivers + adapters +
-/// extensions).
+/// Runtime / widget code keeps using `package:tapir/tapir.dart`, the full
+/// barrel: `TapirPlugin`, the ref registry, the enricher and navigate
+/// adapter hooks, and the readers and perf pointers a host assigns.
 library;
 
 export 'src/tapir_dowel_provider.dart' show TapirDowelProvider;

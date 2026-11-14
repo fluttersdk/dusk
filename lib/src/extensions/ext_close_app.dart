@@ -82,9 +82,6 @@ Future<developer.ServiceExtensionResponse> extTapirCloseAppHandler(
       '[tapir] ext.tapir.close_app error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }

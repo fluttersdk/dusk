@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 /// In-process fake of Chrome's DevTools Protocol surface, used by the CDP
-/// subsystem test suite (CdpClient, ChromeFinder, TapirResizeCommand,
-/// TapirDeviceCommand). Binds an [HttpServer] on
+/// subsystem test suite (CdpClient, ChromeFinder, TapirResizeViewportCommand,
+/// TapirDeviceProfileCommand). Binds an [HttpServer] on
 /// [InternetAddress.loopbackIPv4] with an ephemeral port (port: 0), serves
 /// `/json/version`, accepts `WebSocketTransformer.upgrade` on
 /// `/devtools/browser/abc`, routes JSON-RPC frames to caller-supplied

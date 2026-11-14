@@ -1,7 +1,7 @@
 import 'package:dowel/dowel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:tapir/src/commands/tapir_dblclick_command.dart';
+import 'package:tapir/src/commands/tapir_double_click_command.dart';
 
 class _StubContext extends DowelContext {
   _StubContext({
@@ -26,35 +26,35 @@ class _StubContext extends DowelContext {
 }
 
 void main() {
-  group('TapirDblclickCommand', () {
-    test('name is tapir:dblclick', () {
-      expect(TapirDblclickCommand().name, equals('tapir:dblclick'));
+  group('TapirDoubleClickCommand', () {
+    test('name is tapir:double_click', () {
+      expect(TapirDoubleClickCommand().name, equals('tapir:double_click'));
     });
 
     test('boot is CommandBoot.connected', () {
-      expect(TapirDblclickCommand().boot, equals(CommandBoot.connected));
+      expect(TapirDoubleClickCommand().boot, equals(CommandBoot.connected));
     });
 
     test('description is non-empty', () {
-      expect(TapirDblclickCommand().description, isNotEmpty);
+      expect(TapirDoubleClickCommand().description, isNotEmpty);
     });
 
     test('configure declares --ref option', () {
       final parser = ArgParser();
-      TapirDblclickCommand().configure(parser);
+      TapirDoubleClickCommand().configure(parser);
       expect(parser.options.keys, contains('ref'));
     });
 
-    test('handle calls ext.tapir.dblclick', () async {
+    test('handle calls ext.tapir.double_click', () async {
       final ctx = _StubContext(
         input: MapInput(const {'ref': 'e3'}),
         output: BufferedOutput(),
         response: const {'ref': 'e3'},
       );
 
-      await TapirDblclickCommand().handle(ctx);
+      await TapirDoubleClickCommand().handle(ctx);
 
-      expect(ctx.lastMethod, equals('ext.tapir.dblclick'));
+      expect(ctx.lastMethod, equals('ext.tapir.double_click'));
     });
 
     test('handle forwards --ref param', () async {
@@ -64,7 +64,7 @@ void main() {
         response: const {'ref': 'e7'},
       );
 
-      await TapirDblclickCommand().handle(ctx);
+      await TapirDoubleClickCommand().handle(ctx);
 
       expect(ctx.lastParams, containsPair('ref', 'e7'));
     });
@@ -76,7 +76,7 @@ void main() {
         response: const {'ref': 'e3'},
       );
 
-      expect(await TapirDblclickCommand().handle(ctx), equals(0));
+      expect(await TapirDoubleClickCommand().handle(ctx), equals(0));
     });
   });
 }

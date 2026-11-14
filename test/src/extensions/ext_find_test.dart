@@ -307,7 +307,7 @@ void main() {
       // stable would normally pass, but the test scheduler does not
       // settle the gate's extra `await endOfFrame` deterministically.
       // Production callers leave the defaults.
-      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': qRef,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -380,7 +380,7 @@ void main() {
         expect(dispatchRect.center.dx, lessThan(200));
         expect(dispatchRect.center.dy, lessThan(120));
 
-        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        final future = tapirTapHandler('ext.tapir.tap', <String, String>{
           'ref': qRef,
           'checkStable': 'false',
           'checkReceivesEvents': 'false',
@@ -466,7 +466,7 @@ void main() {
       expect(dispatchRect.center.dx, lessThan(200));
       expect(dispatchRect.center.dy, lessThan(120));
 
-      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': qRef,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -528,7 +528,7 @@ void main() {
         // Both the Text and the button carry the label.
         expect(decoded['matchCount'], 2);
 
-        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        final future = tapirTapHandler('ext.tapir.tap', <String, String>{
           'ref': qRef,
           'checkStable': 'false',
           'checkReceivesEvents': 'false',
@@ -588,7 +588,7 @@ void main() {
         // Both the Text and the tappable row carry the label.
         expect(decoded['matchCount'], 2);
 
-        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        final future = tapirTapHandler('ext.tapir.tap', <String, String>{
           'ref': qRef,
           'checkStable': 'false',
           'checkReceivesEvents': 'false',
@@ -670,7 +670,7 @@ void main() {
         );
         await tester.pump();
 
-        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        final future = tapirTapHandler('ext.tapir.tap', <String, String>{
           'ref': qRef,
           'checkStable': 'false',
           'checkReceivesEvents': 'false',
@@ -724,7 +724,7 @@ void main() {
           ),
         );
 
-        final response = await aiTestTapHandler(
+        final response = await tapirTapHandler(
           'ext.tapir.tap',
           <String, String>{'ref': qRef},
         );
@@ -762,7 +762,7 @@ void main() {
         );
 
         final Element element = tester.element(find.byType(Scaffold));
-        final String eRef = RefRegistry.registerForTesting(
+        final String eRef = registerRefForTesting(
           rect: const Rect.fromLTWH(100, 100, 50, 50),
           element: element,
           groupId: 'g',
@@ -770,7 +770,7 @@ void main() {
         );
         expect(eRef, startsWith('e'));
 
-        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        final future = tapirTapHandler('ext.tapir.tap', <String, String>{
           'ref': eRef,
           'checkStable': 'false',
           'checkReceivesEvents': 'false',

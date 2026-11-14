@@ -16,8 +16,8 @@ import 'ext_snapshot.dart' show snapshotForAction;
 import 'ext_text_input.dart'
     show
         TextFieldTarget,
-        aiTestClearHandler,
-        aiTestTypeHandler,
+        tapirClearHandler,
+        tapirTypeHandler,
         refuseNonTextRef,
         resolveTextFieldTarget;
 
@@ -30,7 +30,7 @@ const String kTapirFillMcpExtension = 'ext.tapir.fill';
 /// thrown on hot-restart duplicate registration. Call once from
 /// [registerAllTapirExtensions].
 void registerFillExtension() {
-  registerTapirExtension(kTapirFillMcpExtension, aiTestFillHandler);
+  registerTapirExtension(kTapirFillMcpExtension, tapirFillHandler);
 }
 
 /// Handler for `ext.tapir.fill`: the one-call "focus + clear + type + settle"
@@ -43,8 +43,8 @@ void registerFillExtension() {
 /// ([refuseNonTextRef]). The actionability gate is carried by the `type` step
 /// (the actual mutation), so the gate gates the write, not the focus/clear:
 /// 1. The resolved field's focus node takes keyboard focus.
-/// 2. [aiTestClearHandler] empties the backing [TextEditingController].
-/// 3. [aiTestTypeHandler] runs the actionability gate, then sets [params]['text']
+/// 2. [tapirClearHandler] empties the backing [TextEditingController].
+/// 3. [tapirTypeHandler] runs the actionability gate, then sets [params]['text']
 ///    via `userUpdateTextEditingValue` (so `onChanged` fires and form validators
 ///    run), awaits two frames and reads the settled value back.
 ///
@@ -71,28 +71,22 @@ void registerFillExtension() {
 /// ```json
 /// { "ref": "e3", "text": "typed value", "filled": true, "snapshot": "<yaml>" }
 /// ```
-Future<developer.ServiceExtensionResponse> aiTestFillHandler(
+Future<developer.ServiceExtensionResponse> tapirFillHandler(
   String method,
   Map<String, String> params,
 ) async {
   try {
     final String? ref = params['ref'];
     if (ref == null || ref.isEmpty) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.fill: missing required param "ref"',
-          TapirErrorEnvelope.missingParam('ref'),
-        ),
+      return tapirError(
+        'ext.tapir.fill: missing required param "ref"',
+        TapirErrorEnvelope.missingParam('ref'),
       );
     }
     if (!params.containsKey('text')) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.fill: missing required param "text"',
-          TapirErrorEnvelope.missingParam('text'),
-        ),
+      return tapirError(
+        'ext.tapir.fill: missing required param "text"',
+        TapirErrorEnvelope.missingParam('text'),
       );
     }
 
@@ -109,12 +103,9 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
         );
     if (outcome == null) {
       // Two consecutive stale resolutions: the handle is genuinely gone.
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.fill: ref "$ref" went stale during fill (retried once)',
-          TapirErrorEnvelope.stale(ref),
-        ),
+      return tapirError(
+        'ext.tapir.fill: ref "$ref" went stale during fill (retried once)',
+        TapirErrorEnvelope.stale(ref),
       );
     }
 
@@ -138,6 +129,9 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
       // that verdict up rather than restating `filled: true`, which only
       // says the sequence ran.
       if (typed['effect'] != null) 'effect': typed['effect'],
+      // What the type step's gate could not confirm; dropping it made an
+      // indeterminate receives-events check read as a clean pass.
+      if (typed['checks'] != null) 'checks': typed['checks'],
     };
     try {
       payload.addAll(await snapshotForAction(params));
@@ -154,10 +148,7 @@ Future<developer.ServiceExtensionResponse> aiTestFillHandler(
       '[tapir] ext.tapir.fill error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -184,14 +175,11 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
     return null;
   }
   if (entry == null) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.fill: ref "$ref" not found in registry',
-        TapirErrorEnvelope.notFound(
-          ref: ref,
-          candidates: collectSnapshotCandidates(),
-        ),
+    return tapirError(
+      'ext.tapir.fill: ref "$ref" not found in registry',
+      TapirErrorEnvelope.notFound(
+        ref: ref,
+        candidates: collectSnapshotCandidates(),
       ),
     );
   }
@@ -210,12 +198,9 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
     element: entry.element,
   );
   if (target == null) {
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.fill: no EditableText under ref "$ref"',
-        TapirErrorEnvelope.unexpected(widgetPath: ref),
-      ),
+    return tapirError(
+      'ext.tapir.fill: no EditableText under ref "$ref"',
+      TapirErrorEnvelope.refused(widgetPath: ref),
     );
   }
 
@@ -235,7 +220,7 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
   await awaitFrameOrTimeout();
 
   // 3. Clear the existing value so the type below is a replace, not an append.
-  final developer.ServiceExtensionResponse clear = await aiTestClearHandler(
+  final developer.ServiceExtensionResponse clear = await tapirClearHandler(
     'ext.tapir.clear',
     stepParams,
     target: target,
@@ -244,7 +229,7 @@ Future<developer.ServiceExtensionResponse?> _attemptFill(
   await awaitFrameOrTimeout();
 
   // 4. Type the new value. The gated type handler awaits two frames itself.
-  return aiTestTypeHandler('ext.tapir.type', <String, String>{
+  return tapirTypeHandler('ext.tapir.type', <String, String>{
     ...stepParams,
     'text': params['text']!,
   }, target: target);

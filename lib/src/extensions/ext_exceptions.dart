@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 
 import 'package:dowel/dowel.dart';
+import 'package:flutter/foundation.dart' show immutable;
 
 import '../tapir_error_capture.dart';
 import '../utils/tapir_register.dart';
@@ -21,6 +22,19 @@ const String kTapirExceptionsMcpExtension = 'ext.tapir.exceptions';
 // Function-pointer indirection -- mirrors pendingHttpCountReader + recentLogsReader
 // ---------------------------------------------------------------------------
 
+/// What `ext.tapir.exceptions` asks [recentExceptionsReader] for.
+///
+/// One object rather than named parameters, so a filter added later is a new
+/// field with a default and a reader assigned today keeps compiling.
+@immutable
+final class ExceptionsRequest {
+  /// A request for up to [limit] entries.
+  const ExceptionsRequest({this.limit = 20});
+
+  /// The most entries to return, newest first.
+  final int limit;
+}
+
 /// Reader for recent exception entries from CrumbsStore.
 ///
 /// Defaults to a function that returns an empty list so tapir compiles and
@@ -29,8 +43,8 @@ const String kTapirExceptionsMcpExtension = 'ext.tapir.exceptions';
 /// Hosts that ship `crumbs` wire the real source by assigning:
 ///
 /// ```dart
-/// recentExceptionsReader = ({int limit = 20}) =>
-///     CrumbsStore.recentExceptions(limit: limit);
+/// recentExceptionsReader = (ExceptionsRequest request) =>
+///     CrumbsStore.recentExceptions(limit: request.limit);
 /// ```
 ///
 /// The indirection keeps tapir's pubspec free of a crumbs dependency.
@@ -39,9 +53,9 @@ const String kTapirExceptionsMcpExtension = 'ext.tapir.exceptions';
 /// Reset to the empty-list default by `MagicCrumbsIntegration.resetForTesting()`
 /// so downstream tests asserting the missing-crumbs default do not see leaked
 /// bindings.
-List<Map<String, dynamic>> Function({int limit}) recentExceptionsReader = ({
-  int limit = 20,
-}) => const [];
+List<Map<String, Object?>> Function(ExceptionsRequest request)
+recentExceptionsReader = (ExceptionsRequest request) =>
+    const <Map<String, Object?>>[];
 
 // ---------------------------------------------------------------------------
 // Aggregator
@@ -54,7 +68,7 @@ List<Map<String, dynamic>> Function({int limit}) recentExceptionsReader = ({
 void registerExceptionsExtensions() {
   registerTapirExtension(
     kTapirExceptionsMcpExtension,
-    aiTestExceptionsHandler,
+    tapirExceptionsHandler,
     ensureFrames: false,
   );
 }
@@ -91,7 +105,7 @@ void registerExceptionsExtensions() {
 ///   "count": 1
 /// }
 /// ```
-Future<developer.ServiceExtensionResponse> aiTestExceptionsHandler(
+Future<developer.ServiceExtensionResponse> tapirExceptionsHandler(
   String method,
   Map<String, String> params,
 ) async {
@@ -107,8 +121,8 @@ Future<developer.ServiceExtensionResponse> aiTestExceptionsHandler(
     final List<Map<String, dynamic>> buffered = recentCapturedExceptions(
       limit: limit,
     );
-    final List<Map<String, dynamic>> crumbs = recentExceptionsReader(
-      limit: limit,
+    final List<Map<String, Object?>> crumbs = recentExceptionsReader(
+      ExceptionsRequest(limit: limit),
     );
 
     // 3. Merge, dedup by (type, message, stackHead), keep newest-first, then
@@ -161,12 +175,9 @@ Future<developer.ServiceExtensionResponse> aiTestExceptionsHandler(
       '[tapir] ext.tapir.exceptions: unexpected error: $e\n$st',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.exceptions: $e',
-        TapirErrorEnvelope.unexpected(),
-      ),
+    return tapirError(
+      'ext.tapir.exceptions: $e',
+      TapirErrorEnvelope.unexpected(),
     );
   }
 }

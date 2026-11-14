@@ -3,11 +3,11 @@ import 'package:dowel/dowel.dart';
 import 'frame_warning_output.dart';
 import 'json_output.dart';
 
-/// `dowel tapir:wait [--text=<s>] [--textGone=<s>] [--expression=<dart>]
+/// `dowel tapir:wait_for [--text=<s>] [--textGone=<s>] [--expression=<dart>]
 /// [--timeoutMs=<ms>]` — wait for a condition in the running app.
-class TapirWaitCommand extends DowelCommand {
+class TapirWaitForCommand extends DowelCommand {
   @override
-  String get name => 'tapir:wait';
+  String get name => 'tapir:wait_for';
 
   @override
   String get description =>

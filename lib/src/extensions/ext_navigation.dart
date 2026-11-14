@@ -191,12 +191,9 @@ Future<developer.ServiceExtensionResponse> extTapirNavigateHandler(
     // 1. Validate the required route param.
     final String? route = params['route'];
     if (route == null || route.isEmpty) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.navigate: missing required param "route"',
-          TapirErrorEnvelope.missingParam('route'),
-        ),
+      return tapirError(
+        'ext.tapir.navigate: missing required param "route"',
+        TapirErrorEnvelope.missingParam('route'),
       );
     }
 
@@ -314,10 +311,7 @@ Future<developer.ServiceExtensionResponse> extTapirNavigateHandler(
       '[tapir] extTapirNavigateHandler error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -390,10 +384,7 @@ Future<developer.ServiceExtensionResponse> extTapirNavigateBackHandler(
       '[tapir] extTapirNavigateBackHandler error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -414,10 +405,7 @@ Future<developer.ServiceExtensionResponse> extTapirGetRoutesHandler(
       '[tapir] extTapirGetRoutesHandler error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 

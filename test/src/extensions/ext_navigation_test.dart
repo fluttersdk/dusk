@@ -189,7 +189,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('extTapirNavigateHandler', () {
-    test('returns extensionError when route param is missing', () async {
+    test('returns invalidParams when route param is missing', () async {
       final developer.ServiceExtensionResponse response =
           await extTapirNavigateHandler(
             'ext.tapir.navigate',
@@ -198,12 +198,12 @@ void main() {
 
       expect(
         response.errorCode,
-        equals(developer.ServiceExtensionResponse.extensionError),
-        reason: 'Missing route must return extensionError',
+        equals(developer.ServiceExtensionResponse.invalidParams),
+        reason: 'A missing route is the caller\'s mistake',
       );
     });
 
-    test('returns extensionError when route param is empty string', () async {
+    test('returns invalidParams when route param is empty string', () async {
       final developer.ServiceExtensionResponse response =
           await extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
             'route': '',
@@ -211,8 +211,8 @@ void main() {
 
       expect(
         response.errorCode,
-        equals(developer.ServiceExtensionResponse.extensionError),
-        reason: 'Empty route must return extensionError',
+        equals(developer.ServiceExtensionResponse.invalidParams),
+        reason: 'An empty route is the caller\'s mistake',
       );
     });
 

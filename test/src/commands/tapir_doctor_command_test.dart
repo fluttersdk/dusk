@@ -6,22 +6,74 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/commands/tapir_doctor_command.dart';
 import 'package:tapir/src/commands/tapir_install_command.dart';
-import 'package:tapir/src/tapir_plugin.dart';
 
 import '../cdp/fake_cdp_server.dart';
 
+/// A VM Service client that answers from a script instead of a socket:
+/// [answer] is what `ext.tapir.boot_id` returns, or [error] is thrown from
+/// [failAt] (`connect` or `call`).
+final class _FakeVmClient implements VmServiceClient {
+  _FakeVmClient({this.answer = const <String, dynamic>{}, this.error})
+    : failAt = error == null ? null : 'call';
+
+  _FakeVmClient.failingConnect(Object this.error)
+    : answer = const <String, dynamic>{},
+      failAt = 'connect';
+
+  final Map<String, dynamic> answer;
+  final Object? error;
+  final String? failAt;
+  final List<String> calls = <String>[];
+  bool disconnected = false;
+
+  @override
+  Future<void> connect() async {
+    if (failAt == 'connect') throw error!;
+  }
+
+  @override
+  Future<void> disconnect() async => disconnected = true;
+
+  @override
+  Future<String> getMainIsolateId() async => 'isolates/1';
+
+  @override
+  Future<T> callServiceExtension<T>(
+    String method, {
+    required String isolateId,
+    Map<String, dynamic>? params,
+  }) async {
+    calls.add(method);
+    if (failAt == 'call') throw error!;
+    return answer as T;
+  }
+
+  @override
+  Object? noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// An app that answered with [semanticsEnabled] and [enrichers].
+Future<TapirAppReport?> Function(Map<String, dynamic>?) _answered({
+  bool? semanticsEnabled = true,
+  int? enrichers = 0,
+}) =>
+    (Map<String, dynamic>? state) async => TapirAppReport.answered(
+      semanticsEnabled: semanticsEnabled,
+      enrichers: enrichers,
+    );
+
 /// Restore every static test seam between tests so per-test overrides do not
 /// leak. The doctor command leans on roughly eight injected probes; without
-/// this teardown, a test that overrides `semanticsEnabledProbe` to false
-/// leaks ERROR rows into every following test that expects PASS.
+/// this teardown, a test that has the app report the tree off leaks ERROR
+/// rows into every following test that expects PASS.
 void _resetDoctorHooks() {
   TapirDoctorCommand.stateFileReader = () async => null;
   TapirDoctorCommand.chromePidProbe = ({required int parentPid}) async => null;
   TapirDoctorCommand.processStartTimeProbe = (int pid) => null;
   TapirDoctorCommand.nowProvider = DateTime.now;
-  TapirDoctorCommand.semanticsEnabledProbe = () => true;
-  TapirDoctorCommand.tapirDisableEnvReader = () => '';
-  TapirDoctorCommand.enrichersProbe = () => TapirPlugin.enrichers.length;
+  TapirDoctorCommand.appProbe = TapirDoctorCommand.defaultAppProbe;
+  TapirDoctorCommand.vmClientFactory = VmServiceClient.new;
+  TapirDoctorCommand.legacyLeftoversProbe = () => const <String>[];
   TapirDoctorCommand.mainDartPathResolver = () => 'lib/main.dart';
   TapirDoctorCommand.mainDartReader = (String path) {
     final file = File(path);
@@ -35,15 +87,8 @@ void _resetDoctorHooks() {
 }
 
 void main() {
-  setUp(() {
-    _resetDoctorHooks();
-    TapirPlugin.enrichers.clear();
-  });
-
-  tearDown(() {
-    _resetDoctorHooks();
-    TapirPlugin.enrichers.clear();
-  });
+  setUp(_resetDoctorHooks);
+  tearDown(_resetDoctorHooks);
 
   group('TapirDoctorCommand metadata', () {
     test('name is tapir:doctor', () {
@@ -160,62 +205,56 @@ void main() {
   // Check 2: TAPIR_DISABLE env-var probe
   // ---------------------------------------------------------------------------
 
-  group('Check 2: TAPIR_DISABLE env-var', () {
-    test('PASS when TAPIR_DISABLE is empty (runtime hooks active)', () async {
-      TapirDoctorCommand.tapirDisableEnvReader = () => '';
+  group('Check 2: TAPIR_DISABLE in the running app', () {
+    test('PASS when the app answers ext.tapir.boot_id', () async {
+      TapirDoctorCommand.appProbe = _answered();
       final output = BufferedOutput();
       final exit = await TapirDoctorCommand().handle(
         DowelContext.bare(MapInput(const {}), output),
       );
 
       expect(exit, equals(0));
-      expect(output.content, contains('TAPIR_DISABLE'));
-      expect(output.content, isNot(contains('runtime hooks inactive')));
+      expect(output.content, contains('TAPIR_DISABLE: not set'));
     });
 
-    test('WARN when TAPIR_DISABLE is set, with the actual value echoed in the message', () async {
-      TapirDoctorCommand.tapirDisableEnvReader = () => '1';
+    test('WARN when the app registers no ext.tapir.*', () async {
+      TapirDoctorCommand.appProbe = (Map<String, dynamic>? state) async =>
+          const TapirAppReport.notRegistered();
+      final output = BufferedOutput();
+      await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(
+        output.content,
+        contains('TAPIR_DISABLE: the running app registers no ext.tapir.*'),
+      );
+      expect(output.content, contains('--dart-define=TAPIR_DISABLE=1'));
+    });
+
+    test('skipped, not passed, with no running app', () async {
       final output = BufferedOutput();
       final exit = await TapirDoctorCommand().handle(
         DowelContext.bare(MapInput(const {}), output),
       );
 
-      expect(exit, equals(0), reason: 'WARN never fails the command');
+      expect(exit, equals(0));
       expect(
         output.content,
-        contains('tapir disabled via TAPIR_DISABLE=1, runtime hooks inactive'),
+        contains('TAPIR_DISABLE: Skipped (no running app'),
       );
     });
-
-    test(
-      'WARN echoes a custom TAPIR_DISABLE value verbatim (e.g. "true")',
-      () async {
-        TapirDoctorCommand.tapirDisableEnvReader = () => 'true';
-        final output = BufferedOutput();
-        final exit = await TapirDoctorCommand().handle(
-          DowelContext.bare(MapInput(const {}), output),
-        );
-
-        expect(exit, equals(0));
-        expect(
-          output.content,
-          contains(
-            'tapir disabled via TAPIR_DISABLE=true, runtime hooks inactive',
-          ),
-        );
-      },
-    );
   });
 
   // ---------------------------------------------------------------------------
   // Check 3: enricher list non-empty
   // ---------------------------------------------------------------------------
 
-  group('Check 3: enricher list non-empty', () {
+  group('Check 3: enricher count in the running app', () {
     test(
       'PASS when at least one enricher is registered (count echoed)',
       () async {
-        TapirDoctorCommand.enrichersProbe = () => 2;
+        TapirDoctorCommand.appProbe = _answered(enrichers: 2);
 
         final output = BufferedOutput();
         final exit = await TapirDoctorCommand().handle(
@@ -228,9 +267,9 @@ void main() {
     );
 
     test(
-      'INFO when TapirPlugin.enrichers is empty (enrichers are opt-in)',
+      'INFO when the app registered no enricher (enrichers are opt-in)',
       () async {
-        TapirDoctorCommand.enrichersProbe = () => 0;
+        TapirDoctorCommand.appProbe = _answered(enrichers: 0);
 
         final output = BufferedOutput();
         final exit = await TapirDoctorCommand().handle(
@@ -248,7 +287,7 @@ void main() {
     test(
       'PASS with count = 1 when exactly one enricher is registered',
       () async {
-        TapirDoctorCommand.enrichersProbe = () => 1;
+        TapirDoctorCommand.appProbe = _answered(enrichers: 1);
 
         final output = BufferedOutput();
         final exit = await TapirDoctorCommand().handle(
@@ -259,6 +298,20 @@ void main() {
         expect(output.content, contains('enrichers registered: 1'));
       },
     );
+
+    test('skipped when the app\'s tapir sends no count', () async {
+      TapirDoctorCommand.appProbe = _answered(enrichers: null);
+
+      final output = BufferedOutput();
+      await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(
+        output.content,
+        contains('snapshot enrichers: Skipped (the running app\'s tapir'),
+      );
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -266,8 +319,8 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('Check 4: Semantics tree forced on', () {
-    test('PASS when semanticsEnabled is true', () async {
-      TapirDoctorCommand.semanticsEnabledProbe = () => true;
+    test('PASS when the app reports the tree on', () async {
+      TapirDoctorCommand.appProbe = _answered(semanticsEnabled: true);
 
       final output = BufferedOutput();
       final exit = await TapirDoctorCommand().handle(
@@ -275,16 +328,14 @@ void main() {
       );
 
       expect(exit, equals(0));
-      expect(output.content, contains('Semantics tree forced on'));
       expect(
         output.content,
-        isNot(contains('TapirPlugin.install may not have run')),
+        contains('Semantics tree forced on: enabled in the running app'),
       );
     });
 
-    test('ERROR (exit != 0) when semanticsEnabled is false; message names '
-        'TapirPlugin.install', () async {
-      TapirDoctorCommand.semanticsEnabledProbe = () => false;
+    test('ERROR (exit != 0) when the app reports the tree off', () async {
+      TapirDoctorCommand.appProbe = _answered(semanticsEnabled: false);
 
       final output = BufferedOutput();
       final exit = await TapirDoctorCommand().handle(
@@ -298,16 +349,46 @@ void main() {
       );
       expect(
         output.content,
+        contains('Semantics tree not forced on in the running app'),
+      );
+    });
+
+    test('ERROR (exit != 0) when the app registers no tapir; message names '
+        'TapirPlugin.install', () async {
+      TapirDoctorCommand.appProbe = (Map<String, dynamic>? state) async =>
+          const TapirAppReport.notRegistered();
+
+      final output = BufferedOutput();
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, isNot(equals(0)));
+      expect(
+        output.content,
         contains(
-          'Semantics tree not forced on; TapirPlugin.install may not have run',
+          'Semantics tree not forced on; TapirPlugin.install has not run',
         ),
+      );
+    });
+
+    test('skipped, exit 0, when no app is running', () async {
+      final output = BufferedOutput();
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, equals(0));
+      expect(
+        output.content,
+        contains('Semantics tree forced on: Skipped (no running app'),
       );
     });
 
     test(
       'ERROR also rendered with the [ERROR] prefix in BufferedOutput',
       () async {
-        TapirDoctorCommand.semanticsEnabledProbe = () => false;
+        TapirDoctorCommand.appProbe = _answered(semanticsEnabled: false);
 
         final output = BufferedOutput();
         await TapirDoctorCommand().handle(
@@ -545,7 +626,7 @@ Future<void> main() async {
     });
 
     test('exit code is non-zero when ERROR-class Check 4 fails', () async {
-      TapirDoctorCommand.semanticsEnabledProbe = () => false;
+      TapirDoctorCommand.appProbe = _answered(semanticsEnabled: false);
 
       final output = BufferedOutput();
       final exit = await TapirDoctorCommand().handle(
@@ -611,16 +692,14 @@ Future<void> main() async {
       // Defensive smoke for the static initializer block. Reading each
       // field forces Dart to evaluate the default factory expressions
       // assigned at class-load time, so the default-factory bodies
-      // (`_defaultTapirDisableEnvReader`, `_defaultEnrichersProbe`,
-      // `_defaultSemanticsEnabled`, `_defaultMainDartPath`) all show up
-      // in `lcov`'s DA report for this file.
+      // (`_defaultMainDartPath` and friends) all show up in `lcov`'s DA
+      // report for this file.
       expect(TapirDoctorCommand.stateFileReader, isNotNull);
       expect(TapirDoctorCommand.chromePidProbe, isNotNull);
       expect(TapirDoctorCommand.processStartTimeProbe, isNotNull);
       expect(TapirDoctorCommand.nowProvider, isNotNull);
-      expect(TapirDoctorCommand.semanticsEnabledProbe, isNotNull);
-      expect(TapirDoctorCommand.tapirDisableEnvReader, isNotNull);
-      expect(TapirDoctorCommand.enrichersProbe, isNotNull);
+      expect(TapirDoctorCommand.appProbe, isNotNull);
+      expect(TapirDoctorCommand.vmClientFactory, isNotNull);
       expect(TapirDoctorCommand.mainDartPathResolver, isNotNull);
       expect(TapirDoctorCommand.mainDartReader, isNotNull);
     });
@@ -1104,6 +1183,188 @@ Future<void> main() async {
 
       expect(output.content, contains('another project'));
       expect(output.content, contains('--state='));
+    });
+  });
+
+  group('TapirDoctorCommand.defaultAppProbe', () {
+    // The probe every row-level test above swaps out, driven here through a
+    // fake VM client so the path production runs is the one under test.
+    const Map<String, dynamic> session = <String, dynamic>{
+      'vmServiceUri': 'ws://127.0.0.1:1/ws',
+    };
+
+    test('no vmServiceUri in the state means no session: null, no '
+        'client built', () async {
+      bool built = false;
+      TapirDoctorCommand.vmClientFactory = (String uri) {
+        built = true;
+        return _FakeVmClient();
+      };
+
+      expect(await TapirDoctorCommand.defaultAppProbe(null), isNull);
+      expect(
+        await TapirDoctorCommand.defaultAppProbe(const <String, dynamic>{}),
+        isNull,
+      );
+      expect(built, isFalse);
+    });
+
+    test('reads the semantics state and the enricher count from '
+        'ext.tapir.boot_id, then disconnects', () async {
+      final _FakeVmClient client = _FakeVmClient(
+        answer: <String, dynamic>{
+          'bootId': 'x-1',
+          'semanticsEnabled': false,
+          'enrichers': 3,
+        },
+      );
+      String? dialled;
+      TapirDoctorCommand.vmClientFactory = (String uri) {
+        dialled = uri;
+        return client;
+      };
+
+      final TapirAppReport? report = await TapirDoctorCommand.defaultAppProbe(
+        session,
+      );
+
+      expect(dialled, 'ws://127.0.0.1:1/ws');
+      expect(client.calls, <String>['ext.tapir.boot_id']);
+      expect(report!.status, TapirAppStatus.answered);
+      expect(report.semanticsEnabled, isFalse);
+      expect(report.enrichers, 3);
+      expect(client.disconnected, isTrue);
+    });
+
+    test('an app with no ext.tapir.* reads as not registered', () async {
+      TapirDoctorCommand.vmClientFactory = (String uri) => _FakeVmClient(
+        error: const ExtensionNotRegisteredException('ext.tapir.boot_id'),
+      );
+
+      final TapirAppReport? report = await TapirDoctorCommand.defaultAppProbe(
+        session,
+      );
+
+      expect(report!.status, TapirAppStatus.notRegistered);
+    });
+
+    test('a refused socket is reported with its reason, not thrown', () async {
+      TapirDoctorCommand.vmClientFactory = (String uri) =>
+          _FakeVmClient.failingConnect(
+            const SocketException('Connection refused'),
+          );
+
+      final TapirAppReport? report = await TapirDoctorCommand.defaultAppProbe(
+        session,
+      );
+
+      expect(report!.status, TapirAppStatus.unreachable);
+      expect(report.reason, contains('Connection refused'));
+    });
+
+    test(
+      'an older tapir that answers without the keys leaves them null',
+      () async {
+        TapirDoctorCommand.vmClientFactory = (String uri) =>
+            _FakeVmClient(answer: <String, dynamic>{'bootId': 'x-1'});
+
+        final TapirAppReport? report = await TapirDoctorCommand.defaultAppProbe(
+          session,
+        );
+
+        expect(report!.status, TapirAppStatus.answered);
+        expect(report.semanticsEnabled, isNull);
+        expect(report.enrichers, isNull);
+      },
+    );
+
+    test('the doctor run through the default probe fails on an app whose '
+        'tree is off and prints its enricher count', () async {
+      TapirDoctorCommand.stateFileReader = () async => session;
+      TapirDoctorCommand.vmClientFactory = (String uri) => _FakeVmClient(
+        answer: <String, dynamic>{
+          'bootId': 'x-1',
+          'semanticsEnabled': false,
+          'enrichers': 2,
+        },
+      );
+
+      final output = BufferedOutput();
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, isNot(equals(0)));
+      expect(output.content, contains('TAPIR_DISABLE: not set'));
+      expect(output.content, contains('enrichers registered: 2'));
+      expect(output.content, contains('[ERROR]'));
+    });
+
+    test('an app that does not answer skips the three rows', () async {
+      TapirDoctorCommand.stateFileReader = () async => session;
+      TapirDoctorCommand.vmClientFactory = (String uri) =>
+          _FakeVmClient.failingConnect(
+            const SocketException('Connection refused'),
+          );
+
+      final output = BufferedOutput();
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, equals(0));
+      expect(
+        'Skipped (the running app did not answer'
+            .allMatches(output.content)
+            .length,
+        3,
+      );
+    });
+  });
+
+  group('Check 8: fluttersdk_dusk leftovers', () {
+    test('WARN listing each leftover and the commands to run', () async {
+      TapirDoctorCommand.legacyLeftoversProbe = () => <String>[
+        'bin/fsa: delete it',
+      ];
+
+      final output = BufferedOutput();
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, equals(0), reason: 'WARN never fails the command');
+      expect(output.content, contains('fluttersdk_dusk leftovers: found'));
+      expect(output.content, contains('bin/fsa: delete it'));
+      expect(output.content, contains('dart run dowel commands:refresh'));
+    });
+
+    test('PASS on a clean project', () async {
+      final output = BufferedOutput();
+      await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(output.content, contains('fluttersdk_dusk leftovers: none found'));
+    });
+
+    test('the default probe is the installer\'s check on the working '
+        'directory', () {
+      final Directory tmp = Directory.systemTemp.createTempSync(
+        'tapir_doctor_legacy_',
+      );
+      final Directory originalCwd = Directory.current;
+      addTearDown(() {
+        Directory.current = originalCwd;
+        tmp.deleteSync(recursive: true);
+      });
+      Directory('${tmp.path}/bin').createSync();
+      File('${tmp.path}/bin/fsa').writeAsStringSync('#!/bin/sh\n');
+      Directory.current = tmp;
+
+      expect(TapirDoctorCommand.defaultLegacyLeftoversProbe(), <String>[
+        'bin/fsa: delete it',
+      ]);
     });
   });
 

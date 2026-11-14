@@ -37,10 +37,10 @@ void main() {
           // Type, scroll, wait, hover, drag, modal.
           'TapirTypeCommand',
           'TapirScrollCommand',
-          'TapirWaitCommand',
+          'TapirWaitForCommand',
           'TapirHoverCommand',
           'TapirDragCommand',
-          'TapirModalCommand',
+          'TapirDismissModalsCommand',
           // Diagnostics.
           'TapirDoctorCommand',
           // CLI/MCP symmetry pass.
@@ -56,7 +56,7 @@ void main() {
           // Step 3.5.
           'TapirConsoleCommand',
           'TapirExceptionsCommand',
-          'TapirDblclickCommand',
+          'TapirDoubleClickCommand',
           'TapirSetCheckboxCommand',
           // Step 4.1.
           'TapirObserveCommand',
@@ -129,7 +129,7 @@ void main() {
           // Step 3.5.
           'tapir_console',
           'tapir_exceptions',
-          'tapir_dblclick',
+          'tapir_double_click',
           'tapir_set_checkbox',
           // Step 4.1.
           'tapir_observe',
@@ -212,7 +212,7 @@ void main() {
         // Step 3.5.
         expect(byName['tapir_console'], equals('ext.tapir.console'));
         expect(byName['tapir_exceptions'], equals('ext.tapir.exceptions'));
-        expect(byName['tapir_dblclick'], equals('ext.tapir.dblclick'));
+        expect(byName['tapir_double_click'], equals('ext.tapir.double_click'));
         expect(byName['tapir_set_checkbox'], equals('ext.tapir.set_checkbox'));
         // Step 4.1.
         expect(byName['tapir_observe'], equals('ext.tapir.observe'));
@@ -227,8 +227,14 @@ void main() {
         // Wave 4 CDP tools. Both route via dowel: dispatch prefix to CLI
         // commands instead of VM Service extensions (CDP is orchestrator-side,
         // not inside the running Flutter app).
-        expect(byName['tapir_resize_viewport'], equals('dowel:tapir:resize'));
-        expect(byName['tapir_device_profile'], equals('dowel:tapir:device'));
+        expect(
+          byName['tapir_resize_viewport'],
+          equals('dowel:tapir:resize_viewport'),
+        );
+        expect(
+          byName['tapir_device_profile'],
+          equals('dowel:tapir:device_profile'),
+        );
         // D7.
         expect(byName['tapir_fill'], equals('ext.tapir.fill'));
         expect(
@@ -548,7 +554,7 @@ void main() {
       final properties =
           resize.inputSchema['properties'] as Map<String, dynamic>;
 
-      // MCP arguments reach TapirResizeCommand under their own names, and it
+      // MCP arguments reach TapirResizeViewportCommand under their own names, and it
       // reads `dpr`. The schema used to say `deviceScaleFactor`, which was
       // accepted and then ignored.
       expect(properties.keys, contains('dpr'));
@@ -578,7 +584,7 @@ void main() {
       // Closing a schema refuses every key it does not list, so each knob an
       // agent is meant to pass has to be listed. The coordinate keys (x, y,
       // toX, toY, drag dx/dy), reportPoint, perf_end's full and screenshot's
-      // geometry, and tapir:resize's hold, stay out on purpose: the perf
+      // geometry, and tapir:resize_viewport's hold, stay out on purpose: the perf
       // runner and the CLI call the extensions directly, and they are not MCP
       // surface.
       const snapshot = ['snapshot', 'includeSnapshot'];
@@ -589,7 +595,7 @@ void main() {
         'tapir_hover': [...snapshot, ...gate],
         'tapir_drag': [...snapshot, ...gate],
         'tapir_type': [...snapshot, ...gate],
-        'tapir_dblclick': [...snapshot, ...gate],
+        'tapir_double_click': [...snapshot, ...gate],
         'tapir_right_click': ['snapshot'],
         'tapir_triple_click': ['snapshot'],
         'tapir_fill': gate,

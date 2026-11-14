@@ -62,13 +62,10 @@ Future<developer.ServiceExtensionResponse> extTapirFindHandler(
         containsText == null &&
         semanticsLabel == null &&
         keyValue == null) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.find: at least one of "text", "contains", '
-          '"semanticsLabel", or "key" is required',
-          TapirErrorEnvelope.missingParam('text|contains|semanticsLabel|key'),
-        ),
+      return tapirError(
+        'ext.tapir.find: at least one of "text", "contains", '
+        '"semanticsLabel", or "key" is required',
+        TapirErrorEnvelope.missingParam('text|contains|semanticsLabel|key'),
       );
     }
 
@@ -116,10 +113,7 @@ Future<developer.ServiceExtensionResponse> extTapirFindHandler(
       '[tapir] ext.tapir.find error: $e\n$stackTrace',
       name: 'tapir',
     );
-    return developer.ServiceExtensionResponse.error(
-      developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(e.toString(), TapirErrorEnvelope.unexpected()),
-    );
+    return tapirError(e.toString(), TapirErrorEnvelope.unexpected());
   }
 }
 
@@ -200,7 +194,7 @@ RefEntry? resolveQuery(TapirQuery query) {
   // 0b. A scope entry carrying no semantics node cannot bound a semantics
   //     walk, and `find_by_text` mints exactly that shape
   //     (ext_wait_find.dart:433 registers without a node), so a ref taken
-  //     from a `tapir:wait` result arrives here that way. Running the walk
+  //     from a `tapir:wait_for` result arrives here that way. Running the walk
   //     unscoped would search the whole tree and answer plausibly, which is
   //     the failure the scope was passed to prevent. The element legs stay
   //     available: those the entry's element does bound.
@@ -305,7 +299,7 @@ RefEntry? resolveQuery(TapirQuery query) {
 String _noSemanticsScope(String ref) =>
     "within ref '$ref' carries no semantics node, so it cannot scope a "
     'label lookup; take the scope ref from a tapir:snap output instead of a '
-    'tapir:wait result';
+    'tapir:wait_for result';
 
 String? _nonEmpty(String? raw) {
   if (raw == null) return null;
@@ -670,5 +664,5 @@ Rect globalRectFromSemantics(SemanticsNode node) {
 /// The entries are never inserted into [RefRegistry]'s e-map, so the id
 /// only exists to satisfy [RefEntry]'s `required String groupId` field. It
 /// is intentionally distinct from any real snapshot group id so a stray
-/// [RefRegistry.disposeGroup] call cannot target it.
+/// [disposeRefGroup] call cannot target it.
 const String _kQueryGroupId = '__query__';

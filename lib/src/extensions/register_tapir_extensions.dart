@@ -49,7 +49,7 @@ import 'ext_wait_find.dart';
 /// Step 3.5 additions:
 /// - [registerConsoleExtensions]: ext.tapir.console — crumbs log reader.
 /// - [registerExceptionsExtensions]: ext.tapir.exceptions — crumbs exception reader.
-/// - `ext.tapir.dblclick` is registered INSIDE [registerPointerExtensions].
+/// - `ext.tapir.double_click` is registered INSIDE [registerPointerExtensions].
 /// - [registerCheckboxExtensions]: ext.tapir.set_checkbox — checkbox setter.
 ///
 /// Perf trio:

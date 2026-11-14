@@ -134,7 +134,7 @@ Future<ServiceExtensionResponse> _pumpTap(
   Map<String, String> extra = const <String, String>{},
 }) async {
   final Future<ServiceExtensionResponse> future =
-      wrapTapirHandler(aiTestTapHandler)('ext.tapir.tap', <String, String>{
+      wrapTapirHandler(tapirTapHandler)('ext.tapir.tap', <String, String>{
         'ref': ref,
         'includeSnapshot': 'false',
         ...extra,
@@ -145,8 +145,8 @@ Future<ServiceExtensionResponse> _pumpTap(
   return future;
 }
 
-/// Tests for the actionability gate wired into [aiTestTapHandler],
-/// [aiTestHoverHandler], and [aiTestDragHandler] (Step 15).
+/// Tests for the actionability gate wired into [tapirTapHandler],
+/// [tapirHoverHandler], and [tapirDragHandler] (Step 15).
 ///
 /// Each handler resolves its ref(s) via [RefRegistry], then defers to
 /// `ensureActionable` (Step 14) before dispatching the pointer event. A
@@ -154,14 +154,14 @@ Future<ServiceExtensionResponse> _pumpTap(
 /// whose `errorDetail` carries the descriptive
 /// `"Widget ref=... is not actionable: ..."` message verbatim.
 ///
-/// We use [RefRegistry.registerForTesting] to seed entries with precise
+/// We use [registerRefForTesting] to seed entries with precise
 /// rects so we can drive the failure modes deterministically — the
 /// production snapshot path is exercised end-to-end in the integration
 /// suite, not here.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('aiTestTapHandler actionability gate', () {
+  group('tapirTapHandler actionability gate', () {
     setUp(RefRegistry.resetForTesting);
 
     // -------------------------------------------------------------------------
@@ -183,7 +183,7 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 50, 50),
         element: element,
         groupId: 'g',
@@ -196,7 +196,7 @@ void main() {
       // synthetic rect that does not match the Center widget's live
       // geometry (Step 3.1 introduced the 4-gate; Step 3.2 made the gates
       // opt-out via params).
-      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': ref,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -226,14 +226,14 @@ void main() {
 
         await tester.pumpWidget(const SizedBox.shrink());
         final Element element = tester.element(find.byType(SizedBox));
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: const Rect.fromLTWH(5000, 5000, 50, 50),
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final response = await aiTestTapHandler(
+        final response = await tapirTapHandler(
           'ext.tapir.tap',
           <String, String>{'ref': ref},
         );
@@ -283,7 +283,7 @@ void main() {
           node: node,
         );
 
-        final response = await aiTestTapHandler(
+        final response = await tapirTapHandler(
           'ext.tapir.tap',
           <String, String>{'ref': ref},
         );
@@ -301,14 +301,14 @@ void main() {
     ) async {
       await tester.pumpWidget(const SizedBox.shrink());
       final Element element = tester.element(find.byType(SizedBox));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(10, 10, 0, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final response = await aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final response = await tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': ref,
       });
 
@@ -326,7 +326,7 @@ void main() {
     test(
       '(c) missing ref param still returns the original missing-param error',
       () async {
-        final response = await aiTestTapHandler(
+        final response = await tapirTapHandler(
           'ext.tapir.tap',
           <String, String>{},
         );
@@ -338,7 +338,7 @@ void main() {
     test(
       '(c) unknown ref still returns the original not-found error',
       () async {
-        final response = await aiTestTapHandler(
+        final response = await tapirTapHandler(
           'ext.tapir.tap',
           <String, String>{'ref': 'e9999'},
         );
@@ -348,7 +348,7 @@ void main() {
     );
   });
 
-  group('aiTestHoverHandler actionability gate', () {
+  group('tapirHoverHandler actionability gate', () {
     setUp(RefRegistry.resetForTesting);
 
     testWidgets('(a) actionable widget hover returns ok envelope', (
@@ -366,14 +366,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(50, 50, 60, 60),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestHoverHandler('ext.tapir.hover', <String, String>{
+      final future = tapirHoverHandler('ext.tapir.hover', <String, String>{
         'ref': ref,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -395,14 +395,14 @@ void main() {
 
         await tester.pumpWidget(const SizedBox.shrink());
         final Element element = tester.element(find.byType(SizedBox));
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: const Rect.fromLTWH(5000, 5000, 50, 50),
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final response = await aiTestHoverHandler(
+        final response = await tapirHoverHandler(
           'ext.tapir.hover',
           <String, String>{'ref': ref},
         );
@@ -419,7 +419,7 @@ void main() {
     );
   });
 
-  group('aiTestDragHandler actionability gate', () {
+  group('tapirDragHandler actionability gate', () {
     setUp(RefRegistry.resetForTesting);
 
     // -------------------------------------------------------------------------
@@ -441,13 +441,13 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String startRef = RefRegistry.registerForTesting(
+      final String startRef = registerRefForTesting(
         rect: const Rect.fromLTWH(50, 50, 50, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
-      final String endRef = RefRegistry.registerForTesting(
+      final String endRef = registerRefForTesting(
         rect: const Rect.fromLTWH(300, 300, 50, 50),
         element: element,
         groupId: 'g',
@@ -457,7 +457,7 @@ void main() {
       // Drag handler awaits 5 × 16ms delays plus two endOfFrame ticks.
       // Stable + receives-events gates opt-out: synthetic test rects do
       // not align with the live Center widget geometry.
-      final future = aiTestDragHandler('ext.tapir.drag', <String, String>{
+      final future = tapirDragHandler('ext.tapir.drag', <String, String>{
         'startRef': startRef,
         'endRef': endRef,
         'checkStable': 'false',
@@ -491,20 +491,20 @@ void main() {
 
         await tester.pumpWidget(const SizedBox.shrink());
         final Element element = tester.element(find.byType(SizedBox));
-        final String startRef = RefRegistry.registerForTesting(
+        final String startRef = registerRefForTesting(
           rect: const Rect.fromLTWH(5000, 5000, 50, 50),
           element: element,
           groupId: 'g',
           isTextField: false,
         );
-        final String endRef = RefRegistry.registerForTesting(
+        final String endRef = registerRefForTesting(
           rect: const Rect.fromLTWH(100, 100, 50, 50),
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final response = await aiTestDragHandler(
+        final response = await tapirDragHandler(
           'ext.tapir.drag',
           <String, String>{'startRef': startRef, 'endRef': endRef},
         );
@@ -530,13 +530,13 @@ void main() {
 
         await tester.pumpWidget(const SizedBox.shrink());
         final Element element = tester.element(find.byType(SizedBox));
-        final String startRef = RefRegistry.registerForTesting(
+        final String startRef = registerRefForTesting(
           rect: const Rect.fromLTWH(100, 100, 50, 50),
           element: element,
           groupId: 'g',
           isTextField: false,
         );
-        final String endRef = RefRegistry.registerForTesting(
+        final String endRef = registerRefForTesting(
           rect: const Rect.fromLTWH(5000, 5000, 50, 50),
           element: element,
           groupId: 'g',
@@ -550,7 +550,7 @@ void main() {
         // failure we want to assert on endRef. Opt out stable +
         // receives-events so startRef passes through to the off-viewport
         // check on endRef.
-        final response = await aiTestDragHandler(
+        final response = await tapirDragHandler(
           'ext.tapir.drag',
           <String, String>{
             'startRef': startRef,
@@ -578,7 +578,7 @@ void main() {
     test(
       '(d) missing startRef still returns the original missing-param error',
       () async {
-        final response = await aiTestDragHandler(
+        final response = await tapirDragHandler(
           'ext.tapir.drag',
           <String, String>{'endRef': 'e1'},
         );
@@ -593,7 +593,7 @@ void main() {
     test(
       '(d) missing endRef returns the original missing-param error',
       () async {
-        final response = await aiTestDragHandler(
+        final response = await tapirDragHandler(
           'ext.tapir.drag',
           <String, String>{'startRef': 'e1'},
         );
@@ -608,7 +608,7 @@ void main() {
     test(
       '(d) unknown startRef returns "not found in registry" error',
       () async {
-        final response = await aiTestDragHandler(
+        final response = await tapirDragHandler(
           'ext.tapir.drag',
           <String, String>{'startRef': 'e9999', 'endRef': 'e8888'},
         );
@@ -625,14 +625,14 @@ void main() {
       (WidgetTester tester) async {
         await tester.pumpWidget(const SizedBox.shrink());
         final Element element = tester.element(find.byType(SizedBox));
-        final String startRef = RefRegistry.registerForTesting(
+        final String startRef = registerRefForTesting(
           rect: const Rect.fromLTWH(50, 50, 50, 50),
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final response = await aiTestDragHandler(
+        final response = await tapirDragHandler(
           'ext.tapir.drag',
           <String, String>{'startRef': startRef, 'endRef': 'e9999'},
         );
@@ -645,11 +645,11 @@ void main() {
     );
   });
 
-  group('aiTestHoverHandler additional error paths', () {
+  group('tapirHoverHandler additional error paths', () {
     setUp(RefRegistry.resetForTesting);
 
     test('missing ref returns missing-param error', () async {
-      final response = await aiTestHoverHandler(
+      final response = await tapirHoverHandler(
         'ext.tapir.hover',
         const <String, String>{},
       );
@@ -658,7 +658,7 @@ void main() {
     });
 
     test('unknown ref returns not-found error', () async {
-      final response = await aiTestHoverHandler(
+      final response = await tapirHoverHandler(
         'ext.tapir.hover',
         const <String, String>{'ref': 'e9999'},
       );
@@ -869,7 +869,7 @@ void main() {
     });
   });
 
-  group('aiTestTapHandler textfield post-dispatch path', () {
+  group('tapirTapHandler textfield post-dispatch path', () {
     setUp(RefRegistry.resetForTesting);
 
     testWidgets(
@@ -893,14 +893,14 @@ void main() {
         );
 
         final Element textFieldElement = tester.element(find.byType(TextField));
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: const Rect.fromLTWH(100, 100, 200, 50),
           element: textFieldElement,
           groupId: 'g-textfield',
           isTextField: true,
         );
 
-        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        final future = tapirTapHandler('ext.tapir.tap', <String, String>{
           'ref': ref,
           'checkStable': 'false',
           'checkReceivesEvents': 'false',
@@ -925,7 +925,7 @@ void main() {
   // out for back-compat callers that do not want the extra payload.
   // ---------------------------------------------------------------------------
 
-  group('aiTestTapHandler snapshot-in-response', () {
+  group('tapirTapHandler snapshot-in-response', () {
     setUp(RefRegistry.resetForTesting);
 
     testWidgets('embeds snapshot field in success response by default', (
@@ -950,14 +950,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(ElevatedButton));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 80, 40),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': ref,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -990,14 +990,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 50, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': ref,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -1037,14 +1037,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(ElevatedButton));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 80, 40),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': ref,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -1061,7 +1061,7 @@ void main() {
     });
   });
 
-  group('aiTestHoverHandler snapshot-in-response', () {
+  group('tapirHoverHandler snapshot-in-response', () {
     setUp(RefRegistry.resetForTesting);
 
     testWidgets('embeds snapshot field by default', (
@@ -1079,14 +1079,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(50, 50, 60, 60),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestHoverHandler('ext.tapir.hover', <String, String>{
+      final future = tapirHoverHandler('ext.tapir.hover', <String, String>{
         'ref': ref,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -1115,14 +1115,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(50, 50, 60, 60),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestHoverHandler('ext.tapir.hover', <String, String>{
+      final future = tapirHoverHandler('ext.tapir.hover', <String, String>{
         'ref': ref,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -1159,14 +1159,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(50, 50, 60, 60),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestHoverHandler('ext.tapir.hover', <String, String>{
+      final future = tapirHoverHandler('ext.tapir.hover', <String, String>{
         'ref': ref,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -1181,7 +1181,7 @@ void main() {
     });
   });
 
-  group('aiTestDragHandler snapshot-in-response', () {
+  group('tapirDragHandler snapshot-in-response', () {
     setUp(RefRegistry.resetForTesting);
 
     testWidgets('embeds snapshot field in success response by default', (
@@ -1199,20 +1199,20 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String startRef = RefRegistry.registerForTesting(
+      final String startRef = registerRefForTesting(
         rect: const Rect.fromLTWH(50, 50, 50, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
-      final String endRef = RefRegistry.registerForTesting(
+      final String endRef = registerRefForTesting(
         rect: const Rect.fromLTWH(300, 300, 50, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestDragHandler('ext.tapir.drag', <String, String>{
+      final future = tapirDragHandler('ext.tapir.drag', <String, String>{
         'startRef': startRef,
         'endRef': endRef,
         'checkStable': 'false',
@@ -1247,20 +1247,20 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String startRef = RefRegistry.registerForTesting(
+      final String startRef = registerRefForTesting(
         rect: const Rect.fromLTWH(50, 50, 50, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
-      final String endRef = RefRegistry.registerForTesting(
+      final String endRef = registerRefForTesting(
         rect: const Rect.fromLTWH(300, 300, 50, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestDragHandler('ext.tapir.drag', <String, String>{
+      final future = tapirDragHandler('ext.tapir.drag', <String, String>{
         'startRef': startRef,
         'endRef': endRef,
         'checkStable': 'false',
@@ -1301,20 +1301,20 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String startRef = RefRegistry.registerForTesting(
+      final String startRef = registerRefForTesting(
         rect: const Rect.fromLTWH(50, 50, 50, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
-      final String endRef = RefRegistry.registerForTesting(
+      final String endRef = registerRefForTesting(
         rect: const Rect.fromLTWH(300, 300, 50, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestDragHandler('ext.tapir.drag', <String, String>{
+      final future = tapirDragHandler('ext.tapir.drag', <String, String>{
         'startRef': startRef,
         'endRef': endRef,
         'checkStable': 'false',
@@ -1334,10 +1334,10 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // D3 — aiTestDoubleClickHandler (dblclick)
+  // D3 — tapirDoubleClickHandler (double_click)
   // ---------------------------------------------------------------------------
 
-  group('aiTestDoubleClickHandler', () {
+  group('tapirDoubleClickHandler', () {
     setUp(RefRegistry.resetForTesting);
 
     // -------------------------------------------------------------------------
@@ -1365,15 +1365,15 @@ void main() {
         );
 
         final Element element = tester.element(find.byType(Scaffold));
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: const Rect.fromLTWH(100, 100, 50, 50),
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final future = aiTestDoubleClickHandler(
-          'ext.tapir.dblclick',
+        final future = tapirDoubleClickHandler(
+          'ext.tapir.double_click',
           <String, String>{
             'ref': ref,
             'checkStable': 'false',
@@ -1409,15 +1409,15 @@ void main() {
 
       await tester.pumpWidget(const SizedBox.shrink());
       final Element element = tester.element(find.byType(SizedBox));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(5000, 5000, 50, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final response = await aiTestDoubleClickHandler(
-        'ext.tapir.dblclick',
+      final response = await tapirDoubleClickHandler(
+        'ext.tapir.double_click',
         <String, String>{'ref': ref},
       );
 
@@ -1438,8 +1438,8 @@ void main() {
     test(
       '(c) missing ref param returns missing_param error envelope',
       () async {
-        final response = await aiTestDoubleClickHandler(
-          'ext.tapir.dblclick',
+        final response = await tapirDoubleClickHandler(
+          'ext.tapir.double_click',
           <String, String>{},
         );
 
@@ -1462,20 +1462,20 @@ void main() {
 
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(body: Center(child: Text('dblclick-snap-test'))),
+          home: Scaffold(body: Center(child: Text('double_click-snap-test'))),
         ),
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 50, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestDoubleClickHandler(
-        'ext.tapir.dblclick',
+      final future = tapirDoubleClickHandler(
+        'ext.tapir.double_click',
         <String, String>{
           'ref': ref,
           'checkStable': 'false',
@@ -1580,9 +1580,67 @@ void main() {
     });
   });
 
-  group('aiTestTapHandler live-rect dispatch', () {
+  group('tapirTapHandler live-rect dispatch', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
+
+    // -------------------------------------------------------------------------
+    // A button half off the left edge, with no Scrollable to bring it in:
+    // the gate passes it (part of it is on screen), so the pointer has to
+    // land on the visible part, not on its centre outside the view.
+    // -------------------------------------------------------------------------
+
+    testWidgets('a half-offscreen button with no Scrollable is tapped on its '
+        'visible part', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      int taps = 0;
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Stack(
+            children: <Widget>[
+              Positioned(
+                left: -60,
+                top: 100,
+                width: 100,
+                height: 40,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => taps++,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      final Element element = tester.element(find.byType(GestureDetector));
+      final RenderBox box = element.renderObject! as RenderBox;
+      final Rect rect = box.localToGlobal(Offset.zero) & box.size;
+      expect(rect.center.dx, lessThan(0), reason: 'the centre is off screen');
+      final String ref = registerRefForTesting(
+        rect: rect,
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
+
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
+        'ref': ref,
+        'includeSnapshot': 'false',
+      });
+      for (int i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      final response = await future;
+
+      expect(response.result, isNotNull, reason: response.errorDetail);
+      expect(taps, 1);
+    });
 
     // -------------------------------------------------------------------------
     // (b) onTap of a button whose host rebuilds into a shifted position fires.
@@ -1637,7 +1695,7 @@ void main() {
         final Rect cachedRect =
             originalBox.localToGlobal(Offset.zero) & originalBox.size;
 
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: cachedRect,
           element: gesture,
           groupId: 'g',
@@ -1654,7 +1712,7 @@ void main() {
             movedBox.localToGlobal(Offset.zero) & movedBox.size;
         expect(liveRect.center, isNot(equals(cachedRect.center)));
 
-        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        final future = tapirTapHandler('ext.tapir.tap', <String, String>{
           'ref': ref,
           'checkStable': 'false',
           'checkReceivesEvents': 'false',
@@ -1670,7 +1728,7 @@ void main() {
     );
   });
 
-  group('aiTestTapHandler effect', () {
+  group('tapirTapHandler effect', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -1719,7 +1777,7 @@ void main() {
         node: node,
       );
 
-      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': ref,
         'includeSnapshot': 'false',
         // The timing-sensitive gates (stable/receives-events) are not
@@ -1782,7 +1840,7 @@ void main() {
         node: node,
       );
 
-      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': ref,
         'includeSnapshot': 'false',
         // Gate timing is not under test here; opt out so the stable
@@ -1825,14 +1883,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 50, 50),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': ref,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -1866,7 +1924,7 @@ void main() {
   // change produced the text the agent was waiting for, or times out.
   // ---------------------------------------------------------------------------
 
-  group('aiTestTapHandler --until', () {
+  group('tapirTapHandler --until', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -1881,14 +1939,14 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: _RevealOnTap()));
 
       final Element element = tester.element(find.text('reveal'));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 120, 40),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': ref,
         'checkStable': 'false',
         'checkReceivesEvents': 'false',
@@ -1931,14 +1989,14 @@ void main() {
         );
 
         final Element element = tester.element(find.byType(ElevatedButton));
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: const Rect.fromLTWH(100, 100, 80, 40),
           element: element,
           groupId: 'g',
           isTextField: false,
         );
 
-        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        final future = tapirTapHandler('ext.tapir.tap', <String, String>{
           'ref': ref,
           'checkStable': 'false',
           'checkReceivesEvents': 'false',
@@ -1966,7 +2024,7 @@ void main() {
   // Gate reporting
   // ---------------------------------------------------------------------------
 
-  group('aiTestTapHandler checks', () {
+  group('tapirTapHandler checks', () {
     setUp(RefRegistry.resetForTesting);
 
     testWidgets('records an unprovable receives-events check on the payload', (
@@ -1982,14 +2040,14 @@ void main() {
       // real widget, and it used to pass as a silent clean gate.
       await tester.pumpWidget(const SizedBox.shrink());
 
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 50, 50),
         element: tester.element(find.byType(SizedBox)),
         groupId: 'g',
         isTextField: false,
       );
 
-      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+      final future = tapirTapHandler('ext.tapir.tap', <String, String>{
         'ref': ref,
         'checkStable': 'false',
         'includeSnapshot': 'false',
@@ -2013,7 +2071,7 @@ void main() {
   // Tap point versus the control's own area (#60)
   // ---------------------------------------------------------------------------
 
-  group('aiTestTapHandler tapPointOutsideOwner', () {
+  group('tapirTapHandler tapPointOutsideOwner', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -2097,7 +2155,7 @@ void main() {
   // The labelled control wins over a full-frame handler (#60)
   // ---------------------------------------------------------------------------
 
-  group('aiTestTapHandler merged stage with its own tap handler', () {
+  group('tapirTapHandler merged stage with its own tap handler', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -2254,7 +2312,7 @@ void main() {
   // Frame starvation — the hidden-page path
   // ---------------------------------------------------------------------------
 
-  group('aiTestTapHandler under frame starvation', () {
+  group('tapirTapHandler under frame starvation', () {
     setUp(RefRegistry.resetForTesting);
 
     testWidgets('tap resolves when the engine produces no frames', (
@@ -2272,7 +2330,7 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(Scaffold));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 50, 50),
         element: element,
         groupId: 'g',
@@ -2288,7 +2346,7 @@ void main() {
       final ServiceExtensionResponse? response = await tester
           .runAsync<ServiceExtensionResponse?>(
             () =>
-                aiTestTapHandler('ext.tapir.tap', <String, String>{
+                tapirTapHandler('ext.tapir.tap', <String, String>{
                       'ref': ref,
                       'checkStable': 'false',
                       'checkReceivesEvents': 'false',
@@ -2318,7 +2376,7 @@ void main() {
   // instead of hanging, and both stamp the response through tapirResult.
   // ---------------------------------------------------------------------------
 
-  group('aiTestRightClickHandler', () {
+  group('tapirRightClickHandler', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -2336,14 +2394,14 @@ void main() {
         ),
       );
 
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 50, 50),
         element: tester.element(find.byType(Scaffold)),
         groupId: 'g',
         isTextField: false,
       );
 
-      final Future<ServiceExtensionResponse> future = aiTestRightClickHandler(
+      final Future<ServiceExtensionResponse> future = tapirRightClickHandler(
         'ext.tapir.right_click',
         <String, String>{
           'ref': ref,
@@ -2368,7 +2426,7 @@ void main() {
     ) async {
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
 
-      final ServiceExtensionResponse response = await aiTestRightClickHandler(
+      final ServiceExtensionResponse response = await tapirRightClickHandler(
         'ext.tapir.right_click',
         const <String, String>{'ref': 'e999'},
       );
@@ -2378,7 +2436,7 @@ void main() {
     });
   });
 
-  group('aiTestTripleClickHandler', () {
+  group('tapirTripleClickHandler', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -2396,14 +2454,14 @@ void main() {
         ),
       );
 
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 50, 50),
         element: tester.element(find.byType(Scaffold)),
         groupId: 'g',
         isTextField: false,
       );
 
-      final Future<ServiceExtensionResponse> future = aiTestTripleClickHandler(
+      final Future<ServiceExtensionResponse> future = tapirTripleClickHandler(
         'ext.tapir.triple_click',
         <String, String>{
           'ref': ref,
@@ -2438,7 +2496,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(const SizedBox.shrink());
-      return RefRegistry.registerForTesting(
+      return registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 50, 50),
         element: tester.element(find.byType(SizedBox)),
         groupId: 'g',
@@ -2461,7 +2519,7 @@ void main() {
       final String ref = await unprovableRef(tester);
       final Map<String, dynamic> decoded = await drive(
         tester,
-        () => aiTestHoverHandler('ext.tapir.hover', <String, String>{
+        () => tapirHoverHandler('ext.tapir.hover', <String, String>{
           'ref': ref,
           'checkStable': 'false',
           'includeSnapshot': 'false',
@@ -2474,15 +2532,16 @@ void main() {
       );
     });
 
-    testWidgets('dblclick reports it', (WidgetTester tester) async {
+    testWidgets('double_click reports it', (WidgetTester tester) async {
       final String ref = await unprovableRef(tester);
       final Map<String, dynamic> decoded = await drive(
         tester,
-        () => aiTestDoubleClickHandler('ext.tapir.dblclick', <String, String>{
-          'ref': ref,
-          'checkStable': 'false',
-          'includeSnapshot': 'false',
-        }),
+        () =>
+            tapirDoubleClickHandler('ext.tapir.double_click', <String, String>{
+              'ref': ref,
+              'checkStable': 'false',
+              'includeSnapshot': 'false',
+            }),
       );
 
       expect(
@@ -2495,7 +2554,7 @@ void main() {
       final String ref = await unprovableRef(tester);
       final Map<String, dynamic> decoded = await drive(
         tester,
-        () => aiTestRightClickHandler('ext.tapir.right_click', <String, String>{
+        () => tapirRightClickHandler('ext.tapir.right_click', <String, String>{
           'ref': ref,
           'checkStable': 'false',
           'includeSnapshot': 'false',
@@ -2513,7 +2572,7 @@ void main() {
       final Map<String, dynamic> decoded = await drive(
         tester,
         () =>
-            aiTestTripleClickHandler('ext.tapir.triple_click', <String, String>{
+            tapirTripleClickHandler('ext.tapir.triple_click', <String, String>{
               'ref': ref,
               'checkStable': 'false',
               'includeSnapshot': 'false',
@@ -2530,7 +2589,7 @@ void main() {
       final String ref = await unprovableRef(tester);
       final Map<String, dynamic> decoded = await drive(
         tester,
-        () => aiTestDragHandler('ext.tapir.drag', <String, String>{
+        () => tapirDragHandler('ext.tapir.drag', <String, String>{
           'startRef': ref,
           'endRef': ref,
           'checkStable': 'false',
@@ -2573,7 +2632,7 @@ void main() {
     });
   });
 
-  group('aiTestTripleClickHandler gate refusal', () {
+  group('tapirTripleClickHandler gate refusal', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -2584,14 +2643,14 @@ void main() {
       // gate has to surface it in the same envelope shape.
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
 
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: Rect.zero,
         element: tester.element(find.byType(Scaffold)),
         groupId: 'g',
         isTextField: false,
       );
 
-      final ServiceExtensionResponse response = await aiTestTripleClickHandler(
+      final ServiceExtensionResponse response = await tapirTripleClickHandler(
         'ext.tapir.triple_click',
         <String, String>{'ref': ref},
       );
@@ -2608,7 +2667,7 @@ void main() {
 
   group('coordinate dispatch', () {
     setUp(RefRegistry.resetForTesting);
-    tearDown(TapirPlugin.resetSemanticsForTesting);
+    tearDown(resetTapirSemanticsForTesting);
 
     Future<ServiceExtensionResponse> settle(
       WidgetTester tester,
@@ -2648,7 +2707,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestTapHandler('ext.tapir.tap', <String, String>{
+        tapirTapHandler('ext.tapir.tap', <String, String>{
           'x': '100',
           'y': '100',
         }),
@@ -2669,12 +2728,12 @@ void main() {
       WidgetTester tester,
     ) async {
       await host(tester, () {});
-      TapirPlugin.acquireSemantics();
-      TapirPlugin.releaseSemantics();
+      acquireTapirSemantics();
+      releaseTapirSemantics();
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestTapHandler('ext.tapir.tap', <String, String>{
+        tapirTapHandler('ext.tapir.tap', <String, String>{
           'x': '10',
           'y': '10',
         }),
@@ -2690,7 +2749,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await host(tester, () {});
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(40, 60, 20, 20),
         element: tester.element(find.byType(Scaffold)),
         groupId: 'g',
@@ -2699,7 +2758,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestTapHandler('ext.tapir.tap', <String, String>{
+        tapirTapHandler('ext.tapir.tap', <String, String>{
           'ref': ref,
           'reportPoint': 'true',
           'includeSnapshot': 'false',
@@ -2718,7 +2777,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await host(tester, () {});
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(40, 60, 20, 20),
         element: tester.element(find.byType(Scaffold)),
         groupId: 'g',
@@ -2727,7 +2786,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestTapHandler('ext.tapir.tap', <String, String>{
+        tapirTapHandler('ext.tapir.tap', <String, String>{
           'ref': ref,
           'includeSnapshot': 'false',
           'checkStable': 'false',
@@ -2747,7 +2806,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await host(tester, () {});
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(40, 60, 20, 20),
         element: tester.element(find.byType(Scaffold)),
         groupId: 'g',
@@ -2756,7 +2815,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestHoverHandler('ext.tapir.hover', <String, String>{
+        tapirHoverHandler('ext.tapir.hover', <String, String>{
           'ref': ref,
           'reportPoint': 'true',
           'includeSnapshot': 'false',
@@ -2775,7 +2834,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await host(tester, () {});
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 20, 20),
         element: tester.element(find.byType(Scaffold)),
         groupId: 'g',
@@ -2784,7 +2843,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestDragHandler('ext.tapir.drag', <String, String>{
+        tapirDragHandler('ext.tapir.drag', <String, String>{
           'startRef': ref,
           'dx': '0',
           'dy': '-50',
@@ -2810,7 +2869,7 @@ void main() {
 
       final ServiceExtensionResponse response = await settle(
         tester,
-        aiTestDragHandler('ext.tapir.drag', <String, String>{
+        tapirDragHandler('ext.tapir.drag', <String, String>{
           'x': '100',
           'y': '150',
           'toX': '100',
@@ -2828,7 +2887,7 @@ void main() {
     testWidgets('a tap with neither ref nor coordinates keeps the ref error', (
       WidgetTester tester,
     ) async {
-      final ServiceExtensionResponse response = await aiTestTapHandler(
+      final ServiceExtensionResponse response = await tapirTapHandler(
         'ext.tapir.tap',
         <String, String>{'x': '10'},
       );
@@ -2838,7 +2897,7 @@ void main() {
     });
   });
 
-  group('aiTestTapHandler snapshot mode', () {
+  group('tapirTapHandler snapshot mode', () {
     setUp(() {
       RefRegistry.resetForTesting();
       resetSnapshotBaselineForTesting();
@@ -2853,7 +2912,7 @@ void main() {
       String ref,
       Map<String, String> extra,
     ) async {
-      final Future<ServiceExtensionResponse> future = aiTestTapHandler(
+      final Future<ServiceExtensionResponse> future = tapirTapHandler(
         'ext.tapir.tap',
         <String, String>{
           'ref': ref,

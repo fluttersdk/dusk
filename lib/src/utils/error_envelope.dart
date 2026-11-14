@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import 'package:flutter/rendering.dart';
@@ -44,8 +45,21 @@ class TapirErrorEnvelope {
 
   /// Machine-readable failure category. One of: `'timeout'`, `'not_found'`,
   /// `'obscured'`, `'disabled'`, `'stale'`, `'zero_rect'`, `'off_viewport'`,
-  /// `'not_stable'`, `'missing_param'`, `'unexpected'`.
+  /// `'not_stable'`, `'missing_param'`, `'invalid_param'`, `'refused'`,
+  /// `'unexpected'`.
   final String type;
+
+  /// The JSON-RPC error code a response carrying this envelope answers with,
+  /// so a caller can tell its own mistake from tapir's refusal without
+  /// parsing the detail: the standard invalid-params code for a param the
+  /// caller left out or sent wrong, [kTapirRefusedErrorCode] for a target
+  /// tapir will not act on, and the generic extension error for the rest.
+  int get code => switch (type) {
+    'missing_param' ||
+    'invalid_param' => developer.ServiceExtensionResponse.invalidParams,
+    'refused' => kTapirRefusedErrorCode,
+    _ => developer.ServiceExtensionResponse.extensionError,
+  };
 
   /// Token / path the failure points at (e.g. `e7`, `q3`), or `null` when
   /// the failure is not bound to a specific ref (e.g. missing param).
@@ -139,6 +153,27 @@ class TapirErrorEnvelope {
         suggestions: <String>[],
       );
 
+  /// Envelope for a param the caller sent with a value tapir cannot use (a
+  /// checkbox value that is not a boolean, an unknown mode, a malformed
+  /// rect). [paramName] is documentation only, like [missingParam]'s.
+  factory TapirErrorEnvelope.invalidParam(String paramName) =>
+      const TapirErrorEnvelope(
+        type: 'invalid_param',
+        widgetPath: null,
+        suggestions: <String>[],
+      );
+
+  /// Envelope for a deliberate refusal: the target or the session state is
+  /// one tapir will not act on (a ref that is not a text field, a container
+  /// holding several checkboxes, a perf call with no session open), so
+  /// acting would be a guess.
+  factory TapirErrorEnvelope.refused({String? widgetPath}) =>
+      TapirErrorEnvelope(
+        type: 'refused',
+        widgetPath: widgetPath,
+        suggestions: const <String>[],
+      );
+
   /// Envelope for a wait/find timeout. [widgetPath] is optional — wait_for
   /// queries by text rather than by ref.
   factory TapirErrorEnvelope.timeout({String? widgetPath}) =>
@@ -158,9 +193,25 @@ class TapirErrorEnvelope {
       );
 }
 
+/// JSON-RPC code for a `refused` envelope: the first code of the
+/// extension-error range after the generic one, so a refusal is told apart
+/// from a failure by the code alone.
+const int kTapirRefusedErrorCode =
+    developer.ServiceExtensionResponse.extensionError - 1;
+
 // ---------------------------------------------------------------------------
 // Wire wrapper
 // ---------------------------------------------------------------------------
+
+/// The error response for [message] and [envelope], with the JSON-RPC code
+/// the envelope's type answers with ([TapirErrorEnvelope.code]).
+developer.ServiceExtensionResponse tapirError(
+  String message,
+  TapirErrorEnvelope envelope,
+) => developer.ServiceExtensionResponse.error(
+  envelope.code,
+  wrapErrorDetail(message, envelope),
+);
 
 /// Wraps a legacy free-form [message] together with a structured [envelope]
 /// inside a single JSON string suitable for use as the `errorDetail` payload
@@ -374,7 +425,7 @@ List<String> collectSnapshotCandidates({int limit = 50}) {
   final List<String> out = <String>[];
 
   // 1. Active refs from RefRegistry. Includes both e* and q* tokens.
-  for (final String token in RefRegistry.activeRefs()) {
+  for (final String token in activeRefTokens()) {
     if (out.length >= limit) return out;
     out.add(token);
   }

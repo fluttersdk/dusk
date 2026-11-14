@@ -18,13 +18,13 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       final element = bareElement(tester);
 
-      final r1 = RefRegistry.registerForTesting(
+      final r1 = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
         element: element,
         groupId: 'g',
         isTextField: false,
       );
-      final r2 = RefRegistry.registerForTesting(
+      final r2 = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
         element: element,
         groupId: 'g',
@@ -40,7 +40,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       final element = bareElement(tester);
 
-      final r = RefRegistry.registerForTesting(
+      final r = registerRefForTesting(
         rect: const Rect.fromLTWH(5, 5, 50, 50),
         element: element,
         groupId: 'g1',
@@ -63,20 +63,20 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       final element = bareElement(tester);
 
-      final keep = RefRegistry.registerForTesting(
+      final keep = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
         element: element,
         groupId: 'keep',
         isTextField: false,
       );
-      final drop = RefRegistry.registerForTesting(
+      final drop = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
         element: element,
         groupId: 'drop',
         isTextField: false,
       );
 
-      RefRegistry.disposeGroup('drop');
+      disposeRefGroup('drop');
       expect(RefRegistry.lookup(keep), isNotNull);
       expect(RefRegistry.lookup(drop), isNull);
     });
@@ -85,13 +85,13 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       final element = bareElement(tester);
 
-      final r = RefRegistry.registerForTesting(
+      final r = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
         element: element,
         groupId: 'live',
         isTextField: false,
       );
-      RefRegistry.disposeGroup('non-existent');
+      disposeRefGroup('non-existent');
       expect(RefRegistry.lookup(r), isNotNull);
     });
   });
@@ -101,19 +101,19 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       final element = bareElement(tester);
 
-      RefRegistry.registerForTesting(
+      registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
         element: element,
         groupId: 'gA',
         isTextField: false,
       );
-      RefRegistry.registerForTesting(
+      registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
         element: element,
         groupId: 'gA',
         isTextField: false,
       );
-      RefRegistry.registerForTesting(
+      registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
         element: element,
         groupId: 'gB',
@@ -153,7 +153,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       final element = bareElement(tester);
 
-      final r = RefRegistry.registerForTesting(
+      final r = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
         element: element,
         groupId: 'g',
@@ -168,7 +168,7 @@ void main() {
       expect(RefRegistry.lookupQuery(q), isNull);
 
       // Counter reset → next mint produces e1 / q1 again.
-      final r2 = RefRegistry.registerForTesting(
+      final r2 = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
         element: element,
         groupId: 'g',
@@ -187,7 +187,7 @@ void main() {
     );
 
     String mint(Element element, {String groupId = 'g'}) {
-      return RefRegistry.registerForTesting(
+      return registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 10, 10),
         element: element,
         groupId: groupId,
@@ -320,7 +320,7 @@ void main() {
         RefRegistry.bind(keep, binding);
         RefRegistry.bind(drop, binding);
 
-        RefRegistry.disposeGroup('drop');
+        disposeRefGroup('drop');
 
         expect(RefRegistry.lookupBinding(drop), isNull);
         expect(RefRegistry.lookupBinding(keep), isNotNull);

@@ -19,7 +19,7 @@ import 'package:tapir/src/ref_registry.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('aiTestTypeHandler effect', () {
+  group('tapirTypeHandler effect', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -33,7 +33,7 @@ void main() {
         ),
       );
 
-      return RefRegistry.registerForTesting(
+      return registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 200, 40),
         element: tester.element(find.byType(TextField)),
         groupId: 'g',
@@ -47,7 +47,7 @@ void main() {
       final String ref = await pumpFieldAndRegisterRef(tester);
 
       final Future<developer.ServiceExtensionResponse> pending =
-          aiTestTypeHandler('ext.tapir.type', <String, String>{
+          tapirTypeHandler('ext.tapir.type', <String, String>{
             'ref': ref,
             'text': 'QA Sweep User',
             'checkStable': 'false',
@@ -82,7 +82,7 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> pending =
-          aiTestTypeHandler('ext.tapir.type', <String, String>{
+          tapirTypeHandler('ext.tapir.type', <String, String>{
             'ref': ref,
             'text': 'abc',
             'checkStable': 'false',
@@ -108,7 +108,7 @@ void main() {
     });
   });
 
-  group('aiTestTypeHandler checks', () {
+  group('tapirTypeHandler checks', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -126,7 +126,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: TextField())),
       );
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 200, 40),
         element: tester.element(find.byType(TextField)),
         groupId: 'g',
@@ -134,7 +134,7 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> pending =
-          aiTestTypeHandler('ext.tapir.type', <String, String>{
+          tapirTypeHandler('ext.tapir.type', <String, String>{
             'ref': ref,
             'text': 'QA Sweep',
             'checkStable': 'false',
@@ -159,7 +159,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: TextField())),
       );
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 200, 40),
         element: tester.element(find.byType(TextField)),
         groupId: 'g',
@@ -167,7 +167,7 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> pending =
-          aiTestTypeHandler('ext.tapir.type', <String, String>{
+          tapirTypeHandler('ext.tapir.type', <String, String>{
             'ref': ref,
             'text': 'QA Sweep',
             'checkStable': 'false',

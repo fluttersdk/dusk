@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:dowel/dowel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:tapir/src/commands/tapir_device_command.dart';
+import 'package:tapir/src/commands/tapir_device_profile_command.dart';
 import 'package:tapir/src/cdp/device_presets.dart';
 
 import '../cdp/fake_cdp_server.dart';
@@ -14,7 +14,7 @@ import '../cdp/fake_cdp_server.dart';
 
 /// Minimal [DowelContext] that records no VM extension calls.
 ///
-/// TapirDeviceCommand uses [CommandBoot.none] and reads StateFile directly;
+/// TapirDeviceProfileCommand uses [CommandBoot.none] and reads StateFile directly;
 /// it never calls [callExtension]. This stub satisfies the constructor
 /// contract without needing a live VM Service connection.
 class _StubContext extends DowelContext {
@@ -26,7 +26,9 @@ class _StubContext extends DowelContext {
     String method, [
     Map<String, dynamic>? params,
   ]) async {
-    throw UnsupportedError('TapirDeviceCommand must not call ext.* methods');
+    throw UnsupportedError(
+      'TapirDeviceProfileCommand must not call ext.* methods',
+    );
   }
 }
 
@@ -78,7 +80,7 @@ void main() {
       output: output,
     );
 
-    final exit = await TapirDeviceCommand().handle(ctx);
+    final exit = await TapirDeviceProfileCommand().handle(ctx);
 
     expect(exit, equals(0));
     final content = output.content;
@@ -103,7 +105,7 @@ void main() {
       output: output,
     );
 
-    final exit = await TapirDeviceCommand().handle(ctx);
+    final exit = await TapirDeviceProfileCommand().handle(ctx);
 
     expect(exit, equals(1));
     expect(output.content, contains('CDP not enabled'));
@@ -121,7 +123,7 @@ void main() {
       output: output,
     );
 
-    final exit = await TapirDeviceCommand().handle(ctx);
+    final exit = await TapirDeviceProfileCommand().handle(ctx);
 
     expect(exit, equals(1));
     expect(output.content, contains('CDP not enabled'));
@@ -139,13 +141,13 @@ void main() {
       output: output,
     );
 
-    final exit = await TapirDeviceCommand().handle(ctx);
+    final exit = await TapirDeviceProfileCommand().handle(ctx);
 
     await server.stop();
 
     expect(exit, equals(1));
     expect(output.content, contains('super-phone-9000'));
-    expect(output.content, contains('tapir:device --list'));
+    expect(output.content, contains('tapir:device_profile --list'));
   });
 
   // (b) valid mobile preset sends the 3-call chain in the correct order.
@@ -184,7 +186,7 @@ void main() {
       output: output,
     );
 
-    final exit = await TapirDeviceCommand().handle(ctx);
+    final exit = await TapirDeviceProfileCommand().handle(ctx);
 
     await server.stop();
 
@@ -245,7 +247,7 @@ void main() {
       output: output,
     );
 
-    final exit = await TapirDeviceCommand().handle(ctx);
+    final exit = await TapirDeviceProfileCommand().handle(ctx);
 
     await server.stop();
 
@@ -294,7 +296,7 @@ void main() {
       output: output,
     );
 
-    final exit = await TapirDeviceCommand().handle(ctx);
+    final exit = await TapirDeviceProfileCommand().handle(ctx);
 
     await server.stop();
 

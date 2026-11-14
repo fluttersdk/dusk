@@ -11,7 +11,7 @@ import 'package:tapir/src/ref_registry.dart';
 bool _isError(developer.ServiceExtensionResponse response) =>
     response.errorCode != null;
 
-// aiTestScrollHandler success paths await WidgetsBinding.endOfFrame, which
+// tapirScrollHandler success paths await WidgetsBinding.endOfFrame, which
 // hangs the flutter_test fake-clock harness even under tester.runAsync().
 // We only exercise the error path (which short-circuits before endOfFrame).
 // Live drive coverage for success paths is captured by the example/ playground
@@ -22,7 +22,7 @@ void main() {
     RefRegistry.resetForTesting();
   });
 
-  group('aiTestScrollByDelta', () {
+  group('tapirScrollByDelta', () {
     testWidgets('jumps scroll position to the target pixel value', (
       tester,
     ) async {
@@ -44,12 +44,12 @@ void main() {
       );
       expect(scrollable.position.pixels, equals(0));
 
-      await aiTestScrollByDelta(scrollable, 240.0);
+      await tapirScrollByDelta(scrollable, 240.0);
       expect(scrollable.position.pixels, equals(240.0));
     });
   });
 
-  group('aiTestScrollHandler — param + error paths', () {
+  group('tapirScrollHandler — param + error paths', () {
     testWidgets('returns error when no scrollable exists in the tree', (
       tester,
     ) async {
@@ -57,7 +57,7 @@ void main() {
         const MaterialApp(home: Scaffold(body: Text('flat'))),
       );
 
-      final response = await aiTestScrollHandler('ext.tapir.scroll', const {
+      final response = await tapirScrollHandler('ext.tapir.scroll', const {
         'dy': '100',
       });
       expect(_isError(response), isTrue);
@@ -79,7 +79,7 @@ void main() {
           ),
         );
 
-        final future = aiTestScrollHandler('ext.tapir.scroll', const {
+        final future = tapirScrollHandler('ext.tapir.scroll', const {
           'dy': '120',
         });
         await tester.pump();
@@ -103,7 +103,7 @@ void main() {
         ),
       );
 
-      final future = aiTestScrollHandler('ext.tapir.scroll', const {
+      final future = tapirScrollHandler('ext.tapir.scroll', const {
         'ref': 'e9999',
         'dy': '120',
       });
@@ -127,7 +127,7 @@ void main() {
         ),
       );
 
-      final future = aiTestScrollHandler('ext.tapir.scroll', const {
+      final future = tapirScrollHandler('ext.tapir.scroll', const {
         'ref': 'q9999',
         'dy': '120',
       });
@@ -156,14 +156,14 @@ void main() {
       // Register an element that is inside the scrollable so Scrollable.maybeOf
       // returns the parent state.
       final Element listItem = tester.element(find.text('row 0'));
-      final ref = RefRegistry.registerForTesting(
+      final ref = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 100, 60),
         element: listItem,
         groupId: 'g-scroll-ref',
         isTextField: false,
       );
 
-      final future = aiTestScrollHandler('ext.tapir.scroll', {
+      final future = tapirScrollHandler('ext.tapir.scroll', {
         'ref': ref,
         'dy': '120',
       });
@@ -189,14 +189,14 @@ void main() {
         ),
       );
 
-      final ref = RefRegistry.registerForTesting(
+      final ref = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 100, 60),
         element: tester.element(find.text('row 0')),
         groupId: 'g-scroll-effect',
         isTextField: false,
       );
 
-      final future = aiTestScrollHandler('ext.tapir.scroll', {
+      final future = tapirScrollHandler('ext.tapir.scroll', {
         'ref': ref,
         'dy': '120',
         'includeSnapshot': 'false',
@@ -224,19 +224,19 @@ void main() {
   // The MCP schema advertises direction + pixels, so the extension reads them.
   // ---------------------------------------------------------------------------
 
-  group('aiTestScrollHandler direction and pixels', () {
+  group('tapirScrollHandler direction and pixels', () {
     Future<Map<String, dynamic>> scrollBy(
       WidgetTester tester,
       Map<String, String> params,
     ) async {
-      final ref = RefRegistry.registerForTesting(
+      final ref = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 100, 60),
         // Whichever row is still built after an earlier scroll.
         element: tester.element(find.textContaining('row ').first),
         groupId: 'g-scroll-direction',
         isTextField: false,
       );
-      final future = aiTestScrollHandler('ext.tapir.scroll', {
+      final future = tapirScrollHandler('ext.tapir.scroll', {
         'ref': ref,
         'includeSnapshot': 'false',
         ...params,
@@ -384,7 +384,7 @@ void main() {
         Map<String, String> params,
       ) async {
         await pumpList(tester);
-        final response = await aiTestScrollHandler('ext.tapir.scroll', {
+        final response = await tapirScrollHandler('ext.tapir.scroll', {
           'includeSnapshot': 'false',
           ...params,
         });
@@ -427,7 +427,7 @@ void main() {
   // Step 3.2 — snapshot-in-action-response for ext.tapir.scroll.
   // ---------------------------------------------------------------------------
 
-  group('aiTestScrollHandler snapshot-in-response', () {
+  group('tapirScrollHandler snapshot-in-response', () {
     testWidgets('embeds snapshot field in success response by default', (
       WidgetTester tester,
     ) async {
@@ -444,7 +444,7 @@ void main() {
         ),
       );
 
-      final future = aiTestScrollHandler(
+      final future = tapirScrollHandler(
         'ext.tapir.scroll',
         const <String, String>{'dy': '120'},
       );
@@ -475,7 +475,7 @@ void main() {
         ),
       );
 
-      final future = aiTestScrollHandler(
+      final future = tapirScrollHandler(
         'ext.tapir.scroll',
         const <String, String>{'dy': '120', 'includeSnapshot': 'false'},
       );
@@ -507,7 +507,7 @@ void main() {
         ),
       );
 
-      final future = aiTestScrollHandler(
+      final future = tapirScrollHandler(
         'ext.tapir.scroll',
         const <String, String>{'dy': '60'},
       );
@@ -539,7 +539,7 @@ void main() {
       );
       await tapirSnapBuild();
 
-      final future = aiTestScrollHandler(
+      final future = tapirScrollHandler(
         'ext.tapir.scroll',
         const <String, String>{'dy': '600', 'snapshot': 'diff'},
       );
@@ -571,7 +571,7 @@ void main() {
         ),
       );
 
-      final future = aiTestScrollHandler(
+      final future = tapirScrollHandler(
         'ext.tapir.scroll',
         const <String, String>{'dy': '120', 'snapshot': 'none'},
       );
@@ -594,10 +594,10 @@ void main() {
 
   group('ext.tapir.select_option handler', () {
     // -------------------------------------------------------------------------
-    // (a) aiTestSelectOptionInElement selects DropdownButton value
+    // (a) tapirSelectOptionInElement selects DropdownButton value
     // -------------------------------------------------------------------------
 
-    testWidgets('aiTestSelectOptionInElement invokes onChanged callback on'
+    testWidgets('tapirSelectOptionInElement invokes onChanged callback on'
         ' DropdownButton', (WidgetTester tester) async {
       String? selectedValue = 'a';
 
@@ -621,13 +621,13 @@ void main() {
 
       final BuildContext context = tester.element(find.byType(Scaffold));
 
-      final bool invoked = aiTestSelectOptionInElement(context, value: 'b');
+      final bool invoked = tapirSelectOptionInElement(context, value: 'b');
 
       expect(
         invoked,
         isTrue,
         reason:
-            'aiTestSelectOptionInElement should find and invoke'
+            'tapirSelectOptionInElement should find and invoke'
             ' DropdownButton',
       );
       expect(
@@ -638,11 +638,11 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // (b) aiTestSelectOptionInElement returns false when no widget found
+    // (b) tapirSelectOptionInElement returns false when no widget found
     // -------------------------------------------------------------------------
 
     testWidgets(
-      'aiTestSelectOptionInElement returns false when no DropdownButton'
+      'tapirSelectOptionInElement returns false when no DropdownButton'
       ' in subtree',
       (WidgetTester tester) async {
         await tester.pumpWidget(
@@ -653,7 +653,7 @@ void main() {
 
         final BuildContext context = tester.element(find.byType(Scaffold));
 
-        final bool invoked = aiTestSelectOptionInElement(context, value: 'b');
+        final bool invoked = tapirSelectOptionInElement(context, value: 'b');
 
         expect(
           invoked,
@@ -664,11 +664,11 @@ void main() {
     );
 
     // -------------------------------------------------------------------------
-    // (c) aiTestSelectOptionInElement handles disabled dropdown
+    // (c) tapirSelectOptionInElement handles disabled dropdown
     // -------------------------------------------------------------------------
 
     testWidgets(
-      'aiTestSelectOptionInElement returns false when DropdownButton has'
+      'tapirSelectOptionInElement returns false when DropdownButton has'
       ' null onChanged',
       (WidgetTester tester) async {
         await tester.pumpWidget(
@@ -688,7 +688,7 @@ void main() {
 
         final BuildContext context = tester.element(find.byType(Scaffold));
 
-        final bool invoked = aiTestSelectOptionInElement(context, value: 'b');
+        final bool invoked = tapirSelectOptionInElement(context, value: 'b');
 
         expect(
           invoked,
@@ -703,7 +703,7 @@ void main() {
     // -------------------------------------------------------------------------
 
     testWidgets(
-      'aiTestSelectOptionHandler returns error when value parameter missing',
+      'tapirSelectOptionHandler returns error when value parameter missing',
       (WidgetTester tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -720,7 +720,7 @@ void main() {
         );
 
         try {
-          final response = await aiTestSelectOptionHandler(
+          final response = await tapirSelectOptionHandler(
             'ext.tapir.select_option',
             <String, String>{'ref': 'e1'},
             // 'value' intentionally missing
@@ -739,7 +739,7 @@ void main() {
     // -------------------------------------------------------------------------
 
     testWidgets(
-      'aiTestSelectOptionHandler returns error when no selectable widget'
+      'tapirSelectOptionHandler returns error when no selectable widget'
       ' found',
       (WidgetTester tester) async {
         await tester.pumpWidget(
@@ -749,7 +749,7 @@ void main() {
         );
 
         try {
-          final response = await aiTestSelectOptionHandler(
+          final response = await tapirSelectOptionHandler(
             'ext.tapir.select_option',
             <String, String>{'value': 'b'},
           );
@@ -761,7 +761,7 @@ void main() {
     );
   });
 
-  group('aiTestSelectOptionHandler success path', () {
+  group('tapirSelectOptionHandler success path', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -788,7 +788,7 @@ void main() {
       // settle, and under the test binding that frame only happens when the
       // harness is pumped.
       final Future<developer.ServiceExtensionResponse> future =
-          aiTestSelectOptionHandler(
+          tapirSelectOptionHandler(
             'ext.tapir.select_option',
             const <String, String>{'value': 'two'},
           );
@@ -805,7 +805,7 @@ void main() {
     });
   });
 
-  group('aiTestScrollHandler effect measures the scrollable it drove', () {
+  group('tapirScrollHandler effect measures the scrollable it drove', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -831,7 +831,7 @@ void main() {
       );
 
       final Element listView = tester.element(find.byType(Scrollable));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 400, 600),
         element: listView,
         groupId: 'g',
@@ -839,7 +839,7 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          aiTestScrollHandler('ext.tapir.scroll', <String, String>{
+          tapirScrollHandler('ext.tapir.scroll', <String, String>{
             'ref': ref,
             'dy': '300',
             'includeSnapshot': 'false',
@@ -860,7 +860,7 @@ void main() {
     });
   });
 
-  group('aiTestScrollHandler scrolled flag', () {
+  group('tapirScrollHandler scrolled flag', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -869,7 +869,7 @@ void main() {
       Map<String, String> params,
     ) async {
       final Future<developer.ServiceExtensionResponse> future =
-          aiTestScrollHandler('ext.tapir.scroll', <String, String>{
+          tapirScrollHandler('ext.tapir.scroll', <String, String>{
             ...params,
             'includeSnapshot': 'false',
           });
@@ -885,7 +885,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: Text('flat'))),
       );
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(0, 0, 100, 20),
         element: tester.element(find.text('flat')),
         groupId: 'g',
@@ -995,7 +995,7 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          aiTestScrollHandler('ext.tapir.scroll', <String, String>{
+          tapirScrollHandler('ext.tapir.scroll', <String, String>{
             'dy': '200',
             'includeSnapshot': 'false',
           });
@@ -1039,7 +1039,7 @@ void main() {
     });
   });
 
-  group('aiTestSelectOptionHandler effect', () {
+  group('tapirSelectOptionHandler effect', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -1049,7 +1049,7 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: _StatefulDropdown()));
 
       final Future<developer.ServiceExtensionResponse> future =
-          aiTestSelectOptionHandler(
+          tapirSelectOptionHandler(
             'ext.tapir.select_option',
             const <String, String>{'value': 'two'},
           );
@@ -1077,7 +1077,7 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          aiTestSelectOptionHandler(
+          tapirSelectOptionHandler(
             'ext.tapir.select_option',
             const <String, String>{'value': 'two'},
           );

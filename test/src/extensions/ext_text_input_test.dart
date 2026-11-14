@@ -192,9 +192,9 @@ void main() {
       // -----------------------------------------------------------------------
 
       test(
-        '(d) aiTestPressKeyHandler returns error when key is missing',
+        '(d) tapirPressKeyHandler returns error when key is missing',
         () async {
-          final response = await aiTestPressKeyHandler(
+          final response = await tapirPressKeyHandler(
             'ext.tapir.press_key',
             {},
           );
@@ -203,9 +203,9 @@ void main() {
       );
 
       test(
-        '(d) aiTestPressKeyHandler error mentions missing key param',
+        '(d) tapirPressKeyHandler error mentions missing key param',
         () async {
-          final response = await aiTestPressKeyHandler(
+          final response = await tapirPressKeyHandler(
             'ext.tapir.press_key',
             {},
           );
@@ -214,17 +214,17 @@ void main() {
       );
 
       test(
-        '(d) aiTestPressKeyHandler returns error when key is empty',
+        '(d) tapirPressKeyHandler returns error when key is empty',
         () async {
-          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          final response = await tapirPressKeyHandler('ext.tapir.press_key', {
             'key': '',
           });
           expect(response.result, isNull);
         },
       );
 
-      test('(d) aiTestPressKeyHandler succeeds when key is valid', () async {
-        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+      test('(d) tapirPressKeyHandler succeeds when key is valid', () async {
+        final response = await tapirPressKeyHandler('ext.tapir.press_key', {
           'key': 'Enter',
         });
         final resultStr = response.result;
@@ -233,9 +233,9 @@ void main() {
       });
 
       test(
-        '(d) aiTestPressKeyHandler success response is valid JSON for Tab',
+        '(d) tapirPressKeyHandler success response is valid JSON for Tab',
         () async {
-          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          final response = await tapirPressKeyHandler('ext.tapir.press_key', {
             'key': 'Tab',
           });
           expect(() => jsonDecode(response.result ?? ''), returnsNormally);
@@ -243,9 +243,9 @@ void main() {
       );
 
       test(
-        '(d) aiTestPressKeyHandler success response contains ok:true',
+        '(d) tapirPressKeyHandler success response contains ok:true',
         () async {
-          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          final response = await tapirPressKeyHandler('ext.tapir.press_key', {
             'key': 'Escape',
           });
           final decoded = jsonDecode(response.result ?? '{}');
@@ -254,9 +254,9 @@ void main() {
       );
 
       test(
-        '(d) aiTestPressKeyHandler accepts case-insensitive --key=TAB',
+        '(d) tapirPressKeyHandler accepts case-insensitive --key=TAB',
         () async {
-          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          final response = await tapirPressKeyHandler('ext.tapir.press_key', {
             'key': 'TAB',
           });
           final resultStr = response.result;
@@ -271,9 +271,9 @@ void main() {
       );
 
       test(
-        '(d) aiTestPressKeyHandler accepts case-insensitive --key=enter',
+        '(d) tapirPressKeyHandler accepts case-insensitive --key=enter',
         () async {
-          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          final response = await tapirPressKeyHandler('ext.tapir.press_key', {
             'key': 'enter',
           });
           final resultStr = response.result;
@@ -288,9 +288,9 @@ void main() {
       );
 
       test(
-        '(d) aiTestPressKeyHandler rejects unknown key (no case-folding match)',
+        '(d) tapirPressKeyHandler rejects unknown key (no case-folding match)',
         () async {
-          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          final response = await tapirPressKeyHandler('ext.tapir.press_key', {
             'key': 'NoSuchKey',
           });
           expect(response.result, isNull);
@@ -299,9 +299,9 @@ void main() {
       );
 
       test(
-        '(d) aiTestPressKeyHandler success response echoes the key',
+        '(d) tapirPressKeyHandler success response echoes the key',
         () async {
-          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          final response = await tapirPressKeyHandler('ext.tapir.press_key', {
             'key': 'Enter',
           });
           final decoded = jsonDecode(response.result ?? '{}');
@@ -336,20 +336,20 @@ void main() {
       test('(e) handler is still available after second registerTextInputExtensions', () async {
         registerTextInputExtensions();
         registerTextInputExtensions();
-        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+        final response = await tapirPressKeyHandler('ext.tapir.press_key', {
           'key': 'Enter',
         });
         expect(response.result, isNotNull);
       });
     });
 
-    group('aiTestPressKeyHandler modifier parsing', () {
+    group('tapirPressKeyHandler modifier parsing', () {
       // -----------------------------------------------------------------------
       // Test modifier parameter parsing (additional handler-level tests)
       // -----------------------------------------------------------------------
 
       test('parses comma-separated modifiers from params', () async {
-        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+        final response = await tapirPressKeyHandler('ext.tapir.press_key', {
           'key': 'Enter',
           'modifiers': 'ctrl,shift',
         });
@@ -359,7 +359,7 @@ void main() {
       });
 
       test('handles whitespace in modifier list', () async {
-        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+        final response = await tapirPressKeyHandler('ext.tapir.press_key', {
           'key': 'Tab',
           'modifiers': 'ctrl, shift, alt',
         });
@@ -367,7 +367,7 @@ void main() {
       });
 
       test('ignores empty modifier strings from split', () async {
-        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+        final response = await tapirPressKeyHandler('ext.tapir.press_key', {
           'key': 'Enter',
           'modifiers': 'ctrl,,shift',
         });
@@ -375,7 +375,7 @@ void main() {
       });
 
       test('handles null modifiers param gracefully', () async {
-        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+        final response = await tapirPressKeyHandler('ext.tapir.press_key', {
           'key': 'Tab',
         });
         expect(response.result, isNotNull);
@@ -404,7 +404,7 @@ void main() {
             HardwareKeyboard.instance.addHandler(handler);
             addTearDown(() => HardwareKeyboard.instance.removeHandler(handler));
 
-            final response = await aiTestPressKeyHandler(
+            final response = await tapirPressKeyHandler(
               'ext.tapir.press_key',
               <String, String>{'key': 'S', 'modifiers': modifiers},
             );
@@ -429,7 +429,7 @@ void main() {
           HardwareKeyboard.instance.addHandler(handler);
           addTearDown(() => HardwareKeyboard.instance.removeHandler(handler));
 
-          final response = await aiTestPressKeyHandler(
+          final response = await tapirPressKeyHandler(
             'ext.tapir.press_key',
             <String, String>{'key': 'Enter', 'modifiers': 'shift,hyper'},
           );
@@ -452,7 +452,7 @@ void main() {
         HardwareKeyboard.instance.addHandler(handler);
         addTearDown(() => HardwareKeyboard.instance.removeHandler(handler));
 
-        final response = await aiTestPressKeyHandler(
+        final response = await tapirPressKeyHandler(
           'ext.tapir.press_key',
           <String, String>{
             'key': 'g',
@@ -505,7 +505,7 @@ void main() {
           );
 
           Future<void> press(Map<String, String> params) async {
-            final future = aiTestPressKeyHandler(
+            final future = tapirPressKeyHandler(
               'ext.tapir.press_key',
               <String, String>{...params, 'includeSnapshot': 'false'},
             );
@@ -538,7 +538,7 @@ void main() {
       test(
         'returns error when key is invalid despite valid modifiers',
         () async {
-          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          final response = await tapirPressKeyHandler('ext.tapir.press_key', {
             'key': 'BadKey',
             'modifiers': 'ctrl',
           });
@@ -547,7 +547,7 @@ void main() {
       );
     });
 
-    group('aiTestTypeHandler actionability gate', () {
+    group('tapirTypeHandler actionability gate', () {
       setUp(RefRegistry.resetForTesting);
 
       // -----------------------------------------------------------------------
@@ -564,14 +564,14 @@ void main() {
         );
 
         final Element element = tester.element(find.byType(TextField));
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: const Rect.fromLTWH(10, 10, 0, 40),
           element: element,
           groupId: 'g',
           isTextField: true,
         );
 
-        final response = await aiTestTypeHandler(
+        final response = await tapirTypeHandler(
           'ext.tapir.type',
           <String, String>{'ref': ref, 'text': 'hello'},
         );
@@ -598,14 +598,14 @@ void main() {
           );
 
           final Element element = tester.element(find.byType(TextField));
-          final String ref = RefRegistry.registerForTesting(
+          final String ref = registerRefForTesting(
             rect: const Rect.fromLTWH(5000, 5000, 80, 40),
             element: element,
             groupId: 'g',
             isTextField: true,
           );
 
-          final response = await aiTestTypeHandler(
+          final response = await tapirTypeHandler(
             'ext.tapir.type',
             <String, String>{'ref': ref, 'text': 'world'},
           );
@@ -645,7 +645,7 @@ void main() {
           );
 
           final Element element = tester.element(find.byType(TextField));
-          final String ref = RefRegistry.registerForTesting(
+          final String ref = registerRefForTesting(
             rect: const Rect.fromLTWH(100, 100, 200, 40),
             element: element,
             groupId: 'g',
@@ -656,7 +656,7 @@ void main() {
           // advance under fake-async. Stable + receives-events gates
           // opt-out: registerForTesting mints a synthetic rect that does
           // not align with the live TextField geometry.
-          final future = aiTestTypeHandler('ext.tapir.type', <String, String>{
+          final future = tapirTypeHandler('ext.tapir.type', <String, String>{
             'ref': ref,
             'text': 'typed',
             'checkStable': 'false',
@@ -1014,14 +1014,14 @@ void main() {
           // ref against the app root (the SemanticsNode-minted-ref shape) so a
           // plain descendant-first walk would clear field #1 (email) instead.
           final Rect target = tester.getRect(find.byType(EditableText).at(1));
-          final String ref = RefRegistry.registerForTesting(
+          final String ref = registerRefForTesting(
             rect: target,
             element: WidgetsBinding.instance.rootElement!,
             groupId: 'g',
             isTextField: true,
           );
 
-          final future = aiTestClearHandler('ext.tapir.clear', <String, String>{
+          final future = tapirClearHandler('ext.tapir.clear', <String, String>{
             'ref': ref,
             'checkStable': 'false',
             'checkReceivesEvents': 'false',
@@ -1078,7 +1078,7 @@ void main() {
                   as String;
           expect(qRef, startsWith('q'));
 
-          final future = aiTestClearHandler('ext.tapir.clear', <String, String>{
+          final future = tapirClearHandler('ext.tapir.clear', <String, String>{
             'ref': qRef,
             'checkStable': 'false',
             'checkReceivesEvents': 'false',
@@ -1109,7 +1109,7 @@ void main() {
           registerTextInputExtensions();
           // If registration fails, it would throw; succeeding here validates
           // that the registration succeeded previously.
-          final future = aiTestPressKeyHandler(
+          final future = tapirPressKeyHandler(
             'ext.tapir.press_key',
             <String, String>{'key': 'Enter'},
           );
@@ -1140,13 +1140,17 @@ void main() {
       );
       final response = await _drive(
         tester,
-        aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Bob')),
+        tapirTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Bob')),
       );
 
       expect(response.result, isNull);
       expect(
         parseMessageFromErrorDetail(response.errorDetail ?? ''),
         contains('ref $ref is a button, not a text field'),
+      );
+      expect(
+        parseEnvelopeFromErrorDetail(response.errorDetail!)!['type'],
+        'refused',
       );
       expect(name.text, equals('Ada'));
       semantics.dispose();
@@ -1166,7 +1170,7 @@ void main() {
         );
         final response = await _drive(
           tester,
-          aiTestClearHandler('ext.tapir.clear', _quietParams(ref)),
+          tapirClearHandler('ext.tapir.clear', _quietParams(ref)),
         );
 
         expect(response.result, isNull);
@@ -1194,7 +1198,7 @@ void main() {
         final String ref = _registerNodeRef(tester, label);
         final response = await _drive(
           tester,
-          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Ada')),
+          tapirTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Ada')),
         );
 
         expect(name.text, equals('Ada'));
@@ -1228,7 +1232,7 @@ void main() {
         final String ref = _registerNodeRef(tester, find.byType(TextField));
         final response = await _drive(
           tester,
-          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Ada')),
+          tapirTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Ada')),
         );
 
         final Map<String, dynamic> target =
@@ -1261,7 +1265,7 @@ void main() {
       final String ref = _registerNodeRef(tester, find.byType(Checkbox));
       final response = await _drive(
         tester,
-        aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Bob')),
+        tapirTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Bob')),
       );
 
       expect(response.result, isNull);
@@ -1288,7 +1292,7 @@ void main() {
 
       final response = await _drive(
         tester,
-        aiTestTypeHandler(
+        tapirTypeHandler(
           'ext.tapir.type',
           _quietParams('e700', text: 'walked'),
         ),
@@ -1302,7 +1306,7 @@ void main() {
     });
   });
 
-  group('aiTestTypeHandler settled value', () {
+  group('tapirTypeHandler settled value', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
@@ -1317,7 +1321,7 @@ void main() {
           ),
         );
 
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: tester.getRect(find.byType(TextField)),
           element: tester.element(find.byType(TextField)),
           groupId: 'g',
@@ -1325,7 +1329,7 @@ void main() {
         );
         final response = await _drive(
           tester,
-          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'abc')),
+          tapirTypeHandler('ext.tapir.type', _quietParams(ref, text: 'abc')),
         );
 
         final Map<String, dynamic> effect = _effectOf(response);
@@ -1353,7 +1357,7 @@ void main() {
           ),
         );
 
-        final String ref = RefRegistry.registerForTesting(
+        final String ref = registerRefForTesting(
           rect: tester.getRect(find.byType(TextField)),
           element: tester.element(find.byType(TextField)),
           groupId: 'g',
@@ -1361,7 +1365,7 @@ void main() {
         );
         final response = await _drive(
           tester,
-          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'abc')),
+          tapirTypeHandler('ext.tapir.type', _quietParams(ref, text: 'abc')),
         );
 
         final Map<String, dynamic> effect = _effectOf(response);
@@ -1412,7 +1416,7 @@ void main() {
   // Step 3.2 — snapshot-in-action-response (type + press_key handlers).
   // ---------------------------------------------------------------------------
 
-  group('aiTestTypeHandler snapshot-in-response', () {
+  group('tapirTypeHandler snapshot-in-response', () {
     setUp(RefRegistry.resetForTesting);
 
     testWidgets('embeds snapshot field in success response by default', (
@@ -1435,14 +1439,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(TextField));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 200, 40),
         element: element,
         groupId: 'g',
         isTextField: true,
       );
 
-      final future = aiTestTypeHandler('ext.tapir.type', <String, String>{
+      final future = tapirTypeHandler('ext.tapir.type', <String, String>{
         'ref': ref,
         'text': 'snap-type',
         'checkStable': 'false',
@@ -1478,14 +1482,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(TextField));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 200, 40),
         element: element,
         groupId: 'g',
         isTextField: true,
       );
 
-      final future = aiTestTypeHandler('ext.tapir.type', <String, String>{
+      final future = tapirTypeHandler('ext.tapir.type', <String, String>{
         'ref': ref,
         'text': 'no-snap-type',
         'checkStable': 'false',
@@ -1521,14 +1525,14 @@ void main() {
       );
 
       final Element element = tester.element(find.byType(TextField));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 200, 40),
         element: element,
         groupId: 'g',
         isTextField: true,
       );
 
-      final future = aiTestTypeHandler('ext.tapir.type', <String, String>{
+      final future = tapirTypeHandler('ext.tapir.type', <String, String>{
         'ref': ref,
         'text': 'snap-type-content',
         'checkStable': 'false',
@@ -1568,14 +1572,14 @@ void main() {
       await tapirSnapBuild();
 
       final Element element = tester.element(find.byType(TextField));
-      final String ref = RefRegistry.registerForTesting(
+      final String ref = registerRefForTesting(
         rect: const Rect.fromLTWH(100, 100, 200, 40),
         element: element,
         groupId: 'g',
         isTextField: true,
       );
 
-      final future = aiTestTypeHandler('ext.tapir.type', <String, String>{
+      final future = tapirTypeHandler('ext.tapir.type', <String, String>{
         'ref': ref,
         'text': 'diff-typed',
         'checkStable': 'false',
@@ -1598,7 +1602,7 @@ void main() {
     });
   });
 
-  group('aiTestPressKeyHandler snapshot-in-response', () {
+  group('tapirPressKeyHandler snapshot-in-response', () {
     testWidgets('embeds snapshot field in success response by default', (
       WidgetTester tester,
     ) async {
@@ -1608,7 +1612,7 @@ void main() {
         ),
       );
 
-      final future = aiTestPressKeyHandler(
+      final future = tapirPressKeyHandler(
         'ext.tapir.press_key',
         <String, String>{'key': 'Enter'},
       );
@@ -1632,7 +1636,7 @@ void main() {
         ),
       );
 
-      final future = aiTestPressKeyHandler(
+      final future = tapirPressKeyHandler(
         'ext.tapir.press_key',
         <String, String>{'key': 'Tab', 'includeSnapshot': 'false'},
       );
@@ -1654,7 +1658,7 @@ void main() {
         ),
       );
 
-      final future = aiTestPressKeyHandler(
+      final future = tapirPressKeyHandler(
         'ext.tapir.press_key',
         <String, String>{'key': 'Escape'},
       );
@@ -1682,7 +1686,7 @@ void main() {
         );
         await tapirSnapBuild();
 
-        final future = aiTestPressKeyHandler(
+        final future = tapirPressKeyHandler(
           'ext.tapir.press_key',
           <String, String>{'key': 'Escape', 'snapshot': 'diff'},
         );
@@ -1701,9 +1705,9 @@ void main() {
     );
   });
 
-  group('aiTestTypeHandler param + error paths', () {
+  group('tapirTypeHandler param + error paths', () {
     test('missing ref returns missing-param error', () async {
-      final response = await aiTestTypeHandler(
+      final response = await tapirTypeHandler(
         'ext.tapir.type',
         const <String, String>{'text': 'hello'},
       );
@@ -1715,7 +1719,7 @@ void main() {
     });
 
     test('empty ref returns missing-param error', () async {
-      final response = await aiTestTypeHandler(
+      final response = await tapirTypeHandler(
         'ext.tapir.type',
         const <String, String>{'ref': '', 'text': 'hello'},
       );
@@ -1727,7 +1731,7 @@ void main() {
     });
 
     test('unknown ref returns not-found error', () async {
-      final response = await aiTestTypeHandler(
+      final response = await tapirTypeHandler(
         'ext.tapir.type',
         const <String, String>{'ref': 'e9999', 'text': 'hello'},
       );
@@ -1737,14 +1741,14 @@ void main() {
   });
 
   // =========================================================================
-  // aiTestClearHandler error paths — covers the early-exit branches inside
-  // `aiTestClearHandler` (missing ref, unknown ref) so coverage on
+  // tapirClearHandler error paths — covers the early-exit branches inside
+  // `tapirClearHandler` (missing ref, unknown ref) so coverage on
   // `ext_text_input.dart` lines 514-545 increases without needing a real
   // EditableText widget setup.
   // =========================================================================
-  group('aiTestClearHandler error paths', () {
+  group('tapirClearHandler error paths', () {
     test('missing ref returns missing_param error envelope', () async {
-      final response = await aiTestClearHandler(
+      final response = await tapirClearHandler(
         'ext.tapir.clear',
         const <String, String>{},
       );
@@ -1754,7 +1758,7 @@ void main() {
     });
 
     test('empty ref string returns missing_param error envelope', () async {
-      final response = await aiTestClearHandler(
+      final response = await tapirClearHandler(
         'ext.tapir.clear',
         const <String, String>{'ref': ''},
       );
@@ -1763,7 +1767,7 @@ void main() {
     });
 
     test('unknown ref returns not-found error envelope', () async {
-      final response = await aiTestClearHandler(
+      final response = await tapirClearHandler(
         'ext.tapir.clear',
         const <String, String>{'ref': 'e9999'},
       );
