@@ -1,6 +1,6 @@
 # Workflows
 
-Playbooks for the longer loops an agent runs through tapir. Each assumes the app is running and `./bin/dowel tapir:doctor` is clean. Calls are shown as MCP tools; the `tapir:*` command takes the same parameters as flags. Ref numbers are illustrative: use the ones the previous call returned.
+Playbooks for the longer loops an agent runs through tapir. Each assumes the app is running and `./bin/dowel tapir:doctor` is clean. Calls are shown as MCP tools; the `tapir:*` command takes most of the same parameters as flags, but not all (`tapir:screenshot` requires `--output`, which the tool does not); `cli-commands.md` lists each command's flags. Ref numbers are illustrative: use the ones the previous call returned.
 
 ## Contents
 
@@ -66,14 +66,17 @@ When the dialog stays, snap inside it for the inline error. `tapir_reset_overlay
 
 ## Refresh a list
 
-A delta scroll is a `jumpTo` clamped to the extents, so it cannot overscroll and does not fire a `RefreshIndicator`. Pull with a real gesture instead:
+A delta scroll is a `jumpTo` clamped to the extents, so it cannot overscroll and does not fire a `RefreshIndicator`. Pull with a real gesture instead, from the leading edge of the list: a drag on a list that is scrolled down only scrolls it back towards the top and never overscrolls, so no refresh runs.
 
 ```text
-1. tapir_observe { roles: "button,link" }       a top row and a row further down
-2. tapir_drag { startRef: "q1", endRef: "q4" }  down, five moves, up
-3. tapir_wait_for_network_idle { idleMs: 1000 }
-4. tapir_snap { interactiveOnly: true }
+1. tapir_scroll { dy: -100000 }                 clamped to the top; effect.changed: false means it was already there
+2. tapir_observe { roles: "button,link" }       a top row and a row further down
+3. tapir_drag { startRef: "q1", endRef: "q4" }  down, five moves, up
+4. tapir_wait_for { text: "<text the refresh adds>" }
+5. tapir_snap { interactiveOnly: true }
 ```
+
+Step 4 waits on the UI because `tapir_wait_for_network_idle` reads the in-flight HTTP count from crumbs and, without that wiring, reports idle at once. With crumbs wired it is the better wait: `tapir_wait_for_network_idle { idleMs: 1000 }`. When the refresh adds no text, wait for a spinner to go with `tapir_wait_for { textGone: "<spinner label>" }`.
 
 ## Edit, hot reload, verify
 
@@ -89,13 +92,13 @@ Read `recentExceptions` even after a clean reload: new code can throw on the nex
 ## Check logs and exceptions per screen
 
 ```text
-1. tapir_exceptions { clear: true }                 drop what came before
+1. tapir_exceptions { clear: true }                 drop tapir's buffer; note the time now (ISO 8601)
 2. tapir_navigate { route: "/reports" }
-3. tapir_exceptions { limit: 10 }                   only this screen's faults
+3. tapir_exceptions { since: "<time from step 1>", limit: 10 }   only this screen's faults
 4. tapir_console { minLevel: "WARNING", limit: 50 }
 ```
 
-The exception buffer is cumulative; without `clear` (or a `since` pinned before the action) one boot-time fault is reported against every screen of a sweep. `tapir_console` lists the app's own `debugPrint` output even without crumbs; HTTP and the rest of the runtime buffers are the `crumbs` skill. There is no streaming tool: poll between actions.
+The exception buffer is cumulative; without `clear` (or a `since` pinned before the action) one boot-time fault is reported against every screen of a sweep. `clear: true` empties only tapir's own buffer, not the crumbs store, so the `since` in step 3 is what keeps an earlier fault that crumbs still holds out of the answer. `tapir_console` lists the app's own `debugPrint` output even without crumbs; HTTP and the rest of the runtime buffers are the `crumbs` skill. There is no streaming tool: poll between actions.
 
 ## Before and after a change
 

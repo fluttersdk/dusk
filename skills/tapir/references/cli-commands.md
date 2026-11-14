@@ -200,7 +200,7 @@ dart run tapir tapir:install
 
 `tapir:install` is idempotent. It patches `lib/main.dart` (the `kReleaseMode` import, `WidgetsFlutterBinding.ensureInitialized()`, a `!kReleaseMode` block with `TapirPlugin.install()` before `runApp(`, or before `Magic.init(` on a Magic app), adds `MagicTapirIntegration.install()` after `Magic.init()` when `magic_devtools` is a dependency, then runs dowel's install and registers the plugin when they are missing.
 
-`tapir:doctor` needs no running app. Its checks: hot-restart staleness, the `TAPIR_DISABLE` define, the enricher list, semantics enabled (the only failing check), Magic wiring in `lib/main.dart`, session ownership (the recorded session belongs to this project), and CDP session health (the port answers, serves this run's page, and that page is visible). Run it first whenever tapir behaves strangely: the last two catch failures that look like a broken app and are not.
+`tapir:doctor` needs no running app. Its checks: hot-restart staleness, the `TAPIR_DISABLE` define, the enricher list, semantics enabled (the only failing check), Magic wiring in `lib/main.dart`, session ownership (the recorded session belongs to this project), and CDP session health (the port answers, serves this run's page, and that page is visible). Two of those rows do not look at the running app, because the CLI cannot reach Flutter: the semantics check always passes and the enricher count is always 0, so a pass does not prove semantics are on and "none registered" does not prove there are no enrichers. Confirm with `tapir:snap` (an empty tree or a `warnings` block means semantics or frames are off). Run it first whenever tapir behaves strangely: the last two catch failures that look like a broken app and are not.
 
 ## Pipeline patterns
 

@@ -104,7 +104,7 @@ Call `tapir_find` or `tapir_observe` again with broader or different predicates;
 
 - Minted by `tapir_find` (`text`, `contains`, `semanticsLabel`, `key`, `within`) and `tapir_observe`.
 - Walk the live tree again on every action, so they survive rebuilds, navigation and hot reload while the predicates still match; with no match they fail as stale.
-- A `tapir_find` handle names the first match and reports `matchCount`. A `tapir_observe` handle also stores its position among same-label nodes, so a list of rows offering one action can be worked row by row. That position is not an identity: a row removed is reported as stale, a row inserted above is not and shifts every held handle by one. Observe again after anything that can prepend.
+- A `tapir_find` handle names the first match and reports `matchCount`. A `tapir_observe` handle also stores its position among same-label nodes, so a list of rows offering one action can be worked row by row. That position is not an identity: a row inserted or removed above a held handle moves a neighbour into its position, and the handle then resolves to that neighbour without any error. It goes stale only when fewer same-label nodes remain than its position. Observe again after any insertion or removal that changes positions.
 - Use one whenever a ref is held across more than one action, a retry, or a changing screen.
 
 ### Disjoint spaces
@@ -130,7 +130,7 @@ Both switches are per call; there is no session-wide way to skip the gate, so a 
 
 ## semanticsLabel exact match and over-match
 
-`tapir_find { semanticsLabel: "Password" }` matches `SemanticsNode.label` exactly and case-sensitively and resolves to the first node in tree order. Every success carries `matchCount`; above 1 it adds a `diagnostic`:
+`tapir_find { semanticsLabel: "Password" }` matches `SemanticsNode.label` exactly and case-sensitively. When several nodes share the label it resolves to the first interactive one (a button, text field or anything with a tap action) so a tap lands on the control and not on a caption that repeats its text; only when none is interactive does it take the first in tree order. Every success carries `matchCount`; above 1 it adds a `diagnostic`:
 
 ```json
 {
@@ -141,12 +141,12 @@ Both switches are per call; there is no session-wide way to skip the gate, so a 
 }
 ```
 
-The handle still resolves, to the first match. Narrow it:
+The handle still resolves, to that one match. Predicates are not intersected: the resolver uses the first one set in the order `key`, `semanticsLabel`, `text`, `contains` and ignores the rest, except that a `text` beside a `key` must also appear in a `Text` below that widget. So narrowing means swapping the predicate, not adding a second one to `semanticsLabel`:
 
-| Add | When |
+| Use | When |
 |---|---|
-| `key` | The widget carries a `Key`; the most precise, survives label changes |
-| `text` | The visible text differs from the label; combines with `semanticsLabel` as an intersection |
-| `contains` | Only part of the label is unique (`"Confirm"` for "Confirm password") |
-| `within` | The duplicates live in different regions (a sidebar and the page) |
+| `key` | The widget carries a `Key`; the most precise, survives label changes, and wins over every other predicate |
+| `text` | The visible text differs from the label (instead of `semanticsLabel`) |
+| `contains` | Only part of the label is unique (`"Confirm"` for "Confirm password"); instead of `text` and `semanticsLabel` |
+| `within` | Added to any of them when the duplicates live in different regions (a sidebar and the page) |
 | `tapir_observe` | No predicate is unique; pick from the candidates' bounds and fields |

@@ -95,7 +95,7 @@ Returns `{ format, base64, width, height }`. Prefer `ref`: a full tall page cost
 | `key` | string | A widget `Key`; for a `ValueKey` pass the value's `toString()` |
 | `within` | string | `e<N>` of the region to search; stored in the handle, so the scope survives every re-resolve |
 
-At least one of the first four; several form an intersection. Returns `{ ref: "q<N>", matched: true, matchCount, diagnostic? }`, or `{ ref: null, matched: false, diagnostic? }` (the diagnostic names a scope that no longer resolves). `diagnostic` appears when `matchCount > 1`: the handle points at the first match, so narrow the predicate.
+At least one of the first four; `within` alone is refused. Predicates are not all intersected: the resolver takes the first of these that is set and ignores the others except as noted. `key` wins (a `text` beside it must also appear in a `Text` below the widget; `semanticsLabel` and `contains` are ignored); then `semanticsLabel` (exact label; `text` and `contains` are ignored); then `text`; then `contains`. `within` bounds whichever one applies. When `semanticsLabel` or `text` meets several nodes with that label, the first interactive one wins, and the first in tree order only when none is. Returns `{ ref: "q<N>", matched: true, matchCount, diagnostic? }`, or `{ ref: null, matched: false, diagnostic? }` (the diagnostic names a scope that no longer resolves). `diagnostic` appears when `matchCount > 1`: the handle points at the first match, so narrow the predicate.
 
 ## Pointer: tap, dblclick, right_click, triple_click, hover, drag
 
@@ -193,7 +193,7 @@ No params. Returns `{ location, title, uri }`. `uri` is the mounted Router's loc
 
 ### tapir_console
 
-`limit` (50), `minLevel` (`INFO`, `WARNING`, `ERROR`). Returns `{ logs: [{ level, message, time, logger }], count }`, newest first: the app's own `debugPrint` and `print` output (logger `debugPrint`) merged with crumbs log entries when crumbs is wired. A direct `developer.log` call is not captured.
+`limit` (50), `minLevel` (`INFO`, `WARNING`, `ERROR`). Returns `{ logs: [{ level, message, time, logger }], count }`: the app's own `debugPrint` and `print` output (logger `debugPrint`, newest first) followed by crumbs log entries when crumbs is wired. The two lists are appended, not sorted by `time`, and the `limit` clip cuts from the end, so a newer crumbs entry can sit below an older buffered one or be cut; sort by `time` yourself when order matters. A direct `developer.log` call is not captured.
 
 ### tapir_exceptions
 
@@ -207,7 +207,7 @@ No params. Returns `{ location, title, uri }`. `uri` is the mounted Router's loc
 
 ### tapir_close_app
 
-No params. Calls `SystemNavigator.pop()` and answers `{ closed: true }`. A browser may ignore the close of a tab it did not open by script. The next call finds no app.
+No params. Calls `SystemNavigator.pop()` and answers `{ closed: true }`. A browser may ignore the close of a tab it did not open by script, and then the app and its VM Service stay up. Where the app does close, the next call finds no app.
 
 ## Performance
 

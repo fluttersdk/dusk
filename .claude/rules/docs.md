@@ -32,7 +32,7 @@ Counts of commands, MCP tools, `dowel:tapir:*` tools and registered extensions a
 
 - `CHANGELOG.md`: Keep a Changelog 1.1.0. New bullets go under `## [Unreleased]` in `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed` or `Security`, with a bold lead sentence, then the why. A release promotes it to `## [X.Y.Z] - YYYY-MM-DD` with a footer compare link.
 - `README.md`: front page, feature table, quick start; under 200 lines. `ARCHITECTURE.md`: the contributor reference, not marketing prose.
-- `llms.txt`: the `llmstxt.org` shape (H1 `# tapir`, one blockquote sentence, then H2 lists of `[label](url): note`, URLs under `https://anilcancakir.com/tapir/docs/`). Add a line for every new doc page.
+- `llms.txt`: Wind's format, the standard in `REPO_SPEC.md` section 5 (H1 `# tapir`, a `>` summary, `**Stack**`, `**Setup**`, `## API`, `## Platforms`, `## Rules for agents`, `## Docs`, `## Links`). `## Docs` takes one line per page under `https://anilcancakir.com/tapir/docs/`; `## Links` may name GitHub, pub.dev and the changelog. Add a line for every new doc page.
 - `doc/`: `doc/<section>/<page>.md` with lowercase slug names and one `#` heading as the first line, in the sections `getting-started`, `commands`, `mcp`, `plugins` and `reference`. `commands/index.md` covers every command; a verb with more to say gets `commands/tapir-<verb>.md`. `doc/api/` is dartdoc output and stays ignored.
 - `skills/tapir/`: `SKILL.md` (frontmatter `name`, `description`, `version`; keep it short) plus `references/` for the long tables. Update both on a surface change; the version stamp moves only at a release.
 

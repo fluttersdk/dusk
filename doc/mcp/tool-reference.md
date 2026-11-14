@@ -203,8 +203,8 @@ Response:
 Dispatch: `ext.tapir.close_app`
 
 Request a graceful shutdown of the running Flutter app via `SystemNavigator.pop()`. On
-mobile + desktop this terminates the app; on web the call is a no-op (browsers do not
-allow programmatic tab close).
+mobile + desktop this terminates the app; on web the call only asks the browser to close
+the tab, and browsers may ignore that request.
 
 ### Input schema
 
@@ -212,8 +212,11 @@ No parameters.
 
 ### Returns
 
-Success: `{ closed: true }`, returned before the platform close fires. After the call the VM
-Service URI is gone, so the next `tapir_*` tool returns a VM-Service-unreachable error.
+Success: `{ closed: true }`, returned before the platform close fires. Where the app does
+close, the VM Service URI is gone and the next `tapir_*` tool returns a
+VM-Service-unreachable error. Where it does not (a web tab the browser kept open), the app
+and its VM Service stay up and later calls still work, so confirm with a call rather than
+assuming the app is gone.
 
 ### Example call
 
@@ -241,8 +244,12 @@ calls appear only when crumbs is wired.
 
 ### Returns
 
-Success: `{ logs: [ { level, message, time, logger }, ... ], count }`, newest first. `count`
-is the length of `logs` after the `limit` clip.
+Success: `{ logs: [ { level, message, time, logger }, ... ], count }`. The entries
+captured from `debugPrint` come first, newest first, and the crumbs entries (when crumbs
+is wired) follow in the order crumbs returns them; the two lists are not merged by time. A
+repeat of the same level, message and logger is dropped, the `debugPrint` copy winning, and
+the `limit` clip then cuts from the end, so a crumbs entry newer than a buffered one can sit
+below it or fall outside `limit`. `count` is the length of `logs` after the clip.
 
 Error: never; missing crumbs is treated as the empty-logs success path.
 
@@ -521,8 +528,13 @@ predicates still match.
 | `key` | string | no | Match against a widget `Key`. For `ValueKey`, pass the inner value's `toString()`. |
 | `within` | string | no | Evaluate the predicates inside one subtree: the `e<N>` ref of the region to search. The scope becomes part of the minted `q<N>` handle, so it survives every re-resolve; once the scope stops resolving the handle reports `matched: false` with a diagnostic naming it. |
 
-At least one of the four must be supplied. When multiple are passed they form an
-intersection.
+At least one of the first four must be supplied; `within` alone is refused. The predicates
+are not intersected: the resolver uses the first one that is set, in the order `key`,
+`semanticsLabel`, `text`, `contains`, and ignores the rest. The one exception is a `text`
+passed with `key`, which must also appear in a `Text` below the keyed widget. `within`
+bounds whichever predicate applies. When `semanticsLabel` or `text` meets several nodes with
+the same label, the first interactive one wins, and the first in tree order only when none
+is.
 
 ### Returns
 

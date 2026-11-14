@@ -112,7 +112,7 @@ Trade-off: the fastcli path (level 1) requires the `./bin/dowel` AOT binary to b
 |:---|:---|:---|
 | Claude Code | `.mcp.json` (project) or `~/.claude.json` (user) | `/mcp reconnect dowel` |
 | Cursor | `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (user) | Auto-reload |
-| VS Code | `code --add-mcp` with the `command` and `args` of the standard config | Reload window |
+| VS Code | `code --add-mcp '{"name":"dowel","type":"stdio","command":"dart","args":["run","tapir","mcp:serve"]}'` | Reload window |
 | Continue | `.continue/config.json` `mcpServers` block | Restart Continue panel |
 | Windsurf | Windsurf MCP settings panel | Reload Cascade panel |
 | Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) / `%APPDATA%\Claude\claude_desktop_config.json` (Windows) | Fully quit + relaunch (close-window != quit) |
