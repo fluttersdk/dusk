@@ -13,11 +13,11 @@ How to recover when an action is refused or a ref goes stale: the gate step by s
 
 ## The gate, step by step
 
-`tap`, `dblclick`, `right_click`, `triple_click`, `hover`, `drag`, `type` and `fill` run this gate before they dispatch anything. The steps run in order and the first failure ends the call. The order and the reason substrings are a frozen contract; new checks are appended.
+`tap`, `double_click`, `right_click`, `triple_click`, `hover`, `drag`, `type`, `fill` and `set_checkbox` run this gate before they dispatch anything (`set_checkbox` gates the control it taps, and only when the state differs from the request). The steps run in order and the first failure ends the call. The order and the reason substrings are a frozen contract; new checks are appended.
 
 ### 0. Defunct preflight
 
-The element behind the ref has no render object, or Flutter reports it inactive. Reason `defunct (element no longer mounted)`; an element that is still mounted but detached gives `defunct (element no longer attached to a render object)`, so branch on `defunct`.
+The element behind the ref has no render object, or Flutter reports it inactive. Reason `defunct (element no longer mounted)`; an element that is still mounted but detached gives `defunct (element no longer attached to a render object)`. Both texts are frozen, word for word, so you may branch on the whole reason or on `defunct`.
 
 The node left the tree (navigation, list rebuild, conditional render). A labelled `e<N>` has already been tried for relocation by then (see below), so `defunct` means the namesake count or the route changed, or the ref had no label. Re-snap and pick a fresh ref. A `q<N>` that matches nothing fails as a stale handle instead.
 
@@ -78,7 +78,9 @@ A refused action returns an error whose detail is a JSON string:
 }
 ```
 
-Branch on the substring in `message`, or on `envelope.type`: `disabled`, `zero_rect`, `off_viewport`, `not_stable`, `obscured`, `stale` (a defunct `e<N>` or a stale `q<N>`), `not_found` (an unknown ref; `suggestions` holds up to three near matches), `missing_param`, `timeout`, `unexpected`.
+Branch on the substring in `message`, or on `envelope.type`: `disabled`, `zero_rect`, `off_viewport`, `not_stable`, `obscured`, `stale` (a defunct `e<N>` or a stale `q<N>`), `not_found` (an unknown ref; `suggestions` holds up to three near matches), `missing_param`, `invalid_param`, `refused`, `timeout`, `unexpected`.
+
+`refused` is not a gate reason. It answers a target or a session state that tapir will not act on at all: a ref that is not a text field for `fill`, `type` or `clear`, a ref with nothing focusable for `focus`, a container holding several checkboxes or a ref with no checked state for `set_checkbox`, a perf call with no session open. Its JSON-RPC code is `-32001`, so a caller can tell it from a failure (`-32000`) and from its own bad input (`invalid_param` and `missing_param`, `-32602`) without parsing the message. Do not retry a `refused` unchanged: pick another target, or open the session it needs.
 
 A stale query handle reads:
 

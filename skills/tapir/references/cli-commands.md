@@ -30,20 +30,20 @@ Default output depends on the verb:
 - JSON for `tapir:find`, `tapir:observe`, `tapir:get_routes`, `tapir:console`, `tapir:exceptions`, `tapir:reset_overlays` and `tapir:hot_reload_and_snap`.
 - A file for `tapir:screenshot` (`-o` is required) and `tapir:perf_trace` (prints the path).
 
-`--json` prints the raw envelope instead of the summary. It exists on `snap`, `tap`, `dblclick`, `right_click`, `triple_click`, `hover`, `drag`, `fill`, `type`, `clear`, `press_key`, `focus`, `blur`, `scroll`, `set_checkbox`, `select_option`, `navigate`, `navigate_back`, `close_app`, `wait`, `wait_for_network_idle` and the perf verbs except `perf_trace`. Use it whenever output feeds a tool: `tapir:snap --json` is the way to read `grepLiteral`, `warnings`, `framesForced` and `renderErrors`.
+`--json` prints the raw envelope instead of the summary. It exists on `snap`, `tap`, `double_click`, `right_click`, `triple_click`, `hover`, `drag`, `fill`, `type`, `clear`, `press_key`, `focus`, `blur`, `scroll`, `set_checkbox`, `select_option`, `navigate`, `navigate_back`, `close_app`, `wait_for`, `wait_for_network_idle` and the perf verbs except `perf_trace`. Use it whenever output feeds a tool: `tapir:snap --json` is the way to read `grepLiteral`, `warnings`, `framesForced` and `renderErrors`.
 
 Exit `0` is success and `1` is failure, including the verdicts a summary would hide:
 
 | Command | Exits 1 when |
 |---|---|
-| `tapir:wait`, `tapir:wait_for_network_idle` | The condition never resolved |
+| `tapir:wait_for`, `tapir:wait_for_network_idle` | The condition never resolved |
 | `tapir:fill`, `tapir:type` | `effect.verified` is false (the summary names what the field holds); `--json` and `--includeSnapshot` print the response and exit 0 |
 | `tapir:set_checkbox` | `effect.verified` is false (the summary names the value read back); `--json` and `--includeSnapshot` print the response and exit 0 |
-| `tapir:hot_reload_and_snap` | `reloaded` is false (the JSON is still printed) |
+| `tapir:hot_reload_and_snap` | `reloaded` is false (the JSON is still printed): a compile error, or no reload line in the `flutter run` log within 10 seconds |
 | `tapir:perf_end` | The report is `refused` (the engine drew nothing; no metrics) |
 | `tapir:perf_compare` | An error-level regression |
 | `tapir:perf_campaign` | Any scenario failed |
-| `tapir:doctor` | The semantics check failed (the other checks only warn) |
+| `tapir:doctor` | The semantics row failed: the running app answered that its tree is off, or that it registers no `ext.tapir.*` at all (the other rows only warn or skip) |
 
 stderr carries errors, including the gate's reason substring, the frame-production banner when tapir could not force frames, a warning when `fill` or `type` wrote the `nearest` field, and a warning on `tapPointOutsideOwner`.
 
@@ -54,7 +54,7 @@ On web with a `cdpPort` in the session, `snap`, `observe`, `tap`, `fill`, `type`
 | Flag | Default | On |
 |---|---|---|
 | `--ref=<eN or qN>` | required | The ref-taking verbs |
-| `--[no-]checkStable`, `--[no-]checkReceivesEvents` | on | `tap`, `dblclick`, `right_click`, `triple_click`, `hover`, `drag`, `type`, `fill` |
+| `--[no-]checkStable`, `--[no-]checkReceivesEvents` | on | `tap`, `double_click`, `right_click`, `triple_click`, `hover`, `drag`, `type`, `fill` (`set_checkbox` is gated too, but only the MCP tool takes these two) |
 | `--includeSnapshot` | off (the MCP tools default it on) | The action verbs; prints the envelope with the post-action snapshot |
 | `--snapshot=full\|diff\|none` | none | `tap`, `fill`, `type`, `navigate`, `scroll`; prints the snapshot after the summary and overrides `--includeSnapshot` |
 
@@ -88,7 +88,7 @@ Flag names match the MCP parameter names (`--timeoutMs`, not `--timeout`), excep
 ./bin/dowel tapir:tap --ref=e7 --snapshot=diff
 ./bin/dowel tapir:tap --ref=e7 --until="Saved"          # --untilTimeoutMs, default 3000
 ./bin/dowel tapir:tap --ref=e7 --no-retarget            # a merged boundary's centre
-./bin/dowel tapir:dblclick --ref=e12
+./bin/dowel tapir:double_click --ref=e12
 ./bin/dowel tapir:right_click --ref=e8
 ./bin/dowel tapir:triple_click --ref=e15
 ./bin/dowel tapir:hover --ref=e9
@@ -113,7 +113,7 @@ Flag names match the MCP parameter names (`--timeoutMs`, not `--timeout`), excep
 ### Form controls and scroll
 
 ```bash
-./bin/dowel tapir:set_checkbox --ref=e10 --value=true       # checkbox, switch or radio from any library
+./bin/dowel tapir:set_checkbox --ref=e10 --value=true       # checkbox, switch or radio from any library; gated like a tap
 ./bin/dowel tapir:select_option --ref=e11 --value="GMT+3"   # DropdownButton with String values
 ./bin/dowel tapir:scroll --ref=e3 --dy=600
 ./bin/dowel tapir:scroll --ref=e3 --direction=up --pixels=200
@@ -124,9 +124,9 @@ Flag names match the MCP parameter names (`--timeoutMs`, not `--timeout`), excep
 ### Wait
 
 ```bash
-./bin/dowel tapir:wait --text="Saved"
-./bin/dowel tapir:wait --textGone="Loading" --timeoutMs=10000
-./bin/dowel tapir:wait --expression="Order placed"          # matched as text, not evaluated
+./bin/dowel tapir:wait_for --text="Saved"
+./bin/dowel tapir:wait_for --textGone="Loading" --timeoutMs=10000
+./bin/dowel tapir:wait_for --expression="Order placed"      # matched as text, not evaluated
 ./bin/dowel tapir:wait_for_network_idle --idleMs=800 --timeoutMs=8000 --pollIntervalMs=200
 ```
 
@@ -138,7 +138,7 @@ Flag names match the MCP parameter names (`--timeoutMs`, not `--timeout`), excep
 ./bin/dowel tapir:navigate --route=/login
 ./bin/dowel tapir:navigate_back
 ./bin/dowel tapir:get_routes
-./bin/dowel tapir:modal                                     # pop every PopupRoute
+./bin/dowel tapir:dismiss_modals                            # pop every PopupRoute
 ./bin/dowel tapir:reset_overlays                            # pop, Escape, then a Cancel-style tap
 ```
 
@@ -166,14 +166,14 @@ Flag names match the MCP parameter names (`--timeoutMs`, not `--timeout`), excep
 ### Viewport and devices (web, needs `--cdp-port`)
 
 ```bash
-./bin/dowel tapir:device --list                             # no Chrome needed
-./bin/dowel tapir:device --preset=iphone-15-pro
-./bin/dowel tapir:device --reset
-./bin/dowel tapir:resize --width=390 --height=844 --dpr=3.0 --mobile --touch --hold &
-./bin/dowel tapir:resize --reset
+./bin/dowel tapir:device_profile --list                     # no Chrome needed
+./bin/dowel tapir:device_profile --preset=iphone-15-pro
+./bin/dowel tapir:device_profile --reset
+./bin/dowel tapir:resize_viewport --width=390 --height=844 --dpr=3.0 --mobile --touch --hold &
+./bin/dowel tapir:resize_viewport --reset
 ```
 
-An `Emulation.*` override lasts only as long as the CDP session that set it. Without `--hold` both commands close theirs on exit and the page returns to its own size (only `tapir:device`'s window size stays); `tapir:resize --hold` in the background keeps it while you drive.
+An `Emulation.*` override lasts only as long as the CDP session that set it. Without `--hold` both commands close theirs on exit and the page returns to its own size (only `tapir:device_profile`'s window size stays); `tapir:resize_viewport --hold` in the background keeps it while you drive.
 
 ## Performance
 
@@ -200,9 +200,9 @@ dart run tapir tapir:install
 ./bin/dowel tapir:doctor
 ```
 
-`tapir:install` is idempotent. It patches `lib/main.dart` (the `kReleaseMode` import, `WidgetsFlutterBinding.ensureInitialized()`, a `!kReleaseMode` block with `TapirPlugin.install()` before `runApp(`, or before `Magic.init(` on a Magic app), adds `MagicTapirIntegration.install()` after `Magic.init()` when `magic_devtools` is a dependency, then runs dowel's install and registers the plugin when they are missing.
+`tapir:install` is idempotent. It patches `lib/main.dart` (the `kReleaseMode` import, `WidgetsFlutterBinding.ensureInitialized()`, a `!kReleaseMode` block with `TapirPlugin.install()` before `runApp(`, or before `Magic.init(` on a Magic app), adds `MagicTapirIntegration.install()` after `Magic.init()` when `magic_devtools` is a dependency and its resolved release ships `tapir.dart`, then runs dowel's install and registers the plugin when they are missing. It first prints `Leftovers from fluttersdk_dusk found:` with one line per file an install of tapir's predecessor left (`bin/dispatcher.dart` that imports the old substrate, `bin/fsa`, `lib/app/commands/_index.g.dart`, an app command that uses `Artisan*` classes, a `"fluttersdk"` entry in `.mcp.json`) and the commands to run after deleting them; it deletes nothing.
 
-`tapir:doctor` needs no running app. Its checks: hot-restart staleness, the `TAPIR_DISABLE` define, the enricher list, semantics enabled (the only failing check), Magic wiring in `lib/main.dart`, session ownership (the recorded session belongs to this project), and CDP session health (the port answers, serves this run's page, and that page is visible). Two of those rows do not look at the running app, because the CLI cannot reach Flutter: the semantics check always passes and the enricher count is always 0, so a pass does not prove semantics are on and "none registered" does not prove there are no enrichers. Confirm with `tapir:snap` (an empty tree or a `warnings` block means semantics or frames are off). Run it first whenever tapir behaves strangely: the last two catch failures that look like a broken app and are not.
+`tapir:doctor` needs no session to run. With one recorded it asks the running app once (`ext.tapir.boot_id`) for three rows: whether `ext.tapir.*` is registered (the `TAPIR_DISABLE` row warns when it is not), the enricher count, and whether the Semantics tree is on. The semantics row is the only one that fails the command: it exits 1 when the app answers that its tree is off, or that it registers no tapir at all. With no session, or an app that does not answer within five seconds, those three rows print `Skipped (...)` and the exit is 0, so a skip proves nothing: confirm with `tapir:snap`. The other rows are hot-restart staleness, Magic wiring in `lib/main.dart`, session ownership (the recorded session belongs to this project), CDP session health (the port answers, serves this run's page, and that page is visible) and `fluttersdk_dusk leftovers` (the same list `tapir:install` prints, as a warning). Run it first whenever tapir behaves strangely: session ownership and CDP health catch failures that look like a broken app and are not.
 
 ## Pipeline patterns
 
@@ -210,7 +210,7 @@ dart run tapir tapir:install
 set -e
 ./bin/dowel tapir:snap > /dev/null                         # baseline for the diff
 ./bin/dowel tapir:tap --ref=e7 --snapshot=diff
-./bin/dowel tapir:wait --text="Saved" --timeoutMs=8000
+./bin/dowel tapir:wait_for --text="Saved" --timeoutMs=8000
 ./bin/dowel tapir:observe --roles=button | jq -r '.candidates[].label'
 ./bin/dowel tapir:tap --ref=e7 --json | jq '.effect.changed'
 ```

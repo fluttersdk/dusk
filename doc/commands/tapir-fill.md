@@ -60,6 +60,8 @@ Fill not verified: e7 holds "12", not the text that was typed ("12abc")
 
 With `--includeSnapshot` or `--json` the JSON envelope is printed and the exit code stays `0`; read `effect.verified` and `effect.value` yourself.
 
+**A gate that could not confirm.** The gate runs in the type step, and the response carries that step's `checks` block whenever the receives-events check was `indeterminate` or `skipped` (see [Actionability gate](../reference/actionability-gate.md#what-the-gate-could-not-prove)). A clean response has no `checks` key, so its presence is the signal; read it together with `effect`.
+
 **Success envelope (`--includeSnapshot` on):**
 
 ```json

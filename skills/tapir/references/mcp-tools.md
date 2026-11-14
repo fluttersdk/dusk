@@ -7,7 +7,7 @@ Every `tapir_*` tool `TapirDowelProvider.mcpTools()` registers: parameters, retu
 - [How calls work](#how-calls-work)
 - [See: snap, observe, screenshot](#see-snap-observe-screenshot)
 - [Find](#find)
-- [Pointer: tap, dblclick, right_click, triple_click, hover, drag](#pointer-tap-dblclick-right_click-triple_click-hover-drag)
+- [Pointer: tap, double_click, right_click, triple_click, hover, drag](#pointer-tap-double_click-right_click-triple_click-hover-drag)
 - [Text and keys: fill, type, clear, press_key, focus, blur](#text-and-keys-fill-type-clear-press_key-focus-blur)
 - [Form controls: set_checkbox, select_option](#form-controls-set_checkbox-select_option)
 - [Scroll](#scroll)
@@ -22,7 +22,7 @@ Every `tapir_*` tool `TapirDowelProvider.mcpTools()` registers: parameters, retu
 
 The MCP server is dowel's (`./bin/dowel mcp:serve` or `dart run tapir mcp:serve`, client key `dowel`). Most tools call an `ext.tapir.*` extension inside the app isolate. `tapir_run`, `tapir_hot_reload_and_snap`, `tapir_perf_run`, `tapir_perf_compare`, `tapir_perf_trace`, `tapir_resize_viewport` and `tapir_device_profile` run a `dowel:tapir:*` command in the server's process instead.
 
-Every schema is closed (`additionalProperties: false`): an argument a tool does not list is refused with `Additional property "..." is not allowed`. A few knobs exist only on the CLI or for the perf runner (`tapir:resize --hold`, screenshot `geometry`, coordinate taps); do not send them over MCP.
+Every schema is closed (`additionalProperties: false`): an argument a tool does not list is refused with `Additional property "..." is not allowed`. A few knobs exist only on the CLI or for the perf runner (`tapir:resize_viewport --hold`, screenshot `geometry`, coordinate taps); do not send them over MCP.
 
 An error is a JSON string with the human message and a machine envelope:
 
@@ -33,7 +33,7 @@ An error is a JSON string with the human message and a machine envelope:
 }
 ```
 
-`envelope.type` is one of `timeout`, `not_found`, `obscured`, `disabled`, `stale`, `zero_rect`, `off_viewport`, `not_stable`, `missing_param`, `unexpected`. A `not_found` error lists up to three near matches in `suggestions`. The gate's reason substring sits verbatim inside `message`.
+`envelope.type` is one of `timeout`, `not_found`, `obscured`, `disabled`, `stale`, `zero_rect`, `off_viewport`, `not_stable`, `missing_param`, `invalid_param`, `refused`, `unexpected`. The JSON-RPC code follows the type: `refused`, a target or session state tapir will not act on (a ref that is not a text field, a container of several checkboxes, a perf call with no session open), is `-32001`; `invalid_param` (a value it cannot use) and `missing_param` are `-32602`; every other type is `-32000`. Branch on the type or the code, not the message, and do not retry a `refused` unchanged. A `not_found` error lists up to three near matches in `suggestions`. The gate's reason substring sits verbatim inside `message`.
 
 Keys any success payload can carry:
 
@@ -42,7 +42,7 @@ Keys any success payload can carry:
 | `framesForced: true` | A hidden or paused app was woken for this call. Normal. Not done by the perf verbs, `console`, `exceptions`, `close_app` and `evaluate`; `--dart-define=TAPIR_FORCE_FRAMES=false` turns it off. |
 | `warnings: {framesEnabled, lifecycleState, platform, hint}` | The app is not producing frames and could not be woken (a hidden browser tab, the opt-out, a `detached` app). The result cannot be trusted; follow `hint` and retry. Absent on a healthy engine. |
 | `reresolved: ["e5"]` | A stale `e<N>` was relocated by label to the control that replaced it. |
-| `checks: {receivesEvents, why?, overlapCandidates?, hint?}` | Gate step 5 could not confirm the target (`indeterminate`) or was skipped (`skipped`). Absent when confirmed. |
+| `checks: {receivesEvents, why?, overlapCandidates?, hint?}` | Gate step 5 could not confirm the target (`indeterminate`) or was skipped (`skipped`). Absent when confirmed. Carried by every gated verb, `fill` and `set_checkbox` (when it taps) included. |
 | `effect` | What the widget holds after the action; see each verb. |
 
 The `snapshot` parameter (`full`, `diff`, `none`) overrides `includeSnapshot` on the tools that accept it. `diff` returns only the lines changed since the last unfiltered snapshot: a changed row is `- <old>` then `+ <new>`, then a `(K of N lines changed)` footer, and the payload adds `snapshotMode: "diff"`. A filtered `tapir_snap` (`grep`, `within`, `depth`, `interactiveOnly`) records no baseline, and a hot restart clears it, so the next diff is the full text.
@@ -97,14 +97,14 @@ Returns `{ format, base64, width, height }`. Prefer `ref`: a full tall page cost
 
 At least one of the first four; `within` alone is refused. Predicates are not all intersected: the resolver takes the first of these that is set and ignores the others except as noted. `key` wins (a `text` beside it must also appear in a `Text` below the widget; `semanticsLabel` and `contains` are ignored); then `semanticsLabel` (exact label; `text` and `contains` are ignored); then `text`; then `contains`. `within` bounds whichever one applies. When `semanticsLabel` or `text` meets several nodes with that label, the first interactive one wins, and the first in tree order only when none is. Returns `{ ref: "q<N>", matched: true, matchCount, diagnostic? }`, or `{ ref: null, matched: false, diagnostic? }` (the diagnostic names a scope that no longer resolves). `diagnostic` appears when `matchCount > 1`: the handle points at the first match, so narrow the predicate.
 
-## Pointer: tap, dblclick, right_click, triple_click, hover, drag
+## Pointer: tap, double_click, right_click, triple_click, hover, drag
 
 All run the actionability gate and accept `snapshot`, `includeSnapshot` (default true), `checkStable` and `checkReceivesEvents` (default true).
 
 | Tool | Params | Returns | Gesture |
 |---|---|---|---|
 | `tapir_tap` | `ref`, `retarget` (default true), `until`, `untilTimeoutMs` (default 3000) | `{ ref, effect: {kind: "treeChanged", changed}, untilMatched?, retargeted?, tapPointOutsideOwner? }` | Down, 50ms, Up at the live centre, re-read after the gate |
-| `tapir_dblclick` | `ref` | `{ ref }` | Two taps about 100ms apart, one gate |
+| `tapir_double_click` | `ref` | `{ ref }` | Two taps about 100ms apart, one gate |
 | `tapir_right_click` | `ref` | `{ ref, button: "right" }` | Secondary mouse button |
 | `tapir_triple_click` | `ref` | `{ ref, clickCount: 3 }` | Three taps about 100ms apart |
 | `tapir_hover` | `ref` | `{ ref }` | Mouse hover at the centre; does nothing on a touch-only target |
@@ -116,7 +116,7 @@ All run the actionability gate and accept `snapshot`, `includeSnapshot` (default
 
 ### tapir_fill
 
-`ref`, `text` (required; `""` clears), `includeSnapshot` (default true), `snapshot`, `checkStable`, `checkReceivesEvents`. Focus, clear, type and a two-frame settle in one call, retried once when the ref goes stale mid-fill; prefer a `q<N>` so that retry can re-resolve. Returns `{ ref, text, filled: true, effect }`.
+`ref`, `text` (required; `""` clears), `includeSnapshot` (default true), `snapshot`, `checkStable`, `checkReceivesEvents`. Focus, clear, type and a two-frame settle in one call, retried once when the ref goes stale mid-fill; prefer a `q<N>` so that retry can re-resolve. Returns `{ ref, text, filled: true, effect }`, plus `checks` when the gate of its type step could not confirm the target.
 
 `effect` is `{kind: "text", verified, value, target: {matchKind, label, rect}}`. `value` is read after the settle, so a formatter or echo that reverts the write gives `verified: false`. `matchKind` is `overlap`, `nearest` or `element`; on `nearest` the ref overlapped no field and the nearest one was written. A ref that is a button, checkbox, radio, switch, slider or link is refused with `ref eN is a <role>, not a text field`.
 
@@ -140,7 +140,7 @@ All run the actionability gate and accept `snapshot`, `includeSnapshot` (default
 
 ### tapir_set_checkbox
 
-`ref`, `value` (`"true"` or `"false"`), both required. Not gated. Reads the state from the first that applies: (1) the ref's own node carries a checked or toggled flag, which is the state even when a merging tile has folded several controls into that node (they cannot be told apart, so this is never refused as ambiguous); (2) the own node carries none and exactly one descendant node does, which is read and tapped at its own centre; (3) a ref minted without a node (a `find_by_text` entry) whose render object owns none takes the nearest node above it, from that node's own flag only, never its subtree. It is refused when none of these finds a state, and when the own node carries no flag and several descendants do. So a checkbox, switch or radio from any library works: Flutter material, `material_ui`, `wind_kit` or a hand-built `Semantics(checked: ...)`. It taps only when the state differs and reads it back. Returns `{ ref, previousValue, value, toggled, effect: {kind: "checked", verified, before, after} }`. A missing state is never assumed unchecked. A mixed checkbox is always tapped once and reports `previousValue: null`. When the state already equals `value` it does not tap and returns `toggled: false`. The tap goes to the control whose state was read. Being ungated, it does not scroll: an `[offscreen]` or covered control is missed and reads `verified: false`, so bring it on screen first with `tapir_scroll` on the containing list (its ref or the ref of a visible row). Do not `tapir_tap` the control to reveal it: the tap activates it, so the value can change before the read, and a value that already matched gets toggled twice. The `tapir:set_checkbox` CLI exits 1 on `verified: false`, except with `--json` or `--includeSnapshot`, which print the response and exit 0.
+`ref`, `value` (`"true"` or `"false"`; the extension also reads `"1"` and `"0"`, and refuses anything else as `invalid_param`), both required; `checkStable` and `checkReceivesEvents` as on the other gated tools. Gated. Reads the state from the first that applies: (1) the ref's own node carries a checked or toggled flag, which is the state even when a merging tile has folded several controls into that node (they cannot be told apart, so this is never refused as ambiguous); (2) the own node carries none and exactly one descendant node does, which is read and tapped at its own centre; (3) a ref minted without a node (a `find_by_text` entry) whose render object owns none takes the nearest node above it, from that node's own flag only, never its subtree. It is refused when none of these finds a state, and when the own node carries no flag and several descendants do. So a checkbox, switch or radio from any library works: Flutter material, `material_ui`, `wind_kit` or a hand-built `Semantics(checked: ...)`. It taps only when the state differs and reads it back. Returns `{ ref, previousValue, value, toggled, effect: {kind: "checked", verified, before, after}, checks? }`; `value` is the state read back after the tap, equal to `effect.after`, never the request. A missing state is never assumed unchecked. A mixed checkbox is always tapped once and reports `previousValue: null`. When the state already equals `value` it does not tap, does not gate and returns `toggled: false`. The tap goes to the control whose state was read, and the gate runs on that control rather than on the ref: for a ref whose own node carries the flag it is the one render box under it that set the flag, so a bare `Switch` or `Checkbox` inside a `Semantics(container: true, label: ...)` is tapped at its own box, not at the container's centre. The gate scrolls a control below the fold into view and refuses a disabled, covered or moving one with the gate's reason and type, so there is no need to scroll first. Do not `tapir_tap` the control to reveal it: the tap activates it, so the value can change before the read. `checks` (see above) appears when the gate could not confirm the target receives the event. A ref with no state, or a container of several controls, is `refused` (`-32001`). The `tapir:set_checkbox` CLI has no gate flags and exits 1 on `verified: false`, except with `--json` or `--includeSnapshot`, which print the response and exit 0.
 
 ### tapir_select_option
 
@@ -239,15 +239,15 @@ No params. Returns `{ sessionToken, refused, mode, env, coverage, summary, count
 
 ### tapir_run
 
-`steps` (required, verb lines without `tapir:`, such as `"tap --ref=q3"`, `"fill --ref=q1 --text=\"a b\""`, `"snap --grep Total"`), `continue` (default false). Each step is tokenised like a shell and takes that command's own flags. The answer is one line per step (`[1/3] tap --ref=q3 ok: <first output line>`) and then the last step's full output; it stops at the first failure with `step N failed (exit C): <step>`, and `continue: true` runs every step. A step cannot be another `run` or a verb that does not use the connected app (`resize`, `device`, `install`, `doctor`, `perf_campaign`, `perf_compare`); one that ends the app (`close_app`, `perf_run`) goes last.
+`steps` (required, verb lines without `tapir:`, such as `"tap --ref=q3"`, `"fill --ref=q1 --text=\"a b\""`, `"snap --grep Total"`), `continue` (default false). Each step is tokenised like a shell and takes that command's own flags. The answer is one line per step (`[1/3] tap --ref=q3 ok: <first output line>`) and then the last step's full output; it stops at the first failure with `step N failed (exit C): <step>`, and `continue: true` runs every step. A step cannot be another `run` or a verb that does not use the connected app (`resize_viewport`, `device_profile`, `install`, `doctor`, `perf_campaign`, `perf_compare`); one that ends the app (`close_app`, `perf_run`) goes last.
 
 ### tapir_hot_reload_and_snap
 
-`screenshot` (default true). Sends `r` to the `flutter run` of the dowel session, waits for the reload or a compile error, then snaps, screenshots and reads exceptions. Returns `{ reloaded: true, durationMs, snapshot, screenshot, recentExceptions }` (a failed capture adds `screenshotError`), or `{ reloaded: false, durationMs, error, recentExceptions }` as an error result. Read `recentExceptions` even on success.
+`screenshot` (default true). Sends `r` to the `flutter run` of the dowel session and reads that run's log, for up to 10 seconds, for the line the runner prints when a reload finishes (`Reloaded N libraries in Nms`, or `Reloaded application in Nms` on web, with a time such as `1,234ms` for a reload of a second or more) or for a compile error; then snaps, screenshots and reads exceptions. `reloaded` says that line was seen, not that the VM accepted a reload. Returns `{ reloaded: true, durationMs, snapshot, screenshot, recentExceptions }` (a failed capture adds `screenshotError`), or `{ reloaded: false, durationMs, error, recentExceptions }` as an error result. Read `recentExceptions` even on success.
 
 ### tapir_resize_viewport
 
-`width`, `height` (required unless `reset`), `dpr` (1.0), `mobile`, `touch`, `reset`. Sets a CDP viewport override on Chrome. Needs the session started with `--cdp-port`, otherwise `CDP not enabled`. The override ends when the call returns; `./bin/dowel tapir:resize ... --hold` in the background keeps it.
+`width`, `height` (required unless `reset`), `dpr` (1.0), `mobile`, `touch`, `reset`. Sets a CDP viewport override on Chrome. Needs the session started with `--cdp-port`, otherwise `CDP not enabled`. The override ends when the call returns; `./bin/dowel tapir:resize_viewport ... --hold` in the background keeps it.
 
 ### tapir_device_profile
 

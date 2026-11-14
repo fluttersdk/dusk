@@ -18,6 +18,8 @@ snapshot, and drive real user gestures from an AI agent or CLI session.
   the MCP tools to your AI client.
 - [**Quickstart**](quickstart.md): 3-step walkthrough from zero to driving the example
   app with snap, tap, and screenshot.
+- [**Migrating from fluttersdk_dusk**](migrating-from-fluttersdk-dusk.md): Move an app
+  that ran the predecessor package onto tapir and dowel.
 - [**MCP setup**](../mcp/setup.md): Register the tapir MCP tools in Claude Code, Cursor,
   Windsurf, or any MCP-compliant client.
 - [**Driving real apps: gotchas for agents**](driving-real-apps-gotchas.md): the
@@ -115,5 +117,6 @@ viewport.
 
 - [Installation](installation.md): new here? Start with adding the package and wiring `TapirPlugin.install()`.
 - [Quickstart](quickstart.md): already installed? Run a first snap, tap and screenshot.
+- [Migrating from fluttersdk_dusk](migrating-from-fluttersdk-dusk.md): coming from the predecessor package? Start here.
 - [Commands](../commands/index.md): every `tapir:*` command grouped by intent.
 - [Reference: Actionability gate](../reference/actionability-gate.md): how tapir decides whether a widget is safe to act on.

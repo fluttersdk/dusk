@@ -1,13 +1,13 @@
 # tapir:doctor
 
-Verify the `tapir` runtime and the consumer-side wiring health in a single pure-CLI pass.
+Verify the `tapir` runtime and the consumer-side wiring health in a single pass.
 
-`tapir:doctor` does not dial the VM Service; every check runs against the consumer's filesystem, the dowel session state file, and a small set of environment probes. Seven lightweight checks run in order, each emitting one row via the `DowelOutput` facade (a coloured `✓` / `⚠` / `✗` / `ℹ` symbol in TTY mode, plain text under buffered or null output).
+`tapir:doctor` reads the consumer's filesystem and the dowel session state file, and, when a session is recorded, asks the running app once over the VM Service (`ext.tapir.boot_id`) for what only the app can report: whether tapir registered, whether the Semantics tree is on and how many snapshot enrichers it holds. It runs the checks below in order, each emitting one row via the `DowelOutput` facade (a coloured `✓` / `⚠` / `✗` / `ℹ` symbol in TTY mode, plain text under buffered or null output).
 
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
 - [Returns](#returns)
-- [The seven checks](#the-seven-checks)
+- [The checks](#the-checks)
 - [Examples](#examples)
 - [Related Documentation](#related-documentation)
 
@@ -18,16 +18,16 @@ Verify the `tapir` runtime and the consumer-side wiring health in a single pure-
 dart run tapir tapir:doctor
 ```
 
-`tapir:doctor` accepts no positional arguments and no flags. It runs the seven checks below against the cwd and exits with a status code derived from the single ERROR-class check (the Semantics tree probe).
+`tapir:doctor` accepts no positional arguments and no flags. It runs the checks below against the cwd and exits with a status code derived from the single ERROR-class check (the Semantics tree row).
 
-`CommandBoot.none`: no VM Service connection. The command can run before `dowel start` (some checks will downgrade to "Skipped (no Chrome attached)" but the command itself completes cleanly).
+`CommandBoot.none`: the dispatcher opens no VM Service connection for it, so the command runs before `dowel start`. With no session recorded, the three rows that need the app (2 to 4) print `Skipped (no running app; start one with `dowel start`)` and the command completes cleanly. When the recorded app does not answer within five seconds, the same rows print `Skipped (the running app did not answer: <reason>)`.
 
 ---
 
 <a name="arguments"></a>
 ## Arguments
 
-`tapir:doctor` takes no options. Its probes read the session state file, `lib/main.dart` and the `TAPIR_DISABLE` compile-time constant, and nothing on the command line changes them.
+`tapir:doctor` takes no options. Its probes read the session state file, `lib/main.dart`, the files under the project root that a previous install may have left, and the running app; nothing on the command line changes them.
 
 ---
 
@@ -38,31 +38,36 @@ dart run tapir tapir:doctor
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | Every check that can ERROR passed. WARN and INFO rows do not fail the doctor. |
-| `1` | The Semantics-tree probe (check 4) returned false. This is the only ERROR-class check; failure indicates `TapirPlugin.install()` did not run. |
+| `0` | The ERROR-class row passed or was skipped. WARN and INFO rows do not fail the doctor, and neither does a missing session or an app that did not answer. |
+| `1` | The Semantics-tree row (check 4) failed, in one of two ways: the app answered but registers no `ext.tapir.*` extension (it never calls `TapirPlugin.install()`, or it was built with `--dart-define=TAPIR_DISABLE=1`), or it answered that its Semantics tree is off. This is the only ERROR-class check. |
 
 No structured JSON envelope is emitted; the output is row-per-check via `DowelOutput.success` / `warning` / `error` / `info`.
 
 ---
 
-<a name="the-seven-checks"></a>
-## The seven checks
+<a name="the-checks"></a>
+## The checks
 
 ### 1. Hot-restart staleness
 
 Reads the session's `state.json`, locates the live Chrome PID via `captureChromePid`, and compares Chrome's `ps -o lstart=` start time against `state.json.startedAt`. Drift over 30 s means a hot-restart spawned a fresh Chrome after the CLI wrote `state.json`; the cached isolate id will be stale, so the check WARNs and asks the operator to restart the CLI. Downgrades to an INFO "Skipped" row when no state.json exists, no Chrome can be found, or the lstart probe fails (POSIX-only).
 
-### 2. TAPIR_DISABLE env-var
+### 2. TAPIR_DISABLE
 
-Reads the compile-time `--dart-define=TAPIR_DISABLE=<value>` constant of the doctor process itself, not of the running app: the doctor is a separate Dart process, so a define passed to `flutter run` or `dart run tapir start` is invisible to it. The check therefore confirms the define only when it was also passed to the doctor (`dart run --define=TAPIR_DISABLE=<value> tapir tapir:doctor`). Non-empty values WARN with the actual value echoed back. Empty value passes with a `✓` row, which says nothing about how the app was built.
+Asks the running app, not the doctor process: a define passed to `flutter run` or `dart run tapir start` is invisible to the CLI, so the row reads the answer of `ext.tapir.boot_id`. When the app answers, the row says `not set in the running app (ext.tapir.* live)`. When the app runs but registers no `ext.tapir.*` extension, the row WARNs: `the running app registers no ext.tapir.* extension; it was built with --dart-define=TAPIR_DISABLE=1, or it never calls TapirPlugin.install()`. With no session, or an app that did not answer, the row is an INFO skip.
 
-### 3. Enricher list non-empty
+### 3. Snapshot enrichers
 
-Reads the count of registered `TapirSnapshotEnricher` instances. Zero means no enricher is registered, for example because the consumer did not install `MagicTapirIntegration`. Wind metadata flows through the neutral `WindDebugRegistry` bridge (see [Wind integration](../plugins/wind-integration.md)), so a wind-only app still shows a `wind:` block per ref even when this count is zero. INFO, never fails: enrichers are opt-in. The count defaults to `0` in CLI context (the pure-Dart doctor cannot reach into Flutter without pulling `dart:ui`), so `enrichers are opt-in; none registered` is the normal CLI-time outcome.
+Prints the number of `TapirSnapshotEnricher` instances the running app registered, as the app counts them (`TapirPlugin.enrichers`): `enrichers registered: N`. Zero prints `enrichers are opt-in; none registered`, for example because the consumer did not install `MagicTapirIntegration`. Wind metadata flows through the neutral `WindDebugRegistry` bridge (see [Wind integration](../plugins/wind-integration.md)), so a wind-only app still shows a `wind:` block per ref even when this count is zero. INFO, never fails: enrichers are opt-in. When the answer carries no count (an app whose tapir predates the key, or an app that registers no tapir at all) the row prints `Skipped (the running app's tapir predates this check; upgrade it)`.
 
 ### 4. Semantics tree forced on (ERROR-class)
 
-Reports whether `RendererBinding.instance.semanticsEnabled` is true. The only check that can fail the doctor (exit code `1`). The default probe returns `true` unconditionally because the pure-Dart CLI cannot import `package:flutter/rendering.dart` without pulling `dart:ui`; the real-runtime check belongs to a future VM-Service-attached doctor invocation.
+Reports the Semantics state the running app answered with. The only check that can fail the doctor (exit code `1`):
+
+- `enabled in the running app`: passes.
+- `Semantics tree not forced on in the running app; refs cannot resolve (a perf semantics pass left it released, or the handle was disposed). Hot restart the app.`: ERROR, exit `1`.
+- `Semantics tree not forced on; TapirPlugin.install has not run in the running app`: ERROR, exit `1`. The app answered with no `ext.tapir.*` extension at all.
+- An INFO skip when there is no session, the app did not answer, or its tapir does not send the state yet.
 
 ### 5. Magic-init detection (INFO-only)
 
@@ -100,6 +105,22 @@ WARN in all three cases. Skipped when no `cdpPort` is recorded, which is the nor
 
 See [Frame production](../reference/frame-production.md) for the hidden-page case in full.
 
+### 8. fluttersdk_dusk leftovers
+
+Looks in the project root for what an install of tapir's predecessor left behind and `tapir:install` also reports (see [Migrating from fluttersdk_dusk](../getting-started/migrating-from-fluttersdk-dusk.md)). A clean project prints `fluttersdk_dusk leftovers: none found`. Otherwise the row WARNs, one line per finding, then the commands to run:
+
+```
+⚠ fluttersdk_dusk leftovers: found
+  - bin/dispatcher.dart (imports fluttersdk_artisan): delete it
+  - bin/fsa: delete it
+  - lib/app/commands/_index.g.dart: delete it
+  - lib/app/commands/deploy_command.dart (uses Artisan* classes): port it to the Dowel* classes
+  - .mcp.json: delete the "fluttersdk" server entry
+Then run `dart run dowel install`, `dart run dowel commands:refresh` and `dart run tapir tapir:install`.
+```
+
+Each line appears only when its file is there. It never fails the doctor.
+
 ---
 
 <a name="examples"></a>
@@ -115,17 +136,18 @@ Expected output (illustrative):
 
 ```
 ✓ hot-restart staleness: no drift detected (Chrome PID 51234)
-✓ TAPIR_DISABLE env-var: unset (runtime hooks active)
- ℹ snapshot enrichers: enrichers are opt-in; none registered
-✓ Semantics tree forced on: enabled
+✓ TAPIR_DISABLE: not set in the running app (ext.tapir.* live)
+✓ snapshot enrichers: enrichers registered: 2
+✓ Semantics tree forced on: enabled in the running app
  ℹ Magic-init detection: Magic-stack detected, integration wired
 ✓ Session ownership: state.json describes this project
- ℹ CDP session: Skipped (no cdpPort recorded; start with --cdp-port=N to enable tapir:resize, tapir:device and clipped web screenshots)
+ ℹ CDP session: Skipped (no cdpPort recorded; start with --cdp-port=N to enable tapir:resize_viewport, tapir:device_profile and clipped web screenshots)
+✓ fluttersdk_dusk leftovers: none found
 ```
 
 Exit code: `0`.
 
-### 2. Pre-flight on a freshly-installed vanilla app
+### 2. Pre-flight before the app is started
 
 ```bash
 dart run tapir tapir:doctor
@@ -135,19 +157,28 @@ Expected output (illustrative):
 
 ```
  ℹ hot-restart staleness: Skipped (no Chrome attached)
-✓ TAPIR_DISABLE env-var: unset (runtime hooks active)
- ℹ snapshot enrichers: enrichers are opt-in; none registered
-✓ Semantics tree forced on: enabled
+ ℹ TAPIR_DISABLE: Skipped (no running app; start one with `dowel start`)
+ ℹ snapshot enrichers: Skipped (no running app; start one with `dowel start`)
+ ℹ Semantics tree forced on: Skipped (no running app; start one with `dowel start`)
  ℹ Magic-init detection: vanilla Flutter detected
-✓ Session ownership: state.json describes this project
- ℹ CDP session: Skipped (no cdpPort recorded; start with --cdp-port=N to enable tapir:resize, tapir:device and clipped web screenshots)
+ ℹ Session ownership: Skipped (no projectRoot in state.json)
+ ℹ CDP session: Skipped (no cdpPort recorded; start with --cdp-port=N to enable tapir:resize_viewport, tapir:device_profile and clipped web screenshots)
+✓ fluttersdk_dusk leftovers: none found
 ```
 
-Exit code: `0`. Only the Semantics tree check can fail the doctor; WARN and INFO rows do not.
+Exit code: `0`. Only the Semantics tree row can fail the doctor; WARN and INFO rows do not.
 
-### 3. Consumer forgot to run `tapir:install`
+### 3. The app never ran `TapirPlugin.install()`
 
-The doctor cannot directly detect missing `TapirPlugin.install()` from CLI context, but on a Magic app check 5 reports `Magic detected but MagicTapirIntegration missing; wire it with tapir:install` when the magic-stack glue is absent and the resolved `magic_devtools` ships `lib/tapir.dart`. Re-run `tapir:install` to fix. With an older `magic_devtools`, check 5 says to upgrade it first instead.
+With a session recorded, the doctor asks the app. An app that answers but has no `ext.tapir.*` extension fails the check:
+
+```
+⚠ TAPIR_DISABLE: the running app registers no ext.tapir.* extension; it was built with --dart-define=TAPIR_DISABLE=1, or it never calls TapirPlugin.install()
+ ℹ snapshot enrichers: Skipped (the running app's tapir predates this check; upgrade it)
+✗ Semantics tree forced on: Semantics tree not forced on; TapirPlugin.install has not run in the running app
+```
+
+An app with no tapir has no enricher count to send, so that row shows its generic skip; ignore it here. The Semantics row ERRORs and the exit code is `1`. Run `tapir:install` (or wire the call by hand) and restart the app.
 
 ---
 
@@ -155,5 +186,6 @@ The doctor cannot directly detect missing `TapirPlugin.install()` from CLI conte
 ## Related Documentation
 
 - [tapir:install](tapir-install.md): the bootstrap command. Re-run `tapir:install` when check 5 reports missing integration glue.
+- [Migrating from fluttersdk_dusk](../getting-started/migrating-from-fluttersdk-dusk.md): what check 8 reports and how to clear it.
 - [Reference: Actionability gate](../reference/actionability-gate.md): the runtime gate that snapshot consumers rely on; not checked by the doctor today.
 - [Getting Started: Installation](../getting-started/installation.md): full bring-up walkthrough; the doctor is the verification step.

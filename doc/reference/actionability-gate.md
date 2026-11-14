@@ -21,18 +21,20 @@ A refused gesture reads like this:
 Widget ref=e5 is not actionable: not enabled
 ```
 
-The pointer verbs (`tap`, `hover`, `drag`, `dblclick`, `right_click`, `triple_click`) and the
-text verbs (`type`, `fill`) run the gate BEFORE synthesising the pointer or key
-event. `clear`, `focus`, `scroll`, `press_key`, `select_option` and `set_checkbox` skip it. It lives in `lib/src/utils/actionability_gate.dart` and is invoked
+The pointer verbs (`tap`, `hover`, `drag`, `double_click`, `right_click`, `triple_click`), the
+text verbs (`type`, `fill`) and `set_checkbox` run the gate BEFORE synthesising the pointer or key
+event. `set_checkbox` gates the control it taps, not the ref it was given, and only when it taps:
+a control whose state already equals the requested value is left alone and the gate does not run.
+`clear`, `focus`, `scroll`, `press_key` and `select_option` skip it. It lives in `lib/src/utils/actionability_gate.dart` and is invoked
 through `ensureActionable(entry, ref: ...)`. The gate guards an agent against
 firing a gesture against a widget that cannot accept it: disabled, collapsed,
 off-screen, animating, or covered by another widget.
 
-A failed gate throws a typed `TapirActionabilityException` whose `message` is
-re-emitted by the VM-Service handler as
-`ServiceExtensionResponse.error(extensionError, exception.message)`. Agents
-parse the failure-reason substring to decide whether to re-snap, re-find,
-scroll, wait, or abort.
+A failed gate throws a typed `TapirActionabilityException` whose `message` the
+VM-Service handler re-emits as an error response (see
+[Cross-package implications](#cross-package-implications) for the wire shape).
+Agents parse the failure-reason substring to decide whether to re-snap,
+re-find, scroll, wait, or abort.
 
 <a name="precondition-chain"></a>
 ## Precondition chain
@@ -46,7 +48,9 @@ substring, so adding, removing, or reordering checks is a breaking change.
    `findRenderObject()` returns null, or the framework throws on the inactive element.
    This guard runs before the five ordered checks below. Failure reasons:
    `defunct (element no longer attached to a render object)` or
-   `defunct (element no longer mounted)`. The agent's recovery is to re-snap.
+   `defunct (element no longer mounted)`. Both texts are FROZEN, word for
+   word, and so is the leading `defunct`: an agent may branch on either the
+   prefix or the whole reason. The agent's recovery is to re-snap.
 1. **Enabled**; the entry's `SemanticsNode` is non-null AND its
    `flagsCollection.isEnabled` is `Tristate.isFalse`. `Tristate.none` (no
    enabled flag set, e.g. plain `Text`) and `Tristate.isTrue` both pass. The
@@ -76,7 +80,9 @@ substring, so adding, removing, or reordering checks is a breaking change.
    layout change that finished before the gate ran (the soft keyboard
    opening, the step 3 auto-scroll) does not trip this check. Opt out via
    `checkStable: false`.
-5. **Receives events**; a hit-test at `rect.center` on the
+5. **Receives events**; a hit-test at the centre of the part of the rect that
+   lies inside the visible viewport (the plain `rect.center` when the whole
+   rect is on screen, which is where the pointer will land) on the
    active view confirms the entry's render object (or a descendant) appears
    in the hit-test path. If the topmost target is anything else, an overlay,
    modal scrim, or stacked widget is swallowing the pointer. The thrown reason
@@ -90,21 +96,28 @@ substring, so adding, removing, or reordering checks is a breaking change.
 ## Live-rect dispatch (post-gate, pre-dispatch)
 
 After the gate passes and BEFORE the pointer is synthesised, every pointer verb
-(`tap`, `hover`, `drag` start + end endpoints, `dblclick`, `right_click`,
+(`tap`, `hover`, `drag` start + end endpoints, `double_click`, `right_click`,
 `triple_click`) re-resolves the target's CURRENT bounding rect via
 `dispatchRectOf(entry)` and dispatches at that live centre, falling back to the
 cached `entry.rect.center` only when the live rect is `null` (a sliver, a
 detached / unsized render object, or a synthetic test entry). `dispatchRectOf`
 reuses the same `_liveRectOf(entry.element)` helper the stable check (step 4)
 measures, guarded by the `renderObject.attached` precondition Flutter's
-`localToGlobal` asserts.
+`localToGlobal` asserts. When the rect straddles an edge of the visible
+viewport and no `Scrollable` could bring it in, the gate passes it (it still
+overlaps the view), and the "centre" is the centre of the visible part: a
+pointer at the full rect's centre would land outside the view and reach
+nothing. Step 5's hit probe uses the same point.
 
 One exception: `tap` can retarget a merged semantics boundary. When exactly one
 labelled control owns the merged label and a hit test at its centre reaches it,
 the pointer goes to that control instead of the live centre (the response carries
 `retargeted`). It is the default; `retarget: false` (`--no-retarget` on the CLI)
-taps the live centre. `hover`, `dblclick`, `right_click`, `triple_click` and `drag`
-always use the live centre. See [tapir:tap](../commands/tapir-tap.md).
+taps the live centre. `hover`, `double_click`, `right_click`, `triple_click` and `drag`
+always use the live centre. `set_checkbox` dispatches at the centre of the control whose
+state it read, which for a bare `Switch` or `Checkbox` inside a labelled container is the
+render box that set the checked flag, not the container's centre (the ref's own centre
+when no single control can be named). See [tapir:tap](../commands/tapir-tap.md).
 
 This is purely additive to the FROZEN gate: it runs after the gate passes and
 before dispatch, so it touches neither the evaluation order nor any
@@ -134,9 +147,10 @@ tick four times onto a row covered by a pinned footer, with nothing in any
 response to say the check had not run.
 
 The response carries a `checks` block whenever step 5 did not confirm. The
-gated verbs that emit it are `tap`, `hover`, `drag`, `dblclick`,
-`right_click`, `triple_click` and `type`; `fill` runs the gate through its
-type step but copies only `effect` into its own response:
+gated verbs that emit it are `tap`, `hover`, `drag`, `double_click`,
+`right_click`, `triple_click`, `type` and `set_checkbox` (when it taps); `fill`
+runs the gate through its type step and copies that step's `checks` into its
+own response, so it carries the block on exactly the responses where `type` would:
 
 ```json
 {
@@ -173,7 +187,7 @@ against `$reason` to branch their recovery. **The substring list is FROZEN**:
 
 | Reason substring | Trips when | Suggested agent recovery |
 |:-----------------|:-----------|:-------------------------|
-| `defunct (...)` | `findRenderObject()` returns null OR Element is in `_ElementLifecycle.defunct` lifecycle state | Re-snap; the widget was deactivated. |
+| `defunct (...)` | `findRenderObject()` returns null (`defunct (element no longer attached to a render object)`) OR Element is in `_ElementLifecycle.defunct` lifecycle state (`defunct (element no longer mounted)`). Both texts are frozen. | Re-snap; the widget was deactivated. |
 | `not enabled` | `flagsCollection.isEnabled == Tristate.isFalse` | Re-snap; the widget may enable later. |
 | `zero rect` | `rect.width == 0 \|\| rect.height == 0` | Re-snap or re-find; layout has shifted. |
 | `off-viewport` | rect does not overlap the visible viewport (view minus `viewInsets`) even after `showOnScreen` + one frame | `tapir_scroll` with `intoView: true`, then retry. |
@@ -206,8 +220,9 @@ Future<ActionabilityReport> ensureActionable(
 | `checkStable: false` | the stable precondition (4) | widget tests that fabricate synthetic `RefEntry` rects which do not match the live render-object geometry. |
 | `checkReceivesEvents: false` | the receives-events precondition (5) | the same widget-test scenarios, plus environments where the platform compositor swallows hit-tests. |
 
-The pointer verbs, `type` and `fill` expose the same two flags as `checkStable` and
+The pointer verbs, `type`, `fill` and `set_checkbox` expose the same two flags as `checkStable` and
 `checkReceivesEvents` inputs (see [tool-reference.md](../mcp/tool-reference.md)); both default to `true`.
+The `tapir:set_checkbox` command has no flag for them; the `tapir_set_checkbox` tool and the extension take them.
 
 <a name="intentional-gate-skips"></a>
 ## Intentional gate skips
@@ -228,13 +243,29 @@ are deliberate and listed here so contributors do not add the gate "for symmetry
 ## Cross-package implications
 
 The gated actions share a common error shape. `TapirActionabilityException`
-is caught by the VM-Service handler and re-emitted via
-`ServiceExtensionResponse.error(extensionError, wrapErrorDetail(...))`. The wire
+is caught by the VM-Service handler and re-emitted as a
+`ServiceExtensionResponse.error` whose code comes from the envelope type
+(`TapirErrorEnvelope.code`) and whose detail is `wrapErrorDetail(...)`. The wire
 error detail is a JSON string with a `message` field (the flat message, reason
 included) and an `envelope` field (a machine-readable `type`, `widget_path` and
 `suggestions`). Substring matching on the reason still works because the reason
 sits verbatim inside `message`; consuming agents (Claude Code, Cursor,
 Windsurf via the MCP tool surface) branch on it.
+
+A gate failure answers one of the typed envelopes `disabled`, `zero_rect`,
+`off_viewport`, `not_stable`, `obscured` or `stale` (a defunct ref), all with the
+generic extension-error code `-32000`. The other types an action can answer tell a
+refusal apart from a failure by type and by code:
+
+| Envelope `type` | Code | Meaning |
+|:---|:---|:---|
+| `refused` | `-32001` | A deliberate refusal: the target or the session is one tapir will not act on (a ref that is not a text field, a container holding several checkboxes, a perf call with no session open). Acting would be a guess; pick another target or open the session. |
+| `invalid_param` | `-32602` | A param was sent with a value tapir cannot use (a `set_checkbox` value that is not `true`, `false`, `1` or `0`, an unknown `perf_begin` mode, a malformed `screenshot` rect). |
+| `missing_param` | `-32602` | A required param was left out. |
+| `not_found`, `timeout`, `unexpected` | `-32000` | An unknown ref (with up to three suggestions), a wait that ran out, and a failure that fits no typed bucket. |
+
+A refusal is the one outcome a caller should not retry unchanged: branch on
+`envelope.type` (or on the code) rather than on the message text.
 
 The contract guarantee is:
 

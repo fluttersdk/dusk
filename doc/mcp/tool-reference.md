@@ -2,9 +2,9 @@
 
 The input schema, return shape and an example payload for every `tapir_*` MCP tool that `TapirDowelProvider` contributes.
 
-Most tools dispatch through an `ext.tapir.*` VM Service extension. Seven (`tapir_hot_reload_and_snap`,
+Most tools dispatch through an `ext.tapir.*` VM Service extension. `tapir_hot_reload_and_snap`,
 `tapir_resize_viewport`, `tapir_device_profile`, `tapir_perf_run`, `tapir_perf_compare`,
-`tapir_perf_trace`, `tapir_run`) route through the `dowel:tapir:*` substrate path to a CLI command,
+`tapir_perf_trace` and `tapir_run` route through the `dowel:tapir:*` substrate path to a CLI command,
 because their orchestration cannot run inside the target isolate.
 
 Sections are ordered alphabetically. Every section names the dispatch surface
@@ -18,9 +18,9 @@ request; the substrate MCP server wraps the response as `CallToolResult` text co
 - [tapir_clear](#tapir_clear)
 - [tapir_close_app](#tapir_close_app)
 - [tapir_console](#tapir_console)
-- [tapir_dblclick](#tapir_dblclick)
 - [tapir_device_profile](#tapir_device_profile)
 - [tapir_dismiss_modals](#tapir_dismiss_modals)
+- [tapir_double_click](#tapir_double_click)
 - [tapir_drag](#tapir_drag)
 - [tapir_evaluate](#tapir_evaluate)
 - [tapir_exceptions](#tapir_exceptions)
@@ -261,51 +261,16 @@ Error: never; missing crumbs is treated as the empty-logs success path.
 
 ---
 
-<a name="tapir_dblclick"></a>
-## tapir_dblclick
-
-Dispatch: `ext.tapir.dblclick`
-
-Double-click a widget by ref. Synthesises two pointer Down+50ms+Up sequences at the
-widget's centre with ~100ms between them (Playwright double-click model). Triggers
-`GestureDetector.onDoubleTap`.
-
-### Input schema
-
-| Parameter | Type | Required | Description |
-|:---|:---|:---|:---|
-| `ref` | string | yes | Widget ref from a prior `tapir_snap`. Shape `e<N>` or `q<N>`. |
-| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
-| `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
-| `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
-| `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
-
-### Returns
-
-Success: `{ ref: "e<N>" }`. The actionability gate runs once before the first tap; the
-post-action snapshot is captured after the second tap completes.
-
-Error: `"Widget ref=<ref> is not actionable: <reason>"` (gate failure) or stale-handle
-error when the ref is unknown.
-
-### Example call
-
-```json
-{ "name": "tapir_dblclick", "arguments": { "ref": "e7" } }
-```
-
----
-
 <a name="tapir_device_profile"></a>
 ## tapir_device_profile
 
-Dispatch: `dowel:tapir:device`
+Dispatch: `dowel:tapir:device_profile`
 
 Emulate a named device profile (viewport + DPR + touch + user agent) via Chrome DevTools
 Protocol. Requires the substrate to have been started with `--cdp-port`. The emulated
 viewport, DPR, touch and user agent last only as long as the CDP session the call opens,
 which closes when it returns; only the Chrome window size it sets stays. For a viewport
-that lasts, run the CLI `tapir:resize --hold` in the background.
+that lasts, run the CLI `tapir:resize_viewport --hold` in the background.
 
 ### Input schema
 
@@ -355,6 +320,41 @@ Error: never; safe to call speculatively.
 
 ```json
 { "name": "tapir_dismiss_modals", "arguments": {} }
+```
+
+---
+
+<a name="tapir_double_click"></a>
+## tapir_double_click
+
+Dispatch: `ext.tapir.double_click`
+
+Double-click a widget by ref. Synthesises two pointer Down+50ms+Up sequences at the
+widget's centre with ~100ms between them (Playwright double-click model). Triggers
+`GestureDetector.onDoubleTap`.
+
+### Input schema
+
+| Parameter | Type | Required | Description |
+|:---|:---|:---|:---|
+| `ref` | string | yes | Widget ref from a prior `tapir_snap`. Shape `e<N>` or `q<N>`. |
+| `snapshot` | string | no | `full`, `diff` or `none`. Overrides `includeSnapshot`. |
+| `includeSnapshot` | boolean | no | Embed post-action snapshot. Default `true`. |
+| `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
+| `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
+
+### Returns
+
+Success: `{ ref: "e<N>" }`. The actionability gate runs once before the first tap; the
+post-action snapshot is captured after the second tap completes.
+
+Error: `"Widget ref=<ref> is not actionable: <reason>"` (gate failure) or stale-handle
+error when the ref is unknown.
+
+### Example call
+
+```json
+{ "name": "tapir_double_click", "arguments": { "ref": "e7" } }
 ```
 
 ---
@@ -490,7 +490,11 @@ once when the ref goes stale mid-fill. Replaces the manual focus + clear + type 
 
 ### Returns
 
-Success: `{ ref, text, filled: true, effect }` plus an optional `snapshot` (YAML). The
+Success: `{ ref, text, filled: true, effect }` plus an optional `snapshot` (YAML) and, when
+the gate could not confirm the target receives the event, the `checks` block of its type
+step (see [Actionability gate](../reference/actionability-gate.md#what-the-gate-could-not-prove)):
+a fill whose receives-events check was `indeterminate` or `skipped` no longer reads as a clean
+pass. The
 `effect` block is `{kind: "text", verified, value, target}`: `value` is read after the
 two-frame settle, so a formatter or echo that reverts the write reports `verified: false`,
 and `target` is `{matchKind: "overlap"|"nearest"|"element", label, rect}`, which field was
@@ -636,9 +640,19 @@ cannot reload itself.
 Success: `{ reloaded: true, durationMs: <int>, snapshot: "<yaml>", screenshot: "<base64
 or screenshotError>", recentExceptions: [...] }`.
 
-Compile error: `{ reloaded: false, durationMs: <int>, error: "<compile message>",
-recentExceptions: [...] }`. `snapshot` + `screenshot` are omitted on compile error, and the
-call is returned as an error result, so a client never reads a compile failure as success.
+`reloaded` is not a VM Service reload report. The command writes `r` to the `flutter run`
+stdin FIFO and then reads the `flutter run` log, for up to 10 seconds, for one of the lines
+the runner prints when a reload finishes: `Reloaded N libraries in Nms` (also `Reloaded 1 of
+N libraries in Nms`), or `Reloaded application in Nms` from the web runner. The time may
+carry a grouping separator (`1,234ms`), so a reload of a second or more matches. It is
+`true` when such a line appeared after the keystroke, and a reload that changed no library
+counts. The runner's `Try again after fixing the above error(s)` line makes it `false`, and
+so does a silent log after 10 seconds (`Hot reload did not signal completion in time`).
+
+Failure: `{ reloaded: false, durationMs: <int>, error: "<message>",
+recentExceptions: [...] }`: a compile error, a timeout, or a session with no stdin FIFO.
+`snapshot` + `screenshot` are omitted, and the
+call is returned as an error result, so a client never reads a failed reload as success.
 
 ### Example call
 
@@ -826,8 +840,8 @@ one interaction, end.
 Success: `{ sessionToken: "perf-1", mode: "attribution", phases: bool,
 livenessBaseline: <int>, restartedPreviousSession: bool }`.
 
-An unknown `mode`, or `phases` with `timing`, is an `invalidParams` error and
-opens nothing. A begin on an already-open session RESTARTS it rather than
+An unknown `mode`, or `phases` with `timing`, is an `invalid_param` error (code
+`-32602`) and opens nothing. A begin on an already-open session RESTARTS it rather than
 failing, restoring the previous session's flags before saving the current ones,
 so a `perf_end` that never landed cannot strand the profiling flags on.
 
@@ -854,7 +868,7 @@ not to `false`.
 ### Input schema
 
 No parameters. Requires a prior `tapir_perf_begin`; without one the call returns
-a typed error rather than an empty report.
+a `refused` error (code `-32001`) rather than an empty report.
 
 ### Returns
 
@@ -982,9 +996,10 @@ count}]}`) for the budget rule, `gaps` (`{after, next, missing}`) for dropped
 frames, the block and the frames where it weighed most for the block rules,
 and the coverage map for a coverage insight.
 
-Errors, each naming what to read instead: no `id` (`invalidParams`), no closed
-session, a stale token, a refused session, and an id the session never issued,
-which points at `perf_end`'s `insights[]`.
+Errors, each naming what to read instead: no `id` (`missing_param`, code `-32602`);
+no closed session, a stale token and a refused session (each `refused`, code
+`-32001`); and an id the session never issued (`not_found`), which points at
+`perf_end`'s `insights[]`.
 
 ### Example call
 
@@ -1136,12 +1151,12 @@ three indicate no work was done, confirming idempotency.
 <a name="tapir_resize_viewport"></a>
 ## tapir_resize_viewport
 
-Dispatch: `dowel:tapir:resize`
+Dispatch: `dowel:tapir:resize_viewport`
 
 Resize the running Flutter web app viewport via Chrome DevTools Protocol. Requires
 dowel to have been started with `--cdp-port`. Chrome drops the override when the
 DevTools session that sent it detaches, so through this tool it ends when the call
-returns; the CLI's `--hold` flag (`tapir:resize --hold`, run in the background) keeps
+returns; the CLI's `--hold` flag (`tapir:resize_viewport --hold`, run in the background) keeps
 the session open and is the way to drive the app at the new size.
 
 ### Input schema
@@ -1230,7 +1245,7 @@ Text: one line per step (`[1/3] tap --ref=e5 ok: <first output line, cut to 120
 characters>`), then the last step's full output. The batch stops at the first failing step
 and returns `step N failed (exit C): <step>` with that step's output; with `continue: true`
 it runs every step and reports the first failure. A step cannot be another `tapir_run`, nor a
-verb that does not run on the connected app (resize, device, install, doctor, perf_campaign,
+verb that does not run on the connected app (resize_viewport, device_profile, install, doctor, perf_campaign,
 perf_compare). A step that ends the app (`close_app`, `perf_run`) must come last. Use `--text`,
 `--key` or `q<N>` handles between steps that change the screen: `e<N>` refs belong to one
 snapshot.
@@ -1396,30 +1411,45 @@ state is never assumed unchecked. A mixed checkbox is always tapped once and rep
 `previousValue: null`. When the state already equals `value` the call does not tap and
 returns `toggled: false`.
 
-The tap goes to the control whose state was read: a state read off a descendant (case 2) is
-tapped at that descendant's centre, and in the other cases at the ref's own centre.
-`set_checkbox` does not pass the actionability
-gate, so it does not scroll the control into view: a control marked `[offscreen]` or
-covered is missed and reported as `effect.verified: false`. Bring it on screen first
-with `tapir_scroll` on the containing list (its ref or the ref of a visible row), then
-call it. Do not `tapir_tap` the control to reveal it: the tap activates the control, so its
-value can change before `set_checkbox` reads it, and a value that already matched is
-toggled twice. The `tapir:set_checkbox` CLI exits 1 on `verified: false`, except with
-`--json` or `--includeSnapshot`, which print the response and exit 0.
+The tap goes to the control whose state was read, and the actionability gate runs on that
+control, not on the ref. A state read off a descendant node (case 2) names the render object
+that owns that node; a ref whose own node carries the flag names the one render box under it
+whose semantics annotations set the checked, mixed or toggled state. So a bare `Switch` or
+`Checkbox` inside a `Semantics(container: true, label: ...)` is tapped at its own box, where
+the container's flag landed on the container's node and its centre can sit beside the control.
+When several boxes set a state, or none can be named, the ref's own rect is the target. The
+gate is the one the other tapping verbs run: a control below the fold is scrolled into view,
+and one that is disabled, covered or moving is refused with the gate's reason (`not enabled`,
+`obscured by other widget`, `not stable`, ...) and its envelope type. There is no need to
+scroll it into view first, and `tapir_tap` must not be used to reveal it: the tap activates
+the control. A state that already equals `value` taps nothing, so the gate does not run then.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
 |:---|:---|:---|:---|
 | `ref` | string | yes | Ref (`e<N>`) of the checkbox, switch or radio, or of a node around or above one. |
-| `value` | string | yes | `"true"` or `"false"` (target checked state). |
+| `value` | string | yes | `"true"` or `"false"` (target checked state). The extension also reads `"1"` and `"0"` (the CLI passes `--value` through as given); any other text is refused as `invalid_param`, since reading it as true would tick a box for `"flase"`. |
+| `checkStable` | boolean | no | Run the Stable actionability gate. Default `true`. |
+| `checkReceivesEvents` | boolean | no | Run the Receives-Events actionability gate. Default `true`. |
 
 ### Returns
 
 Success: `{ ref, previousValue, value, toggled, effect }`. `previousValue` is `null` for a
-mixed checkbox. `toggled` is `false` when the state already matched. `effect` is the
-`checked` block (`verified`, `before`, `after`) read back after the tap, so a parent that
-refuses the change reads `verified: false`.
+mixed checkbox. `toggled` is `false` when the state already matched. `value` is the state
+read back after the tap, not the request, so it equals `effect.after`: a control whose owner
+ignored the tap answers `value: false` for a request of `true`, with `effect.verified:
+false`. `effect` is the `checked` block (`verified`, `before`, `after`) read back after the
+tap, so a parent that refuses the change reads `verified: false`. When the gate could not
+confirm the control receives the event, the response also carries the `checks` block (see
+[Actionability gate](../reference/actionability-gate.md#what-the-gate-could-not-prove)); it
+is absent on a confirmed pass and on a call that tapped nothing.
+
+Errors: a ref with no checked or toggled state, and a ref holding several controls, are
+`refused` (code `-32001`); a `value` that is not a boolean is `invalid_param` (`-32602`); a
+gate failure carries the gate's reason and type. The `tapir:set_checkbox` CLI exits 1 on
+`verified: false`, except with `--json` or `--includeSnapshot`, which print the response and
+exit 0. The command has no gate flags.
 
 ### Example call
 
@@ -1673,7 +1703,7 @@ Pass one of `text`, `textGone`, `expression`; the handler errors when none is pa
 Match: `{ matched: true, elapsedMs: <int> }`.
 
 Timeout: a normal result, `{ matched: false, reason: "timeout" }`, not an MCP error, so check
-`matched` before continuing (the CLI, `tapir:wait`, exits 1 in that case). With none of the
+`matched` before continuing (the CLI, `tapir:wait_for`, exits 1 in that case). With none of the
 three keys the call errors; with several it uses the first of `text`, `textGone`, `expression`.
 
 ### Example call

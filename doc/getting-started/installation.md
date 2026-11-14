@@ -199,11 +199,13 @@ release build tree-shakes tapir, so no `ext.tapir.*` extension registers). Stop 
 | `./bin/dowel` is missing after `tapir:install`. | Phase 2 was skipped with a warning. Run `dart run tapir install` and `dart run tapir plugin:install tapir`; `dart run tapir <cmd>` works meanwhile. |
 | The snapshot has no `wind:` block. | Call `Wind.installDebugResolver()` inside the same `!kReleaseMode` block (`tapir:install` does not add it), then snap with `dart run tapir tapir:snap --includeEnrichers`: enrichers are off by default, so a plain snapshot never carries the block. |
 | `.mcp.json` points at the wrong launcher. | Re-run `dart run tapir mcp:install` rather than editing the file; it picks `./bin/dowel mcp:serve` or `dart run tapir mcp:serve` from the scaffold state. |
+| `tapir:install` prints `Leftovers from fluttersdk_dusk found:` and `./bin/dowel` does not appear. | The project still carries files of tapir's predecessor, whose dispatcher keeps `dowel install` from running. Follow [Migrating from fluttersdk_dusk](migrating-from-fluttersdk-dusk.md). |
 
 <a name="related-documentation"></a>
 ## Related Documentation
 
 - [Quickstart](quickstart.md): a first snap, tap and screenshot against the bundled example app.
+- [Migrating from fluttersdk_dusk](migrating-from-fluttersdk-dusk.md): the steps for an app that ran tapir's predecessor.
 - [tapir:install](../commands/tapir-install.md): the sub-steps and anchor strings behind the installer.
 - [MCP setup](../mcp/setup.md): wire the server into an AI client and the fallback invocations.
 - [Magic integration](../plugins/magic-integration.md) and [Wind integration](../plugins/wind-integration.md): the enricher fields each integration adds.

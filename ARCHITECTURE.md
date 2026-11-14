@@ -2,7 +2,7 @@
 
 ## Overview
 
-Tapir is one request path split across two processes that meet only on the VM Service. In the app (a Flutter debug or profile build), `TapirPlugin.install()` registers the `ext.tapir.*` handlers, which read the Semantics tree, dispatch pointer, text and key events and answer in JSON. On the host (the plain Dart VM), `TapirDowelProvider` contributes the `tapir:*` commands and the `tapir_*` MCP descriptors, and each one calls a handler through dowel; the commands that cannot run inside the isolate (hot reload, CDP, the perf driver) do host-side work instead. Nothing here depends on `magic`, `wind_kit` or `crumbs`: they plug in through the hooks `lib/tapir.dart` exports (the enricher list, the navigate adapter, the perf pointers, and the log, exception and in-flight request readers) and through wind's `WindDebugRegistry`.
+Tapir is one request path split across two processes that meet only on the VM Service. In the app (a Flutter debug or profile build), `TapirPlugin.install()` registers the `ext.tapir.*` handlers, which read the Semantics tree, dispatch pointer, text and key events and answer in JSON. On the host (the plain Dart VM), `TapirDowelProvider` contributes the `tapir:*` commands and the `tapir_*` MCP descriptors, and each one calls a handler through dowel; the commands that cannot run inside the isolate (hot reload, CDP, the perf driver) do host-side work instead. Nothing here depends on `magic`, `wind_kit` or `crumbs`: they plug in through the hooks `lib/tapir.dart` exports (the enricher list, the navigate adapter, the perf pointers, and the log, exception and in-flight request readers; the log and exception readers take a `ConsoleRequest` and an `ExceptionsRequest`, so a filter added later does not break a host's closure) and through wind's `WindDebugRegistry`.
 
 ```text
 agent ──tapir_* tool───▶ dowel mcp:serve ───┐
@@ -20,7 +20,7 @@ shell ──tapir:* command ▶ bin/tapir.dart ───┴─ VM Service ─▶
 
 ### `TapirPlugin` (`lib/src/tapir_plugin.dart`)
 
-- Owns: `install()`, the live `enrichers` list, the navigate adapter, the boot id, and the error and log capture.
+- Owns: `install()`, the live `enrichers` list, the navigate adapter, the boot id, the error and log capture, and `isDisabled`, the `TAPIR_DISABLE` flag that `install()` and an integration both read. The semantics handle, the boot id minting and the install counter are internal to `src/`.
 - Depends on: `registerAllTapirExtensions`.
 
 ### `RefRegistry` (`lib/src/ref_registry.dart`)
@@ -44,6 +44,8 @@ shell ──tapir:* command ▶ bin/tapir.dart ───┴─ VM Service ─▶
 | Host-half files import no Flutter and no `dart:ui` | `dart run tapir` runs them on the plain VM, where `dart:ui` does not exist | `rg -n -e "^import 'package:flutter" -e "^import 'dart:ui" bin lib/cli.dart lib/src/commands lib/src/perf lib/src/cdp lib/src/cli_args.dart lib/src/tapir_dowel_provider.dart lib/src/utils/chrome_reaper.dart` prints nothing, and `dart run bin/tapir.dart --help` starts |
 | `extensions/` and `utils/` import nothing from `commands/`, `perf/` or `cdp/` | The in-app half must stay loadable without the host half | `rg -n -e "^import '[^']*/commands/" -e "^import '[^']*/perf/" -e "^import '[^']*/cdp/" lib/src/extensions lib/src/utils lib/src/tapir_plugin.dart lib/src/ref_registry.dart` prints nothing |
 | No `endOfFrame` await is unbounded | A hidden window or tab turns `framesEnabled` off, a bare await never completes, and the CLI times out with no output and no error | `rg -nP "^\s*(?!//)[^/]*\bendOfFrame\b(?!\s*\.timeout)" lib --glob '*.dart'` prints nothing |
+| `lib/tapir.dart` and `lib/cli.dart` export named symbols only (`show`) | A bare `export` publishes every public name of the file, so an internal helper (the semantics handle, the ref registry's test helpers) becomes API the next release has to keep | `rg -n "^export '[^']*';" lib/tapir.dart lib/cli.dart` prints nothing |
+| An error response is built by `tapirError` and `TapirErrorEnvelope.code` is the one place a type becomes a JSON-RPC code: a refusal is `refused` (`-32001`), a bad or missing param `invalid_param` or `missing_param` (`-32602`), the rest `-32000` | A caller tells a target tapir will not act on, and its own mistake, from a failure without parsing the message; a handler that builds the response by hand lets one site disagree | `rg -n "ServiceExtensionResponse\.error\(" lib --glob '!lib/src/utils/error_envelope.dart'` prints nothing, and `flutter test test/src/utils/error_envelope_test.dart` |
 | One hit test: `probeHitAt` is the only caller of `hitTestInView` | Two hit tests could disagree about what covers a target | `rg -n "hitTestInView\(" lib` prints only `lib/src/utils/viewport_visibility.dart` |
 | The perf pointers and the key sets they return do not change | A renamed key compiles and silently empties one section of the performance report; `livenessCounter` also decides the stalled-engine refusal | `flutter test test/src/utils/perf_readers_test.dart` |
 | `perf_end` refuses with no metrics when the liveness counter advanced by one frame or fewer, and `refused` is always present | `SchedulerBinding.framesEnabled` can read true on a hidden Chrome page that is not producing frames, so the counter is the authority and `refused` is the only discriminator | `flutter test test/src/extensions/ext_perf_test.dart --plain-name "refus"` |
@@ -63,7 +65,7 @@ A tap (the other pointer and text verbs follow the same path):
 1. The command calls the extension; `tap`, `type`, `fill`, `scroll`, `press_key`, `navigate`, `snap` and `observe` go through `callExtensionVisible`: `lib/src/commands/web_visibility.dart:callExtensionVisible`
 2. The wrapper wakes a hidden window (`ensureFramesProduced`, unless the verb registered with `ensureFrames: false`) and opens the zone that carries per-call state: `lib/src/utils/tapir_register.dart:wrapTapirHandler`
 3. The handler resolves the ref, relocating a stale `e<N>` through its `RefBinding` and re-walking a `q<N>`: `lib/src/extensions/ext_pointer.dart:resolveRefForAction`
-4. The gate throws a `TapirActionabilityException` or returns an `ActionabilityReport`: `lib/src/utils/actionability_gate.dart:ensureActionable`
+4. The gate throws a `TapirActionabilityException` or returns an `ActionabilityReport`; its hit probe and the dispatch point are the centre of the part of the rect inside the viewport. `set_checkbox` gates the control whose state it read, not the ref, and only when the state differs: `lib/src/utils/actionability_gate.dart:ensureActionable`, `lib/src/extensions/ext_checkbox.dart`
 5. The handler dispatches the event, settles two frames through `awaitFramesOrTimeout`, and reads the result back into an `effect` block: `lib/src/utils/effect_report.dart`
 6. `snapshotForAction` attaches a snapshot as the `snapshot` param asks, and `tapirResult` stamps the per-call diagnostics: `lib/src/extensions/ext_snapshot.dart:snapshotForAction`, `lib/src/utils/tapir_response.dart:tapirResult`
 
@@ -84,7 +86,7 @@ Performance session:
 Hot reload:
 
 1. The command writes `r\n` to the stdin FIFO recorded as `stdinPipe` in the dowel session state: `lib/src/commands/tapir_hot_reload_and_snap_command.dart`
-2. It tail-polls the flutter run log for `Reloaded N libraries` or `Try again after fixing`, then snapshots. A VM Service `IsolateReload` event is not used because it does not fire on a no-op reload.
+2. It tail-polls the flutter run log for up to 10 s for `Reloaded N libraries in Nms` or, from the web runner, `Reloaded application in Nms` (a time of a second or more carries a grouping separator), or for `Try again after fixing`, then snapshots. A VM Service `IsolateReload` event is not used because it does not fire on a no-op reload.
 
 ## Decisions
 
@@ -102,7 +104,8 @@ Hot reload:
 |-----------|-------|------------|
 | The snapshot line format or a merged-node rule | `ext_snapshot.dart`, `ext_observe.dart` | They list nodes in separate walks, so a rule in one needs the other; `utils/snapshot_diff.dart` parses the `[ref=eN]` lines; both print `tapOwner` through `tapOwnerBounds` in `utils/tap_owner.dart` |
 | Which field a ref writes | `ext_text_input.dart` | `ext_fill.dart` shares `resolveTextFieldTarget` and `refuseNonTextRef` |
-| A gate precondition or the hit probe | `utils/actionability_gate.dart`, `utils/viewport_visibility.dart` | `probeHitAt` also feeds `ext_snapshot.dart` (`[occluded]`), `ext_observe.dart` (`occluded`) and `tap_owner.dart` |
+| A gate precondition or the hit probe | `utils/actionability_gate.dart`, `utils/viewport_visibility.dart` | `probeHitAt` also feeds `ext_snapshot.dart` (`[occluded]`), `ext_observe.dart` (`occluded`) and `tap_owner.dart`; both `defunct` reasons are frozen text, like the others |
+| An error type or its code | `utils/error_envelope.dart` | `type` is a closed set that `doc/reference/actionability-gate.md` and `skills/tapir/` list; the gate's reasons map to a type in `fromActionabilityReason` |
 | A key every success response carries | `utils/tapir_response.dart` (`tapirResult`) | Per-call state travels in a zone value set by `tapir_register.dart`, never a parameter |
 | The perf report shape | `ext_perf.dart`, `utils/perf_readers.dart`, `lib/tapir.dart` | The key sets are frozen (Invariants) |
 | The frame wake or web recovery | `utils/frame_sync.dart`, `utils/tapir_register.dart`, `commands/web_visibility.dart` | `doc/reference/frame-production.md` documents the observable behaviour |
@@ -115,7 +118,7 @@ Hot reload:
 ## Traps
 
 - `ext_modal_router.dart:_settleFrame` carries its own 200 ms `endOfFrame.timeout` instead of calling `awaitFrameOrTimeout`: bounded, but a second copy of the bound.
-- `tapir:device` overrides belong to its own DevTools session and Chrome drops them when the command exits; only the window bounds persist. A lasting viewport is `tapir:resize --hold`: `lib/src/commands/tapir_device_command.dart`
+- `tapir:device_profile` overrides belong to its own DevTools session and Chrome drops them when the command exits; only the window bounds persist. A lasting viewport is `tapir:resize_viewport --hold`: `lib/src/commands/tapir_device_profile_command.dart`
 - `ext.tapir.screenshot` captures the nearest `isRepaintBoundary` render object; any `RepaintBoundary` is the consumer's, and `install()` adds none: `lib/src/extensions/ext_screenshot.dart`
 
-Last reviewed: 2026-11-14 after restructuring to the architecture contract.
+Last reviewed: 2026-11-14 after the 1.0.0 surface freeze (error types, the checkbox gate, the named-symbol barrel).

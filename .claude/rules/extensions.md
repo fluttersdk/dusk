@@ -17,13 +17,13 @@ Each `ext_<name>.dart` exposes a `register<Name>Extension(s)()` function that `r
 
 ## Handlers
 
-Signature: `Future<ServiceExtensionResponse> Function(String method, Map<String, String> params)`. Every param is a string: parse with `int.tryParse(params['k'] ?? '')`; a list arrives as JSON text. Return the success payload through `tapirResult(payload)`, which adds `framesForced`, `warnings` and `reresolved` when they apply. Errors use `ServiceExtensionResponse.error`: `extensionError` for runtime failures, `invalidParams` for bad input, a JSON `errorDetail` with at least `message`, built with `wrapErrorDetail` and `TapirErrorEnvelope`.
+Signature: `Future<ServiceExtensionResponse> Function(String method, Map<String, String> params)`. Every param is a string: parse with `int.tryParse(params['k'] ?? '')`; a list arrives as JSON text. Return the success payload through `tapirResult(payload)`, which adds `framesForced`, `warnings` and `reresolved` when they apply. Errors go through `tapirError(message, TapirErrorEnvelope.<type>(...))` (`utils/error_envelope.dart`), never `ServiceExtensionResponse.error` by hand: the envelope type picks the code (`refused`, a target or session state tapir will not act on, is `-32001`; `invalid_param` and `missing_param` are `-32602`; the rest `-32000`), and the JSON `errorDetail` carries at least `message`.
 
 A verb that embeds a snapshot calls `snapshotForAction(params)` (`ext_snapshot.dart`) after acting: `snapshot` (`full|diff|none`) overrides `includeSnapshot`, and a failed snapshot never turns a successful action into an error. A verb that writes text resolves its field once (`resolveTextFieldTarget`) and refuses a ref that is an interactive non-text control.
 
 ## Actionability gate
 
-`ensureActionable` (`utils/actionability_gate.dart`) guards `tap`, `hover`, `drag`, `dblclick`, `right_click`, `triple_click` and `type`; `scroll`, `select_option` and `press_key` skip it on purpose. Each precondition keeps one test asserting its exact reason substring, so a new check adds one.
+`ensureActionable` (`utils/actionability_gate.dart`) guards `tap`, `hover`, `drag`, `double_click`, `right_click`, `triple_click`, `type` and `set_checkbox` (the control it taps, when it taps); `scroll`, `select_option` and `press_key` skip it on purpose. Each precondition keeps one test asserting its exact reason substring, so a new check adds one.
 
 ## Refs
 
