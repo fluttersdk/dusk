@@ -11,7 +11,7 @@ paths:
 
 # Documentation sync
 
-Docs change in the same change as the code. CI checks page shape and links (`python3 tool/check-docs.py`) and that a code change carries a CHANGELOG entry; it does not check that the text is still true, so the author who lands the code lands the docs.
+CI checks page shape and links (`python3 tool/check-docs.py`) and that a code change carries a CHANGELOG entry; it does not check that the text is still true.
 
 ## Surface to docs
 

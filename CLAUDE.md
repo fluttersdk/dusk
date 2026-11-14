@@ -28,7 +28,7 @@ Red, green, refactor: write the failing test first and confirm it fails for the 
 
 ## Testing
 
-- Line coverage stays at or above 80% (the `awk` step in `.github/workflows/ci.yml` computes it from `coverage/lcov.info`): lift it with a test, never by excluding code.
+- Line coverage stays at or above 80%: lift it with a test, never by excluding code.
 
 ## Architecture
 
@@ -48,7 +48,7 @@ These change only with a coordinated bump across `tapir`, `magic` and `wind_kit`
 7. The `e<N>` and `q<N>` token spaces are disjoint: never mint `e<N>` from `find`/`observe`, nor `q<N>` from `snap`.
 8. The original MCP tool names (`tapir_snap`, `tapir_tap`, `tapir_screenshot`, `tapir_hover`, `tapir_drag`, `tapir_type`) and their `ext.tapir.*` methods.
 9. `install.yaml`: load-bearing for `plugin:install`; keep its `plugin_name` and its `post_install` bootstrap message. The `tapir` executable behind `dart run tapir <cmd>` is mapped by `executables:` in `pubspec.yaml`, not in `install.yaml`.
-10. No production dependency beyond `dowel`, `image`, `meta`, `wind_kit_diagnostics_contracts`, `yaml`.
+10. No new entry under `dependencies:` in `pubspec.yaml`.
 
 ## Key Gotchas
 
@@ -69,9 +69,6 @@ These change only with a coordinated bump across `tapir`, `magic` and `wind_kit`
 ## CI
 
 `master` is protected; the required checks are `Lint & Test` (`ci.yml`), `Changelog` (`changelog.yml`) and `Internal Links` (`docs-link-check.yml`, which also runs an external link pass on Mondays).
-
-- A PR that changes `lib/`, `bin/` or `install.yaml` must change `CHANGELOG.md`; Dependabot, `release:` PRs and the `skip-changelog` label are exempt.
-- `dependabot-auto-merge.yml` arms only the `minor-and-patch` Dependabot group; a major, or a bump of a sibling package such as `dowel`, opens its own PR and waits for review.
 
 ## Style
 

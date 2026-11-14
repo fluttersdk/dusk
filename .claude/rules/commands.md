@@ -11,11 +11,11 @@ paths:
 
 ## Shape
 
-One file per command, `lib/src/commands/tapir_<verb>_command.dart`, extending `DowelCommand`. Read an existing command (`tapir_tap_command.dart`) for the shape: `name`, `description`, `boot`, `configure(ArgParser)`, `handle(DowelContext ctx)`. Options come from `ctx.input.option(...)`, output goes through `ctx.output` (`success`, `warning`, `error` for stderr, `writeln`), and the extension is called with `ctx.callExtension<Map<String, dynamic>>('ext.tapir.<verb>', params)`. Option names equal the extension's param keys; the command does not translate them.
+One file per command, `lib/src/commands/tapir_<verb>_command.dart`, extending `DowelCommand`. Read `tapir_tap_command.dart` for the shape. Options come from `ctx.input.option(...)`, output goes through `ctx.output` (`success`, `warning`, `error` for stderr, `writeln`), and the extension is called with `ctx.callExtension<Map<String, dynamic>>('ext.tapir.<verb>', params)`. Option names equal the extension's param keys; the command does not translate them.
 
 ## Boot
 
-`CommandBoot.connected` needs a running app (the session state under `~/.dowel/`). `CommandBoot.none` runs without one: `tapir:install`, `tapir:doctor`, `tapir:resize`, `tapir:device` (CDP from a non-Flutter context), `tapir:perf_campaign`, `tapir:perf_compare`. `tapir:run` accepts connected verbs only.
+`CommandBoot.connected` needs a running app (the session state under `~/.dowel/`). `CommandBoot.none` runs without one (`tapir:install`, `tapir:doctor`, `tapir:perf_campaign`, `tapir:perf_compare`, and the CDP verbs `tapir:resize` and `tapir:device`, which drive Chrome from the host). `tapir:run` accepts connected verbs only.
 
 An MCP tool routes through `dowel:tapir:*` instead of an `ext.tapir.*` call when the work cannot run in the target isolate or spans several calls: `hot_reload_and_snap` (an in-isolate self-reload deadlocks), `resize_viewport` and `device_profile` (CDP), `perf_run`, `perf_compare`, `perf_trace`, `run`.
 

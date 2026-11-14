@@ -27,7 +27,7 @@ A verb that embeds a snapshot calls `snapshotForAction(params)` (`ext_snapshot.d
 
 ## Refs
 
-`RefRegistry.register` mints `e<N>` and dedupes by `SemanticsNode.id`; `registerQuery` mints `q<N>`, which re-walks the live tree on every action. Resolve with `resolveRefForAction`. An unmounted `e<N>` is relocated only through its `RefBinding` (label, index, namesake count, route) and only when all of them still match; otherwise the `defunct` error stands. A stale `q<N>` throws `TapirStaleHandleException`.
+`RefRegistry.register` dedupes by `SemanticsNode.id`; a `q<N>` re-walks the live tree on every action. Resolve with `resolveRefForAction`. An unmounted `e<N>` is relocated only through its `RefBinding` (label, index, namesake count, route) and only when all of them still match; otherwise the `defunct` error stands. A stale `q<N>` throws `TapirStaleHandleException`.
 
 ## Enrichers
 
