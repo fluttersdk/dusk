@@ -363,6 +363,48 @@ Future<void> main() async {
       expect(output.content, contains('has no tapir integration yet'));
     });
 
+    for (final MapEntry<String, Map<String, Object>> malformed
+        in <String, Map<String, Object>>{
+          'no rootUri': <String, Object>{
+            'name': 'magic_devtools',
+            'packageUri': 'lib/',
+          },
+          'a numeric rootUri': <String, Object>{
+            'name': 'magic_devtools',
+            'rootUri': 42,
+            'packageUri': 'lib/',
+          },
+          'a numeric packageUri': <String, Object>{
+            'name': 'magic_devtools',
+            'rootUri': '../packages/magic_devtools',
+            'packageUri': 7,
+          },
+          'a rootUri that does not parse': <String, Object>{
+            'name': 'magic_devtools',
+            'rootUri': 'file://[bad',
+            'packageUri': 'lib/',
+          },
+        }.entries) {
+      test('a magic_devtools entry with ${malformed.key} reads as '
+          'unresolved', () {
+        File('${tempDir.path}/pubspec.yaml')
+            .writeAsStringSync('name: stub_app\n');
+        Directory('${tempDir.path}/.dart_tool').createSync();
+        File('${tempDir.path}/.dart_tool/package_config.json')
+            .writeAsStringSync(
+              jsonEncode(<String, Object>{
+                'configVersion': 2,
+                'packages': <Map<String, Object>>[malformed.value],
+              }),
+            );
+
+        expect(
+          TapirInstallCommand.magicDevtoolsTapirSupport(tempDir.path),
+          equals(MagicDevtoolsTapirSupport.unresolved),
+        );
+      });
+    }
+
     group('in a pub workspace', () {
       // The workspace lives under the system temp directory, outside this
       // repository, so the upward walk can only find the configs written

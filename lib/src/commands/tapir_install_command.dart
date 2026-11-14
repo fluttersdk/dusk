@@ -337,15 +337,26 @@ class TapirInstallCommand extends DowelCommand {
 
       // 3. `rootUri` is relative to the `.dart_tool` directory (or an
       //    absolute file URI for a pub-cache package); `packageUri`, `lib/`
-      //    as pub writes it, is relative to the root and defaults to it.
-      final Uri root = config.absolute.parent.uri.resolve(
-        package['rootUri'] as String,
-      );
-      final Uri rootDir = root.path.endsWith('/')
-          ? root
-          : root.replace(path: '${root.path}/');
-      final Uri lib = rootDir.resolve(package['packageUri'] as String? ?? '');
-      return File.fromUri(lib.resolve('tapir.dart')).existsSync()
+      //    as pub writes it, is relative to the root and defaults to it. An
+      //    entry that breaks that shape is as unreadable as a broken file.
+      final Object? rootUri = package['rootUri'];
+      final Object packageUri = package['packageUri'] ?? '';
+      if (rootUri is! String || packageUri is! String) {
+        return MagicDevtoolsTapirSupport.unresolved;
+      }
+      final File tapirLibrary;
+      try {
+        final Uri root = config.absolute.parent.uri.resolve(rootUri);
+        final Uri rootDir = root.path.endsWith('/')
+            ? root
+            : root.replace(path: '${root.path}/');
+        tapirLibrary = File.fromUri(
+          rootDir.resolve(packageUri).resolve('tapir.dart'),
+        );
+      } on FormatException {
+        return MagicDevtoolsTapirSupport.unresolved;
+      }
+      return tapirLibrary.existsSync()
           ? MagicDevtoolsTapirSupport.available
           : MagicDevtoolsTapirSupport.missing;
     }
