@@ -32,7 +32,7 @@
 | Import | `package:tapir/tapir.dart` (`TapirPlugin.install()`, behind `if (!kReleaseMode)`) |
 | Entry points | `dart run tapir <command>`, `./bin/dowel <command>`, `TapirPlugin.install()`, `TapirPlugin.enrichers`, `TapirDowelProvider` (`package:tapir/cli.dart`), `dart run tapir mcp:serve` |
 | Platforms | Any Flutter target that exposes a VM Service in a debug or profile build: Android, iOS, web, macOS, Windows, Linux; viewport and device emulation need Chrome with a CDP port; `tapir_hot_reload_and_snap` writes to the `flutter run` stdin FIFO, so it needs a POSIX host; on a Windows host `mcp:install` writes a `dart run` entry, never `./bin/dowel` |
-| Requires | Dart 3.13, Flutter 3.47; a plugin of [`dowel`](https://pub.dev/packages/dowel) (`^0.0.21`) |
+| Requires | Dart 3.13, Flutter 3.47; a plugin of [`dowel`](https://pub.dev/packages/dowel) (`^1.0.0`) |
 | Dependencies | `dowel`, `image`, `meta`, `wind_kit_diagnostics_contracts`, `yaml`, the Flutter SDK |
 | License | MIT |
 

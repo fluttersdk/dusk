@@ -20,6 +20,7 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- **Breaking: tapir requires `dowel ^1.0.0`.** The `^0.0.21` range cannot resolve next to dowel 1.0.0 or the Magic packages that depend on it. dowel 1.0.0 trims its barrel and renames the install results, so the `hide Error` imports are gone. (`pubspec.yaml`)
 - **Breaking: `set_checkbox` runs the actionability gate.** It tapped wherever the control was, so an offscreen or covered checkbox reported `verified: false` with no reason. It now gates the control it taps like the other tapping verbs: one below the fold is scrolled into view, and one that is disabled, covered or moving is refused with the gate's reason (`obscured by other widget`, ...) and its envelope type. It takes `checkStable` and `checkReceivesEvents` like them, `tapir:set_checkbox` included as `--[no-]checkStable` and `--[no-]checkReceivesEvents`, and stamps `checks` when the gate could not confirm. A script no longer has to scroll the control into view first, and handles a refusal where it used to read `verified: false`. (`lib/src/extensions/ext_checkbox.dart`, `lib/src/tapir_dowel_provider.dart`, `lib/src/commands/tapir_set_checkbox_command.dart`)
 - **Breaking: `set_checkbox` reports the settled `value`.** `value` echoed the request, so a control whose owner ignored the tap answered `value: true, effect.after: false, verified: false`. It is now the state read back after the tap, equal to `effect.after`. (`lib/src/extensions/ext_checkbox.dart`)
 - **Breaking: refusals and bad input change their error type and code.** The sites that refuse a target now answer `refused` (`-32001`): the ambiguous or stateless `set_checkbox` ref, the text verbs on a ref that is not a text field, `fill` and `clear` with no field under the ref, `focus` with nothing focusable, `perf_end` and `perf_insight` and `perf_trace` without the session they need, and `semantics_hold` release outside a session. The sites that reject a value now answer `invalid_param` (`-32602`): `perf_begin` mode, `scroll` delta, `screenshot` rect, `semantics_hold` action and `set_checkbox` value. Every `missing_param` answers `-32602` instead of `-32000`. A caller that branched on `unexpected` or on `-32000` for these reads the new type. (`lib/src/extensions/`)
@@ -581,7 +582,8 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/anilcancakir/tapir/compare/0.0.24...HEAD
+[Unreleased]: https://github.com/anilcancakir/tapir/compare/1.0.0...HEAD
+[1.0.0]: https://github.com/anilcancakir/tapir/compare/0.0.24...1.0.0
 [0.0.24]: https://github.com/anilcancakir/tapir/compare/0.0.23...0.0.24
 [0.0.23]: https://github.com/fluttersdk/dusk/compare/0.0.22...0.0.23
 [0.0.22]: https://github.com/fluttersdk/dusk/compare/0.0.21...0.0.22

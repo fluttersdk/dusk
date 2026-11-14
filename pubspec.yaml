@@ -21,7 +21,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  dowel: ^0.0.21
+  dowel: ^1.0.0
   image: ^4.0.0
   meta: ^1.16.0
   wind_kit_diagnostics_contracts: ^1.3.0
