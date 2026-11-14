@@ -110,7 +110,7 @@ Hot reload:
 ## Cross-cutting
 
 - State: `RefRegistry`, the snapshot baseline and the perf session live in statics and module variables, so a hot restart clears them.
-- Success means the widget received the input: `tap`, the text verbs, `scroll`, `select_option` and `set_checkbox` read the result back into an `effect` block through `utils/effect_report.dart`.
+- A success means dispatched, not received: `tap`, the text verbs, `scroll`, `select_option` and `set_checkbox` read the result back into an `effect` block through `utils/effect_report.dart`. A coordinate tap carries no `effect`, a ref tap omits it when the read-back throws, and a text write can report `effect.verified: false` when a formatter rejects the input.
 
 ## Traps
 

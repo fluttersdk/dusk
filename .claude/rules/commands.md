@@ -34,6 +34,6 @@ Each entry of `mcpTools()` is a const `McpToolDescriptor`: an imperative opening
 
 ## Adding a command
 
-1. The handler (an `ext_<name>.dart` register function, wired in `registerAllTapirExtensions`, with a test under `test/src/extensions/`) unless the command routes through the substrate; then the command file and its test under `test/src/commands/`.
+1. The command file and its test under `test/src/commands/`. Unless the command routes through the substrate, also the handler: an `ext_<name>.dart` register function, wired in `registerAllTapirExtensions`, with a test under `test/src/extensions/`.
 2. Append it to `commands()` and, unless CLI-only, a descriptor to `mcpTools()`; update the count and descriptor assertions in `test/tapir_dowel_provider_mcp_tools_test.dart`.
 3. Update the docs and the CHANGELOG.
