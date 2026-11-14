@@ -203,7 +203,7 @@ No params. Returns `{ location, title, uri }`. `uri` is the mounted Router's loc
 
 ### tapir_evaluate
 
-`expression` (required). Over MCP, dowel's server answers the call itself with the VM Service `evaluate` RPC in the app's root library, so anything imported by `lib/main.dart` is in scope; an expression with `await` is wrapped in an async closure. Returns `{ expression, result }`. A runtime exception, a compile error and a stale isolate (after a hot restart) come back as error results. Use it for a one-off expression; `dowel_tinker { eval: "..." }` and `./bin/dowel tinker --eval="..."` evaluate the same way. The `ext.tapir.evaluate` extension is a debug-only sentinel that never evaluates by itself.
+`expression` (required). Over MCP, dowel's server answers the call itself with the VM Service `evaluate` RPC in the app's root library, so anything imported by `lib/main.dart` is in scope; an expression with `await` is wrapped in an async closure that the VM evaluates without waiting, so you get the `Future`, not its value. Returns `{ expression, result }`. A runtime exception, a compile error and a stale isolate (after a hot restart) come back as error results. Use it for a one-off expression; `dowel_tinker { eval: "..." }` and `./bin/dowel tinker --eval="..."` evaluate the same way. The `ext.tapir.evaluate` extension is a debug-only sentinel that never evaluates by itself.
 
 ### tapir_close_app
 

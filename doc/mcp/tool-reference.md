@@ -393,8 +393,10 @@ Dispatch: `ext.tapir.evaluate`
 Evaluate a Dart expression in the running app. Over MCP, dowel's server answers this tool
 itself with the VM Service `evaluate` RPC in the app's root library, so anything imported
 by `lib/main.dart` is in scope (`dowel_tinker` evaluates the same way). The expression is
-wrapped in `(() async => ...)()` when it contains `await`. The `ext.tapir.evaluate`
-extension is a debug-only sentinel that never evaluates by itself.
+wrapped in `(() async => ...)()` when it contains `await`, and the VM evaluates that
+without waiting, so the result is a reference to the wrapper's `Future`, not its completed
+value. The `ext.tapir.evaluate` extension is a debug-only sentinel that never evaluates
+by itself.
 
 ### Input schema
 
