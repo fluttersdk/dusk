@@ -3,7 +3,7 @@
     "name": "io.github.anilcancakir/tapir",
     "title": "Tapir",
     "description": "Drive a live Flutter app from an AI agent: snapshot the Semantics tree, tap, type and screenshot.",
-    "version": "0.0.23",
+    "version": "0.0.24",
     "repository": {
         "url": "https://github.com/anilcancakir/tapir",
         "source": "github"

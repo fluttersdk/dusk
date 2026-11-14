@@ -1,6 +1,6 @@
 name: tapir
 description: "Drive a live Flutter app from an AI agent or CI: Semantics snapshots, gated taps and typing, screenshots, perf traces. No flutter_test harness, no test file between actions."
-version: 0.0.23
+version: 0.0.24
 homepage: https://anilcancakir.com/tapir
 repository: https://github.com/anilcancakir/tapir
 issue_tracker: https://github.com/anilcancakir/tapir/issues
