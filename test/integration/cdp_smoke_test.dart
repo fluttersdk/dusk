@@ -48,8 +48,10 @@ void main() {
   Future<int> pickFreeCdpPort({int start = 9223, int end = 9250}) async {
     for (int candidate = start; candidate <= end; candidate++) {
       try {
-        final ServerSocket probe =
-            await ServerSocket.bind(InternetAddress.loopbackIPv4, candidate);
+        final ServerSocket probe = await ServerSocket.bind(
+          InternetAddress.loopbackIPv4,
+          candidate,
+        );
         await probe.close();
         return candidate;
       } on SocketException {
@@ -70,8 +72,11 @@ void main() {
     // smoke test runs against the tapir package's own pubspec, which depends on
     // dowel via path. Process inherits stdout / stderr so the
     // test log captures the full dowel trace on failure.
-    return Process.run('dart', <String>['run', 'tapir', ...args])
-        .timeout(timeout);
+    return Process.run('dart', <String>[
+      'run',
+      'tapir',
+      ...args,
+    ]).timeout(timeout);
   }
 
   Future<void> stopDowelQuietly() async {
@@ -153,205 +158,190 @@ void main() {
   // ------------------------------------------------------------------
   // Test 1: happy path.
   // ------------------------------------------------------------------
-  test(
-    'dowel start --cdp-port boots Chrome + tapir:resize round-trips via CDP',
-    () async {
-      // 1. Spawn dowel start --cdp-port=$cdpPort. Foreground; the binary
-      //    backgrounds the flutter run subprocess itself, so this Future
-      //    resolves once state.json has the vmServiceUri populated OR the
-      //    spawn fails fast.
-      final Future<ProcessResult> startFuture = runDowel(
-        <String>[
-          'start',
-          '--device=chrome',
-          '--port=3100',
-          '--cdp-port=$cdpPort',
-        ],
-        timeout: const Duration(seconds: 90),
-      );
+  test('dowel start --cdp-port boots Chrome + tapir:resize round-trips via CDP', () async {
+    // 1. Spawn dowel start --cdp-port=$cdpPort. Foreground; the binary
+    //    backgrounds the flutter run subprocess itself, so this Future
+    //    resolves once state.json has the vmServiceUri populated OR the
+    //    spawn fails fast.
+    final Future<ProcessResult> startFuture = runDowel(<String>[
+      'start',
+      '--device=chrome',
+      '--port=3100',
+      '--cdp-port=$cdpPort',
+    ], timeout: const Duration(seconds: 90));
 
-      // 2. Race the state-file watch against the start subprocess. Whichever
-      //    resolves first wins: a fast crash surfaces the dowel stderr,
-      //    a successful spawn surfaces the populated state.
-      final Map<String, dynamic> state = await waitForStateWithVmServiceUri();
-      expect(
-        state['cdpPort'],
-        equals(cdpPort),
-        reason: 'state.json must record the cdpPort that was launched.',
+    // 2. Race the state-file watch against the start subprocess. Whichever
+    //    resolves first wins: a fast crash surfaces the dowel stderr,
+    //    a successful spawn surfaces the populated state.
+    final Map<String, dynamic> state = await waitForStateWithVmServiceUri();
+    expect(
+      state['cdpPort'],
+      equals(cdpPort),
+      reason: 'state.json must record the cdpPort that was launched.',
+    );
+    expect(
+      state['chromePid'],
+      isA<int>(),
+      reason: 'state.json must record the spawned Chrome PID.',
+    );
+    expect(
+      state['tmpProfileDir'],
+      isA<String>(),
+      reason: 'state.json must record the Chrome user-data-dir.',
+    );
+
+    // 3. Direct probe: Chrome /json/version answers with valid JSON.
+    final String versionBody = await httpGetBody(
+      Uri.parse('http://localhost:$cdpPort/json/version'),
+      timeout: const Duration(seconds: 5),
+    );
+    final Map<String, dynamic> versionJson =
+        jsonDecode(versionBody) as Map<String, dynamic>;
+    expect(
+      versionJson['webSocketDebuggerUrl'],
+      isA<String>(),
+      reason: 'Chrome /json/version must surface a WebSocket URL.',
+    );
+    expect(
+      (versionJson['Browser'] as String? ?? '').toLowerCase(),
+      contains('chrome'),
+      reason:
+          'Probe must hit a Chrome instance, not another DevTools '
+          'server (Edge / Brave / Electron).',
+    );
+
+    // 4. tapir:resize sends Emulation.setDeviceMetricsOverride. iPhone-X
+    //    dimensions are the canonical smoke target (also exercised by the
+    //    preset test).
+    final ProcessResult resize = await runDowel(<String>[
+      'tapir:resize',
+      '--width=375',
+      '--height=812',
+      '--dpr=3',
+      '--mobile',
+      '--touch',
+    ], timeout: const Duration(seconds: 30));
+    expect(
+      resize.exitCode,
+      equals(0),
+      reason:
+          'tapir:resize must succeed. stdout=${resize.stdout} stderr=${resize.stderr}',
+    );
+
+    // 5. Independent CDP round-trip: a fresh CdpClient connects to the same
+    //    port and reads Browser.getVersion. Confirms that the remote-
+    //    debugging endpoint is still up after tapir:resize and that the
+    //    CdpClient implementation works against a real Chrome (not just
+    //    the FakeCdpServer used in unit tests).
+    final CdpClient client = await CdpClient.connect(port: cdpPort);
+    try {
+      final Map<String, dynamic> reply = await client.send(
+        'Browser.getVersion',
       );
       expect(
-        state['chromePid'],
-        isA<int>(),
-        reason: 'state.json must record the spawned Chrome PID.',
-      );
-      expect(
-        state['tmpProfileDir'],
+        reply['product'],
         isA<String>(),
-        reason: 'state.json must record the Chrome user-data-dir.',
+        reason: 'Browser.getVersion must return a product string.',
       );
+    } finally {
+      await client.close();
+    }
 
-      // 3. Direct probe: Chrome /json/version answers with valid JSON.
-      final String versionBody = await httpGetBody(
-        Uri.parse('http://localhost:$cdpPort/json/version'),
-        timeout: const Duration(seconds: 5),
-      );
-      final Map<String, dynamic> versionJson =
-          jsonDecode(versionBody) as Map<String, dynamic>;
-      expect(
-        versionJson['webSocketDebuggerUrl'],
-        isA<String>(),
-        reason: 'Chrome /json/version must surface a WebSocket URL.',
-      );
-      expect(
-        (versionJson['Browser'] as String? ?? '').toLowerCase(),
-        contains('chrome'),
-        reason: 'Probe must hit a Chrome instance, not another DevTools '
-            'server (Edge / Brave / Electron).',
-      );
+    // 6. dowel stop reaps everything. State file must be gone after.
+    final ProcessResult stop = await runDowel(<String>['stop']);
+    expect(
+      stop.exitCode,
+      equals(0),
+      reason: 'dowel stop must exit cleanly. stderr=${stop.stderr}',
+    );
+    expect(
+      stateFile.existsSync(),
+      isFalse,
+      reason: 'dowel stop must delete state.json.',
+    );
 
-      // 4. tapir:resize sends Emulation.setDeviceMetricsOverride. iPhone-X
-      //    dimensions are the canonical smoke target (also exercised by the
-      //    preset test).
-      final ProcessResult resize = await runDowel(
-        <String>[
-          'tapir:resize',
-          '--width=375',
-          '--height=812',
-          '--dpr=3',
-          '--mobile',
-          '--touch',
-        ],
-        timeout: const Duration(seconds: 30),
+    // 7. Surface the start subprocess result in case it had not yet
+    //    resolved (foreground dowel exits when its child flutter
+    //    detaches, so this is usually already done).
+    try {
+      await startFuture.timeout(const Duration(seconds: 5));
+    } on TimeoutException {
+      // Start subprocess hung; the post-stop assertion above already
+      // proves the cleanup branch worked. Surface as a non-fatal warning.
+      stderr.writeln(
+        '[smoke] dowel start subprocess did not exit within 5s after '
+        'stop; tearDown will reap it.',
       );
-      expect(
-        resize.exitCode,
-        equals(0),
-        reason:
-            'tapir:resize must succeed. stdout=${resize.stdout} stderr=${resize.stderr}',
-      );
-
-      // 5. Independent CDP round-trip: a fresh CdpClient connects to the same
-      //    port and reads Browser.getVersion. Confirms that the remote-
-      //    debugging endpoint is still up after tapir:resize and that the
-      //    CdpClient implementation works against a real Chrome (not just
-      //    the FakeCdpServer used in unit tests).
-      final CdpClient client = await CdpClient.connect(port: cdpPort);
-      try {
-        final Map<String, dynamic> reply =
-            await client.send('Browser.getVersion');
-        expect(
-          reply['product'],
-          isA<String>(),
-          reason: 'Browser.getVersion must return a product string.',
-        );
-      } finally {
-        await client.close();
-      }
-
-      // 6. dowel stop reaps everything. State file must be gone after.
-      final ProcessResult stop = await runDowel(<String>['stop']);
-      expect(
-        stop.exitCode,
-        equals(0),
-        reason: 'dowel stop must exit cleanly. stderr=${stop.stderr}',
-      );
-      expect(
-        stateFile.existsSync(),
-        isFalse,
-        reason: 'dowel stop must delete state.json.',
-      );
-
-      // 7. Surface the start subprocess result in case it had not yet
-      //    resolved (foreground dowel exits when its child flutter
-      //    detaches, so this is usually already done).
-      try {
-        await startFuture.timeout(const Duration(seconds: 5));
-      } on TimeoutException {
-        // Start subprocess hung; the post-stop assertion above already
-        // proves the cleanup branch worked. Surface as a non-fatal warning.
-        // ignore: avoid_print
-        print(
-          '[smoke] dowel start subprocess did not exit within 5s after '
-          'stop; tearDown will reap it.',
-        );
-      }
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
+    }
+  }, timeout: const Timeout(Duration(minutes: 3)));
 
   // ------------------------------------------------------------------
   // Test 2: hot reload smoke (Oracle F1 mitigation, dart-lang/webdev#2642).
   // ------------------------------------------------------------------
-  test(
-    'FIFO hot reload surfaces "Reloaded" in flutter-dev.log',
-    () async {
-      // 1. Boot dowel with --cdp-port. Reuses the same wait-for-vmService
-      //    discipline from Test 1.
-      unawaited(
-        runDowel(
-          <String>[
-            'start',
-            '--device=chrome',
-            '--port=3100',
-            '--cdp-port=$cdpPort',
-          ],
-          timeout: const Duration(seconds: 90),
-        ),
+  test('FIFO hot reload surfaces "Reloaded" in flutter-dev.log', () async {
+    // 1. Boot dowel with --cdp-port. Reuses the same wait-for-vmService
+    //    discipline from Test 1.
+    unawaited(
+      runDowel(<String>[
+        'start',
+        '--device=chrome',
+        '--port=3100',
+        '--cdp-port=$cdpPort',
+      ], timeout: const Duration(seconds: 90)),
+    );
+    await waitForStateWithVmServiceUri();
+
+    // 2. Snapshot the current log length so the post-reload tail search
+    //    only inspects bytes written AFTER the FIFO write.
+    final int logBaseline = flutterDevLog.existsSync()
+        ? flutterDevLog.lengthSync()
+        : 0;
+
+    // 3. Send the reload command via the FIFO. Use a Process.run shell
+    //    because Dart's File.openWrite blocks on a FIFO until a reader
+    //    drains it; `echo r > fifo` is the documented contract.
+    expect(
+      flutterDevFifo.existsSync(),
+      isTrue,
+      reason: 'dowel start must create the FIFO at ${flutterDevFifo.path}.',
+    );
+    final ProcessResult echoResult = await Process.run('bash', <String>[
+      '-c',
+      'echo r > "${flutterDevFifo.path}"',
+    ]).timeout(const Duration(seconds: 5));
+    expect(
+      echoResult.exitCode,
+      equals(0),
+      reason: 'FIFO write must succeed. stderr=${echoResult.stderr}',
+    );
+
+    // 4. DWDS writes "Reloaded" asynchronously after the FIFO read. 5s
+    //    matches the plan's smoke-window budget; below that risks false
+    //    negatives on a busy laptop.
+    await Future<void>.delayed(const Duration(seconds: 5));
+
+    final String logTail = flutterDevLog.existsSync()
+        ? flutterDevLog.openSync().let((RandomAccessFile raf) {
+            try {
+              raf.setPositionSync(logBaseline);
+              final int remaining = raf.lengthSync() - logBaseline;
+              if (remaining <= 0) return '';
+              return utf8.decode(raf.readSync(remaining));
+            } finally {
+              raf.closeSync();
+            }
+          })
+        : '';
+
+    if (!logTail.contains('Reloaded')) {
+      fail(
+        'DWDS WebSocket hot reload broken: dart-lang/webdev#2642 '
+        'regression active on this Flutter SDK. Log tail since baseline '
+        '($logBaseline bytes):\n----\n$logTail\n----\n'
+        'Action: run `flutter upgrade` and re-run this smoke test.',
       );
-      await waitForStateWithVmServiceUri();
-
-      // 2. Snapshot the current log length so the post-reload tail search
-      //    only inspects bytes written AFTER the FIFO write.
-      final int logBaseline =
-          flutterDevLog.existsSync() ? flutterDevLog.lengthSync() : 0;
-
-      // 3. Send the reload command via the FIFO. Use a Process.run shell
-      //    because Dart's File.openWrite blocks on a FIFO until a reader
-      //    drains it; `echo r > fifo` is the documented contract.
-      expect(
-        flutterDevFifo.existsSync(),
-        isTrue,
-        reason: 'dowel start must create the FIFO at ${flutterDevFifo.path}.',
-      );
-      final ProcessResult echoResult = await Process.run(
-        'bash',
-        <String>['-c', 'echo r > "${flutterDevFifo.path}"'],
-      ).timeout(const Duration(seconds: 5));
-      expect(
-        echoResult.exitCode,
-        equals(0),
-        reason: 'FIFO write must succeed. stderr=${echoResult.stderr}',
-      );
-
-      // 4. DWDS writes "Reloaded" asynchronously after the FIFO read. 5s
-      //    matches the plan's smoke-window budget; below that risks false
-      //    negatives on a busy laptop.
-      await Future<void>.delayed(const Duration(seconds: 5));
-
-      final String logTail = flutterDevLog.existsSync()
-          ? flutterDevLog.openSync().let((RandomAccessFile raf) {
-              try {
-                raf.setPositionSync(logBaseline);
-                final int remaining = raf.lengthSync() - logBaseline;
-                if (remaining <= 0) return '';
-                return utf8.decode(raf.readSync(remaining));
-              } finally {
-                raf.closeSync();
-              }
-            })
-          : '';
-
-      if (!logTail.contains('Reloaded')) {
-        fail(
-          'DWDS WebSocket hot reload broken: dart-lang/webdev#2642 '
-          'regression active on this Flutter SDK. Log tail since baseline '
-          '($logBaseline bytes):\n----\n$logTail\n----\n'
-          'Action: run `flutter upgrade` and re-run this smoke test.',
-        );
-      }
-    },
-    timeout: const Timeout(Duration(minutes: 3)),
-  );
+    }
+  }, timeout: const Timeout(Duration(minutes: 3)));
 
   // ------------------------------------------------------------------
   // Test 3: preset smoke (tapir:device --preset=iphone-x).
@@ -361,27 +351,25 @@ void main() {
     () async {
       // 1. Same boot pattern.
       unawaited(
-        runDowel(
-          <String>[
-            'start',
-            '--device=chrome',
-            '--port=3100',
-            '--cdp-port=$cdpPort',
-          ],
-          timeout: const Duration(seconds: 90),
-        ),
+        runDowel(<String>[
+          'start',
+          '--device=chrome',
+          '--port=3100',
+          '--cdp-port=$cdpPort',
+        ], timeout: const Duration(seconds: 90)),
       );
       await waitForStateWithVmServiceUri();
 
       // 2. Apply the preset.
-      final ProcessResult device = await runDowel(
-        <String>['tapir:device', '--preset=iphone-x'],
-        timeout: const Duration(seconds: 30),
-      );
+      final ProcessResult device = await runDowel(<String>[
+        'tapir:device',
+        '--preset=iphone-x',
+      ], timeout: const Duration(seconds: 30));
       expect(
         device.exitCode,
         equals(0),
-        reason: 'tapir:device --preset=iphone-x must exit 0. '
+        reason:
+            'tapir:device --preset=iphone-x must exit 0. '
             'stdout=${device.stdout} stderr=${device.stderr}',
       );
 
@@ -392,14 +380,17 @@ void main() {
       //    Page.* introspection here because Chrome polls window.innerWidth
       //    asynchronously after override; the --reset round-trip is the
       //    deterministic check.
-      final ProcessResult reset = await runDowel(
-        <String>['tapir:resize', '--width=1440', '--height=900', '--reset'],
-        timeout: const Duration(seconds: 30),
-      );
+      final ProcessResult reset = await runDowel(<String>[
+        'tapir:resize',
+        '--width=1440',
+        '--height=900',
+        '--reset',
+      ], timeout: const Duration(seconds: 30));
       expect(
         reset.exitCode,
         equals(0),
-        reason: 'tapir:resize --reset must clear the override. '
+        reason:
+            'tapir:resize --reset must clear the override. '
             'stdout=${reset.stdout} stderr=${reset.stderr}',
       );
     },

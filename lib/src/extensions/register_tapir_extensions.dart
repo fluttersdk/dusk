@@ -27,13 +27,13 @@ import 'ext_wait_find.dart';
 /// extension table persists across hot-restart; the second registration
 /// silently no-ops via the ArgumentError catch).
 ///
-/// Wave 2 additions (alpha-2):
+/// Navigation, evaluate and close_app:
 /// - [registerNavigationExtensions] (Step 6): ext.tapir.navigate /
 ///   navigate_back / get_routes.
 /// - [registerEvaluateExtension] (Step 9): ext.tapir.evaluate.
 /// - [registerCloseAppExtension] (Step 10): ext.tapir.close_app.
 ///
-/// Wave 3 additions (alpha-2):
+/// Find:
 /// - [registerFindExtension] (Step 16): ext.tapir.find — Playwright-Locator-
 ///   style query handle (`q<N>` refs that re-execute the predicates on
 ///   every action call).

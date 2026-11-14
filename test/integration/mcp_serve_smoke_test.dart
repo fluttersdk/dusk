@@ -56,7 +56,8 @@ void main() {
     // 1. Create a minimal consumer project that depends on the local tapir package.
     tempDir = await Directory.systemTemp.createTemp('tapir_mcp_smoke_');
 
-    final String pubspecYaml = '''
+    final String pubspecYaml =
+        '''
 name: tapir_mcp_smoke
 description: tapir mcp:serve smoke test fixture
 publish_to: 'none'
@@ -85,11 +86,10 @@ dependency_overrides:
     await File('${tempDir.path}/pubspec.yaml').writeAsString(pubspecYaml);
 
     // 2. Resolve pub dependencies so the `dart run` below can locate packages.
-    final ProcessResult pubGet = await Process.run(
-      'flutter',
-      <String>['pub', 'get'],
-      workingDirectory: tempDir.path,
-    ).timeout(const Duration(seconds: 60));
+    final ProcessResult pubGet = await Process.run('flutter', <String>[
+      'pub',
+      'get',
+    ], workingDirectory: tempDir.path).timeout(const Duration(seconds: 60));
 
     if (pubGet.exitCode != 0) {
       throw StateError(
@@ -100,11 +100,11 @@ dependency_overrides:
 
     // 3. Spawn `dart run tapir mcp:serve` as a long-lived subprocess.
     //    stdin is piped so we can send JSON-RPC requests.
-    mcpProcess = await Process.start(
-      'dart',
-      <String>['run', 'tapir', 'mcp:serve'],
-      workingDirectory: tempDir.path,
-    );
+    mcpProcess = await Process.start('dart', <String>[
+      'run',
+      'tapir',
+      'mcp:serve',
+    ], workingDirectory: tempDir.path);
   });
 
   tearDownAll(() async {
@@ -120,106 +120,105 @@ dependency_overrides:
     await tempDir.delete(recursive: true);
   });
 
-  test(
-    'mcp:serve advertises every tapir_* tool the provider registers via '
-    'tools/list',
-    () async {
-      // Collect stdout lines concurrently to avoid pipe backpressure deadlock.
-      final List<String> stdoutLines = <String>[];
-      final Completer<void> stdoutDone = Completer<void>();
+  test('mcp:serve advertises every tapir_* tool the provider registers via '
+      'tools/list', () async {
+    // Collect stdout lines concurrently to avoid pipe backpressure deadlock.
+    final List<String> stdoutLines = <String>[];
+    final Completer<void> stdoutDone = Completer<void>();
 
-      mcpProcess.stdout
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen(
-        stdoutLines.add,
-        onDone: () {
-          if (!stdoutDone.isCompleted) stdoutDone.complete();
-        },
-      );
+    mcpProcess.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen(
+          stdoutLines.add,
+          onDone: () {
+            if (!stdoutDone.isCompleted) stdoutDone.complete();
+          },
+        );
 
-      // Drain stderr so the pipe never blocks the server.
-      mcpProcess.stderr
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen((_) {});
+    // Drain stderr so the pipe never blocks the server.
+    mcpProcess.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((_) {});
 
-      // 1. Send MCP initialize handshake.
-      const String initialize = '{"jsonrpc":"2.0","id":1,"method":"initialize",'
-          '"params":{"protocolVersion":"2024-11-05","capabilities":{},'
-          '"clientInfo":{"name":"smoke","version":"0"}}}';
-      mcpProcess.stdin.writeln(initialize);
-      await mcpProcess.stdin.flush();
+    // 1. Send MCP initialize handshake.
+    const String initialize =
+        '{"jsonrpc":"2.0","id":1,"method":"initialize",'
+        '"params":{"protocolVersion":"2024-11-05","capabilities":{},'
+        '"clientInfo":{"name":"smoke","version":"0"}}}';
+    mcpProcess.stdin.writeln(initialize);
+    await mcpProcess.stdin.flush();
 
-      // 2. Give the server 5s to process initialize before sending tools/list.
-      await Future<void>.delayed(const Duration(seconds: 5));
+    // 2. Give the server 5s to process initialize before sending tools/list.
+    await Future<void>.delayed(const Duration(seconds: 5));
 
-      // 3. Send tools/list request.
-      const String toolsList =
-          '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}';
-      mcpProcess.stdin.writeln(toolsList);
-      await mcpProcess.stdin.flush();
+    // 3. Send tools/list request.
+    const String toolsList =
+        '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}';
+    mcpProcess.stdin.writeln(toolsList);
+    await mcpProcess.stdin.flush();
 
-      // 4. Wait up to 20s for the tools/list response (id=2) to appear.
-      Map<String, dynamic>? toolsResponse;
-      final DateTime deadline = DateTime.now().add(const Duration(seconds: 20));
+    // 4. Wait up to 20s for the tools/list response (id=2) to appear.
+    Map<String, dynamic>? toolsResponse;
+    final DateTime deadline = DateTime.now().add(const Duration(seconds: 20));
 
-      while (DateTime.now().isBefore(deadline)) {
-        for (final String line in stdoutLines) {
-          if (line.trim().isEmpty) continue;
-          try {
-            final Map<String, dynamic> decoded =
-                jsonDecode(line) as Map<String, dynamic>;
-            if (decoded['id'] == 2) {
-              toolsResponse = decoded;
-              break;
-            }
-          } catch (_) {
-            // Not JSON or not the response we want; keep scanning.
+    while (DateTime.now().isBefore(deadline)) {
+      for (final String line in stdoutLines) {
+        if (line.trim().isEmpty) continue;
+        try {
+          final Map<String, dynamic> decoded =
+              jsonDecode(line) as Map<String, dynamic>;
+          if (decoded['id'] == 2) {
+            toolsResponse = decoded;
+            break;
           }
+        } catch (_) {
+          // Not JSON or not the response we want; keep scanning.
         }
-        if (toolsResponse != null) break;
-        await Future<void>.delayed(const Duration(milliseconds: 250));
       }
+      if (toolsResponse != null) break;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
 
-      expect(
-        toolsResponse,
-        isNotNull,
-        reason: 'No tools/list (id=2) response received within 20s. '
-            'stdout so far: $stdoutLines',
-      );
+    expect(
+      toolsResponse,
+      isNotNull,
+      reason:
+          'No tools/list (id=2) response received within 20s. '
+          'stdout so far: $stdoutLines',
+    );
 
-      final List<dynamic> tools = (toolsResponse!['result']
-              as Map<String, dynamic>?)?['tools'] as List<dynamic>? ??
-          <dynamic>[];
+    final List<dynamic> tools =
+        (toolsResponse!['result'] as Map<String, dynamic>?)?['tools']
+            as List<dynamic>? ??
+        <dynamic>[];
 
-      // 5. Assert that the tapir_* slice is exactly what the provider
-      //    registers, so the smoke test never carries a count of its own.
-      final List<String> tapirToolNames = tools
-          .whereType<Map<String, dynamic>>()
-          .map((Map<String, dynamic> t) => t['name'] as String? ?? '')
-          .where((String name) => name.startsWith('tapir_'))
-          .toList();
-      final Set<String> expectedToolNames = TapirDowelProvider()
-          .mcpTools()
-          .map((McpToolDescriptor tool) => tool.name)
-          .toSet();
+    // 5. Assert that the tapir_* slice is exactly what the provider
+    //    registers, so the smoke test never carries a count of its own.
+    final List<String> tapirToolNames = tools
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> t) => t['name'] as String? ?? '')
+        .where((String name) => name.startsWith('tapir_'))
+        .toList();
+    final Set<String> expectedToolNames = TapirDowelProvider()
+        .mcpTools()
+        .map((McpToolDescriptor tool) => tool.name)
+        .toSet();
 
-      expect(
-        tapirToolNames.toSet(),
-        equals(expectedToolNames),
-        reason: 'tools/list must advertise every tool the provider registers. '
-            'Got: $tapirToolNames',
-      );
+    expect(
+      tapirToolNames.toSet(),
+      equals(expectedToolNames),
+      reason:
+          'tools/list must advertise every tool the provider registers. '
+          'Got: $tapirToolNames',
+    );
 
-      // 6. Verify a sample of canonical alpha-1 tool names are present.
-      expect(
-        tapirToolNames,
-        containsAll(<String>['tapir_snap', 'tapir_tap', 'tapir_screenshot']),
-        reason:
-            'Alpha-1 canonical tool names must be present in the tapir_* slice.',
-      );
-    },
-    timeout: const Timeout(Duration(seconds: 30)),
-  );
+    // 6. Verify a sample of the original tool names are present.
+    expect(
+      tapirToolNames,
+      containsAll(<String>['tapir_snap', 'tapir_tap', 'tapir_screenshot']),
+      reason: 'The original tool names must be present in the tapir_* slice.',
+    );
+  }, timeout: const Timeout(Duration(seconds: 30)));
 }

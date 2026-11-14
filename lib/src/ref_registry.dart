@@ -164,11 +164,7 @@ class TapirQuery {
 /// page's only "Email" once navigation swapped one for the other.
 @immutable
 final class RefBinding {
-  const RefBinding({
-    required this.query,
-    required this.matchCount,
-    this.route,
-  });
+  const RefBinding({required this.query, required this.matchCount, this.route});
 
   /// The label predicate plus index that re-finds the node.
   final TapirQuery query;
@@ -497,16 +493,19 @@ class RefRegistry {
   /// construct entries without running the snapshot extension.
   ///
   /// The returned ref string is identical in format to production refs (`eN`).
+  /// Pass [node] to mirror a snapshot ref, which always carries the
+  /// Semantics node it was minted from.
   static String registerForTesting({
     required Rect rect,
     required Element element,
     required String groupId,
     required bool isTextField,
-  }) =>
-      register(
-        rect: rect,
-        element: element,
-        groupId: groupId,
-        isTextField: isTextField,
-      );
+    SemanticsNode? node,
+  }) => register(
+    rect: rect,
+    element: element,
+    groupId: groupId,
+    isTextField: isTextField,
+    node: node,
+  );
 }

@@ -20,17 +20,16 @@ Map<String, Object?> _frame({
   int buildMicros = 4000,
   int rasterMicros = 2000,
   Map<String, Object?> blocks = const <String, Object?>{},
-}) =>
-    <String, Object?>{
-      'frameNumber': frameNumber,
-      'buildMicros': buildMicros,
-      'rasterMicros': rasterMicros,
-      'vsyncOverheadMicros': 0,
-      'totalSpanMicros': buildMicros + rasterMicros,
-      'time': '2026-09-28T10:00:00.000Z',
-      'atUs': frameNumber * 16700,
-      'blocks': blocks,
-    };
+}) => <String, Object?>{
+  'frameNumber': frameNumber,
+  'buildMicros': buildMicros,
+  'rasterMicros': rasterMicros,
+  'vsyncOverheadMicros': 0,
+  'totalSpanMicros': buildMicros + rasterMicros,
+  'time': '2026-09-28T10:00:00.000Z',
+  'atUs': frameNumber * 16700,
+  'blocks': blocks,
+};
 
 Map<String, Object?> _block(int micros, int selfMicros, int count) =>
     <String, Object?>{
@@ -40,14 +39,11 @@ Map<String, Object?> _block(int micros, int selfMicros, int count) =>
     };
 
 Map<String, Object?> _perf(List<Map<String, Object?>> frames) =>
-    <String, Object?>{
-      'frames': frames,
-      'livenessCounter': frames.length,
-    };
+    <String, Object?>{'frames': frames, 'livenessCounter': frames.length};
 
 Map<String, int> _names(String prefix, int n) => <String, int>{
-      for (int i = 0; i < n; i++) '$prefix$i': (i + 1) * 37,
-    };
+  for (int i = 0; i < n; i++) '$prefix$i': (i + 1) * 37,
+};
 
 /// A realistic worst case: an hour-long 60 fps session's worth of frames (3600)
 /// over 520 distinct nested block names, every wind and magic counter family
@@ -77,47 +73,44 @@ Map<String, Object?> _bigPerf() {
       ),
     );
   }
-  return <String, Object?>{
-    'frames': frames,
-    'livenessCounter': 3700,
-  };
+  return <String, Object?>{'frames': frames, 'livenessCounter': 3700};
 }
 
 Map<String, Object?> _bigWind() => <String, Object?>{
-      'cacheHits': 91234,
-      'cacheMisses': 1234,
-      'cacheBypasses': 40321,
-      'cacheSize': 700,
-      'wDivBuilds': 88123,
-      'wTextBuilds': 64123,
-      'widgetBuilds': _names('WWidgetType', 40),
-      'wrapperEmissions': _names('FlutterWrapperType', 20),
-      'inheritedReads': <String, int>{
-        'mediaQuerySize': 4000,
-        'mediaQueryBrightness': 3000,
-        'windTheme': 9000,
-        'defaultTextStyle': 7000,
-      },
-    };
+  'cacheHits': 91234,
+  'cacheMisses': 1234,
+  'cacheBypasses': 40321,
+  'cacheSize': 700,
+  'wDivBuilds': 88123,
+  'wTextBuilds': 64123,
+  'widgetBuilds': _names('WWidgetType', 40),
+  'wrapperEmissions': _names('FlutterWrapperType', 20),
+  'inheritedReads': <String, int>{
+    'mediaQuerySize': 4000,
+    'mediaQueryBrightness': 3000,
+    'windTheme': 9000,
+    'defaultTextStyle': 7000,
+  },
+};
 
 Map<String, Object?> _bigExtras() => <String, Object?>{
-      'controllerNotifies': _names('SomeFeatureController', 30),
-      'notifyCauses': _names('cause.kind.', 30),
-      'queryReloads': _names('QueryName', 30),
-      'actions': _names('DoSomethingAction', 30),
-      'events': _names('SomethingHappenedEvent', 30),
-      'casts': _names('SomeCast', 30),
-      'timerTicks': _names('TimerOwner', 30),
-      'broadcasts': _names('private-teams.1.Event', 30),
-      'routeTransitions': <Map<String, Object?>>[
-        for (int i = 0; i < 12; i++)
-          <String, Object?>{
-            'route': '/monitors/$i',
-            'durationMicros': 120000 + i,
-            'time': '2026-09-28T10:00:00.000Z',
-          },
-      ],
-    };
+  'controllerNotifies': _names('SomeFeatureController', 30),
+  'notifyCauses': _names('cause.kind.', 30),
+  'queryReloads': _names('QueryName', 30),
+  'actions': _names('DoSomethingAction', 30),
+  'events': _names('SomethingHappenedEvent', 30),
+  'casts': _names('SomeCast', 30),
+  'timerTicks': _names('TimerOwner', 30),
+  'broadcasts': _names('private-teams.1.Event', 30),
+  'routeTransitions': <Map<String, Object?>>[
+    for (int i = 0; i < 12; i++)
+      <String, Object?>{
+        'route': '/monitors/$i',
+        'durationMicros': 120000 + i,
+        'time': '2026-09-28T10:00:00.000Z',
+      },
+  ],
+};
 
 List<Map<String, dynamic>> _insights(Map<String, Object?> report) =>
     (report['insights']! as List<Object?>).cast<Map<String, dynamic>>();
@@ -129,21 +122,20 @@ void main() {
   });
 
   group('buildPerfReport()', () {
-    test('carries exactly the LLM-first top-level keys and none of the old',
-        () {
-      final Map<String, Object?> report = buildPerfReport(
-        _perf(<Map<String, Object?>>[
-          _frame(frameNumber: 1),
-          _frame(frameNumber: 2),
-        ]),
-        const <String, Object?>{},
-        null,
-        env: _env,
-      );
+    test(
+      'carries exactly the LLM-first top-level keys and none of the old',
+      () {
+        final Map<String, Object?> report = buildPerfReport(
+          _perf(<Map<String, Object?>>[
+            _frame(frameNumber: 1),
+            _frame(frameNumber: 2),
+          ]),
+          const <String, Object?>{},
+          null,
+          env: _env,
+        );
 
-      expect(
-        report.keys.toSet(),
-        <String>{
+        expect(report.keys.toSet(), <String>{
           'mode',
           'env',
           'coverage',
@@ -151,54 +143,54 @@ void main() {
           'counters',
           'insights',
           'omitted',
-        },
-      );
-      expect(report['mode'], 'attribution');
-      expect(report['env'], _env);
-      final Map<String, Object?> summary =
-          report['summary']! as Map<String, Object?>;
-      expect(summary['budgetMs'], 16.7);
-      final Map<String, Object?> frames =
-          summary['frames']! as Map<String, Object?>;
-      expect(frames['painted'], 2);
-      expect(frames['count'], 2);
-      expect(
-        (frames['buildMs']! as Map<String, Object?>).keys,
-        containsAll(<String>['p50', 'p90', 'p99', 'worst']),
-      );
-    });
-
-    test('forwards sessionClockMismatch into coverage, as analysePerf does',
-        () {
-      final Map<String, Object?> report = buildPerfReport(
-        _perf(<Map<String, Object?>>[
-          _frame(frameNumber: 1),
-        ]),
-        const <String, Object?>{},
-        null,
-        env: _env,
-        sessionClockMismatch: true,
-      );
-
-      expect(
-        (report['coverage']! as Map<String, Object?>)['sessionClockMismatch'],
-        isTrue,
-      );
-    });
+        });
+        expect(report['mode'], 'attribution');
+        expect(report['env'], _env);
+        final Map<String, Object?> summary =
+            report['summary']! as Map<String, Object?>;
+        expect(summary['budgetMs'], 16.7);
+        final Map<String, Object?> frames =
+            summary['frames']! as Map<String, Object?>;
+        expect(frames['painted'], 2);
+        expect(frames['count'], 2);
+        expect(
+          (frames['buildMs']! as Map<String, Object?>).keys,
+          containsAll(<String>['p50', 'p90', 'p99', 'worst']),
+        );
+      },
+    );
 
     test(
-        'a 3600-frame session over 500+ block names stays under 6 KB, counts '
+      'forwards sessionClockMismatch into coverage, as analysePerf does',
+      () {
+        final Map<String, Object?> report = buildPerfReport(
+          _perf(<Map<String, Object?>>[_frame(frameNumber: 1)]),
+          const <String, Object?>{},
+          null,
+          env: _env,
+          sessionClockMismatch: true,
+        );
+
+        expect(
+          (report['coverage']! as Map<String, Object?>)['sessionClockMismatch'],
+          isTrue,
+        );
+      },
+    );
+
+    test('a 3600-frame session over 500+ block names stays under 6 KB, counts '
         'what it cut, and gives every insight its five keys', () {
       // magic_devtools adds its own rules; fill past the insight cap so the
       // budget holds for the report a real host produces, not only for the
       // built-in rules.
       perfInsightContributors =
           <List<Map<String, Object?>> Function(Map<String, Object?>)>[
-        (Map<String, Object?> report) => <Map<String, Object?>>[
+            (Map<String, Object?> report) => <Map<String, Object?>>[
               for (int i = 0; i < 4; i++)
                 <String, Object?>{
                   'severity': 'warn',
-                  'title': 'SomeFeatureController notifies 14.2 times per '
+                  'title':
+                      'SomeFeatureController notifies 14.2 times per '
                       'painted frame',
                   'evidence': <String, Object?>{
                     'metric': 'magic.controllerNotifies',
@@ -207,11 +199,12 @@ void main() {
                     'threshold': <String, Object?>{'maxPerFrame': 1.0},
                   },
                   'estimatedSavingsMs': 120.5 + i,
-                  'nextStep': 'Narrow what SomeFeatureController listens to; '
+                  'nextStep':
+                      'Narrow what SomeFeatureController listens to; '
                       'drill in for the causes.',
                 },
             ],
-      ];
+          ];
       final Map<String, Object?> report = buildPerfReport(
         _bigPerf(),
         _bigExtras(),
@@ -239,22 +232,27 @@ void main() {
       for (final Map<String, dynamic> insight in insights) {
         expect(
           insight.keys,
-          containsAll(
-              <String>['id', 'severity', 'title', 'evidence', 'nextStep']),
+          containsAll(<String>[
+            'id',
+            'severity',
+            'title',
+            'evidence',
+            'nextStep',
+          ]),
         );
         expect(
           (insight['evidence'] as Map<String, dynamic>).keys,
           containsAll(<String>['metric', 'value', 'perFrame', 'threshold']),
         );
-        expect(
-          <String>['info', 'warn', 'error'],
-          contains(insight['severity']),
-        );
+        expect(<String>[
+          'info',
+          'warn',
+          'error',
+        ], contains(insight['severity']));
       }
     });
 
-    test(
-        'full=true lifts every cut: every block, counter row and insight, '
+    test('full=true lifts every cut: every block, counter row and insight, '
         'omitted all zero; the default stays under 6 KB', () {
       final Map<String, Object?> bounded = buildPerfReport(
         _bigPerf(),
@@ -296,11 +294,13 @@ void main() {
       expect(summary['blocksByCount'] as List<Object?>, hasLength(522));
       expect(summary['routeTransitions'] as List<Object?>, hasLength(12));
 
-      final Map<String, Object?> magic = (full['counters']!
-          as Map<String, Object?>)['magic']! as Map<String, Object?>;
+      final Map<String, Object?> magic =
+          (full['counters']! as Map<String, Object?>)['magic']!
+              as Map<String, Object?>;
       expect(magic['controllerNotifies'] as List<Object?>, hasLength(30));
-      final Map<String, Object?> wind = (full['counters']!
-          as Map<String, Object?>)['wind']! as Map<String, Object?>;
+      final Map<String, Object?> wind =
+          (full['counters']! as Map<String, Object?>)['wind']!
+              as Map<String, Object?>;
       expect(wind['widgetBuilds'] as List<Object?>, hasLength(40));
     });
 
@@ -355,8 +355,9 @@ void main() {
         framesDrawn: 10,
       );
 
-      final List<Object?> byCount = (report['summary']!
-          as Map<String, Object?>)['blocksByCount']! as List<Object?>;
+      final List<Object?> byCount =
+          (report['summary']! as Map<String, Object?>)['blocksByCount']!
+              as List<Object?>;
       expect(byCount.single, <String, Object?>{
         'name': 'Row',
         'count': 40,
@@ -367,12 +368,14 @@ void main() {
     test('reports counters.wind null and names wind as missing without it', () {
       final Map<String, Object?> report = buildPerfReport(
         _perf(<Map<String, Object?>>[
-          _frame(frameNumber: 1, blocks: <String, Object?>{
-            'A': _block(10, 10, 1),
-          }),
-          _frame(frameNumber: 2, blocks: <String, Object?>{
-            'A': _block(10, 10, 1),
-          }),
+          _frame(
+            frameNumber: 1,
+            blocks: <String, Object?>{'A': _block(10, 10, 1)},
+          ),
+          _frame(
+            frameNumber: 2,
+            blocks: <String, Object?>{'A': _block(10, 10, 1)},
+          ),
         ]),
         const <String, Object?>{},
         null,
@@ -383,10 +386,9 @@ void main() {
           report['counters']! as Map<String, Object?>;
       expect(counters.containsKey('wind'), isTrue);
       expect(counters['wind'], isNull);
-      expect(
-        (report['coverage']! as Map<String, Object?>)['missing'],
-        <String>['wind'],
-      );
+      expect((report['coverage']! as Map<String, Object?>)['missing'], <String>[
+        'wind',
+      ]);
     });
 
     test('gives every counter raw and per painted frame', () {
@@ -419,18 +421,20 @@ void main() {
       ]);
       final Map<String, Object?> magic =
           counters['magic']! as Map<String, Object?>;
-      expect(
-        (magic['controllerNotifies']! as List<Object?>).first,
-        <Object?>['B', 10, 5.0],
-      );
+      expect((magic['controllerNotifies']! as List<Object?>).first, <Object?>[
+        'B',
+        10,
+        5.0,
+      ]);
     });
 
     test('timing mode reports frame timings only', () {
       final Map<String, Object?> report = buildPerfReport(
         _perf(<Map<String, Object?>>[
-          _frame(frameNumber: 1, blocks: <String, Object?>{
-            'A': _block(10, 10, 1),
-          }),
+          _frame(
+            frameNumber: 1,
+            blocks: <String, Object?>{'A': _block(10, 10, 1)},
+          ),
           _frame(frameNumber: 2),
         ]),
         <String, Object?>{
@@ -476,10 +480,7 @@ void main() {
           overBudget['evidence'] as Map<String, dynamic>;
       expect(evidence['value'], 1);
       expect(evidence['perFrame'], 0.5);
-      expect(
-        (evidence['threshold'] as Map<String, dynamic>)['budgetMs'],
-        16.7,
-      );
+      expect((evidence['threshold'] as Map<String, dynamic>)['budgetMs'], 16.7);
       // Half the painted frames missed: past the 10% error share.
       expect(overBudget['severity'], 'error');
       expect(overBudget['estimatedSavingsMs'], 13.3);
@@ -498,8 +499,9 @@ void main() {
         mode: PerfMode.timing,
       );
 
-      final Map<String, Object?> frames = (report['summary']!
-          as Map<String, Object?>)['frames']! as Map<String, Object?>;
+      final Map<String, Object?> frames =
+          (report['summary']! as Map<String, Object?>)['frames']!
+              as Map<String, Object?>;
       expect(frames['dropped'], 2);
       expect(frames['painted'], 3);
       expect(frames['count'], 5);
@@ -534,7 +536,7 @@ void main() {
     test('assigns ids in generation order, then sorts by severity', () {
       perfInsightContributors =
           <List<Map<String, Object?>> Function(Map<String, Object?>)>[
-        (Map<String, Object?> report) => <Map<String, Object?>>[
+            (Map<String, Object?> report) => <Map<String, Object?>>[
               <String, Object?>{
                 'severity': 'info',
                 'title': 'contributed info',
@@ -546,11 +548,11 @@ void main() {
                 },
                 'nextStep': 'nothing',
                 'detail': <String, Object?>{
-                  'rows': <int>[1, 2, 3]
+                  'rows': <int>[1, 2, 3],
                 },
               },
             ],
-      ];
+          ];
 
       final Map<String, Object?> report = buildPerfReport(
         _perf(<Map<String, Object?>>[
@@ -565,8 +567,9 @@ void main() {
       final List<Map<String, dynamic>> insights = _insights(report);
       expect(insights.first['severity'], 'error');
       expect(insights.last['title'], 'contributed info');
-      final Set<String> ids =
-          insights.map((Map<String, dynamic> i) => i['id'] as String).toSet();
+      final Set<String> ids = insights
+          .map((Map<String, dynamic> i) => i['id'] as String)
+          .toSet();
       expect(ids, hasLength(insights.length));
       expect(ids.every((String id) => RegExp(r'^I\d+$').hasMatch(id)), isTrue);
       // The contributor's drill-down rows stay behind the drill-down.
@@ -576,8 +579,8 @@ void main() {
     test('a throwing contributor becomes a warn insight, never a throw', () {
       perfInsightContributors =
           <List<Map<String, Object?>> Function(Map<String, Object?>)>[
-        (Map<String, Object?> report) => throw StateError('rule is broken'),
-      ];
+            (Map<String, Object?> report) => throw StateError('rule is broken'),
+          ];
 
       late Map<String, Object?> report;
       expect(
@@ -607,10 +610,10 @@ void main() {
     test('a malformed contributor insight is reported, not passed through', () {
       perfInsightContributors =
           <List<Map<String, Object?>> Function(Map<String, Object?>)>[
-        (Map<String, Object?> report) => <Map<String, Object?>>[
+            (Map<String, Object?> report) => <Map<String, Object?>>[
               <String, Object?>{'title': 'no severity, no evidence'},
             ],
-      ];
+          ];
 
       final Map<String, Object?> report = buildPerfReport(
         _perf(<Map<String, Object?>>[
@@ -644,13 +647,15 @@ void main() {
         null,
         env: _env,
       );
-      final String id = (analysis.report['insights']! as List<Object?>)
-          .cast<Map<String, Object?>>()
-          .firstWhere(
-            (Map<String, Object?> i) =>
-                (i['evidence']! as Map<String, Object?>)['metric'] ==
-                'framesOverBudget',
-          )['id']! as String;
+      final String id =
+          (analysis.report['insights']! as List<Object?>)
+                  .cast<Map<String, Object?>>()
+                  .firstWhere(
+                    (Map<String, Object?> i) =>
+                        (i['evidence']! as Map<String, Object?>)['metric'] ==
+                        'framesOverBudget',
+                  )['id']!
+              as String;
 
       final Map<String, Object?> drill = analysis.drillDown(id)!;
 

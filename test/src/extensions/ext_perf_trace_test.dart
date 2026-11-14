@@ -67,10 +67,7 @@ final List<Map<String, Object?>> _frames = <Map<String, Object?>>[
     'rasterMicros': 7000,
   },
   // No vsync timestamp: nothing to place it at.
-  <String, Object?>{
-    'frameNumber': 3,
-    'totalSpanMicros': 20000,
-  },
+  <String, Object?>{'frameNumber': 3, 'totalSpanMicros': 20000},
   <String, Object?>{
     'frameNumber': 4,
     'vsyncStartUs': 200000,
@@ -149,12 +146,7 @@ final List<Map<String, Object?>> _rows = <Map<String, Object?>>[
   },
   // Three rows no exporter can place.
   <String, Object?>{'kind': 'span', 'track': 'x'},
-  <String, Object?>{
-    'kind': 'flow',
-    'track': 'x',
-    'name': 'n',
-    'startUs': 2000,
-  },
+  <String, Object?>{'kind': 'flow', 'track': 'x', 'name': 'n', 'startUs': 2000},
   <String, Object?>{
     'kind': 'counter',
     'track': 'wind',
@@ -170,11 +162,10 @@ List<Map<String, Object?>> _phase(Map<String, Object?> trace, String ph) =>
     _events(trace).where((Map<String, Object?> e) => e['ph'] == ph).toList();
 
 Map<int, String> _threadNames(Map<String, Object?> trace) => <int, String>{
-      for (final Map<String, Object?> e in _phase(trace, 'M'))
-        if (e['name'] == 'thread_name')
-          e['tid']! as int:
-              (e['args']! as Map<String, Object?>)['name']! as String,
-    };
+  for (final Map<String, Object?> e in _phase(trace, 'M'))
+    if (e['name'] == 'thread_name')
+      e['tid']! as int: (e['args']! as Map<String, Object?>)['name']! as String,
+};
 
 /// Every `B` has a matching `E` on its own `tid`, in stack order, and every
 /// `X` on a `tid` nests inside or sits apart from the others there: the rule
@@ -235,18 +226,20 @@ void _expectAsyncPairsMatch(Map<String, Object?> trace) {
         .toList();
     expect(matching, hasLength(1), reason: 'b ${b['id']} has no single e');
     expect(
-        matching.single['ts']! as int, greaterThanOrEqualTo(b['ts']! as int));
+      matching.single['ts']! as int,
+      greaterThanOrEqualTo(b['ts']! as int),
+    );
   }
 }
 
 Map<String, Object?> _build() => buildPerfTrace(
-      token: 'perf-7',
-      startUs: _start,
-      endUs: _end,
-      interactions: _interactions,
-      frames: _frames,
-      rows: _rows,
-    );
+  token: 'perf-7',
+  startUs: _start,
+  endUs: _end,
+  interactions: _interactions,
+  frames: _frames,
+  rows: _rows,
+);
 
 Map<String, dynamic> _decode(developer.ServiceExtensionResponse response) {
   final String? body = response.result;
@@ -273,52 +266,45 @@ void main() {
     test('carries the interactions as X slices, splitting a straddle', () {
       final Map<String, Object?> trace = _build();
       final Map<int, String> threads = _threadNames(trace);
-      final List<Map<String, Object?>> slices = _phase(trace, 'X')
-          .where((Map<String, Object?> e) => e['cat'] == 'interaction')
-          .toList();
+      final List<Map<String, Object?>> slices = _phase(
+        trace,
+        'X',
+      ).where((Map<String, Object?> e) => e['cat'] == 'interaction').toList();
 
-      expect(
-        slices.map((Map<String, Object?> e) => e['name']),
-        <String>['tap', 'type', 'scroll'],
-        reason: 'i0 started before the session and is not in it',
-      );
+      expect(slices.map((Map<String, Object?> e) => e['name']), <String>[
+        'tap',
+        'type',
+        'scroll',
+      ], reason: 'i0 started before the session and is not in it');
       final Map<String, Object?> tap = slices[0];
       expect(tap['ts'], 2000);
       expect(tap['dur'], 38000);
-      expect(
-        tap['args'],
-        <String, Object?>{'id': 'i1', 'target': 'e3'},
-      );
+      expect(tap['args'], <String, Object?>{'id': 'i1', 'target': 'e3'});
       expect(threads[tap['tid']], 'interactions');
       expect(slices[1]['tid'], isNot(tap['tid']));
       expect(threads[slices[1]['tid']], 'interactions (2)');
       // Still settling when the session closed: it ends at the session end.
-      expect(
-        (slices[2]['ts']! as int) + (slices[2]['dur']! as int),
-        _end,
-      );
+      expect((slices[2]['ts']! as int) + (slices[2]['dur']! as int), _end);
     });
 
     test('carries the frames placed by vsync start, pipelining split', () {
       final Map<String, Object?> trace = _build();
       final Map<int, String> threads = _threadNames(trace);
-      final List<Map<String, Object?>> frames = _phase(trace, 'X')
-          .where((Map<String, Object?> e) => e['cat'] == 'frame')
-          .toList();
+      final List<Map<String, Object?>> frames = _phase(
+        trace,
+        'X',
+      ).where((Map<String, Object?> e) => e['cat'] == 'frame').toList();
 
       expect(frames, hasLength(2), reason: 'frame 3 has no vsync, 4 is late');
       expect(frames[0]['ts'], 3000);
       expect(frames[0]['dur'], 20000);
-      expect(
-        frames[0]['args'],
-        <String, Object?>{
-          'frameNumber': 1,
-          'buildMs': 8.0,
-          'rasterMs': 9.0,
-          'interactionId': 'i1',
-          'linkedBy': 'frame',
-        },
-      );
+      expect(frames[0]['args'], <String, Object?>{
+        'frameNumber': 1,
+        'buildMs': 8.0,
+        'rasterMs': 9.0,
+        'interactionId': 'i1',
+        'linkedBy': 'frame',
+      });
       expect(threads[frames[0]['tid']], 'frames');
       expect(threads[frames[1]['tid']], 'frames (2)');
     });
@@ -328,31 +314,33 @@ void main() {
       final Map<int, String> threads = _threadNames(trace);
 
       final List<Map<String, Object?>> begins = _phase(trace, 'b');
-      expect(
-        begins.map((Map<String, Object?> e) => e['id']),
-        <String>['r1', 'r2', 'r3'],
-      );
+      expect(begins.map((Map<String, Object?> e) => e['id']), <String>[
+        'r1',
+        'r2',
+        'r3',
+      ]);
       expect(begins.first['cat'], 'http');
       expect(begins.first['name'], 'GET /monitors');
-      expect(
-        begins.first['args'],
-        <String, Object?>{
-          'status': 200,
-          'interactionId': 'i1',
-          'linkedBy': 'zone',
-        },
-      );
-      final Map<String, Object?> openEnd = _phase(trace, 'e')
-          .singleWhere((Map<String, Object?> e) => e['id'] == 'r3');
+      expect(begins.first['args'], <String, Object?>{
+        'status': 200,
+        'interactionId': 'i1',
+        'linkedBy': 'zone',
+      });
+      final Map<String, Object?> openEnd = _phase(
+        trace,
+        'e',
+      ).singleWhere((Map<String, Object?> e) => e['id'] == 'r3');
       expect(openEnd['ts'], _end, reason: 'a span still running ends there');
 
-      final List<Map<String, Object?>> magic = _phase(trace, 'X')
-          .where((Map<String, Object?> e) => e['cat'] == 'magic')
-          .toList();
-      expect(
-        magic.map((Map<String, Object?> e) => e['name']),
-        <String>['MonitorsController.notify', 'Nested', 'Straddle'],
-      );
+      final List<Map<String, Object?>> magic = _phase(
+        trace,
+        'X',
+      ).where((Map<String, Object?> e) => e['cat'] == 'magic').toList();
+      expect(magic.map((Map<String, Object?> e) => e['name']), <String>[
+        'MonitorsController.notify',
+        'Nested',
+        'Straddle',
+      ]);
       expect(magic[1]['tid'], magic[0]['tid'], reason: 'Nested nests');
       expect(threads[magic[2]['tid']], 'magic (2)');
 
@@ -371,33 +359,30 @@ void main() {
       final Map<String, Object?> trace = _build();
 
       expect(trace['displayTimeUnit'], 'ms');
-      expect(
-        trace['otherData'],
-        <String, Object?>{
-          'sessionToken': 'perf-7',
-          'startUs': _start,
-          'endUs': _end,
-          'interactions': 3,
-          'frames': 2,
-          'framesOutsideWindow': 1,
-          'rows': 8,
-          'skippedRows': 3,
-        },
-      );
+      expect(trace['otherData'], <String, Object?>{
+        'sessionToken': 'perf-7',
+        'startUs': _start,
+        'endUs': _end,
+        'interactions': 3,
+        'frames': 2,
+        'framesOutsideWindow': 1,
+        'rows': 8,
+        'skippedRows': 3,
+      });
       for (final Map<String, Object?> e in _events(trace)) {
         expect(e['pid'], 1);
         expect(e['name'], isNot('before the session'));
       }
       expect(
-        _phase(trace, 'M').where(
-          (Map<String, Object?> e) => e['name'] == 'process_name',
-        ),
+        _phase(
+          trace,
+          'M',
+        ).where((Map<String, Object?> e) => e['name'] == 'process_name'),
         hasLength(1),
       );
     });
 
-    test(
-        'keeps every frame and says so when no frame lands in the window, '
+    test('keeps every frame and says so when no frame lands in the window, '
         'as perf_end does', () {
       // The engine's vsync clock and the session's FlutterTimeline clock
       // disagree: perf_end keeps all the frames then, and a trace dropping
@@ -426,8 +411,10 @@ void main() {
       expect(other['framesOutsideWindow'], 0);
       expect(other['sessionClockMismatch'], isTrue);
       expect(
-        _phase(trace, 'X')
-            .where((Map<String, Object?> e) => e['cat'] == 'frame'),
+        _phase(
+          trace,
+          'X',
+        ).where((Map<String, Object?> e) => e['cat'] == 'frame'),
         hasLength(2),
       );
     });
@@ -439,9 +426,9 @@ void main() {
       resetClosedPerfSessionForTesting();
       resetPerfInteractionsForTesting();
       framePerfReader = () => <String, Object?>{
-            'frames': <Map<String, Object?>>[],
-            'livenessCounter': 0,
-          };
+        'frames': <Map<String, Object?>>[],
+        'livenessCounter': 0,
+      };
       perfExtrasReader = () => <String, Object?>{};
       perfTimelineReader = () => <Map<String, Object?>>[];
       perfSessionBeginHook = (PerfMode mode) {};
@@ -456,129 +443,134 @@ void main() {
     test('before any session closed it is an error naming perf_end', () async {
       final developer.ServiceExtensionResponse response =
           await tapirPerfTraceHandler(
-              'ext.tapir.perf_trace', <String, String>{});
+            'ext.tapir.perf_trace',
+            <String, String>{},
+          );
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('perf_end'));
     });
 
     test('a stale token is an error naming the session that is held', () async {
-      await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'mode': 'timing'},
-      );
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+        'mode': 'timing',
+      });
       final Map<String, dynamic> end = _decode(
         await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
       final developer.ServiceExtensionResponse response =
-          await tapirPerfTraceHandler(
-        'ext.tapir.perf_trace',
-        <String, String>{'token': 'perf-0'},
-      );
+          await tapirPerfTraceHandler('ext.tapir.perf_trace', <String, String>{
+            'token': 'perf-0',
+          });
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains(end['sessionToken'] as String));
     });
 
-    test('an open session is an error: its perf_begin cleared the buffers',
-        () async {
-      await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'mode': 'timing'},
-      );
-      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
-      await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'mode': 'timing'},
-      );
+    test(
+      'an open session is an error: its perf_begin cleared the buffers',
+      () async {
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+          'mode': 'timing',
+        });
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+          'mode': 'timing',
+        });
 
-      final developer.ServiceExtensionResponse response =
-          await tapirPerfTraceHandler(
-              'ext.tapir.perf_trace', <String, String>{});
+        final developer.ServiceExtensionResponse response =
+            await tapirPerfTraceHandler(
+              'ext.tapir.perf_trace',
+              <String, String>{},
+            );
 
-      expect(response.result, isNull);
-      expect(response.errorDetail, contains('perf_end'));
-    });
+        expect(response.result, isNull);
+        expect(response.errorDetail, contains('perf_end'));
+      },
+    );
 
-    test('a throwing host reader is an error envelope, never a throw',
-        () async {
-      await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'mode': 'timing'},
-      );
-      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
-      perfTimelineReader = () => throw StateError('host wiring is broken');
+    test(
+      'a throwing host reader is an error envelope, never a throw',
+      () async {
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+          'mode': 'timing',
+        });
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
+        perfTimelineReader = () => throw StateError('host wiring is broken');
 
-      final developer.ServiceExtensionResponse response =
-          await tapirPerfTraceHandler(
-              'ext.tapir.perf_trace', <String, String>{});
+        final developer.ServiceExtensionResponse response =
+            await tapirPerfTraceHandler(
+              'ext.tapir.perf_trace',
+              <String, String>{},
+            );
 
-      expect(response.result, isNull);
-      expect(response.errorDetail, contains('host wiring is broken'));
-    });
+        expect(response.result, isNull);
+        expect(response.errorDetail, contains('host wiring is broken'));
+      },
+    );
 
     testWidgets(
-        "exports the closed session's interactions, frames and host rows",
-        (WidgetTester tester) async {
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'mode': 'timing'},
-      );
-      await runPerfInteraction<void>('tap', 'e7', () async {});
-      await tester.pump(const Duration(milliseconds: 500));
-      final int at = FlutterTimeline.now;
-      framePerfReader = () => <String, Object?>{
-            'frames': <Map<String, Object?>>[
-              <String, Object?>{
-                'frameNumber': 1,
-                'vsyncStartUs': at,
-                'totalSpanMicros': 4000,
-                'buildMicros': 2000,
-                'rasterMicros': 1000,
-              },
-            ],
-            'livenessCounter': 0,
-          };
-      perfTimelineReader = () => <Map<String, Object?>>[
+      "exports the closed session's interactions, frames and host rows",
+      (WidgetTester tester) async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+          'mode': 'timing',
+        });
+        await runPerfInteraction<void>('tap', 'e7', () async {});
+        await tester.pump(const Duration(milliseconds: 500));
+        final int at = FlutterTimeline.now;
+        framePerfReader = () => <String, Object?>{
+          'frames': <Map<String, Object?>>[
             <String, Object?>{
-              'kind': 'span',
-              'track': 'http',
-              'name': 'GET /monitors',
-              'startUs': at,
-              'endUs': at + 100,
-              'id': 'r1',
+              'frameNumber': 1,
+              'vsyncStartUs': at,
+              'totalSpanMicros': 4000,
+              'buildMicros': 2000,
+              'rasterMicros': 1000,
             },
-          ];
-      final Map<String, dynamic> end = _decode(
-        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
-      );
+          ],
+          'livenessCounter': 0,
+        };
+        perfTimelineReader = () => <Map<String, Object?>>[
+          <String, Object?>{
+            'kind': 'span',
+            'track': 'http',
+            'name': 'GET /monitors',
+            'startUs': at,
+            'endUs': at + 100,
+            'id': 'r1',
+          },
+        ];
+        final Map<String, dynamic> end = _decode(
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
+        );
 
-      final Map<String, dynamic> trace = _decode(
-        await tapirPerfTraceHandler(
-          'ext.tapir.perf_trace',
-          <String, String>{'token': end['sessionToken'] as String},
-        ),
-      );
+        final Map<String, dynamic> trace = _decode(
+          await tapirPerfTraceHandler('ext.tapir.perf_trace', <String, String>{
+            'token': end['sessionToken'] as String,
+          }),
+        );
 
-      expect(trace['sessionToken'], end['sessionToken']);
-      final List<Map<String, Object?>> events =
-          (trace['traceEvents'] as List<dynamic>).cast<Map<String, Object?>>();
-      final Map<String, Object?> tap = events.singleWhere(
-        (Map<String, Object?> e) => e['cat'] == 'interaction',
-      );
-      expect(tap['name'], 'tap');
-      expect((tap['args']! as Map<String, Object?>)['target'], 'e7');
-      expect(
-        events.where((Map<String, Object?> e) => e['cat'] == 'frame'),
-        hasLength(1),
-      );
-      expect(
-        events.where((Map<String, Object?> e) => e['ph'] == 'b'),
-        hasLength(1),
-      );
-    });
+        expect(trace['sessionToken'], end['sessionToken']);
+        final List<Map<String, Object?>> events =
+            (trace['traceEvents'] as List<dynamic>)
+                .cast<Map<String, Object?>>();
+        final Map<String, Object?> tap = events.singleWhere(
+          (Map<String, Object?> e) => e['cat'] == 'interaction',
+        );
+        expect(tap['name'], 'tap');
+        expect((tap['args']! as Map<String, Object?>)['target'], 'e7');
+        expect(
+          events.where((Map<String, Object?> e) => e['cat'] == 'frame'),
+          hasLength(1),
+        );
+        expect(
+          events.where((Map<String, Object?> e) => e['ph'] == 'b'),
+          hasLength(1),
+        );
+      },
+    );
 
     test('registerPerfTraceExtension() is safe to call twice', () {
       expect(registerPerfTraceExtension, returnsNormally);

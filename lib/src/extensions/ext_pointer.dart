@@ -18,6 +18,7 @@ import '../utils/tap_owner.dart';
 import 'ext_find.dart';
 import 'ext_snapshot.dart' show snapshotForAction;
 import 'ext_wait_find.dart' show findByTextWaitLoop;
+
 import 'package:dowel/dowel.dart';
 
 /// Parses the optional `'true' | 'false'` flag [params] field [name],
@@ -210,16 +211,16 @@ Offset? _pointParam(Map<String, String> params, String xKey, String yKey) {
 }
 
 Map<String, dynamic> _pointJson(Offset point) => <String, dynamic>{
-      'x': point.dx,
-      'y': point.dy,
-    };
+  'x': point.dx,
+  'y': point.dy,
+};
 
 Map<String, dynamic> _rectJson(Rect rect) => <String, dynamic>{
-      'left': rect.left,
-      'top': rect.top,
-      'width': rect.width,
-      'height': rect.height,
-    };
+  'left': rect.left,
+  'top': rect.top,
+  'width': rect.width,
+  'height': rect.height,
+};
 
 /// Judges a tap at [point] on [entry] against the control that owns the
 /// merged label, or null when the point is fine (#60).
@@ -250,13 +251,14 @@ String _pointTarget(Offset point) => '@${point.dx},${point.dy}';
 /// with points it recorded while the tree was on. Always present, because a
 /// coordinate dispatch proves nothing about what it landed on.
 Map<String, dynamic> _coordinateChecks() => <String, dynamic>{
-      'gate': 'skipped',
-      'semantics': TapirPlugin.semanticsReleased ? 'released' : 'held',
-      'why': 'Dispatched at raw coordinates: there is no element to gate, so '
-          'the enabled, zero-rect, off-viewport, stable and receives-events '
-          'checks did not run. Nothing here resolves through the semantics '
-          'tree, which is what makes it usable while the tree is released.',
-    };
+  'gate': 'skipped',
+  'semantics': TapirPlugin.semanticsReleased ? 'released' : 'held',
+  'why':
+      'Dispatched at raw coordinates: there is no element to gate, so '
+      'the enabled, zero-rect, off-viewport, stable and receives-events '
+      'checks did not run. Nothing here resolves through the semantics '
+      'tree, which is what makes it usable while the tree is released.',
+};
 
 /// Walks the element subtree rooted at [element] and returns the first
 /// [EditableTextState] found, or `null` if none exists.
@@ -441,10 +443,16 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   // surface the gate's canonical message verbatim so the MCP tool can
   // hand it to the agent without translation. Stable and receives-events
   // gates are opt-out via params for tests with synthetic geometry.
-  final bool checkStable =
-      _parseBoolFlag(params, 'checkStable', defaultValue: true);
-  final bool checkReceivesEvents =
-      _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+  final bool checkStable = _parseBoolFlag(
+    params,
+    'checkStable',
+    defaultValue: true,
+  );
+  final bool checkReceivesEvents = _parseBoolFlag(
+    params,
+    'checkReceivesEvents',
+    defaultValue: true,
+  );
   final ActionabilityReport gate;
   try {
     gate = await ensureActionable(
@@ -489,7 +497,8 @@ Future<developer.ServiceExtensionResponse> aiTestTapHandler(
   // labelled control owns the merged label, the pointer goes to it instead,
   // unless the caller passed `retarget: false` to tap the centre itself.
   final TapOwnerReport? ownerReport = _judgeTapPoint(entry, liveCenter);
-  final TapOwnerReport? moved = ownerReport != null &&
+  final TapOwnerReport? moved =
+      ownerReport != null &&
           ownerReport.canRetarget &&
           _parseBoolFlag(params, 'retarget', defaultValue: true)
       ? ownerReport
@@ -715,10 +724,16 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     // Actionability gate (Steps 15 + 3.1) — refuse to hover a disabled,
     // zero-rect, off-viewport, unstable, or obscured widget. Stable and
     // receives-events gates opt-out via params for synthetic test rects.
-    final bool checkStable =
-        _parseBoolFlag(params, 'checkStable', defaultValue: true);
-    final bool checkReceivesEvents =
-        _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+    final bool checkStable = _parseBoolFlag(
+      params,
+      'checkStable',
+      defaultValue: true,
+    );
+    final bool checkReceivesEvents = _parseBoolFlag(
+      params,
+      'checkReceivesEvents',
+      defaultValue: true,
+    );
     final ActionabilityReport gate;
     try {
       gate = await ensureActionable(
@@ -785,10 +800,7 @@ Future<developer.ServiceExtensionResponse> aiTestHoverHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.hover: $e',
-        TapirErrorEnvelope.unexpected(),
-      ),
+      wrapErrorDetail('ext.tapir.hover: $e', TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -924,10 +936,16 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     // agent sees the upstream failure when both ends are bad, mirroring
     // the pre-existing "missing param" check ordering. Stable and
     // receives-events gates opt-out via params for synthetic test rects.
-    final bool checkStable =
-        _parseBoolFlag(params, 'checkStable', defaultValue: true);
-    final bool checkReceivesEvents =
-        _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+    final bool checkStable = _parseBoolFlag(
+      params,
+      'checkStable',
+      defaultValue: true,
+    );
+    final bool checkReceivesEvents = _parseBoolFlag(
+      params,
+      'checkReceivesEvents',
+      defaultValue: true,
+    );
     final ActionabilityReport startGate;
     ActionabilityReport? endGate;
     try {
@@ -999,10 +1017,7 @@ Future<developer.ServiceExtensionResponse> aiTestDragHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.drag: $e',
-        TapirErrorEnvelope.unexpected(),
-      ),
+      wrapErrorDetail('ext.tapir.drag: $e', TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -1130,10 +1145,16 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
     );
   }
 
-  final bool checkStable =
-      _parseBoolFlag(params, 'checkStable', defaultValue: true);
-  final bool checkReceivesEvents =
-      _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+  final bool checkStable = _parseBoolFlag(
+    params,
+    'checkStable',
+    defaultValue: true,
+  );
+  final bool checkReceivesEvents = _parseBoolFlag(
+    params,
+    'checkReceivesEvents',
+    defaultValue: true,
+  );
   final ActionabilityReport gate;
   try {
     gate = await ensureActionable(
@@ -1155,58 +1176,61 @@ Future<developer.ServiceExtensionResponse> aiTestDoubleClickHandler(
   // Both taps are one gesture, so one interaction spans them. The closure
   // answers the error response a failed tap produces, or null.
   final RefEntry target = entry;
-  final developer.ServiceExtensionResponse? failed =
-      await runPerfInteraction('dblclick', ref, () async {
-    // 1. First tap at the LIVE center (D1): re-resolve via `dispatchRectOf`
-    //    after the gate passed, falling back to the cached center when null.
-    try {
-      await _injectTap(
-        dispatchRectOf(target)?.center ?? target.rect.center,
-        element: target.element,
-      );
-    } catch (e, st) {
-      developer.log(
-        '[tapir] ext.tapir.dblclick: first _injectTap failed for ref '
-        '"$ref": $e\n$st',
-        name: 'tapir',
-      );
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.dblclick: first injectTap failed: $e',
-          TapirErrorEnvelope.unexpected(widgetPath: ref),
-        ),
-      );
-    }
+  final developer.ServiceExtensionResponse? failed = await runPerfInteraction(
+    'dblclick',
+    ref,
+    () async {
+      // 1. First tap at the LIVE center (D1): re-resolve via `dispatchRectOf`
+      //    after the gate passed, falling back to the cached center when null.
+      try {
+        await _injectTap(
+          dispatchRectOf(target)?.center ?? target.rect.center,
+          element: target.element,
+        );
+      } catch (e, st) {
+        developer.log(
+          '[tapir] ext.tapir.dblclick: first _injectTap failed for ref '
+          '"$ref": $e\n$st',
+          name: 'tapir',
+        );
+        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          wrapErrorDetail(
+            'ext.tapir.dblclick: first injectTap failed: $e',
+            TapirErrorEnvelope.unexpected(widgetPath: ref),
+          ),
+        );
+      }
 
-    // 2. Inter-tap delay (~100ms) to match Playwright's double-click timing.
-    await Future<void>.delayed(const Duration(milliseconds: 100));
+      // 2. Inter-tap delay (~100ms) to match Playwright's double-click timing.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
 
-    // 3. Second tap: pointer ID reused safely because the first Up event
-    //    closed the hit-test cache entry (sequential, non-concurrent).
-    //    Re-resolve the live center again (D1): the first tap may itself have
-    //    rebuilt the host into a shifted slot between the two clicks.
-    try {
-      await _injectTap(
-        dispatchRectOf(target)?.center ?? target.rect.center,
-        element: target.element,
-      );
-    } catch (e, st) {
-      developer.log(
-        '[tapir] ext.tapir.dblclick: second _injectTap failed for ref '
-        '"$ref": $e\n$st',
-        name: 'tapir',
-      );
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.extensionError,
-        wrapErrorDetail(
-          'ext.tapir.dblclick: second injectTap failed: $e',
-          TapirErrorEnvelope.unexpected(widgetPath: ref),
-        ),
-      );
-    }
-    return null;
-  });
+      // 3. Second tap: pointer ID reused safely because the first Up event
+      //    closed the hit-test cache entry (sequential, non-concurrent).
+      //    Re-resolve the live center again (D1): the first tap may itself have
+      //    rebuilt the host into a shifted slot between the two clicks.
+      try {
+        await _injectTap(
+          dispatchRectOf(target)?.center ?? target.rect.center,
+          element: target.element,
+        );
+      } catch (e, st) {
+        developer.log(
+          '[tapir] ext.tapir.dblclick: second _injectTap failed for ref '
+          '"$ref": $e\n$st',
+          name: 'tapir',
+        );
+        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          wrapErrorDetail(
+            'ext.tapir.dblclick: second injectTap failed: $e',
+            TapirErrorEnvelope.unexpected(widgetPath: ref),
+          ),
+        );
+      }
+      return null;
+    },
+  );
   if (failed != null) return failed;
 
   // POST-DISPATCH: best-effort enrichment — snapshot fires once, after both
@@ -1286,10 +1310,16 @@ Future<developer.ServiceExtensionResponse> aiTestRightClickHandler(
         ),
       );
     }
-    final bool checkStable =
-        _parseBoolFlag(params, 'checkStable', defaultValue: true);
-    final bool checkReceivesEvents =
-        _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+    final bool checkStable = _parseBoolFlag(
+      params,
+      'checkStable',
+      defaultValue: true,
+    );
+    final bool checkReceivesEvents = _parseBoolFlag(
+      params,
+      'checkReceivesEvents',
+      defaultValue: true,
+    );
     final ActionabilityReport gate;
     try {
       gate = await ensureActionable(
@@ -1395,10 +1425,16 @@ Future<developer.ServiceExtensionResponse> aiTestTripleClickHandler(
         ),
       );
     }
-    final bool checkStable =
-        _parseBoolFlag(params, 'checkStable', defaultValue: true);
-    final bool checkReceivesEvents =
-        _parseBoolFlag(params, 'checkReceivesEvents', defaultValue: true);
+    final bool checkStable = _parseBoolFlag(
+      params,
+      'checkStable',
+      defaultValue: true,
+    );
+    final bool checkReceivesEvents = _parseBoolFlag(
+      params,
+      'checkReceivesEvents',
+      defaultValue: true,
+    );
     final ActionabilityReport gate;
     try {
       gate = await ensureActionable(

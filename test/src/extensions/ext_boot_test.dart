@@ -18,7 +18,9 @@ void main() {
       TapirPlugin.install();
 
       final ServiceExtensionResponse response = await tapirBootIdHandler(
-          'ext.tapir.boot_id', const <String, String>{});
+        'ext.tapir.boot_id',
+        const <String, String>{},
+      );
 
       final Map<String, dynamic> payload =
           jsonDecode(response.result!) as Map<String, dynamic>;

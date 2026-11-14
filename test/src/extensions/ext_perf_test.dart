@@ -18,13 +18,13 @@ import 'package:tapir/src/utils/perf_readers.dart';
 final class _FakeWindPerfResolver implements WindPerfResolver {
   @override
   Map<String, Object?> stats() => <String, Object?>{
-        'cacheHits': 12,
-        'cacheMisses': 3,
-        'cacheBypasses': 40,
-        'cacheSize': 7,
-        'wDivBuilds': 88,
-        'wTextBuilds': 64,
-      };
+    'cacheHits': 12,
+    'cacheMisses': 3,
+    'cacheBypasses': 40,
+    'cacheSize': 7,
+    'wDivBuilds': 88,
+    'wTextBuilds': 64,
+  };
 }
 
 /// One frame shaped exactly like crumbs's `FramePerfRecord.toJson()`.
@@ -33,16 +33,15 @@ Map<String, Object?> _frame({
   required int buildMicros,
   required int rasterMicros,
   Map<String, Object?> blocks = const <String, Object?>{},
-}) =>
-    <String, Object?>{
-      'frameNumber': frameNumber,
-      'buildMicros': buildMicros,
-      'rasterMicros': rasterMicros,
-      'vsyncOverheadMicros': 100,
-      'totalSpanMicros': buildMicros + rasterMicros,
-      'time': '2026-08-25T10:00:00.000Z',
-      'blocks': blocks,
-    };
+}) => <String, Object?>{
+  'frameNumber': frameNumber,
+  'buildMicros': buildMicros,
+  'rasterMicros': rasterMicros,
+  'vsyncOverheadMicros': 100,
+  'totalSpanMicros': buildMicros + rasterMicros,
+  'time': '2026-08-25T10:00:00.000Z',
+  'blocks': blocks,
+};
 
 Map<String, Object?> _block(int micros, int count, {int? selfMicros}) =>
     <String, Object?>{
@@ -102,13 +101,13 @@ void main() {
 
   setUp(() {
     framePerfReader = () => <String, Object?>{
-          'frames': <Map<String, Object?>>[],
-          'livenessCounter': 0,
-        };
+      'frames': <Map<String, Object?>>[],
+      'livenessCounter': 0,
+    };
     perfExtrasReader = () => <String, Object?>{
-          'controllerNotifies': <String, int>{},
-          'routeTransitions': <Map<String, Object?>>[],
-        };
+      'controllerNotifies': <String, int>{},
+      'routeTransitions': <Map<String, Object?>>[],
+    };
     perfSessionBeginHook = (PerfMode mode) {};
     perfSessionEndHook = () {};
     perfInsightContributors =
@@ -138,35 +137,41 @@ void main() {
   });
 
   group('ext.tapir.perf_begin', () {
-    test('opens a session, returns a token, and defaults phases to false',
-        () async {
-      final Map<String, dynamic> payload = _decode(
-        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{}),
-      );
+    test(
+      'opens a session, returns a token, and defaults phases to false',
+      () async {
+        final Map<String, dynamic> payload = _decode(
+          await tapirPerfBeginHandler(
+            'ext.tapir.perf_begin',
+            <String, String>{},
+          ),
+        );
 
-      expect(payload['sessionToken'], isA<String>());
-      expect((payload['sessionToken'] as String).isNotEmpty, isTrue);
-      expect(payload['phases'], isFalse);
-      expect(payload['restartedPreviousSession'], isFalse);
-    });
+        expect(payload['sessionToken'], isA<String>());
+        expect((payload['sessionToken'] as String).isNotEmpty, isTrue);
+        expect(payload['phases'], isFalse);
+        expect(payload['restartedPreviousSession'], isFalse);
+      },
+    );
 
-    test('enables collection and the build flags, leaving the phase flags off',
-        () async {
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+    test(
+      'enables collection and the build flags, leaving the phase flags off',
+      () async {
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
 
-      expect(FlutterTimeline.debugCollectionEnabled, isTrue);
-      expect(debugProfileBuildsEnabled, isTrue);
-      expect(debugProfileBuildsEnabledUserWidgets, isTrue);
-      expect(debugProfileLayoutsEnabled, isFalse);
-      expect(debugProfilePaintsEnabled, isFalse);
-    });
+        expect(FlutterTimeline.debugCollectionEnabled, isTrue);
+        expect(debugProfileBuildsEnabled, isTrue);
+        expect(debugProfileBuildsEnabledUserWidgets, isTrue);
+        expect(debugProfileLayoutsEnabled, isFalse);
+        expect(debugProfilePaintsEnabled, isFalse);
+      },
+    );
 
     test('phases=true also enables the layout and paint flags', () async {
       final Map<String, dynamic> payload = _decode(
-        await tapirPerfBeginHandler(
-          'ext.tapir.perf_begin',
-          <String, String>{'phases': 'true'},
-        ),
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+          'phases': 'true',
+        }),
       );
 
       expect(payload['phases'], isTrue);
@@ -182,67 +187,75 @@ void main() {
       expect(payload['mode'], 'attribution');
     });
 
-    test('mode=timing flips no debugProfile flag and no collection flag',
-        () async {
-      final Map<String, dynamic> payload = _decode(
-        await tapirPerfBeginHandler(
-          'ext.tapir.perf_begin',
-          <String, String>{'mode': 'timing'},
-        ),
-      );
+    test(
+      'mode=timing flips no debugProfile flag and no collection flag',
+      () async {
+        final Map<String, dynamic> payload = _decode(
+          await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+            'mode': 'timing',
+          }),
+        );
 
-      expect(payload['mode'], 'timing');
-      expect(FlutterTimeline.debugCollectionEnabled, isFalse);
-      expect(debugProfileBuildsEnabled, isFalse);
-      expect(debugProfileBuildsEnabledUserWidgets, isFalse);
-      expect(debugProfileLayoutsEnabled, isFalse);
-      expect(debugProfilePaintsEnabled, isFalse);
-    });
+        expect(payload['mode'], 'timing');
+        expect(FlutterTimeline.debugCollectionEnabled, isFalse);
+        expect(debugProfileBuildsEnabled, isFalse);
+        expect(debugProfileBuildsEnabledUserWidgets, isFalse);
+        expect(debugProfileLayoutsEnabled, isFalse);
+        expect(debugProfilePaintsEnabled, isFalse);
+      },
+    );
 
-    test('an unknown mode is rejected as invalid params, opening nothing',
-        () async {
-      final developer.ServiceExtensionResponse response =
-          await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'mode': 'fast'},
-      );
+    test(
+      'an unknown mode is rejected as invalid params, opening nothing',
+      () async {
+        final developer.ServiceExtensionResponse response =
+            await tapirPerfBeginHandler(
+              'ext.tapir.perf_begin',
+              <String, String>{'mode': 'fast'},
+            );
 
-      expect(response.result, isNull);
-      expect(response.errorDetail, contains('attribution'));
-      expect(debugProfileBuildsEnabled, isFalse);
-      final developer.ServiceExtensionResponse end =
-          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
-      expect(end.result, isNull, reason: 'no session may have opened');
-    });
+        expect(response.result, isNull);
+        expect(response.errorDetail, contains('attribution'));
+        expect(debugProfileBuildsEnabled, isFalse);
+        final developer.ServiceExtensionResponse end =
+            await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
+        expect(end.result, isNull, reason: 'no session may have opened');
+      },
+    );
 
     test('phases with timing is a contradiction and is rejected', () async {
       final developer.ServiceExtensionResponse response =
-          await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'mode': 'timing', 'phases': 'true'},
-      );
+          await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+            'mode': 'timing',
+            'phases': 'true',
+          });
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('phases'));
       expect(debugProfileLayoutsEnabled, isFalse);
     });
 
-    test('calls perfSessionBeginHook once and records the liveness baseline',
-        () async {
-      int beginCalls = 0;
-      perfSessionBeginHook = (PerfMode mode) => beginCalls++;
-      framePerfReader = () => <String, Object?>{
-            'frames': <Map<String, Object?>>[],
-            'livenessCounter': 41,
-          };
+    test(
+      'calls perfSessionBeginHook once and records the liveness baseline',
+      () async {
+        int beginCalls = 0;
+        perfSessionBeginHook = (PerfMode mode) => beginCalls++;
+        framePerfReader = () => <String, Object?>{
+          'frames': <Map<String, Object?>>[],
+          'livenessCounter': 41,
+        };
 
-      final Map<String, dynamic> payload = _decode(
-        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{}),
-      );
+        final Map<String, dynamic> payload = _decode(
+          await tapirPerfBeginHandler(
+            'ext.tapir.perf_begin',
+            <String, String>{},
+          ),
+        );
 
-      expect(beginCalls, 1);
-      expect(payload['livenessBaseline'], 41);
-    });
+        expect(beginCalls, 1);
+        expect(payload['livenessBaseline'], 41);
+      },
+    );
 
     test('hands the session mode to perfSessionBeginHook', () async {
       // A timing session must be able to tell the host to leave wind's
@@ -251,22 +264,19 @@ void main() {
       final List<PerfMode> seen = <PerfMode>[];
       perfSessionBeginHook = seen.add;
 
-      await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'mode': 'timing'},
-      );
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+        'mode': 'timing',
+      });
       await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
 
       expect(seen, <PerfMode>[PerfMode.timing, PerfMode.attribution]);
     });
 
-    test(
-        'a second begin restores the first session flags before saving new '
+    test('a second begin restores the first session flags before saving new '
         'ones, so perf_end cannot leave profiling on', () async {
-      await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'phases': 'true'},
-      );
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+        'phases': 'true',
+      });
 
       final Map<String, dynamic> second = _decode(
         await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{}),
@@ -274,9 +284,9 @@ void main() {
       expect(second['restartedPreviousSession'], isTrue);
 
       framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames,
-            'livenessCounter': 9,
-          };
+        'frames': _fixtureFrames,
+        'livenessCounter': 9,
+      };
       await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
       expect(debugProfileBuildsEnabled, isFalse);
@@ -286,17 +296,19 @@ void main() {
   });
 
   group('ext.tapir.perf_end', () {
-    test('without a prior perf_begin returns a typed error, does not throw',
-        () async {
-      final developer.ServiceExtensionResponse response =
-          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
+    test(
+      'without a prior perf_begin returns a typed error, does not throw',
+      () async {
+        final developer.ServiceExtensionResponse response =
+            await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
-      expect(response.result, isNull);
-      expect(response.errorDetail, contains('perf_begin'));
-      final Map<String, dynamic> detail =
-          jsonDecode(response.errorDetail!) as Map<String, dynamic>;
-      expect((detail['envelope'] as Map<String, dynamic>)['type'], isNotNull);
-    });
+        expect(response.result, isNull);
+        expect(response.errorDetail, contains('perf_begin'));
+        final Map<String, dynamic> detail =
+            jsonDecode(response.errorDetail!) as Map<String, dynamic>;
+        expect((detail['envelope'] as Map<String, dynamic>)['type'], isNotNull);
+      },
+    );
 
     test('restores every flag to its PRIOR value, not to false', () async {
       // A host with build profiling already on (a DevTools user, a nested
@@ -306,14 +318,13 @@ void main() {
       debugProfileLayoutsEnabled = true;
       FlutterTimeline.debugCollectionEnabled = true;
 
-      await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'phases': 'true'},
-      );
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+        'phases': 'true',
+      });
       framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames,
-            'livenessCounter': 5,
-          };
+        'frames': _fixtureFrames,
+        'livenessCounter': 5,
+      };
       await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
       expect(debugProfileBuildsEnabled, isTrue);
@@ -324,30 +335,31 @@ void main() {
       expect(debugProfilePaintsEnabled, isFalse);
     });
 
-    test('calls perfSessionEndHook so wind stops counting after the session',
-        () async {
-      int endCalls = 0;
-      perfSessionEndHook = () => endCalls++;
-
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames,
-            'livenessCounter': 3,
-          };
-      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
-
-      expect(endCalls, 1);
-    });
-
     test(
-        'refuses with no metrics block when the liveness counter did not '
+      'calls perfSessionEndHook so wind stops counting after the session',
+      () async {
+        int endCalls = 0;
+        perfSessionEndHook = () => endCalls++;
+
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        framePerfReader = () => <String, Object?>{
+          'frames': _fixtureFrames,
+          'livenessCounter': 3,
+        };
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
+
+        expect(endCalls, 1);
+      },
+    );
+
+    test('refuses with no metrics block when the liveness counter did not '
         'advance', () async {
       // The engine is not rendering: the reader answers the same counter on
       // both reads. Every metric would be a zero that reads as "fast".
       framePerfReader = () => <String, Object?>{
-            'frames': <Map<String, Object?>>[],
-            'livenessCounter': 7,
-          };
+        'frames': <Map<String, Object?>>[],
+        'livenessCounter': 7,
+      };
 
       await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       final Map<String, dynamic> payload = _decode(
@@ -372,8 +384,7 @@ void main() {
       }
     });
 
-    test(
-        'a throwing begin hook restores the flags immediately, without '
+    test('a throwing begin hook restores the flags immediately, without '
         'waiting for a perf_end', () async {
       // Both `perfSessionBeginHook` and `framePerfReader` are assigned in
       // another repository, so both can throw. The session is installed before
@@ -383,12 +394,14 @@ void main() {
       // of a hot restart, which the plan forbids outright.
       FlutterTimeline.debugCollectionEnabled = false;
       debugProfileBuildsEnabled = false;
-      perfSessionBeginHook =
-          (PerfMode mode) => throw StateError('host wiring is broken');
+      perfSessionBeginHook = (PerfMode mode) =>
+          throw StateError('host wiring is broken');
 
       final developer.ServiceExtensionResponse begin =
           await tapirPerfBeginHandler(
-              'ext.tapir.perf_begin', <String, String>{});
+            'ext.tapir.perf_begin',
+            <String, String>{},
+          );
 
       expect(begin.result, isNull, reason: 'the failure must surface');
       expect(FlutterTimeline.debugCollectionEnabled, isFalse);
@@ -398,8 +411,7 @@ void main() {
       expect(debugProfilePaintsEnabled, isFalse);
     });
 
-    test(
-        'a failed begin leaves NO session, so a later perf_end cannot report '
+    test('a failed begin leaves NO session, so a later perf_end cannot report '
         'over an uncleared buffer', () async {
       // The mutant this replaces: with a session left open carrying a baseline
       // of 0, `advanced = final - 0` equals the absolute counter, which is in
@@ -408,24 +420,25 @@ void main() {
       // throwing hook never reached `clearFramePerf()` to empty. A stub pinned
       // to a counter of 0 cannot express that; this one is deliberately live.
       framePerfReader = () => <String, Object?>{
-            'frames': <Map<String, Object?>>[
-              _frame(frameNumber: 900, buildMicros: 5000, rasterMicros: 2000),
-            ],
-            'livenessCounter': 4213,
-          };
-      perfSessionBeginHook =
-          (PerfMode mode) => throw StateError('host wiring is broken');
+        'frames': <Map<String, Object?>>[
+          _frame(frameNumber: 900, buildMicros: 5000, rasterMicros: 2000),
+        ],
+        'livenessCounter': 4213,
+      };
+      perfSessionBeginHook = (PerfMode mode) =>
+          throw StateError('host wiring is broken');
 
       await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      final developer.ServiceExtensionResponse end =
-          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
+      final developer.ServiceExtensionResponse end = await tapirPerfEndHandler(
+        'ext.tapir.perf_end',
+        <String, String>{},
+      );
 
       expect(end.result, isNull, reason: 'no session is open to report on');
       expect(end.errorDetail, contains('perf_begin'));
     });
 
-    test(
-        'refuses when the counter advanced by exactly one, which is what a '
+    test('refuses when the counter advanced by exactly one, which is what a '
         'backgrounded page produces', () async {
       // Measured, not hypothesised. Driving a scroll against a hidden Chrome
       // page and closing the session read `advanced: 1`: the engine emits one
@@ -438,18 +451,18 @@ void main() {
       // the value a real stalled engine actually returns.
       int reads = 0;
       framePerfReader = () => <String, Object?>{
-            'frames': <Map<String, Object?>>[
-              <String, Object?>{
-                'frameNumber': 1,
-                'buildMicros': 5000,
-                'rasterMicros': 2000,
-                'vsyncOverheadMicros': 1000,
-                'totalSpanMicros': 8000,
-                'blocks': <String, Object?>{},
-              },
-            ],
-            'livenessCounter': 40 + (reads++ > 0 ? 1 : 0),
-          };
+        'frames': <Map<String, Object?>>[
+          <String, Object?>{
+            'frameNumber': 1,
+            'buildMicros': 5000,
+            'rasterMicros': 2000,
+            'vsyncOverheadMicros': 1000,
+            'totalSpanMicros': 8000,
+            'blocks': <String, Object?>{},
+          },
+        ],
+        'livenessCounter': 40 + (reads++ > 0 ? 1 : 0),
+      };
 
       await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       final Map<String, dynamic> payload = _decode(
@@ -464,187 +477,199 @@ void main() {
       expect(payload.containsKey('insights'), isFalse);
     });
 
-    test('the refusal is its own field, independent of the warnings block',
-        () async {
-      // `tapirResult` stamps `warnings` from SchedulerBinding.framesEnabled,
-      // which was measured reporting true on a hidden Chrome page. A reader
-      // must be able to tell the two signals apart, so `refused` has to move
-      // while the warnings key does not.
-      framePerfReader = () => <String, Object?>{
+    test(
+      'the refusal is its own field, independent of the warnings block',
+      () async {
+        // `tapirResult` stamps `warnings` from SchedulerBinding.framesEnabled,
+        // which was measured reporting true on a hidden Chrome page. A reader
+        // must be able to tell the two signals apart, so `refused` has to move
+        // while the warnings key does not.
+        framePerfReader = () => <String, Object?>{
+          'frames': <Map<String, Object?>>[],
+          'livenessCounter': 7,
+        };
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        final Map<String, dynamic> refusal = _decode(
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
+        );
+
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        framePerfReader = () => <String, Object?>{
+          'frames': _fixtureFrames,
+          'livenessCounter': 99,
+        };
+        final Map<String, dynamic> report = _decode(
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
+        );
+
+        expect(refusal['refused'], isTrue);
+        expect(report['refused'], isFalse);
+        expect(
+          refusal.containsKey('warnings'),
+          report.containsKey('warnings'),
+          reason:
+              'the frame-production warning must not be what distinguishes '
+              'a refusal from a report',
+        );
+      },
+    );
+
+    test(
+      'the refusal still restores the flags and closes the session',
+      () async {
+        framePerfReader = () => <String, Object?>{
+          'frames': <Map<String, Object?>>[],
+          'livenessCounter': 7,
+        };
+
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+          'phases': 'true',
+        });
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
+
+        expect(debugProfileBuildsEnabled, isFalse);
+        expect(debugProfilePaintsEnabled, isFalse);
+        expect(FlutterTimeline.debugCollectionEnabled, isFalse);
+
+        // Session closed: a second end has nothing to close.
+        final developer.ServiceExtensionResponse second =
+            await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
+        expect(second.result, isNull);
+      },
+    );
+
+    test(
+      'carries the LLM-first report and none of the old top-level keys',
+      () async {
+        WindDebugRegistry.registerPerf(_FakeWindPerfResolver());
+        perfExtrasReader = () => <String, Object?>{
+          'controllerNotifies': <String, int>{'MonitorController': 12},
+          'routeTransitions': <Map<String, Object?>>[
+            <String, Object?>{'route': '/monitors', 'durationMicros': 4200},
+          ],
+        };
+
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        framePerfReader = () => <String, Object?>{
+          'frames': _fixtureFrames,
+          'livenessCounter': 44,
+        };
+        final Map<String, dynamic> payload = _decode(
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
+        );
+
+        expect(payload['refused'], isFalse);
+        expect(payload['sessionToken'], startsWith('perf-'));
+        expect(payload['mode'], 'attribution');
+        expect(
+          payload.keys,
+          containsAll(<String>[
+            'env',
+            'coverage',
+            'summary',
+            'counters',
+            'insights',
+            'omitted',
+          ]),
+        );
+        for (final String old in _oldKeys) {
+          expect(payload.containsKey(old), isFalse, reason: old);
+        }
+
+        final Map<String, dynamic> env = payload['env'] as Map<String, dynamic>;
+        expect(env['isWeb'], isFalse);
+        expect(env['buildMode'], 'debug');
+        expect(env['semanticsEnabled'], isA<bool>());
+        expect(env['phases'], isFalse);
+        expect(env['platform'], isA<String>());
+
+        final Map<String, dynamic> summary =
+            payload['summary'] as Map<String, dynamic>;
+        final Map<String, dynamic> frames =
+            summary['frames'] as Map<String, dynamic>;
+        expect(frames['painted'], 2);
+        expect((frames['buildMs'] as Map<String, dynamic>)['worst'], 20.0);
+        expect(frames['overBudget'], 1);
+        expect(summary['durationMs'], isA<num>());
+        expect(
+          (summary['routeTransitions'] as List<dynamic>).single,
+          <String, dynamic>{'route': '/monitors', 'ms': 4.2},
+        );
+
+        final Map<String, dynamic> counters =
+            payload['counters'] as Map<String, dynamic>;
+        expect(
+          (counters['wind'] as Map<String, dynamic>)['cacheBypasses'],
+          <String, dynamic>{'count': 40, 'perFrame': 20.0},
+        );
+        expect(
+          ((counters['magic'] as Map<String, dynamic>)['controllerNotifies']
+                  as List<dynamic>)
+              .single,
+          <dynamic>['MonitorController', 12, 6.0],
+        );
+      },
+    );
+
+    test(
+      'full=true carries every counter row; the default cuts to three',
+      () async {
+        perfExtrasReader = () => <String, Object?>{
+          'controllerNotifies': <String, int>{
+            for (int i = 0; i < 5; i++) 'Controller$i': 10 + i,
+          },
+        };
+        Future<Map<String, dynamic>> session(Map<String, String> params) async {
+          framePerfReader = () => <String, Object?>{
             'frames': <Map<String, Object?>>[],
-            'livenessCounter': 7,
+            'livenessCounter': 0,
           };
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      final Map<String, dynamic> refusal = _decode(
-        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
-      );
-
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames,
-            'livenessCounter': 99,
-          };
-      final Map<String, dynamic> report = _decode(
-        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
-      );
-
-      expect(refusal['refused'], isTrue);
-      expect(report['refused'], isFalse);
-      expect(
-        refusal.containsKey('warnings'),
-        report.containsKey('warnings'),
-        reason: 'the frame-production warning must not be what distinguishes '
-            'a refusal from a report',
-      );
-    });
-
-    test('the refusal still restores the flags and closes the session',
-        () async {
-      framePerfReader = () => <String, Object?>{
-            'frames': <Map<String, Object?>>[],
-            'livenessCounter': 7,
-          };
-
-      await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'phases': 'true'},
-      );
-      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
-
-      expect(debugProfileBuildsEnabled, isFalse);
-      expect(debugProfilePaintsEnabled, isFalse);
-      expect(FlutterTimeline.debugCollectionEnabled, isFalse);
-
-      // Session closed: a second end has nothing to close.
-      final developer.ServiceExtensionResponse second =
-          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
-      expect(second.result, isNull);
-    });
-
-    test('carries the LLM-first report and none of the old top-level keys',
-        () async {
-      WindDebugRegistry.registerPerf(_FakeWindPerfResolver());
-      perfExtrasReader = () => <String, Object?>{
-            'controllerNotifies': <String, int>{'MonitorController': 12},
-            'routeTransitions': <Map<String, Object?>>[
-              <String, Object?>{'route': '/monitors', 'durationMicros': 4200},
-            ],
-          };
-
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      framePerfReader = () => <String, Object?>{
+          await tapirPerfBeginHandler(
+            'ext.tapir.perf_begin',
+            <String, String>{},
+          );
+          framePerfReader = () => <String, Object?>{
             'frames': _fixtureFrames,
             'livenessCounter': 44,
           };
-      final Map<String, dynamic> payload = _decode(
-        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
-      );
+          return _decode(
+            await tapirPerfEndHandler('ext.tapir.perf_end', params),
+          );
+        }
 
-      expect(payload['refused'], isFalse);
-      expect(payload['sessionToken'], startsWith('perf-'));
-      expect(payload['mode'], 'attribution');
-      expect(
-        payload.keys,
-        containsAll(<String>[
-          'env',
-          'coverage',
-          'summary',
-          'counters',
-          'insights',
-          'omitted',
-        ]),
-      );
-      for (final String old in _oldKeys) {
-        expect(payload.containsKey(old), isFalse, reason: old);
-      }
+        List<dynamic> notifies(Map<String, dynamic> payload) =>
+            ((payload['counters'] as Map<String, dynamic>)['magic']
+                    as Map<String, dynamic>)['controllerNotifies']
+                as List<dynamic>;
 
-      final Map<String, dynamic> env = payload['env'] as Map<String, dynamic>;
-      expect(env['isWeb'], isFalse);
-      expect(env['buildMode'], 'debug');
-      expect(env['semanticsEnabled'], isA<bool>());
-      expect(env['phases'], isFalse);
-      expect(env['platform'], isA<String>());
+        final Map<String, dynamic> bounded = await session(<String, String>{});
+        final Map<String, dynamic> full = await session(<String, String>{
+          'full': 'true',
+        });
 
-      final Map<String, dynamic> summary =
-          payload['summary'] as Map<String, dynamic>;
-      final Map<String, dynamic> frames =
-          summary['frames'] as Map<String, dynamic>;
-      expect(frames['painted'], 2);
-      expect((frames['buildMs'] as Map<String, dynamic>)['worst'], 20.0);
-      expect(frames['overBudget'], 1);
-      expect(summary['durationMs'], isA<num>());
-      expect(
-        (summary['routeTransitions'] as List<dynamic>).single,
-        <String, dynamic>{'route': '/monitors', 'ms': 4.2},
-      );
-
-      final Map<String, dynamic> counters =
-          payload['counters'] as Map<String, dynamic>;
-      expect(
-        (counters['wind'] as Map<String, dynamic>)['cacheBypasses'],
-        <String, dynamic>{'count': 40, 'perFrame': 20.0},
-      );
-      expect(
-        ((counters['magic'] as Map<String, dynamic>)['controllerNotifies']
-                as List<dynamic>)
-            .single,
-        <dynamic>['MonitorController', 12, 6.0],
-      );
-    });
-
-    test('full=true carries every counter row; the default cuts to three',
-        () async {
-      perfExtrasReader = () => <String, Object?>{
-            'controllerNotifies': <String, int>{
-              for (int i = 0; i < 5; i++) 'Controller$i': 10 + i,
-            },
-          };
-      Future<Map<String, dynamic>> session(Map<String, String> params) async {
-        framePerfReader = () => <String, Object?>{
-              'frames': <Map<String, Object?>>[],
-              'livenessCounter': 0,
-            };
-        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-        framePerfReader = () => <String, Object?>{
-              'frames': _fixtureFrames,
-              'livenessCounter': 44,
-            };
-        return _decode(
-          await tapirPerfEndHandler('ext.tapir.perf_end', params),
+        expect(notifies(bounded), hasLength(3));
+        expect(
+          (bounded['omitted']
+              as Map<String, dynamic>)['magic.controllerNotifies'],
+          2,
         );
-      }
-
-      List<dynamic> notifies(Map<String, dynamic> payload) =>
-          ((payload['counters'] as Map<String, dynamic>)['magic']
-              as Map<String, dynamic>)['controllerNotifies'] as List<dynamic>;
-
-      final Map<String, dynamic> bounded = await session(<String, String>{});
-      final Map<String, dynamic> full =
-          await session(<String, String>{'full': 'true'});
-
-      expect(notifies(bounded), hasLength(3));
-      expect(
-        (bounded['omitted']
-            as Map<String, dynamic>)['magic.controllerNotifies'],
-        2,
-      );
-      expect(notifies(full), hasLength(5));
-      expect(
-        (full['omitted'] as Map<String, dynamic>).values,
-        everyElement(0),
-      );
-    });
+        expect(notifies(full), hasLength(5));
+        expect(
+          (full['omitted'] as Map<String, dynamic>).values,
+          everyElement(0),
+        );
+      },
+    );
 
     test('timing mode reports frame timings only', () async {
       WindDebugRegistry.registerPerf(_FakeWindPerfResolver());
-      await tapirPerfBeginHandler(
-        'ext.tapir.perf_begin',
-        <String, String>{'mode': 'timing'},
-      );
+      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{
+        'mode': 'timing',
+      });
       framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames,
-            'livenessCounter': 2,
-          };
+        'frames': _fixtureFrames,
+        'livenessCounter': 2,
+      };
       final Map<String, dynamic> payload = _decode(
         await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
@@ -657,54 +682,56 @@ void main() {
       expect(summary['frames'], isA<Map<String, dynamic>>());
     });
 
-    test('says so when the summary covers fewer frames than the engine drew',
-        () async {
-      // Measured driving uptizm on Chrome: a theme toggle drew 4 frames and
-      // Flutter reported timings for 2 of them, so the report printed "2
-      // frames, worst build 114ms" with an EMPTY blockAttribution and read as
-      // "measured, no hot blocks". The frames carrying the work were simply
-      // never reported. Both numbers were already in this payload and nothing
-      // compared them, which is the whole defect: an honest subset that does
-      // not say it is a subset is indistinguishable from a complete answer.
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames, // two frames
-            'livenessCounter': 44, // forty-four drawn
-          };
-      final Map<String, dynamic> payload = _decode(
-        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
-      );
-
-      final Map<String, dynamic> coverage =
-          payload['coverage'] as Map<String, dynamic>;
-      expect(coverage['framesDrawn'], 44);
-      expect(coverage['framesSummarized'], 2);
-      expect(coverage['complete'], isFalse);
-      // The explanation lives once, in the coverage insight, rather than
-      // twice in the report.
-      final Map<String, dynamic> gap = (payload['insights'] as List<dynamic>)
-          .cast<Map<String, dynamic>>()
-          .firstWhere(
-            (Map<String, dynamic> i) =>
-                (i['evidence'] as Map<String, dynamic>)['metric'] ==
-                'framesUnreported',
-          );
-      expect(gap['title'], contains('2 of 44'));
-      final Map<String, dynamic> drill = _decode(
-        await tapirPerfInsightHandler(
-          'ext.tapir.perf_insight',
-          <String, String>{'id': gap['id'] as String},
-        ),
-      );
-      expect(
-        drill['summary'],
-        contains('subset'),
-        reason: 'the reader has to be told the ranking may miss the worst work',
-      );
-    });
-
     test(
-        'leaves a frame drawn before perf_begin and the flush frame out of '
+      'says so when the summary covers fewer frames than the engine drew',
+      () async {
+        // Measured driving uptizm on Chrome: a theme toggle drew 4 frames and
+        // Flutter reported timings for 2 of them, so the report printed "2
+        // frames, worst build 114ms" with an EMPTY blockAttribution and read as
+        // "measured, no hot blocks". The frames carrying the work were simply
+        // never reported. Both numbers were already in this payload and nothing
+        // compared them, which is the whole defect: an honest subset that does
+        // not say it is a subset is indistinguishable from a complete answer.
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        framePerfReader = () => <String, Object?>{
+          'frames': _fixtureFrames, // two frames
+          'livenessCounter': 44, // forty-four drawn
+        };
+        final Map<String, dynamic> payload = _decode(
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
+        );
+
+        final Map<String, dynamic> coverage =
+            payload['coverage'] as Map<String, dynamic>;
+        expect(coverage['framesDrawn'], 44);
+        expect(coverage['framesSummarized'], 2);
+        expect(coverage['complete'], isFalse);
+        // The explanation lives once, in the coverage insight, rather than
+        // twice in the report.
+        final Map<String, dynamic> gap = (payload['insights'] as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .firstWhere(
+              (Map<String, dynamic> i) =>
+                  (i['evidence'] as Map<String, dynamic>)['metric'] ==
+                  'framesUnreported',
+            );
+        expect(gap['title'], contains('2 of 44'));
+        final Map<String, dynamic> drill = _decode(
+          await tapirPerfInsightHandler(
+            'ext.tapir.perf_insight',
+            <String, String>{'id': gap['id'] as String},
+          ),
+        );
+        expect(
+          drill['summary'],
+          contains('subset'),
+          reason:
+              'the reader has to be told the ranking may miss the worst work',
+        );
+      },
+    );
+
+    test('leaves a frame drawn before perf_begin and the flush frame out of '
         'the session, and counts them', () async {
       // Measured on the Pixel 8 profile emulator: a list scroll drew 24 frames
       // and the summary held 31. Timings the engine parked BEFORE perf_begin
@@ -716,9 +743,10 @@ void main() {
       Map<String, Object?> at(int frameNumber, int vsyncStartUs) =>
           <String, Object?>{
             ..._frame(
-                frameNumber: frameNumber,
-                buildMicros: 4000,
-                rasterMicros: 3000),
+              frameNumber: frameNumber,
+              buildMicros: 4000,
+              rasterMicros: 3000,
+            ),
             'vsyncStartUs': vsyncStartUs,
           };
       final List<Map<String, Object?>> frames = <Map<String, Object?>>[
@@ -729,17 +757,18 @@ void main() {
       ];
       int reads = 0;
       framePerfReader = () => <String, Object?>{
-            'frames': frames,
-            // 2 session frames on the first read; the flush frame is the 3rd.
-            'livenessCounter': reads++ == 0 ? 2 : 3,
-          };
+        'frames': frames,
+        // 2 session frames on the first read; the flush frame is the 3rd.
+        'livenessCounter': reads++ == 0 ? 2 : 3,
+      };
 
       final Map<String, dynamic> payload = _decode(
         await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
-      final Map<String, dynamic> frameSummary = (payload['summary']
-          as Map<String, dynamic>)['frames'] as Map<String, dynamic>;
+      final Map<String, dynamic> frameSummary =
+          (payload['summary'] as Map<String, dynamic>)['frames']
+              as Map<String, dynamic>;
       expect(frameSummary['painted'], 2);
       final Map<String, dynamic> coverage =
           payload['coverage'] as Map<String, dynamic>;
@@ -749,8 +778,7 @@ void main() {
       expect(coverage['complete'], isTrue);
     });
 
-    test(
-        'keeps every frame and says so when no timestamped frame lands in '
+    test('keeps every frame and says so when no timestamped frame lands in '
         'the window: the two clocks disagree', () async {
       // The window is FlutterTimeline.now and vsyncStartUs is the engine's
       // clock. A session that drew frames but places none of them is a clock
@@ -761,23 +789,25 @@ void main() {
       Map<String, Object?> at(int frameNumber, int vsyncStartUs) =>
           <String, Object?>{
             ..._frame(
-                frameNumber: frameNumber,
-                buildMicros: 4000,
-                rasterMicros: 3000),
+              frameNumber: frameNumber,
+              buildMicros: 4000,
+              rasterMicros: 3000,
+            ),
             'vsyncStartUs': vsyncStartUs,
           };
       final int offset = now + 3600000000;
       framePerfReader = () => <String, Object?>{
-            'frames': <Map<String, Object?>>[at(1, offset), at(2, offset)],
-            'livenessCounter': 2,
-          };
+        'frames': <Map<String, Object?>>[at(1, offset), at(2, offset)],
+        'livenessCounter': 2,
+      };
 
       final Map<String, dynamic> payload = _decode(
         await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
-      final Map<String, dynamic> frameSummary = (payload['summary']
-          as Map<String, dynamic>)['frames'] as Map<String, dynamic>;
+      final Map<String, dynamic> frameSummary =
+          (payload['summary'] as Map<String, dynamic>)['frames']
+              as Map<String, dynamic>;
       expect(frameSummary['painted'], 2);
       final Map<String, dynamic> coverage =
           payload['coverage'] as Map<String, dynamic>;
@@ -789,40 +819,42 @@ void main() {
       final List<dynamic> insights = payload['insights'] as List<dynamic>;
       expect(
         insights.cast<Map<String, dynamic>>().where(
-              (Map<String, dynamic> i) =>
-                  i['severity'] == 'warn' &&
-                  (i['evidence'] as Map<String, dynamic>)['metric'] ==
-                      'sessionClockMismatch',
-            ),
+          (Map<String, dynamic> i) =>
+              i['severity'] == 'warn' &&
+              (i['evidence'] as Map<String, dynamic>)['metric'] ==
+                  'sessionClockMismatch',
+        ),
         hasLength(1),
       );
     });
 
-    test('keeps a frame that carries no vsync timestamp: nothing places it',
-        () async {
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames,
-            'livenessCounter': 2,
-          };
+    test(
+      'keeps a frame that carries no vsync timestamp: nothing places it',
+      () async {
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        framePerfReader = () => <String, Object?>{
+          'frames': _fixtureFrames,
+          'livenessCounter': 2,
+        };
 
-      final Map<String, dynamic> payload = _decode(
-        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
-      );
+        final Map<String, dynamic> payload = _decode(
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
+        );
 
-      final Map<String, dynamic> coverage =
-          payload['coverage'] as Map<String, dynamic>;
-      expect(coverage['framesSummarized'], 2);
-      expect(coverage['framesOutsideSession'], 0);
-    });
+        final Map<String, dynamic> coverage =
+            payload['coverage'] as Map<String, dynamic>;
+        expect(coverage['framesSummarized'], 2);
+        expect(coverage['framesOutsideSession'], 0);
+      },
+    );
 
     test('env.renderer is what rendererReader answers', () async {
       rendererReader = () => 'skwasm';
       await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames,
-            'livenessCounter': 2,
-          };
+        'frames': _fixtureFrames,
+        'livenessCounter': 2,
+      };
 
       final Map<String, dynamic> payload = _decode(
         await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
@@ -831,88 +863,96 @@ void main() {
       expect((payload['env'] as Map<String, dynamic>)['renderer'], 'skwasm');
     });
 
-    test('says unknown for the renderer until a host or the web says more',
-        () async {
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames,
-            'livenessCounter': 2,
-          };
+    test(
+      'says unknown for the renderer until a host or the web says more',
+      () async {
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        framePerfReader = () => <String, Object?>{
+          'frames': _fixtureFrames,
+          'livenessCounter': 2,
+        };
 
-      final Map<String, dynamic> payload = _decode(
-        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
-      );
+        final Map<String, dynamic> payload = _decode(
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
+        );
 
-      expect((payload['env'] as Map<String, dynamic>)['renderer'], 'unknown');
-    });
+        expect((payload['env'] as Map<String, dynamic>)['renderer'], 'unknown');
+      },
+    );
 
-    test('reports complete coverage when every drawn frame was summarized',
-        () async {
-      // The other half of the contract: a session that DID report every frame
-      // must say so, or `complete: false` degrades into background noise that
-      // a reader learns to ignore.
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames, // two frames
-            'livenessCounter': 2, // two drawn
-          };
-      final Map<String, dynamic> payload = _decode(
-        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
-      );
+    test(
+      'reports complete coverage when every drawn frame was summarized',
+      () async {
+        // The other half of the contract: a session that DID report every frame
+        // must say so, or `complete: false` degrades into background noise that
+        // a reader learns to ignore.
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        framePerfReader = () => <String, Object?>{
+          'frames': _fixtureFrames, // two frames
+          'livenessCounter': 2, // two drawn
+        };
+        final Map<String, dynamic> payload = _decode(
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
+        );
 
-      final Map<String, dynamic> coverage =
-          payload['coverage'] as Map<String, dynamic>;
-      expect(coverage['framesDrawn'], 2);
-      expect(coverage['framesSummarized'], 2);
-      expect(coverage['complete'], isTrue);
-      expect(coverage.containsKey('detail'), isFalse);
-      expect(
-        (payload['insights'] as List<dynamic>).map(
-          (dynamic i) => ((i as Map<String, dynamic>)['evidence']
-              as Map<String, dynamic>)['metric'],
-        ),
-        isNot(contains('framesUnreported')),
-      );
-    });
+        final Map<String, dynamic> coverage =
+            payload['coverage'] as Map<String, dynamic>;
+        expect(coverage['framesDrawn'], 2);
+        expect(coverage['framesSummarized'], 2);
+        expect(coverage['complete'], isTrue);
+        expect(coverage.containsKey('detail'), isFalse);
+        expect(
+          (payload['insights'] as List<dynamic>).map(
+            (dynamic i) =>
+                ((i as Map<String, dynamic>)['evidence']
+                    as Map<String, dynamic>)['metric'],
+          ),
+          isNot(contains('framesUnreported')),
+        );
+      },
+    );
 
-    test('the refusal names the idle-app cause before the hidden-page one',
-        () async {
-      // On Flutter web the ordinary reason a session sees no frames is that
-      // the app is idle: nothing schedules a frame when nothing is dirty. The
-      // message used to lead with a backgrounded page, which sent a reader
-      // hunting for a visibility problem that was not there.
-      framePerfReader = () => <String, Object?>{
-            'frames': <Map<String, Object?>>[],
-            'livenessCounter': 7,
-          };
+    test(
+      'the refusal names the idle-app cause before the hidden-page one',
+      () async {
+        // On Flutter web the ordinary reason a session sees no frames is that
+        // the app is idle: nothing schedules a frame when nothing is dirty. The
+        // message used to lead with a backgrounded page, which sent a reader
+        // hunting for a visibility problem that was not there.
+        framePerfReader = () => <String, Object?>{
+          'frames': <Map<String, Object?>>[],
+          'livenessCounter': 7,
+        };
 
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      final Map<String, dynamic> payload = _decode(
-        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
-      );
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        final Map<String, dynamic> payload = _decode(
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
+        );
 
-      final String reason = payload['reason'] as String;
-      expect(reason, contains('idle'));
-      expect(reason, contains('hidden'));
-      expect(
-        reason.indexOf('idle') < reason.indexOf('hidden'),
-        isTrue,
-        reason: 'the likelier cause has to be read first',
-      );
-    });
+        final String reason = payload['reason'] as String;
+        expect(reason, contains('idle'));
+        expect(reason, contains('hidden'));
+        expect(
+          reason.indexOf('idle') < reason.indexOf('hidden'),
+          isTrue,
+          reason: 'the likelier cause has to be read first',
+        );
+      },
+    );
 
     test('ranks blocks across the whole session by self time', () async {
       await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames,
-            'livenessCounter': 2,
-          };
+        'frames': _fixtureFrames,
+        'livenessCounter': 2,
+      };
       final Map<String, dynamic> payload = _decode(
         await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
 
-      final List<dynamic> blocks = (payload['summary']
-          as Map<String, dynamic>)['blocksBySelf'] as List<dynamic>;
+      final List<dynamic> blocks =
+          (payload['summary'] as Map<String, dynamic>)['blocksBySelf']
+              as List<dynamic>;
       expect(blocks, hasLength(3));
       expect(blocks.first, <String, dynamic>{
         'name': 'MonitorRow',
@@ -923,37 +963,39 @@ void main() {
       expect((blocks[2] as Map<String, dynamic>)['name'], 'WDiv');
     });
 
-    test('reports a null wind section when no perf resolver is registered',
-        () async {
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames,
-            'livenessCounter': 2,
-          };
-      final Map<String, dynamic> payload = _decode(
-        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
-      );
+    test(
+      'reports a null wind section when no perf resolver is registered',
+      () async {
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        framePerfReader = () => <String, Object?>{
+          'frames': _fixtureFrames,
+          'livenessCounter': 2,
+        };
+        final Map<String, dynamic> payload = _decode(
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
+        );
 
-      // Null rather than a map of zeros: "wind never registered" and "wind
-      // registered and counted nothing" are different findings.
-      final Map<String, dynamic> counters =
-          payload['counters'] as Map<String, dynamic>;
-      expect(counters.containsKey('wind'), isTrue);
-      expect(counters['wind'], isNull);
-      expect(
-        (payload['coverage'] as Map<String, dynamic>)['missing'],
-        contains('wind'),
-      );
-    });
+        // Null rather than a map of zeros: "wind never registered" and "wind
+        // registered and counted nothing" are different findings.
+        final Map<String, dynamic> counters =
+            payload['counters'] as Map<String, dynamic>;
+        expect(counters.containsKey('wind'), isTrue);
+        expect(counters['wind'], isNull);
+        expect(
+          (payload['coverage'] as Map<String, dynamic>)['missing'],
+          contains('wind'),
+        );
+      },
+    );
   });
 
   group('ext.tapir.perf_insight', () {
     Future<Map<String, dynamic>> closeReport() async {
       await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       framePerfReader = () => <String, Object?>{
-            'frames': _fixtureFrames,
-            'livenessCounter': 2,
-          };
+        'frames': _fixtureFrames,
+        'livenessCounter': 2,
+      };
       return _decode(
         await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
       );
@@ -990,14 +1032,16 @@ void main() {
 
     test('the token is optional and defaults to the latest session', () async {
       final Map<String, dynamic> report = await closeReport();
-      final String id = ((report['insights'] as List<dynamic>).first
-          as Map<String, dynamic>)['id'] as String;
+      final String id =
+          ((report['insights'] as List<dynamic>).first
+                  as Map<String, dynamic>)['id']
+              as String;
 
       final developer.ServiceExtensionResponse response =
           await tapirPerfInsightHandler(
-        'ext.tapir.perf_insight',
-        <String, String>{'id': id},
-      );
+            'ext.tapir.perf_insight',
+            <String, String>{'id': id},
+          );
 
       expect(response.result, isNotNull);
     });
@@ -1007,9 +1051,9 @@ void main() {
 
       final developer.ServiceExtensionResponse response =
           await tapirPerfInsightHandler(
-        'ext.tapir.perf_insight',
-        <String, String>{'id': 'I999'},
-      );
+            'ext.tapir.perf_insight',
+            <String, String>{'id': 'I999'},
+          );
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('I999'));
@@ -1021,9 +1065,9 @@ void main() {
 
       final developer.ServiceExtensionResponse response =
           await tapirPerfInsightHandler(
-        'ext.tapir.perf_insight',
-        <String, String>{'token': 'perf-0', 'id': 'I1'},
-      );
+            'ext.tapir.perf_insight',
+            <String, String>{'token': 'perf-0', 'id': 'I1'},
+          );
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains(report['sessionToken'] as String));
@@ -1032,9 +1076,9 @@ void main() {
     test('before any session closed it is an error naming perf_end', () async {
       final developer.ServiceExtensionResponse response =
           await tapirPerfInsightHandler(
-        'ext.tapir.perf_insight',
-        <String, String>{'id': 'I1'},
-      );
+            'ext.tapir.perf_insight',
+            <String, String>{'id': 'I1'},
+          );
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('perf_end'));
@@ -1045,9 +1089,9 @@ void main() {
 
       final developer.ServiceExtensionResponse response =
           await tapirPerfInsightHandler(
-        'ext.tapir.perf_insight',
-        <String, String>{},
-      );
+            'ext.tapir.perf_insight',
+            <String, String>{},
+          );
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('id'));
@@ -1056,17 +1100,17 @@ void main() {
     test('a refused session holds no insights to drill into', () async {
       await closeReport();
       framePerfReader = () => <String, Object?>{
-            'frames': <Map<String, Object?>>[],
-            'livenessCounter': 7,
-          };
+        'frames': <Map<String, Object?>>[],
+        'livenessCounter': 7,
+      };
       await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
       await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
       final developer.ServiceExtensionResponse response =
           await tapirPerfInsightHandler(
-        'ext.tapir.perf_insight',
-        <String, String>{'id': 'I1'},
-      );
+            'ext.tapir.perf_insight',
+            <String, String>{'id': 'I1'},
+          );
 
       expect(response.result, isNull, reason: 'the refusal replaced it');
       expect(response.errorDetail, contains('refused'));
@@ -1074,45 +1118,50 @@ void main() {
   });
 
   group('timings flush', () {
-    test('perf_end reads frames again after flushing the parked tail batch',
-        () async {
-      // The web engine hands timings over only when a LATER frame lands, so
-      // the frames that matter arrive after perf_end's own flush frame. The
-      // fake answers the pre-flush read with none of them.
-      int reads = 0;
-      framePerfReader = () {
-        reads++;
-        return <String, Object?>{
-          'frames': reads >= 3 ? _fixtureFrames : <Map<String, Object?>>[],
-          'livenessCounter': reads == 1 ? 0 : 10,
+    test(
+      'perf_end reads frames again after flushing the parked tail batch',
+      () async {
+        // The web engine hands timings over only when a LATER frame lands, so
+        // the frames that matter arrive after perf_end's own flush frame. The
+        // fake answers the pre-flush read with none of them.
+        int reads = 0;
+        framePerfReader = () {
+          reads++;
+          return <String, Object?>{
+            'frames': reads >= 3 ? _fixtureFrames : <Map<String, Object?>>[],
+            'livenessCounter': reads == 1 ? 0 : 10,
+          };
         };
-      };
 
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      final Map<String, dynamic> payload = _decode(
-        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
-      );
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        final Map<String, dynamic> payload = _decode(
+          await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{}),
+        );
 
-      final Map<String, dynamic> frames = (payload['summary']
-          as Map<String, dynamic>)['frames'] as Map<String, dynamic>;
-      expect(frames['painted'], 2);
-      expect(reads, 3);
-    });
+        final Map<String, dynamic> frames =
+            (payload['summary'] as Map<String, dynamic>)['frames']
+                as Map<String, dynamic>;
+        expect(frames['painted'], 2);
+        expect(reads, 3);
+      },
+    );
   });
 
   group('semantics receipt', () {
     tearDown(TapirPlugin.resetSemanticsForTesting);
 
-    test('perf_end re-acquires a semantics handle a dead driver left released',
-        () async {
-      TapirPlugin.acquireSemantics();
-      await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
-      expect(TapirPlugin.releaseSemantics(), isTrue);
+    test(
+      'perf_end re-acquires a semantics handle a dead driver left released',
+      () async {
+        TapirPlugin.acquireSemantics();
+        await tapirPerfBeginHandler('ext.tapir.perf_begin', <String, String>{});
+        expect(TapirPlugin.releaseSemantics(), isTrue);
 
-      await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
+        await tapirPerfEndHandler('ext.tapir.perf_end', <String, String>{});
 
-      expect(TapirPlugin.semanticsReleased, isFalse);
-      expect(RendererBinding.instance.semanticsEnabled, isTrue);
-    });
+        expect(TapirPlugin.semanticsReleased, isFalse);
+        expect(RendererBinding.instance.semanticsEnabled, isTrue);
+      },
+    );
   });
 }

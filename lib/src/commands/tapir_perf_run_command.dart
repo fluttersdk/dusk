@@ -32,7 +32,9 @@ const Duration _kRelaunchTimeout = Duration(seconds: 420);
 
 /// Opens the driver and describes the environment for one run.
 typedef PerfRunConnector = Future<(PerfRunDriver, PerfRunEnvironment)> Function(
-    DowelContext ctx, PerfPlatform? platform);
+  DowelContext ctx,
+  PerfPlatform? platform,
+);
 
 /// Runs a scenario's measured session several times and writes one file per
 /// scenario, `<out>/<scenario>-<label>.json`:
@@ -61,8 +63,8 @@ typedef PerfRunConnector = Future<(PerfRunDriver, PerfRunEnvironment)> Function(
 /// left out of the medians.
 class TapirPerfRunCommand extends DowelCommand {
   TapirPerfRunCommand({PerfRunConnector? connector})
-      : _connector = connector ?? connectDowelPerfRun,
-        _ownsDriver = true;
+    : _connector = connector ?? connectDowelPerfRun,
+      _ownsDriver = true;
 
   /// Runs on a driver the caller already connected, in-process: the
   /// `tapir:perf_campaign` attempt that ran `after_start` on it. The caller
@@ -70,9 +72,9 @@ class TapirPerfRunCommand extends DowelCommand {
   TapirPerfRunCommand.connected(
     PerfRunDriver driver,
     PerfRunEnvironment environment,
-  )   : _connector = ((DowelContext ctx, PerfPlatform? platform) async =>
-            (driver, environment)),
-        _ownsDriver = false;
+  ) : _connector = ((DowelContext ctx, PerfPlatform? platform) async =>
+          (driver, environment)),
+      _ownsDriver = false;
 
   final PerfRunConnector _connector;
 
@@ -100,7 +102,8 @@ class TapirPerfRunCommand extends DowelCommand {
       )
       ..addOption(
         'variant',
-        help: 'The variant to run, required when the file declares '
+        help:
+            'The variant to run, required when the file declares '
             '`variants` and refused when it does not; applies to --against '
             'too.',
       )
@@ -120,24 +123,28 @@ class TapirPerfRunCommand extends DowelCommand {
       )
       ..addOption(
         'platform',
-        help: 'chrome, android or ios. Read from the running session when '
+        help:
+            'chrome, android or ios. Read from the running session when '
             'omitted.',
         allowed: PerfPlatform.values.map((PerfPlatform p) => p.name),
       )
       ..addOption(
         'against',
-        help: 'A baseline scenario YAML run inside the same rounds, A and B '
+        help:
+            'A baseline scenario YAML run inside the same rounds, A and B '
             'alternating, and written to its own file.',
       )
       ..addFlag(
         'timing',
-        help: 'Also run interleaved timing-mode repeats, the only '
+        help:
+            'Also run interleaved timing-mode repeats, the only '
             'milliseconds tapir:perf_compare gates on.',
         defaultsTo: false,
       )
       ..addFlag(
         'semantics-pass',
-        help: 'Also replay the steps by coordinates with the semantics tree '
+        help:
+            'Also replay the steps by coordinates with the semantics tree '
             'released for the timed window (the semanticsOff series).',
         defaultsTo: false,
       );
@@ -173,8 +180,10 @@ class TapirPerfRunCommand extends DowelCommand {
     final Object? platformName = ctx.input.option('platform');
     final PerfPlatform? platform = PerfPlatform.tryParse(platformName);
     if (platformName != null && platform == null) {
-      ctx.output.error('--platform "$platformName" is not one of chrome, '
-          'android, ios.');
+      ctx.output.error(
+        '--platform "$platformName" is not one of chrome, '
+        'android, ios.',
+      );
       return 1;
     }
     final String? against = ctx.input.option('against') as String?;
@@ -185,12 +194,16 @@ class TapirPerfRunCommand extends DowelCommand {
     // 2. Load both files, fragments and all, and pick the variant.
     final List<PerfScenario> scenarios = <PerfScenario>[];
     final Set<String> secrets = <String>{};
-    for (final String file in <String>[path, if (against != null) against]) {
+    for (final String file in <String>[path, ?against]) {
       final PerfLoadResult? loaded = await _load(ctx, file);
       if (loaded == null) return 1;
       secrets.addAll(loaded.secrets);
-      final PerfScenario? scenario =
-          _select(ctx, file, loaded.scenarios, variant);
+      final PerfScenario? scenario = _select(
+        ctx,
+        file,
+        loaded.scenarios,
+        variant,
+      );
       if (scenario == null) return 1;
       scenarios.add(scenario);
     }
@@ -200,8 +213,10 @@ class TapirPerfRunCommand extends DowelCommand {
     final PerfRedactor redactor = PerfRedactor(secrets);
     final DowelContext masked = _masked(ctx, redactor);
     if (scenarios.length == 2 && scenarios[0].name == scenarios[1].name) {
-      masked.output.error('--against names a scenario called '
-          '"${scenarios[0].name}" too; the two run files would collide.');
+      masked.output.error(
+        '--against names a scenario called '
+        '"${scenarios[0].name}" too; the two run files would collide.',
+      );
       return 1;
     }
 
@@ -248,16 +263,21 @@ class TapirPerfRunCommand extends DowelCommand {
       final List<(String, Map<String, Object?>)> written =
           <(String, Map<String, Object?>)>[];
       for (final _ScenarioRun run in runs) {
-        final Map<String, Object?> file = redactor.redactJson(
-          runner.fileFor(
-            run,
-            label,
-            variant: variant,
-            interleavedWith: runs.length == 2
-                ? runs.firstWhere((_ScenarioRun r) => r != run).scenario.name
-                : null,
-          ),
-        )! as Map<String, Object?>;
+        final Map<String, Object?> file =
+            redactor.redactJson(
+                  runner.fileFor(
+                    run,
+                    label,
+                    variant: variant,
+                    interleavedWith: runs.length == 2
+                        ? runs
+                              .firstWhere((_ScenarioRun r) => r != run)
+                              .scenario
+                              .name
+                        : null,
+                  ),
+                )!
+                as Map<String, Object?>;
         written.add((await _write(out, run.scenario.name, label, file), file));
       }
       return _report(ctx, masked, redactor, written);
@@ -292,8 +312,10 @@ class TapirPerfRunCommand extends DowelCommand {
     ];
     if (keys.isEmpty) {
       if (variant == null) return scenarios.single;
-      ctx.output.error('--variant "$variant": $path declares no variants; '
-          'leave --variant out.');
+      ctx.output.error(
+        '--variant "$variant": $path declares no variants; '
+        'leave --variant out.',
+      );
       return null;
     }
     final int index = variant == null ? -1 : keys.indexOf(variant);
@@ -301,9 +323,9 @@ class TapirPerfRunCommand extends DowelCommand {
     ctx.output.error(
       variant == null
           ? '$path declares variants ${keys.join(', ')}; pick one with '
-              '--variant=<key>.'
+                '--variant=<key>.'
           : '--variant "$variant" is not one of ${keys.join(', ')}, the '
-              'variants $path declares.',
+                'variants $path declares.',
     );
     return null;
   }
@@ -437,8 +459,8 @@ Map<String, double> perfPerFrameMetrics(Map<String, dynamic> report) {
   double perFrame(Object? given, Object? count) => given is num
       ? given.toDouble()
       : painted == 0
-          ? 0
-          : _num(count) / painted;
+      ? 0
+      : _num(count) / painted;
 
   final Map<String, double> metrics = <String, double>{};
   for (final Object? block in perfList(summary['blocksByCount'])) {
@@ -447,17 +469,22 @@ Map<String, double> perfPerFrameMetrics(Map<String, dynamic> report) {
   }
   final Map<String, dynamic> counters = perfMap(report['counters']);
   for (final String section in const <String>['wind', 'magic']) {
-    for (final MapEntry<String, dynamic> entry
-        in perfMap(counters[section]).entries) {
+    for (final MapEntry<String, dynamic> entry in perfMap(
+      counters[section],
+    ).entries) {
       final Object? value = entry.value;
       if (value is Map<String, dynamic>) {
-        metrics['$section.${entry.key}'] =
-            perFrame(value['perFrame'], value['count']);
+        metrics['$section.${entry.key}'] = perFrame(
+          value['perFrame'],
+          value['count'],
+        );
       } else if (value is List<dynamic>) {
         for (final Object? row in value) {
           if (row is List<dynamic> && row.length >= 2) {
-            metrics['$section.${entry.key}.${row[0]}'] =
-                perFrame(row.length > 2 ? row[2] : null, row[1]);
+            metrics['$section.${entry.key}.${row[0]}'] = perFrame(
+              row.length > 2 ? row[2] : null,
+              row[1],
+            );
           }
         }
       }
@@ -468,8 +495,9 @@ Map<String, double> perfPerFrameMetrics(Map<String, dynamic> report) {
 
 /// The frame durations of a report, in ms: build and raster p50 and p90.
 Map<String, double> perfMsMetrics(Map<String, dynamic> report) {
-  final Map<String, dynamic> frames =
-      perfMap(perfMap(report['summary'])['frames']);
+  final Map<String, dynamic> frames = perfMap(
+    perfMap(report['summary'])['frames'],
+  );
   return <String, double>{
     for (final String thread in const <String>['buildMs', 'rasterMs'])
       for (final String pct in const <String>['p50', 'p90'])
@@ -487,8 +515,9 @@ Map<String, double> perfMsMetrics(Map<String, dynamic> report) {
 /// kept frames from outside its session. A metric one report lacks counts
 /// as zero there, because a block that did not build was built zero times.
 Map<String, Object?> summarizePerfSeries(List<Map<String, dynamic>> reports) {
-  final List<Map<String, dynamic>> answered =
-      reports.where((Map<String, dynamic> r) => r['refused'] != true).toList();
+  final List<Map<String, dynamic>> answered = reports
+      .where((Map<String, dynamic> r) => r['refused'] != true)
+      .toList();
   final List<Map<String, dynamic>> measured = answered
       .where(
         (Map<String, dynamic> r) =>
@@ -523,16 +552,16 @@ Map<String, Object?> summarizePerfSeries(List<Map<String, dynamic>> reports) {
   final Map<String, Object?> spread = <String, Object?>{};
   for (final (
         String section,
-        Map<String, double> Function(Map<String, dynamic>) read
-      ) in <(String, Map<String, double> Function(Map<String, dynamic>))>[
-    ('perFrame', perfPerFrameMetrics),
-    ('ms', perfMsMetrics),
-  ]) {
+        Map<String, double> Function(Map<String, dynamic>) read,
+      )
+      in <(String, Map<String, double> Function(Map<String, dynamic>))>[
+        ('perFrame', perfPerFrameMetrics),
+        ('ms', perfMsMetrics),
+      ]) {
     final List<Map<String, double>> rows = measured.map(read).toList();
     final List<String> names = <String>{
       for (final Map<String, double> row in rows) ...row.keys,
-    }.toList()
-      ..sort();
+    }.toList()..sort();
     if (names.isEmpty) continue;
     final Map<String, Object?> medians = <String, Object?>{};
     final Map<String, Object?> ranges = <String, Object?>{};
@@ -594,7 +623,8 @@ PerfPlatform resolvePerfPlatform(
 /// release build), else `hot_restart`.
 String perfRestartMode(Map<String, dynamic>? state) {
   final Object? args = state?['flutterArgs'];
-  final bool compiled = state?['profile'] == 'static' ||
+  final bool compiled =
+      state?['profile'] == 'static' ||
       (args is List<dynamic> &&
           (args.contains('--profile') || args.contains('--release')));
   return compiled ? 'relaunch' : 'hot_restart';
@@ -604,9 +634,9 @@ String perfRestartMode(Map<String, dynamic>? state) {
 /// `unknown` when the run log says nothing about it.
 String scrapePerfRenderer(String? log) {
   if (log == null) return 'unknown';
-  final Iterable<RegExpMatch> matches =
-      RegExp(r'Using the Impeller rendering backend(?: \(([^)]+)\))?')
-          .allMatches(log);
+  final Iterable<RegExpMatch> matches = RegExp(
+    r'Using the Impeller rendering backend(?: \(([^)]+)\))?',
+  ).allMatches(log);
   if (matches.isEmpty) return 'unknown';
   final String? backend = matches.last.group(1);
   return backend == null ? 'impeller' : 'impeller-${backend.toLowerCase()}';
@@ -669,18 +699,18 @@ final class _ScenarioRun {
   final PerfScenario scenario;
   final Map<_Series, List<Map<String, dynamic>>> reports =
       <_Series, List<Map<String, dynamic>>>{
-    for (final _Series series in _Series.values)
-      series: <Map<String, dynamic>>[],
-  };
+        for (final _Series series in _Series.values)
+          series: <Map<String, dynamic>>[],
+      };
 
   /// Per report in [reports], where and how long each step's target took to
   /// resolve: `{step, verb, phase: beforeBegin|inWindow, resolveMs}`. An
   /// `inWindow` resolve is cost the session measured.
   final Map<_Series, List<List<Map<String, Object?>>>> resolves =
       <_Series, List<List<Map<String, Object?>>>>{
-    for (final _Series series in _Series.values)
-      series: <List<Map<String, Object?>>>[],
-  };
+        for (final _Series series in _Series.values)
+          series: <List<Map<String, Object?>>>[],
+      };
 
   /// The dispatch points recorded with the tree on, by step index: `point`
   /// for a tap or a wheel, `from` and `to` for a drag.
@@ -716,8 +746,9 @@ final class _PerfRunner {
   bool get _chrome => env.platform == PerfPlatform.chrome;
 
   Future<List<_ScenarioRun>> run(List<PerfScenario> scenarios) async {
-    final List<_ScenarioRun> runs =
-        scenarios.map((PerfScenario s) => _ScenarioRun(s)).toList();
+    final List<_ScenarioRun> runs = scenarios
+        .map((PerfScenario s) => _ScenarioRun(s))
+        .toList();
     if (semanticsPass) {
       for (final _ScenarioRun run in runs) {
         run.unsupported = _unsupportedReason(run.scenario);
@@ -778,8 +809,10 @@ final class _PerfRunner {
       viewport: scenario.viewport,
       redactor: redactor,
     );
-    final bool landedLate =
-        (await setup.run(scenario.setup, scenario.name)).landedLate;
+    final bool landedLate = (await setup.run(
+      scenario.setup,
+      scenario.name,
+    )).landedLate;
     if (_chrome) await driver.cdp('Page.bringToFront');
 
     // 2. A target no earlier step can move resolves now, outside the window;
@@ -795,13 +828,9 @@ final class _PerfRunner {
     //    released semantics handle must never outlive the window. A release
     //    that left the tree on ends the window at once: what would follow is
     //    the attribution series again, reported as semantics off.
-    await actions.call(
-      'ext.tapir.perf_begin',
-      <String, String>{
-        'mode': series == _Series.timing ? 'timing' : 'attribution',
-      },
-      scenario.name,
-    );
+    await actions.call('ext.tapir.perf_begin', <String, String>{
+      'mode': series == _Series.timing ? 'timing' : 'attribution',
+    }, scenario.name);
     bool released = false;
     Object? failure;
     StackTrace? trace;
@@ -845,22 +874,18 @@ final class _PerfRunner {
     //    runs; the first failure is the one rethrown.
     Map<String, dynamic>? report;
     try {
-      report = await actions.call(
-        'ext.tapir.perf_end',
-        <String, String>{'full': 'true'},
-        scenario.name,
-      );
+      report = await actions.call('ext.tapir.perf_end', <String, String>{
+        'full': 'true',
+      }, scenario.name);
     } catch (e, st) {
       failure ??= e;
       trace ??= st;
     }
     if (released) {
       try {
-        await actions.call(
-          'ext.tapir.semantics_hold',
-          <String, String>{'action': 'acquire'},
-          scenario.name,
-        );
+        await actions.call('ext.tapir.semantics_hold', <String, String>{
+          'action': 'acquire',
+        }, scenario.name);
       } on PerfRunException catch (e, st) {
         failure ??= e;
         trace ??= st;
@@ -896,15 +921,15 @@ final class _PerfRunner {
           step,
           record: record,
           resolved: resolved,
-          onResolved: (Stopwatch clock) => resolves.add(
-            _resolveEntry(index, step, 'inWindow', clock),
-          ),
+          onResolved: (Stopwatch clock) =>
+              resolves.add(_resolveEntry(index, step, 'inWindow', clock)),
         );
         if (points != null) run.points[index] = points;
       }
     } on Exception catch (e) {
       throw PerfRunException(
-          '$where: ${e is PerfRunException ? e.message : e}');
+        '$where: ${e is PerfRunException ? e.message : e}',
+      );
     }
   }
 
@@ -954,13 +979,12 @@ final class _PerfRunner {
     PerfStep step,
     String phase,
     Stopwatch clock,
-  ) =>
-      <String, Object?>{
-        'step': index,
-        'verb': step.verb.wire,
-        'phase': phase,
-        'resolveMs': _round(clock.elapsedMicroseconds / 1000, 1),
-      };
+  ) => <String, Object?>{
+    'step': index,
+    'verb': step.verb.wire,
+    'phase': phase,
+    'resolveMs': _round(clock.elapsedMicroseconds / 1000, 1),
+  };
 
   /// Replays a step by the points [PerfActions.drive] recorded. Nothing here
   /// resolves a target: with the handle released there is no tree to resolve
@@ -970,22 +994,19 @@ final class _PerfRunner {
     switch (step.verb) {
       case PerfStepVerb.tap:
         final Map<String, dynamic> point = _recorded(recorded, 'point');
-        await driver.call(
-          'ext.tapir.tap',
-          <String, String>{'x': '${point['x']}', 'y': '${point['y']}'},
-        );
+        await driver.call('ext.tapir.tap', <String, String>{
+          'x': '${point['x']}',
+          'y': '${point['y']}',
+        });
       case PerfStepVerb.drag:
         final Map<String, dynamic> from = _recorded(recorded, 'from');
         final Map<String, dynamic> to = _recorded(recorded, 'to');
-        await driver.call(
-          'ext.tapir.drag',
-          <String, String>{
-            'x': '${from['x']}',
-            'y': '${from['y']}',
-            'toX': '${to['x']}',
-            'toY': '${to['y']}',
-          },
-        );
+        await driver.call('ext.tapir.drag', <String, String>{
+          'x': '${from['x']}',
+          'y': '${from['y']}',
+          'toX': '${to['x']}',
+          'toY': '${to['y']}',
+        });
       case PerfStepVerb.wheel:
         await actions.wheel(_recorded(recorded, 'point'), step);
       case PerfStepVerb.pressKey:
@@ -998,7 +1019,8 @@ final class _PerfRunner {
       case PerfStepVerb.scroll:
         // Ruled out before the pass by _unsupportedReason.
         throw PerfRunException(
-            '${step.verb.wire} cannot replay by coordinates');
+          '${step.verb.wire} cannot replay by coordinates',
+        );
     }
   }
 
@@ -1036,19 +1058,23 @@ final class _PerfRunner {
           'the tapir this CLI ships with.';
     }
     final String holder = switch ((answer['heldByPlatform'], env.platform)) {
-      (true, PerfPlatform.chrome) => 'the platform holds it: Flutter web\'s '
-          'engine turns semantics on at the first semantics tree the app '
-          'sends (tapir\'s first snapshot sends one) and never turns it off, '
-          'so on chrome the pass cannot measure the app with semantics off; '
-          'run it on android or ios',
-      (true, _) => 'the platform holds it, which on $platform means an '
-          'accessibility service (a screen reader such as TalkBack or '
-          'VoiceOver, or another assistive service) is on; turn it off and '
-          'rerun',
-      (false, _) => 'another semantics handle in the app holds it (a '
-          'SemanticsHandle the app or a package took with ensureSemantics)',
-      _ => 'the app did not say what holds it (no heldByPlatform), so it '
-          'runs a tapir older than this CLI',
+      (true, PerfPlatform.chrome) =>
+        'the platform holds it: Flutter web\'s '
+            'engine turns semantics on at the first semantics tree the app '
+            'sends (tapir\'s first snapshot sends one) and never turns it off, '
+            'so on chrome the pass cannot measure the app with semantics off; '
+            'run it on android or ios',
+      (true, _) =>
+        'the platform holds it, which on $platform means an '
+            'accessibility service (a screen reader such as TalkBack or '
+            'VoiceOver, or another assistive service) is on; turn it off and '
+            'rerun',
+      (false, _) =>
+        'another semantics handle in the app holds it (a '
+            'SemanticsHandle the app or a package took with ensureSemantics)',
+      _ =>
+        'the app did not say what holds it (no heldByPlatform), so it '
+            'runs a tapir older than this CLI',
     };
     return 'on $platform, releasing tapir\'s semantics handle left semantics '
         'on: $holder.';
@@ -1064,8 +1090,9 @@ final class _PerfRunner {
     final List<Map<String, dynamic>> attribution =
         run.reports[_Series.attribution]!;
     final Map<String, dynamic>? median = _medianReport(attribution);
-    final bool restarts = run.scenario.setup
-        .any((PerfSetupStep s) => s.verb == PerfSetupVerb.hotRestart);
+    final bool restarts = run.scenario.setup.any(
+      (PerfSetupStep s) => s.verb == PerfSetupVerb.hotRestart,
+    );
     // The app knows its own renderer on web (rendererReader); the run log
     // scrape covers native, where the app answers `unknown`.
     final Object? inApp = perfMap(median?['env'])['renderer'];
@@ -1073,8 +1100,8 @@ final class _PerfRunner {
     return <String, Object?>{
       'scenario': run.scenario.toJson(),
       'label': label,
-      if (variant != null) 'variant': variant,
-      if (interleavedWith != null) 'interleavedWith': interleavedWith,
+      'variant': ?variant,
+      'interleavedWith': ?interleavedWith,
       'env': <String, Object?>{
         ...perfMap(median?['env']),
         'target': env.platform.name,
@@ -1082,8 +1109,9 @@ final class _PerfRunner {
         'emulator': env.emulator,
         'restartMode': restarts ? env.restartMode : 'none',
         'host': env.host,
-        'renderer':
-            inApp is String && inApp != 'unknown' ? inApp : env.renderer,
+        'renderer': inApp is String && inApp != 'unknown'
+            ? inApp
+            : env.renderer,
       },
       'summary': <String, Object?>{
         ...summarizePerfSeries(attribution),
@@ -1122,22 +1150,19 @@ final class _PerfRunner {
 /// The measured report whose total per-frame count is the median, the one
 /// whose insights the file carries; null when every repeat was refused.
 Map<String, dynamic>? _medianReport(List<Map<String, dynamic>> reports) {
-  final List<(double, Map<String, dynamic>)> measured = <(
-    double,
-    Map<String, dynamic>
-  )>[
-    for (final Map<String, dynamic> report in reports)
-      if (report['refused'] != true)
-        (
-          perfPerFrameMetrics(report)
-              .values
-              .fold<double>(0, (double sum, double v) => sum + v),
-          report,
-        ),
-  ]..sort(
-      ((double, Map<String, dynamic>) x, (double, Map<String, dynamic>) y) =>
-          x.$1.compareTo(y.$1),
-    );
+  final List<(double, Map<String, dynamic>)> measured =
+      <(double, Map<String, dynamic>)>[
+        for (final Map<String, dynamic> report in reports)
+          if (report['refused'] != true)
+            (
+              perfPerFrameMetrics(report).values
+                  .fold<double>(0, (double sum, double v) => sum + v),
+              report,
+            ),
+      ]..sort(
+        ((double, Map<String, dynamic>) x, (double, Map<String, dynamic>) y) =>
+            x.$1.compareTo(y.$1),
+      );
   return measured.isEmpty ? null : measured[(measured.length - 1) ~/ 2].$2;
 }
 
@@ -1214,8 +1239,10 @@ final class _DowelPerfRunDriver implements PerfRunDriver {
   ]) async {
     final int? port = cdpPort;
     if (port == null) {
-      throw PerfRunException('$method needs Chrome DevTools, and this '
-          'session has no CDP port.');
+      throw PerfRunException(
+        '$method needs Chrome DevTools, and this '
+        'session has no CDP port.',
+      );
     }
     final CdpClient client = _cdp ??= await CdpClient.connect(port: port);
     return client.send(method, params);
@@ -1300,10 +1327,11 @@ Future<Map<String, Object?>> _hostInfo() async {
   final String? cpu = Platform.isMacOS
       ? await firstLine('sysctl', <String>['-n', 'machdep.cpu.brand_string'])
       : Platform.isLinux
-          ? RegExp(r'^model name\s*:\s*(.+)$', multiLine: true)
-              .firstMatch(await File('/proc/cpuinfo').readAsString())
-              ?.group(1)
-          : null;
+      ? RegExp(
+          r'^model name\s*:\s*(.+)$',
+          multiLine: true,
+        ).firstMatch(await File('/proc/cpuinfo').readAsString())?.group(1)
+      : null;
   return <String, Object?>{
     'os': Platform.operatingSystem,
     'uname': Platform.isWindows
@@ -1366,7 +1394,7 @@ double _max(double x, double y) => x > y ? x : y;
 
 /// CLI options arrive as strings, MCP arguments as typed JSON.
 int? _readInt(Object? raw) => switch (raw) {
-      final int value => value,
-      final String value => int.tryParse(value),
-      _ => null,
-    };
+  final int value => value,
+  final String value => int.tryParse(value),
+  _ => null,
+};

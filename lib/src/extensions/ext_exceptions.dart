@@ -39,8 +39,9 @@ const String kTapirExceptionsMcpExtension = 'ext.tapir.exceptions';
 /// Reset to the empty-list default by `MagicCrumbsIntegration.resetForTesting()`
 /// so downstream tests asserting the missing-crumbs default do not see leaked
 /// bindings.
-List<Map<String, dynamic>> Function({int limit}) recentExceptionsReader =
-    ({int limit = 20}) => const [];
+List<Map<String, dynamic>> Function({int limit}) recentExceptionsReader = ({
+  int limit = 20,
+}) => const [];
 
 // ---------------------------------------------------------------------------
 // Aggregator
@@ -138,8 +139,9 @@ Future<developer.ServiceExtensionResponse> aiTestExceptionsHandler(
             return entryTime.isAfter(since);
           }).toList();
 
-    final List<Map<String, dynamic>> exceptions =
-        filtered.length > limit ? filtered.sublist(0, limit) : filtered;
+    final List<Map<String, dynamic>> exceptions = filtered.length > limit
+        ? filtered.sublist(0, limit)
+        : filtered;
 
     // 5. Optional clear, AFTER the read: the caller gets everything so far
     //    and a clean slate for the next route, which is the primitive a

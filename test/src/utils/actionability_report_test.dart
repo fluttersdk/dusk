@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/ref_registry.dart';
@@ -66,8 +66,7 @@ void main() {
       expect(report.overlapCandidates, isEmpty);
     });
 
-    testWidgets(
-        'reports indeterminate when the hit-test reaches only the '
+    testWidgets('reports indeterminate when the hit-test reaches only the '
         'root view', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(800, 600);
       tester.view.devicePixelRatio = 1.0;
@@ -145,9 +144,11 @@ void main() {
         ),
       );
 
-      final RenderBox target = tester
-          .element(find.byKey(const ValueKey<String>('row')))
-          .findRenderObject()! as RenderBox;
+      final RenderBox target =
+          tester
+                  .element(find.byKey(const ValueKey<String>('row')))
+                  .findRenderObject()!
+              as RenderBox;
 
       final List<String> candidates = occlusionCandidatesFor(
         target,
@@ -174,9 +175,9 @@ void main() {
         ),
       );
 
-      final RenderBox target = tester
-          .element(find.byType(SizedBox).first)
-          .findRenderObject()! as RenderBox;
+      final RenderBox target =
+          tester.element(find.byType(SizedBox).first).findRenderObject()!
+              as RenderBox;
 
       expect(
         occlusionCandidatesFor(

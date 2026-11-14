@@ -15,6 +15,12 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.
 - **Breaking, nothing is migrated automatically.** In a consumer project: (1) swap the dependencies with `dart pub remove fluttersdk_dusk fluttersdk_artisan && dart pub add tapir dowel` and rename the imports and the `Dusk*` identifiers; (2) follow the dowel 0.0.21 migration (move `.artisan/` to `.dowel/`, delete `.dowel/plugins.json`) and run `dart run tapir tapir:install` again; (3) rename `dusk_*` to `tapir_*` in any saved MCP allow list, prompt or script; (4) delete the stale `fluttersdk` server entry from `.mcp.json` (dowel leaves entries an earlier release wrote alone) and run `dart run tapir mcp:install`.
 - **The Magic step of `tapir:install` needs a `magic_devtools` built on tapir.** When the consumer's pubspec names `magic_devtools`, the installer wires `MagicTapirIntegration` from `package:magic_devtools/tapir.dart`; the `magic_devtools` releases that still ship `MagicDuskIntegration` do not export it, so upgrade `magic_devtools` first or skip that line of `lib/main.dart` until its tapir release is out.
 
+- **The floor is Dart 3.13 and Flutter 3.47.** Flutter 3.50 deprecates `package:flutter/material.dart` in favour of `material_ui`, which needs that floor; the tests and the example app now build on `material_ui`, the package itself imports neither, and the repository is formatted with the tall style that floor enables. A consumer on an older SDK stays on the last `fluttersdk_dusk` release.
+
+### Fixed
+
+- **`tapir:set_checkbox` reads the checked state from Semantics.** It used to test the widget type (`is Checkbox`, `is Switch` from `flutter/material`), so a control from `material_ui`, `wind_kit` or any hand-built `Semantics(checked: ...)` read as "unknown, assume unchecked", and setting a checked box to checked toggled it off. The state now comes from the checked or toggled flag of the ref's Semantics node, which every library sets. A ref without a checked or toggled state is refused instead of assumed unchecked, and a mixed checkbox is always tapped. (`lib/src/extensions/ext_checkbox.dart`)
+
 ### Removed
 
 - **The `FluttersdkDuskArtisanProvider` alias in `package:tapir/cli.dart`.** The class dowel's `plugins:refresh` generates for this package, `TapirDowelProvider`, is the provider itself, so the alias is gone.
@@ -537,7 +543,7 @@ Initial public release of `fluttersdk_dusk`. E2E driver for Flutter apps. Snapsh
 
 `DuskSnapshotEnricher` typedef, `DuskPlugin.install` / `DuskPlugin.enrichers` / `DuskPlugin.registerNavigateAdapter`, `RefRegistry` public methods (`register`, `lookup`, `registerQuery`, `lookupQuery`, `disposeAll`, `resetForTesting`), and every MCP tool name / `ext.dusk.*` extension name are part of the public 0.0.1 contract. Future releases keep these stable across the 0.x line; any change requires a coordinated bump with `magic` + `wind`.
 
-[Unreleased]: https://github.com/fluttersdk/dusk/compare/0.0.23...HEAD
+[Unreleased]: https://github.com/anilcancakir/tapir/compare/0.0.23...HEAD
 [0.0.23]: https://github.com/fluttersdk/dusk/compare/0.0.22...0.0.23
 [0.0.22]: https://github.com/fluttersdk/dusk/compare/0.0.21...0.0.22
 [0.0.21]: https://github.com/fluttersdk/dusk/compare/0.0.20...0.0.21

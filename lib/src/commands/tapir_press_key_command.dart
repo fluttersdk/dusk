@@ -25,18 +25,22 @@ class TapirPressKeyCommand extends DowelCommand {
     addJsonFlag(parser);
     parser.addOption(
       'key',
-      help: 'Logical key name, e.g. Enter / Escape / ArrowDown / Tab, '
+      help:
+          'Logical key name, e.g. Enter / Escape / ArrowDown / Tab, '
           'or one letter or digit, e.g. G / 7.',
       mandatory: true,
     );
     parser.addOption(
       'modifiers',
-      help: 'Comma-separated modifiers held during the press: control '
+      help:
+          'Comma-separated modifiers held during the press: control '
           '(or ctrl), shift, alt, meta, e.g. control,shift.',
     );
-    parser.addFlag('includeSnapshot',
-        help: 'Embed the post-press snapshot in the response.',
-        defaultsTo: false);
+    parser.addFlag(
+      'includeSnapshot',
+      help: 'Embed the post-press snapshot in the response.',
+      defaultsTo: false,
+    );
   }
 
   @override

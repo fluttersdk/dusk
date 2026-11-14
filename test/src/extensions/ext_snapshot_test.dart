@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_snapshot.dart';
@@ -86,16 +86,15 @@ void main() {
 
     group('snapshotForAction() with an unknown mode', () {
       Widget screen() {
-        return MaterialApp(
-          home: Scaffold(body: _button('Create monitor')),
-        );
+        return MaterialApp(home: Scaffold(body: _button('Create monitor')));
       }
 
       testWidgets('is read case-insensitively', (WidgetTester tester) async {
         await tester.pumpWidget(screen());
 
-        final Map<String, dynamic> payload =
-            await snapshotForAction(<String, String>{'snapshot': ' Diff '});
+        final Map<String, dynamic> payload = await snapshotForAction(
+          <String, String>{'snapshot': ' Diff '},
+        );
 
         expect(payload['snapshotMode'], equals('diff'));
       });
@@ -105,8 +104,9 @@ void main() {
       ) async {
         await tester.pumpWidget(screen());
 
-        final Map<String, dynamic> payload =
-            await snapshotForAction(<String, String>{'snapshot': 'delta'});
+        final Map<String, dynamic> payload = await snapshotForAction(
+          <String, String>{'snapshot': 'delta'},
+        );
 
         expect(payload.containsKey('snapshot'), isFalse);
         expect(payload['snapshotError'], contains('"delta"'));
@@ -195,30 +195,31 @@ void main() {
 
     group('grep', () {
       testWidgets(
-          'falls back to a literal match when the pattern is not a regex', (
-        WidgetTester tester,
-      ) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Column(
-                children: <Widget>[
-                  _button(_unbalancedLabel),
-                  _button('Something else'),
-                ],
+        'falls back to a literal match when the pattern is not a regex',
+        (WidgetTester tester) async {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    _button(_unbalancedLabel),
+                    _button('Something else'),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
+          );
 
-        final Map<String, dynamic> payload =
-            await tapirSnapBuild(grep: _unbalancedLabel);
-        final String snapshot = payload['snapshot'] as String;
+          final Map<String, dynamic> payload = await tapirSnapBuild(
+            grep: _unbalancedLabel,
+          );
+          final String snapshot = payload['snapshot'] as String;
 
-        expect(snapshot, contains(_unbalancedLabel));
-        expect(snapshot, isNot(contains('Something else')));
-        expect(payload['grepLiteral'], isTrue);
-      });
+          expect(snapshot, contains(_unbalancedLabel));
+          expect(snapshot, isNot(contains('Something else')));
+          expect(payload['grepLiteral'], isTrue);
+        },
+      );
 
       testWidgets('a valid regex behaves as before and carries no flag', (
         WidgetTester tester,
@@ -237,8 +238,9 @@ void main() {
           ),
         );
 
-        final Map<String, dynamic> payload =
-            await tapirSnapBuild(grep: 'Create|Delete');
+        final Map<String, dynamic> payload = await tapirSnapBuild(
+          grep: 'Create|Delete',
+        );
         final String snapshot = payload['snapshot'] as String;
 
         expect(snapshot, contains('Create monitor'));
@@ -251,16 +253,13 @@ void main() {
         WidgetTester tester,
       ) async {
         await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(body: _button(_unbalancedLabel)),
-          ),
+          MaterialApp(home: Scaffold(body: _button(_unbalancedLabel))),
         );
 
         final developer.ServiceExtensionResponse response =
-            await tapirSnapHandler(
-          'ext.tapir.snap',
-          const <String, String>{'grep': _unbalancedLabel},
-        );
+            await tapirSnapHandler('ext.tapir.snap', const <String, String>{
+              'grep': _unbalancedLabel,
+            });
 
         expect(response.errorDetail, isNull);
         final Map<String, dynamic> decoded =
@@ -280,8 +279,10 @@ void main() {
         final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
 
         expect(_lineFor(snapshot, 'Away'), endsWith(' [offscreen]'));
-        expect(_lineFor(snapshot, 'Away'),
-            matches(r'\[ref=e\d+\] \[offscreen\]$'));
+        expect(
+          _lineFor(snapshot, 'Away'),
+          matches(r'\[ref=e\d+\] \[offscreen\]$'),
+        );
         expect(_lineFor(snapshot, 'Visible'), isNot(contains('[offscreen]')));
       });
 
@@ -298,38 +299,39 @@ void main() {
         expect(_lineFor(snapshot, 'Away'), isNot(contains('[occluded]')));
       });
 
-      testWidgets('does not flag a node whose own container claims its centre',
-          (
-        WidgetTester tester,
-      ) async {
-        // The container is not painted above the node, so nothing covers it,
-        // even though the gate refuses to tap it (the tap would reach the
-        // container instead).
-        _useSmallView(tester);
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Align(
-                alignment: Alignment.topLeft,
-                child: Listener(
-                  behavior: HitTestBehavior.opaque,
-                  child: Semantics(
-                    container: true,
-                    button: true,
-                    label: 'Inside',
-                    onTap: () {},
-                    child: const SizedBox(width: 160, height: 40),
+      testWidgets(
+        'does not flag a node whose own container claims its centre',
+        (WidgetTester tester) async {
+          // The container is not painted above the node, so nothing covers it,
+          // even though the gate refuses to tap it (the tap would reach the
+          // container instead).
+          _useSmallView(tester);
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Align(
+                  alignment: Alignment.topLeft,
+                  child: Listener(
+                    behavior: HitTestBehavior.opaque,
+                    child: Semantics(
+                      container: true,
+                      button: true,
+                      label: 'Inside',
+                      onTap: () {},
+                      child: const SizedBox(width: 160, height: 40),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        );
+          );
 
-        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
+          final String snapshot =
+              (await tapirSnapBuild())['snapshot'] as String;
 
-        expect(_lineFor(snapshot, 'Inside'), matches(r'\[ref=e\d+\]$'));
-      });
+          expect(_lineFor(snapshot, 'Inside'), matches(r'\[ref=e\d+\]$'));
+        },
+      );
 
       testWidgets('leaves a healthy screen byte-identical', (
         WidgetTester tester,
@@ -340,10 +342,7 @@ void main() {
             home: Scaffold(
               body: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  _button('Save'),
-                  const Text('Saved'),
-                ],
+                children: <Widget>[_button('Save'), const Text('Saved')],
               ),
             ),
           ),
@@ -378,8 +377,9 @@ void main() {
             .allMatches(snapshot)
             .map((RegExpMatch m) => m.group(1)!)
             .toList();
-        final String cancelRef =
-            RegExp(r'"Cancel" \[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
+        final String cancelRef = RegExp(r'"Cancel" \[ref=(e\d+)\]')
+            .firstMatch(snapshot)!
+            .group(1)!;
 
         expect(saveRefs, hasLength(2));
         for (int i = 0; i < saveRefs.length; i++) {
@@ -399,22 +399,19 @@ void main() {
         WidgetTester tester,
       ) async {
         await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(body: _button('Save')),
-          ),
+          MaterialApp(home: Scaffold(body: _button('Save'))),
         );
 
         final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
-        final String ref =
-            RegExp(r'"Save" \[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
-        final Route<dynamic>? expected =
-            ModalRoute.of(tester.element(find.byType(Scaffold)));
+        final String ref = RegExp(r'"Save" \[ref=(e\d+)\]')
+            .firstMatch(snapshot)!
+            .group(1)!;
+        final Route<dynamic>? expected = ModalRoute.of(
+          tester.element(find.byType(Scaffold)),
+        );
 
         expect(expected, isNotNull);
-        expect(
-          RefRegistry.lookupBinding(ref)!.route?.target,
-          same(expected),
-        );
+        expect(RefRegistry.lookupBinding(ref)!.route?.target, same(expected));
       });
 
       testWidgets('binds no route when the ref lives outside a navigator', (
@@ -423,16 +420,14 @@ void main() {
         await tester.pumpWidget(
           Directionality(
             textDirection: TextDirection.ltr,
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: _button('Save'),
-            ),
+            child: Align(alignment: Alignment.topLeft, child: _button('Save')),
           ),
         );
 
         final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
-        final String ref =
-            RegExp(r'"Save" \[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
+        final String ref = RegExp(r'"Save" \[ref=(e\d+)\]')
+            .firstMatch(snapshot)!
+            .group(1)!;
 
         final RefBinding? binding = RefRegistry.lookupBinding(ref);
         expect(binding, isNotNull);
@@ -459,8 +454,9 @@ void main() {
         );
 
         final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
-        final String ref =
-            RegExp(r'button "" \[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
+        final String ref = RegExp(r'button "" \[ref=(e\d+)\]')
+            .firstMatch(snapshot)!
+            .group(1)!;
 
         expect(RefRegistry.lookup(ref), isNotNull);
         expect(RefRegistry.lookupBinding(ref), isNull);

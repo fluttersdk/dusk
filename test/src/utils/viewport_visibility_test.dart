@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,7 +20,7 @@ Widget _screen({Widget? cover, Widget? targetChild}) {
               child: targetChild,
             ),
           ),
-          if (cover != null) cover,
+          ?cover,
         ],
       ),
     ),
@@ -50,7 +50,9 @@ void main() {
     test('is false for a rect that only partly overlaps an edge', () {
       expect(
         isRectOutsideViewport(
-            const Rect.fromLTWH(750, 550, 100, 100), viewport),
+          const Rect.fromLTWH(750, 550, 100, 100),
+          viewport,
+        ),
         isFalse,
       );
     });
@@ -93,8 +95,9 @@ void main() {
       await tester.pumpWidget(
         _screen(
           targetChild: _opaque(),
-          cover:
-              Positioned.fill(child: _opaque(child: const SizedBox.expand())),
+          cover: Positioned.fill(
+            child: _opaque(child: const SizedBox.expand()),
+          ),
         ),
       );
 
@@ -117,40 +120,42 @@ void main() {
     ) async {
       await tester.pumpWidget(
         _screen(
-            targetChild: Center(
-                child: _opaque(child: const SizedBox(width: 10, height: 10)))),
+          targetChild: Center(
+            child: _opaque(child: const SizedBox(width: 10, height: 10)),
+          ),
+        ),
       );
 
       expect(probeTarget(tester).verdict, HitVerdict.reached);
     });
 
-    testWidgets('is ancestorOnly when only an ancestor of the target claims it',
-        (
-      WidgetTester tester,
-    ) async {
-      // A target with no hit-testable surface of its own is not covered by the
-      // container that holds it; a cover is a sibling subtree painted above.
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Center(
-              child: _opaque(
-                child: const SizedBox(
-                  key: _targetKey,
-                  width: 100,
-                  height: 50,
+    testWidgets(
+      'is ancestorOnly when only an ancestor of the target claims it',
+      (WidgetTester tester) async {
+        // A target with no hit-testable surface of its own is not covered by the
+        // container that holds it; a cover is a sibling subtree painted above.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: _opaque(
+                  child: const SizedBox(
+                    key: _targetKey,
+                    width: 100,
+                    height: 50,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      final HitProbe probe = probeTarget(tester);
+        final HitProbe probe = probeTarget(tester);
 
-      expect(probe.verdict, HitVerdict.ancestorOnly);
-      expect(probe.top, isA<RenderPointerListener>());
-    });
+        expect(probe.verdict, HitVerdict.ancestorOnly);
+        expect(probe.top, isA<RenderPointerListener>());
+      },
+    );
 
     testWidgets('is platformOnly when the point lands outside every widget', (
       WidgetTester tester,

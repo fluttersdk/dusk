@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -74,10 +74,7 @@ Widget _saveButton(Key key, VoidCallback onTap) {
 Widget _routelessSaveScreen(Key key, VoidCallback onTap) {
   return Directionality(
     textDirection: TextDirection.ltr,
-    child: Align(
-      alignment: Alignment.topLeft,
-      child: _saveButton(key, onTap),
-    ),
+    child: Align(alignment: Alignment.topLeft, child: _saveButton(key, onTap)),
   );
 }
 
@@ -137,14 +134,11 @@ Future<ServiceExtensionResponse> _pumpTap(
   Map<String, String> extra = const <String, String>{},
 }) async {
   final Future<ServiceExtensionResponse> future =
-      wrapTapirHandler(aiTestTapHandler)(
-    'ext.tapir.tap',
-    <String, String>{
-      'ref': ref,
-      'includeSnapshot': 'false',
-      ...extra,
-    },
-  );
+      wrapTapirHandler(aiTestTapHandler)('ext.tapir.tap', <String, String>{
+        'ref': ref,
+        'includeSnapshot': 'false',
+        ...extra,
+      });
   for (int i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 20));
   }
@@ -174,53 +168,49 @@ void main() {
     // (a) Actionable widget tap succeeds
     // -------------------------------------------------------------------------
 
-    testWidgets(
-      '(a) actionable widget tap returns ok envelope',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(a) actionable widget tap returns ok envelope', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('hello'))),
-          ),
-        );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('hello'))),
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        // The handler awaits a 50ms delay and two endOfFrame ticks; pump
-        // alongside the future so frames advance under fake-async. Stable +
-        // receives-events gates opt-out because registerForTesting mints a
-        // synthetic rect that does not match the Center widget's live
-        // geometry (Step 3.1 introduced the 4-gate; Step 3.2 made the gates
-        // opt-out via params).
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      // The handler awaits a 50ms delay and two endOfFrame ticks; pump
+      // alongside the future so frames advance under fake-async. Stable +
+      // receives-events gates opt-out because registerForTesting mints a
+      // synthetic rect that does not match the Center widget's live
+      // geometry (Step 3.1 introduced the 4-gate; Step 3.2 made the gates
+      // opt-out via params).
+      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': ref,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['ref'], equals(ref));
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['ref'], equals(ref));
+    });
 
     // -------------------------------------------------------------------------
     // (b) Off-viewport widget tap fails fast with descriptive error
@@ -306,30 +296,28 @@ void main() {
       },
     );
 
-    testWidgets(
-      '(b) zero-rect tap returns "zero rect" actionability error',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(const SizedBox.shrink());
-        final Element element = tester.element(find.byType(SizedBox));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(10, 10, 0, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+    testWidgets('(b) zero-rect tap returns "zero rect" actionability error', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      final Element element = tester.element(find.byType(SizedBox));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(10, 10, 0, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final response = await aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{'ref': ref},
-        );
+      final response = await aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': ref,
+      });
 
-        expect(response.result, isNull);
-        expect(
-          response.errorDetail ?? '',
-          contains('Widget ref=$ref is not actionable: zero rect'),
-        );
-      },
-    );
+      expect(response.result, isNull);
+      expect(
+        response.errorDetail ?? '',
+        contains('Widget ref=$ref is not actionable: zero rect'),
+      );
+    });
 
     // -------------------------------------------------------------------------
     // (c) Pre-existing guard clauses still take precedence over the gate
@@ -338,8 +326,10 @@ void main() {
     test(
       '(c) missing ref param still returns the original missing-param error',
       () async {
-        final response =
-            await aiTestTapHandler('ext.tapir.tap', <String, String>{});
+        final response = await aiTestTapHandler(
+          'ext.tapir.tap',
+          <String, String>{},
+        );
         expect(response.result, isNull);
         expect(response.errorDetail ?? '', contains('missing required param'));
       },
@@ -361,43 +351,39 @@ void main() {
   group('aiTestHoverHandler actionability gate', () {
     setUp(RefRegistry.resetForTesting);
 
-    testWidgets(
-      '(a) actionable widget hover returns ok envelope',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(a) actionable widget hover returns ok envelope', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('hover-target'))),
-          ),
-        );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('hover-target'))),
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(50, 50, 60, 60),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(50, 50, 60, 60),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestHoverHandler(
-          'ext.tapir.hover',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestHoverHandler('ext.tapir.hover', <String, String>{
+        'ref': ref,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.result, isNotNull);
-      },
-    );
+      expect(response.result, isNotNull);
+    });
 
     testWidgets(
       '(b) off-viewport hover returns descriptive actionability error',
@@ -440,60 +426,56 @@ void main() {
     // (a) Both ends actionable → drag returns ok envelope
     // -------------------------------------------------------------------------
 
-    testWidgets(
-      '(a) both endpoints actionable → drag returns ok envelope',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(a) both endpoints actionable → drag returns ok envelope', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('drag-host'))),
-          ),
-        );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('drag-host'))),
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String startRef = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(50, 50, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
-        final String endRef = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(300, 300, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String startRef = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(50, 50, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
+      final String endRef = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(300, 300, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        // Drag handler awaits 5 × 16ms delays plus two endOfFrame ticks.
-        // Stable + receives-events gates opt-out: synthetic test rects do
-        // not align with the live Center widget geometry.
-        final future = aiTestDragHandler(
-          'ext.tapir.drag',
-          <String, String>{
-            'startRef': startRef,
-            'endRef': endRef,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        for (int i = 0; i < 6; i++) {
-          await tester.pump(const Duration(milliseconds: 20));
-        }
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      // Drag handler awaits 5 × 16ms delays plus two endOfFrame ticks.
+      // Stable + receives-events gates opt-out: synthetic test rects do
+      // not align with the live Center widget geometry.
+      final future = aiTestDragHandler('ext.tapir.drag', <String, String>{
+        'startRef': startRef,
+        'endRef': endRef,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      for (int i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['startRef'], equals(startRef));
-        expect(decoded['endRef'], equals(endRef));
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['startRef'], equals(startRef));
+      expect(decoded['endRef'], equals(endRef));
+    });
 
     // -------------------------------------------------------------------------
     // (c) Off-viewport drag fails fast — both startRef and endRef are gated
@@ -741,38 +723,37 @@ void main() {
       },
     );
 
-    testWidgets(
-      'an e-ref whose label lost a namesake stays defunct',
-      (WidgetTester tester) async {
-        _useSmallView(tester);
-        int taps = 0;
-        await tester.pumpWidget(
-          _saveScreen(<Key, VoidCallback>{
-            const ValueKey<String>('a'): () => taps++,
-            const ValueKey<String>('b'): () => taps++,
-          }),
-        );
-        final String ref = _refsFor(
-          (await tapirSnapBuild())['snapshot'] as String,
-          'Save',
-        ).first;
+    testWidgets('an e-ref whose label lost a namesake stays defunct', (
+      WidgetTester tester,
+    ) async {
+      _useSmallView(tester);
+      int taps = 0;
+      await tester.pumpWidget(
+        _saveScreen(<Key, VoidCallback>{
+          const ValueKey<String>('a'): () => taps++,
+          const ValueKey<String>('b'): () => taps++,
+        }),
+      );
+      final String ref = _refsFor(
+        (await tapirSnapBuild())['snapshot'] as String,
+        'Save',
+      ).first;
 
-        await tester.pumpWidget(
-          _saveScreen(<Key, VoidCallback>{
-            const ValueKey<String>('c'): () => taps++,
-          }),
-        );
+      await tester.pumpWidget(
+        _saveScreen(<Key, VoidCallback>{
+          const ValueKey<String>('c'): () => taps++,
+        }),
+      );
 
-        final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+      final ServiceExtensionResponse response = await _pumpTap(tester, ref);
 
-        expect(response.result, isNull);
-        expect(
-          response.errorDetail,
-          contains('defunct (element no longer mounted)'),
-        );
-        expect(taps, equals(0));
-      },
-    );
+      expect(response.result, isNull);
+      expect(
+        response.errorDetail,
+        contains('defunct (element no longer mounted)'),
+      );
+      expect(taps, equals(0));
+    });
 
     testWidgets(
       'an e-ref is not relocated onto an equal-label widget on another route',
@@ -823,42 +804,35 @@ void main() {
       },
     );
 
-    testWidgets(
-      'an e-ref minted outside any route still relocates',
-      (WidgetTester tester) async {
-        _useSmallView(tester);
-        int oldTaps = 0;
-        int newTaps = 0;
-        await tester.pumpWidget(
-          _routelessSaveScreen(
-            const ValueKey<String>('old'),
-            () => oldTaps++,
-          ),
-        );
-        final String ref = _refsFor(
-          (await tapirSnapBuild())['snapshot'] as String,
-          'Save',
-        ).single;
-        expect(RefRegistry.lookupBinding(ref)!.route, isNull);
+    testWidgets('an e-ref minted outside any route still relocates', (
+      WidgetTester tester,
+    ) async {
+      _useSmallView(tester);
+      int oldTaps = 0;
+      int newTaps = 0;
+      await tester.pumpWidget(
+        _routelessSaveScreen(const ValueKey<String>('old'), () => oldTaps++),
+      );
+      final String ref = _refsFor(
+        (await tapirSnapBuild())['snapshot'] as String,
+        'Save',
+      ).single;
+      expect(RefRegistry.lookupBinding(ref)!.route, isNull);
 
-        await tester.pumpWidget(
-          _routelessSaveScreen(
-            const ValueKey<String>('new'),
-            () => newTaps++,
-          ),
-        );
-        expect(RefRegistry.lookup(ref)!.element.mounted, isFalse);
+      await tester.pumpWidget(
+        _routelessSaveScreen(const ValueKey<String>('new'), () => newTaps++),
+      );
+      expect(RefRegistry.lookup(ref)!.element.mounted, isFalse);
 
-        final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+      final ServiceExtensionResponse response = await _pumpTap(tester, ref);
 
-        expect(response.errorDetail, isNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['reresolved'], equals(<String>[ref]));
-        expect(newTaps, equals(1));
-        expect(oldTaps, equals(0));
-      },
-    );
+      expect(response.errorDetail, isNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['reresolved'], equals(<String>[ref]));
+      expect(newTaps, equals(1));
+      expect(oldTaps, equals(0));
+    });
 
     testWidgets(
       'a still-mounted e-ref taps as before and reports no re-resolution',
@@ -926,14 +900,11 @@ void main() {
           isTextField: true,
         );
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
+        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+        });
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
         await tester.pump();
@@ -957,445 +928,409 @@ void main() {
   group('aiTestTapHandler snapshot-in-response', () {
     setUp(RefRegistry.resetForTesting);
 
-    testWidgets(
-      'embeds snapshot field in success response by default',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('embeds snapshot field in success response by default', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: ElevatedButton(
-                  onPressed: () {},
-                  child: const Text('snap-tap'),
-                ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {},
+                child: const Text('snap-tap'),
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        final Element element = tester.element(find.byType(ElevatedButton));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 80, 40),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(ElevatedButton));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 80, 40),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': ref,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['ref'], equals(ref));
-        expect(decoded['snapshot'], isA<String>());
-        expect(decoded['snapshot'] as String, isNotEmpty);
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['ref'], equals(ref));
+      expect(decoded['snapshot'], isA<String>());
+      expect(decoded['snapshot'] as String, isNotEmpty);
+    });
 
-    testWidgets(
-      'omits snapshot field when includeSnapshot is false',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('omits snapshot field when includeSnapshot is false', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('no-snap'))),
-          ),
-        );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('no-snap'))),
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'false',
-          },
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': ref,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+        'includeSnapshot': 'false',
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['ref'], equals(ref));
-        expect(decoded.containsKey('snapshot'), isFalse);
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['ref'], equals(ref));
+      expect(decoded.containsKey('snapshot'), isFalse);
+    });
 
-    testWidgets(
-      'snapshot YAML contains the tapped widget label',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('snapshot YAML contains the tapped widget label', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: ElevatedButton(
-                  onPressed: () {},
-                  child: const Text('snap-content-target'),
-                ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {},
+                child: const Text('snap-content-target'),
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        final Element element = tester.element(find.byType(ElevatedButton));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 80, 40),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(ElevatedButton));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 80, 40),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': ref,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        final String snapshot = decoded['snapshot'] as String;
-        expect(snapshot, contains('snap-content-target'));
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final String snapshot = decoded['snapshot'] as String;
+      expect(snapshot, contains('snap-content-target'));
+    });
   });
 
   group('aiTestHoverHandler snapshot-in-response', () {
     setUp(RefRegistry.resetForTesting);
 
-    testWidgets(
-      'embeds snapshot field by default',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('embeds snapshot field by default', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('hover-snap'))),
-          ),
-        );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('hover-snap'))),
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(50, 50, 60, 60),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(50, 50, 60, 60),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestHoverHandler(
-          'ext.tapir.hover',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestHoverHandler('ext.tapir.hover', <String, String>{
+        'ref': ref,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['snapshot'], isA<String>());
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['snapshot'], isA<String>());
+    });
 
-    testWidgets(
-      'omits snapshot when includeSnapshot is false',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('omits snapshot when includeSnapshot is false', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('hover-nosnap'))),
-          ),
-        );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('hover-nosnap'))),
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(50, 50, 60, 60),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(50, 50, 60, 60),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestHoverHandler(
-          'ext.tapir.hover',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'false',
-          },
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestHoverHandler('ext.tapir.hover', <String, String>{
+        'ref': ref,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+        'includeSnapshot': 'false',
+      });
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded.containsKey('snapshot'), isFalse);
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded.containsKey('snapshot'), isFalse);
+    });
 
-    testWidgets(
-      'snapshot YAML reflects the post-hover tree contents',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('snapshot YAML reflects the post-hover tree contents', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: ElevatedButton(
-                  onPressed: () {},
-                  child: const Text('hover-content-marker'),
-                ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {},
+                child: const Text('hover-content-marker'),
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(50, 50, 60, 60),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(50, 50, 60, 60),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestHoverHandler(
-          'ext.tapir.hover',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestHoverHandler('ext.tapir.hover', <String, String>{
+        'ref': ref,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['snapshot'] as String, contains('hover-content-marker'));
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['snapshot'] as String, contains('hover-content-marker'));
+    });
   });
 
   group('aiTestDragHandler snapshot-in-response', () {
     setUp(RefRegistry.resetForTesting);
 
-    testWidgets(
-      'embeds snapshot field in success response by default',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('embeds snapshot field in success response by default', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('drag-snap-target'))),
-          ),
-        );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('drag-snap-target'))),
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String startRef = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(50, 50, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
-        final String endRef = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(300, 300, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String startRef = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(50, 50, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
+      final String endRef = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(300, 300, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestDragHandler(
-          'ext.tapir.drag',
-          <String, String>{
-            'startRef': startRef,
-            'endRef': endRef,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        for (int i = 0; i < 6; i++) {
-          await tester.pump(const Duration(milliseconds: 20));
-        }
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestDragHandler('ext.tapir.drag', <String, String>{
+        'startRef': startRef,
+        'endRef': endRef,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      for (int i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['startRef'], equals(startRef));
-        expect(decoded['endRef'], equals(endRef));
-        expect(decoded['snapshot'], isA<String>());
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['startRef'], equals(startRef));
+      expect(decoded['endRef'], equals(endRef));
+      expect(decoded['snapshot'], isA<String>());
+    });
 
-    testWidgets(
-      'omits snapshot when includeSnapshot is false',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('omits snapshot when includeSnapshot is false', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('drag-nosnap'))),
-          ),
-        );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('drag-nosnap'))),
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String startRef = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(50, 50, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
-        final String endRef = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(300, 300, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String startRef = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(50, 50, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
+      final String endRef = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(300, 300, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestDragHandler(
-          'ext.tapir.drag',
-          <String, String>{
-            'startRef': startRef,
-            'endRef': endRef,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'false',
-          },
-        );
-        for (int i = 0; i < 6; i++) {
-          await tester.pump(const Duration(milliseconds: 20));
-        }
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestDragHandler('ext.tapir.drag', <String, String>{
+        'startRef': startRef,
+        'endRef': endRef,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+        'includeSnapshot': 'false',
+      });
+      for (int i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded.containsKey('snapshot'), isFalse);
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded.containsKey('snapshot'), isFalse);
+    });
 
-    testWidgets(
-      'snapshot YAML reflects the post-drag tree',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('snapshot YAML reflects the post-drag tree', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: ElevatedButton(
-                  onPressed: () {},
-                  child: const Text('drag-content-marker'),
-                ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {},
+                child: const Text('drag-content-marker'),
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String startRef = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(50, 50, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
-        final String endRef = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(300, 300, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String startRef = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(50, 50, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
+      final String endRef = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(300, 300, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestDragHandler(
-          'ext.tapir.drag',
-          <String, String>{
-            'startRef': startRef,
-            'endRef': endRef,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        for (int i = 0; i < 6; i++) {
-          await tester.pump(const Duration(milliseconds: 20));
-        }
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestDragHandler('ext.tapir.drag', <String, String>{
+        'startRef': startRef,
+        'endRef': endRef,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      for (int i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['snapshot'] as String, contains('drag-content-marker'));
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['snapshot'] as String, contains('drag-content-marker'));
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -1464,38 +1399,37 @@ void main() {
     // (b) Actionability-blocked — off-viewport ref returns error.
     // -------------------------------------------------------------------------
 
-    testWidgets(
-      '(b) off-viewport double-click returns actionability error',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(b) off-viewport double-click returns actionability error', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(const SizedBox.shrink());
-        final Element element = tester.element(find.byType(SizedBox));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(5000, 5000, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      await tester.pumpWidget(const SizedBox.shrink());
+      final Element element = tester.element(find.byType(SizedBox));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(5000, 5000, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final response = await aiTestDoubleClickHandler(
-          'ext.tapir.dblclick',
-          <String, String>{'ref': ref},
-        );
+      final response = await aiTestDoubleClickHandler(
+        'ext.tapir.dblclick',
+        <String, String>{'ref': ref},
+      );
 
-        expect(response.result, isNull);
-        expect(
-          response.errorDetail ?? '',
-          allOf(
-            contains('Widget ref=$ref is not actionable'),
-            contains('off-viewport'),
-          ),
-        );
-      },
-    );
+      expect(response.result, isNull);
+      expect(
+        response.errorDetail ?? '',
+        allOf(
+          contains('Widget ref=$ref is not actionable'),
+          contains('off-viewport'),
+        ),
+      );
+    });
 
     // -------------------------------------------------------------------------
     // (c) Missing ref param — returns missingParam error.
@@ -1518,50 +1452,49 @@ void main() {
     // (d) Snapshot embed — double-click with includeSnapshot:true returns snapshot.
     // -------------------------------------------------------------------------
 
-    testWidgets(
-      '(d) includeSnapshot:true embeds snapshot in response',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(d) includeSnapshot:true embeds snapshot in response', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('dblclick-snap-test'))),
-          ),
-        );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('dblclick-snap-test'))),
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestDoubleClickHandler(
-          'ext.tapir.dblclick',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'true',
-          },
-        );
-        for (int i = 0; i < 8; i++) {
-          await tester.pump(const Duration(milliseconds: 50));
-        }
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestDoubleClickHandler(
+        'ext.tapir.dblclick',
+        <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+          'includeSnapshot': 'true',
+        },
+      );
+      for (int i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded.containsKey('snapshot'), isTrue);
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded.containsKey('snapshot'), isTrue);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -1578,75 +1511,73 @@ void main() {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
-    testWidgets(
-      '(a) returns the live rect of a mounted, sized RenderBox',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(a) returns the live rect of a mounted, sized RenderBox', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(
-              body: Align(
-                alignment: Alignment.topLeft,
-                child: SizedBox(width: 120, height: 40, child: Text('live')),
-              ),
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(width: 120, height: 40, child: Text('live')),
             ),
           ),
-        );
+        ),
+      );
 
-        final Element box = tester.element(find.byType(SizedBox));
-        final RenderBox renderBox = box.renderObject! as RenderBox;
-        final Offset liveTopLeft = renderBox.localToGlobal(Offset.zero);
-        final Rect liveRect = liveTopLeft & renderBox.size;
+      final Element box = tester.element(find.byType(SizedBox));
+      final RenderBox renderBox = box.renderObject! as RenderBox;
+      final Offset liveTopLeft = renderBox.localToGlobal(Offset.zero);
+      final Rect liveRect = liveTopLeft & renderBox.size;
 
-        final RefEntry entry = RefEntry(
-          // Deliberately stale cached rect, far from the live geometry.
-          rect: const Rect.fromLTWH(500, 500, 10, 10),
-          element: box,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final RefEntry entry = RefEntry(
+        // Deliberately stale cached rect, far from the live geometry.
+        rect: const Rect.fromLTWH(500, 500, 10, 10),
+        element: box,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final Rect? dispatchRect = dispatchRectOf(entry);
-        expect(dispatchRect, isNotNull);
-        expect(dispatchRect!.center, equals(liveRect.center));
-        expect(dispatchRect.center, isNot(equals(entry.rect.center)));
-      },
-    );
+      final Rect? dispatchRect = dispatchRectOf(entry);
+      expect(dispatchRect, isNotNull);
+      expect(dispatchRect!.center, equals(liveRect.center));
+      expect(dispatchRect.center, isNot(equals(entry.rect.center)));
+    });
 
-    testWidgets(
-      '(c) returns null for a non-RenderBox (sliver) render object',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: CustomScrollView(
-                slivers: <Widget>[
-                  SliverList(
-                    delegate: SliverChildListDelegate(<Widget>[
-                      const SizedBox(height: 50, child: Text('row')),
-                    ]),
-                  ),
-                ],
-              ),
+    testWidgets('(c) returns null for a non-RenderBox (sliver) render object', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CustomScrollView(
+              slivers: <Widget>[
+                SliverList(
+                  delegate: SliverChildListDelegate(<Widget>[
+                    const SizedBox(height: 50, child: Text('row')),
+                  ]),
+                ),
+              ],
             ),
           ),
-        );
+        ),
+      );
 
-        final Element sliver = tester.element(find.byType(SliverList));
-        final RefEntry entry = RefEntry(
-          rect: const Rect.fromLTWH(0, 0, 100, 50),
-          element: sliver,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element sliver = tester.element(find.byType(SliverList));
+      final RefEntry entry = RefEntry(
+        rect: const Rect.fromLTWH(0, 0, 100, 50),
+        element: sliver,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        expect(dispatchRectOf(entry), isNull);
-      },
-    );
+      expect(dispatchRectOf(entry), isNull);
+    });
   });
 
   group('aiTestTapHandler live-rect dispatch', () {
@@ -1723,15 +1654,12 @@ void main() {
             movedBox.localToGlobal(Offset.zero) & movedBox.size;
         expect(liveRect.center, isNot(equals(cachedRect.center)));
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'false',
-          },
-        );
+        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+          'includeSnapshot': 'false',
+        });
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
         await tester.pump();
@@ -1751,195 +1679,185 @@ void main() {
     // (a counter button whose own label increments).
     // -------------------------------------------------------------------------
 
-    testWidgets(
-      '(d) reports changed:true when the target subtree changes',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(d) reports changed:true when the target subtree changes', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        int count = 0;
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: StatefulBuilder(
-                  builder: (BuildContext context, StateSetter setState) {
-                    return ElevatedButton(
-                      onPressed: () => setState(() => count++),
-                      child: Text('Count: $count'),
-                    );
-                  },
-                ),
+      int count = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: StatefulBuilder(
+                builder: (BuildContext context, StateSetter setState) {
+                  return ElevatedButton(
+                    onPressed: () => setState(() => count++),
+                    child: Text('Count: $count'),
+                  );
+                },
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        final Element button = tester.element(find.byType(ElevatedButton));
-        final SemanticsNode node =
-            tester.getSemantics(find.byType(ElevatedButton));
-        final RenderBox box = button.renderObject! as RenderBox;
-        final Rect rect = box.localToGlobal(Offset.zero) & box.size;
-        final String ref = RefRegistry.register(
-          rect: rect,
-          element: button,
-          groupId: 'g',
-          isTextField: false,
-          node: node,
-        );
+      final Element button = tester.element(find.byType(ElevatedButton));
+      final SemanticsNode node = tester.getSemantics(
+        find.byType(ElevatedButton),
+      );
+      final RenderBox box = button.renderObject! as RenderBox;
+      final Rect rect = box.localToGlobal(Offset.zero) & box.size;
+      final String ref = RefRegistry.register(
+        rect: rect,
+        element: button,
+        groupId: 'g',
+        isTextField: false,
+        node: node,
+      );
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'includeSnapshot': 'false',
-            // The timing-sensitive gates (stable/receives-events) are not
-            // under test here; opt out so the gate's `await endOfFrame` does
-            // not outrun the fake-async pump budget. Matches the convention
-            // used by every other handler test in this file.
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': ref,
+        'includeSnapshot': 'false',
+        // The timing-sensitive gates (stable/receives-events) are not
+        // under test here; opt out so the gate's `await endOfFrame` does
+        // not outrun the fake-async pump budget. Matches the convention
+        // used by every other handler test in this file.
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        final Map<String, dynamic> effect =
-            decoded['effect'] as Map<String, dynamic>;
-        expect(effect['kind'], equals('treeChanged'));
-        expect(effect['changed'], isTrue);
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final Map<String, dynamic> effect =
+          decoded['effect'] as Map<String, dynamic>;
+      expect(effect['kind'], equals('treeChanged'));
+      expect(effect['changed'], isTrue);
+    });
 
     // -------------------------------------------------------------------------
     // (d) effect.changed is false when nothing changes (inert button).
     // -------------------------------------------------------------------------
 
-    testWidgets(
-      '(d) reports changed:false when nothing changes',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(d) reports changed:false when nothing changes', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: ElevatedButton(
-                  onPressed: () {},
-                  child: const Text('Inert'),
-                ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {},
+                child: const Text('Inert'),
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        final Element button = tester.element(find.byType(ElevatedButton));
-        final SemanticsNode node =
-            tester.getSemantics(find.byType(ElevatedButton));
-        final RenderBox box = button.renderObject! as RenderBox;
-        final Rect rect = box.localToGlobal(Offset.zero) & box.size;
-        final String ref = RefRegistry.register(
-          rect: rect,
-          element: button,
-          groupId: 'g',
-          isTextField: false,
-          node: node,
-        );
+      final Element button = tester.element(find.byType(ElevatedButton));
+      final SemanticsNode node = tester.getSemantics(
+        find.byType(ElevatedButton),
+      );
+      final RenderBox box = button.renderObject! as RenderBox;
+      final Rect rect = box.localToGlobal(Offset.zero) & box.size;
+      final String ref = RefRegistry.register(
+        rect: rect,
+        element: button,
+        groupId: 'g',
+        isTextField: false,
+        node: node,
+      );
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'includeSnapshot': 'false',
-            // Gate timing is not under test here; opt out so the stable
-            // gate's `await endOfFrame` does not outrun the fake-async pump
-            // budget (see the changed:true case above).
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': ref,
+        'includeSnapshot': 'false',
+        // Gate timing is not under test here; opt out so the stable
+        // gate's `await endOfFrame` does not outrun the fake-async pump
+        // budget (see the changed:true case above).
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        final Map<String, dynamic> effect =
-            decoded['effect'] as Map<String, dynamic>;
-        expect(effect['kind'], equals('treeChanged'));
-        expect(effect['changed'], isFalse);
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final Map<String, dynamic> effect =
+          decoded['effect'] as Map<String, dynamic>;
+      expect(effect['kind'], equals('treeChanged'));
+      expect(effect['changed'], isFalse);
+    });
 
     // -------------------------------------------------------------------------
     // (d) the block needs no opt-in: a default call carries it too, which
     // is the point. An agent cannot forget to ask whether the tap landed.
     // -------------------------------------------------------------------------
 
-    testWidgets(
-      '(d) a default call carries the effect block',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(d) a default call carries the effect block', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('default'))),
-          ),
-        );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('default'))),
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'false',
-          },
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': ref,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+        'includeSnapshot': 'false',
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(
-          (decoded['effect'] as Map<String, dynamic>)['kind'],
-          equals('treeChanged'),
-        );
-        // This call opts out of the receives-events gate (synthetic rect),
-        // and the payload records that rather than letting a clean pass
-        // read as a confirmation the gate never made.
-        expect(
-          (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
-          equals('skipped'),
-        );
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(
+        (decoded['effect'] as Map<String, dynamic>)['kind'],
+        equals('treeChanged'),
+      );
+      // This call opts out of the receives-events gate (synthetic rect),
+      // and the payload records that rather than letting a clean pass
+      // read as a confirmation the gate never made.
+      expect(
+        (decoded['checks'] as Map<String, dynamic>)['receivesEvents'],
+        equals('skipped'),
+      );
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -1952,52 +1870,44 @@ void main() {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
-    testWidgets(
-      'untilMatched=true when the tap reveals the expected text',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('untilMatched=true when the tap reveals the expected text', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: _RevealOnTap(),
-          ),
-        );
+      await tester.pumpWidget(MaterialApp(home: _RevealOnTap()));
 
-        final Element element = tester.element(find.text('reveal'));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 120, 40),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.text('reveal'));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 120, 40),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'false',
-            'until': 'Revealed!',
-          },
-        );
-        // Pump past the tap hold (50ms) + the two post-dispatch frames so the
-        // onPressed setState rebuild renders "Revealed!" before the until poll
-        // walks the tree; the poll then matches on its first iteration.
-        for (var i = 0; i < 8; i++) {
-          await tester.pump(const Duration(milliseconds: 50));
-        }
-        final response = await future;
+      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': ref,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+        'includeSnapshot': 'false',
+        'until': 'Revealed!',
+      });
+      // Pump past the tap hold (50ms) + the two post-dispatch frames so the
+      // onPressed setState rebuild renders "Revealed!" before the until poll
+      // walks the tree; the poll then matches on its first iteration.
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      final response = await future;
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['untilMatched'], isTrue);
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['untilMatched'], isTrue);
+    });
 
     testWidgets(
       'untilMatched=false when the expected text never appears (timeout)',
@@ -2028,17 +1938,14 @@ void main() {
           isTextField: false,
         );
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'false',
-            'until': 'NeverAppears',
-            'untilTimeoutMs': '300',
-          },
-        );
+        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+          'ref': ref,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+          'includeSnapshot': 'false',
+          'until': 'NeverAppears',
+          'untilTimeoutMs': '300',
+        });
         // Pump past the tap settle (50ms + 2 frames) and the full 300ms poll
         // window so the real-timer delays inside the poll loop complete under
         // the fake clock; the text never appears, so untilMatched is false.
@@ -2062,48 +1969,44 @@ void main() {
   group('aiTestTapHandler checks', () {
     setUp(RefRegistry.resetForTesting);
 
-    testWidgets(
-      'records an unprovable receives-events check on the payload',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('records an unprovable receives-events check on the payload', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        // Nothing painted, so the hit-test reaches only the root render
-        // view. That is the shape Flutter Web's debug build produces for a
-        // real widget, and it used to pass as a silent clean gate.
-        await tester.pumpWidget(const SizedBox.shrink());
+      // Nothing painted, so the hit-test reaches only the root render
+      // view. That is the shape Flutter Web's debug build produces for a
+      // real widget, and it used to pass as a silent clean gate.
+      await tester.pumpWidget(const SizedBox.shrink());
 
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 50, 50),
-          element: tester.element(find.byType(SizedBox)),
-          groupId: 'g',
-          isTextField: false,
-        );
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: tester.element(find.byType(SizedBox)),
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': ref,
-            'checkStable': 'false',
-            'includeSnapshot': 'false',
-          },
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': ref,
+        'checkStable': 'false',
+        'includeSnapshot': 'false',
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        final Map<String, dynamic> checks =
-            decoded['checks'] as Map<String, dynamic>;
-        expect(checks['receivesEvents'], equals('indeterminate'));
-        expect(checks['why'], contains('root'));
-        expect(checks['hint'], contains('may have landed on something else'));
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final Map<String, dynamic> checks =
+          decoded['checks'] as Map<String, dynamic>;
+      expect(checks['receivesEvents'], equals('indeterminate'));
+      expect(checks['why'], contains('root'));
+      expect(checks['hint'], contains('may have landed on something else'));
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -2169,9 +2072,9 @@ void main() {
         final SemanticsHandle handle = tester.ensureSemantics();
         try {
           await tester.pumpWidget(
-            _saveScreen(
-              <Key, VoidCallback>{const ValueKey<String>('a'): () {}},
-            ),
+            _saveScreen(<Key, VoidCallback>{
+              const ValueKey<String>('a'): () {},
+            }),
           );
           final String snapshot =
               (await tapirSnapBuild())['snapshot'] as String;
@@ -2238,85 +2141,76 @@ void main() {
       },
     );
 
-    testWidgets(
-      'retarget: false taps the centre and warns instead',
-      (WidgetTester tester) async {
-        _useSmallView(tester);
-        final SemanticsHandle handle = tester.ensureSemantics();
-        int stageTaps = 0;
-        int skips = 0;
-        try {
-          await tester.pumpWidget(
-            mergedStageApp(
-              onStageTap: () => stageTaps++,
-              onSkip: () => skips++,
-            ),
-          );
-          final String snapshot =
-              (await tapirSnapBuild())['snapshot'] as String;
-          final String ref = _refsFor(snapshot, 'Skip intro').single;
+    testWidgets('retarget: false taps the centre and warns instead', (
+      WidgetTester tester,
+    ) async {
+      _useSmallView(tester);
+      final SemanticsHandle handle = tester.ensureSemantics();
+      int stageTaps = 0;
+      int skips = 0;
+      try {
+        await tester.pumpWidget(
+          mergedStageApp(onStageTap: () => stageTaps++, onSkip: () => skips++),
+        );
+        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
+        final String ref = _refsFor(snapshot, 'Skip intro').single;
 
-          final ServiceExtensionResponse response = await _pumpTap(
-            tester,
-            ref,
-            extra: <String, String>{'retarget': 'false'},
-          );
+        final ServiceExtensionResponse response = await _pumpTap(
+          tester,
+          ref,
+          extra: <String, String>{'retarget': 'false'},
+        );
 
-          expect(response.result, isNotNull, reason: response.errorDetail);
-          expect(stageTaps, 1);
-          expect(skips, 0);
-          final Map<String, dynamic> decoded =
-              jsonDecode(response.result!) as Map<String, dynamic>;
-          expect(decoded, isNot(contains('retargeted')));
-          expect(decoded, contains('tapPointOutsideOwner'));
-        } finally {
-          handle.dispose();
-        }
-      },
-    );
+        expect(response.result, isNotNull, reason: response.errorDetail);
+        expect(stageTaps, 1);
+        expect(skips, 0);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded, isNot(contains('retargeted')));
+        expect(decoded, contains('tapPointOutsideOwner'));
+      } finally {
+        handle.dispose();
+      }
+    });
 
-    testWidgets(
-      'a q handle from observe lands on the control, not the stage',
-      (WidgetTester tester) async {
-        _useSmallView(tester);
-        final SemanticsHandle handle = tester.ensureSemantics();
-        int stageTaps = 0;
-        int skips = 0;
-        try {
-          await tester.pumpWidget(
-            mergedStageApp(
-              onStageTap: () => stageTaps++,
-              onSkip: () => skips++,
-            ),
-          );
-          final ServiceExtensionResponse observed =
-              await extTapirObserveHandler(
-            'ext.tapir.observe',
-            <String, String>{},
-          );
-          final Map<String, dynamic> candidate = (jsonDecode(observed.result!)
-                  as Map<String, dynamic>)['candidates']
-              .cast<Map<String, dynamic>>()
-              .singleWhere(
-                (Map<String, dynamic> c) => c['label'] == 'Skip intro',
-              ) as Map<String, dynamic>;
-          final String ref = candidate['ref'] as String;
-          expect(ref, startsWith('q'));
+    testWidgets('a q handle from observe lands on the control, not the stage', (
+      WidgetTester tester,
+    ) async {
+      _useSmallView(tester);
+      final SemanticsHandle handle = tester.ensureSemantics();
+      int stageTaps = 0;
+      int skips = 0;
+      try {
+        await tester.pumpWidget(
+          mergedStageApp(onStageTap: () => stageTaps++, onSkip: () => skips++),
+        );
+        final ServiceExtensionResponse observed = await extTapirObserveHandler(
+          'ext.tapir.observe',
+          <String, String>{},
+        );
+        final Map<String, dynamic> candidate =
+            (jsonDecode(observed.result!) as Map<String, dynamic>)['candidates']
+                    .cast<Map<String, dynamic>>()
+                    .singleWhere(
+                      (Map<String, dynamic> c) => c['label'] == 'Skip intro',
+                    )
+                as Map<String, dynamic>;
+        final String ref = candidate['ref'] as String;
+        expect(ref, startsWith('q'));
 
-          final ServiceExtensionResponse response = await _pumpTap(tester, ref);
+        final ServiceExtensionResponse response = await _pumpTap(tester, ref);
 
-          expect(response.result, isNotNull, reason: response.errorDetail);
-          expect(skips, 1);
-          expect(stageTaps, 0);
-          expect(
-            jsonDecode(response.result!) as Map<String, dynamic>,
-            isNot(contains('tapPointOutsideOwner')),
-          );
-        } finally {
-          handle.dispose();
-        }
-      },
-    );
+        expect(response.result, isNotNull, reason: response.errorDetail);
+        expect(skips, 1);
+        expect(stageTaps, 0);
+        expect(
+          jsonDecode(response.result!) as Map<String, dynamic>,
+          isNot(contains('tapPointOutsideOwner')),
+        );
+      } finally {
+        handle.dispose();
+      }
+    });
 
     testWidgets(
       'two labelled controls and neither at the centre: warn, do not guess',
@@ -2336,8 +2230,9 @@ void main() {
           );
           final String snapshot =
               (await tapirSnapBuild())['snapshot'] as String;
-          final String ref =
-              RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
+          final String ref = RegExp(r'\[ref=(e\d+)\]')
+              .firstMatch(snapshot)!
+              .group(1)!;
 
           final ServiceExtensionResponse response = await _pumpTap(tester, ref);
 
@@ -2362,65 +2257,59 @@ void main() {
   group('aiTestTapHandler under frame starvation', () {
     setUp(RefRegistry.resetForTesting);
 
-    testWidgets(
-      'tap resolves when the engine produces no frames',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('tap resolves when the engine produces no frames', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('hello'))),
-          ),
-        );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('hello'))),
+        ),
+      );
 
-        final Element element = tester.element(find.byType(Scaffold));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 50, 50),
-          element: element,
-          groupId: 'g',
-          isTextField: false,
-        );
+      final Element element = tester.element(find.byType(Scaffold));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 50, 50),
+        element: element,
+        groupId: 'g',
+        isTextField: false,
+      );
 
-        // `runAsync` swaps the fake clock for the real one AND stops the
-        // harness from pumping, which is exactly what a backgrounded Chrome
-        // tab does: `document.visibilityState: "hidden"` disables frame
-        // production, so every `endOfFrame` the handler awaits never
-        // completes. The handler must fall through on its own timer rather
-        // than block until the caller's shell timeout kills it.
-        final ServiceExtensionResponse? response =
-            await tester.runAsync<ServiceExtensionResponse?>(
-          () => aiTestTapHandler(
-            'ext.tapir.tap',
-            <String, String>{
-              'ref': ref,
-              'checkStable': 'false',
-              'checkReceivesEvents': 'false',
-              'includeSnapshot': 'false',
-            },
-          )
-              .then<ServiceExtensionResponse?>(
-                (ServiceExtensionResponse r) => r,
-              )
-              .timeout(
-                const Duration(seconds: 5),
-                onTimeout: () => null,
-              ),
-        );
+      // `runAsync` swaps the fake clock for the real one AND stops the
+      // harness from pumping, which is exactly what a backgrounded Chrome
+      // tab does: `document.visibilityState: "hidden"` disables frame
+      // production, so every `endOfFrame` the handler awaits never
+      // completes. The handler must fall through on its own timer rather
+      // than block until the caller's shell timeout kills it.
+      final ServiceExtensionResponse? response = await tester
+          .runAsync<ServiceExtensionResponse?>(
+            () =>
+                aiTestTapHandler('ext.tapir.tap', <String, String>{
+                      'ref': ref,
+                      'checkStable': 'false',
+                      'checkReceivesEvents': 'false',
+                      'includeSnapshot': 'false',
+                    })
+                    .then<ServiceExtensionResponse?>(
+                      (ServiceExtensionResponse r) => r,
+                    )
+                    .timeout(const Duration(seconds: 5), onTimeout: () => null),
+          );
 
-        expect(
-          response,
-          isNotNull,
-          reason: 'tap must not block forever when no frame is produced',
-        );
-        expect(response!.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['ref'], equals(ref));
-      },
-    );
+      expect(
+        response,
+        isNotNull,
+        reason: 'tap must not block forever when no frame is produced',
+      );
+      expect(response!.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['ref'], equals(ref));
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -2625,10 +2514,10 @@ void main() {
         tester,
         () =>
             aiTestTripleClickHandler('ext.tapir.triple_click', <String, String>{
-          'ref': ref,
-          'checkStable': 'false',
-          'includeSnapshot': 'false',
-        }),
+              'ref': ref,
+              'checkStable': 'false',
+              'includeSnapshot': 'false',
+            }),
       );
 
       expect(
@@ -2752,8 +2641,7 @@ void main() {
       );
     }
 
-    testWidgets(
-        'tap at x,y dispatches without a ref and reports the gate '
+    testWidgets('tap at x,y dispatches without a ref and reports the gate '
         'skipped', (WidgetTester tester) async {
       int taps = 0;
       await host(tester, () => taps++);
@@ -2777,8 +2665,9 @@ void main() {
       expect(decoded.containsKey('snapshot'), isFalse);
     });
 
-    testWidgets('the checks block says released while the handle is held off',
-        (WidgetTester tester) async {
+    testWidgets('the checks block says released while the handle is held off', (
+      WidgetTester tester,
+    ) async {
       await host(tester, () {});
       TapirPlugin.acquireSemantics();
       TapirPlugin.releaseSemantics();
@@ -2791,13 +2680,15 @@ void main() {
         }),
       );
 
-      final Map<String, dynamic> checks = (jsonDecode(response.result!)
-          as Map<String, dynamic>)['checks'] as Map<String, dynamic>;
+      final Map<String, dynamic> checks =
+          (jsonDecode(response.result!) as Map<String, dynamic>)['checks']
+              as Map<String, dynamic>;
       expect(checks['semantics'], 'released');
     });
 
-    testWidgets('a ref tap with reportPoint reports where it dispatched',
-        (WidgetTester tester) async {
+    testWidgets('a ref tap with reportPoint reports where it dispatched', (
+      WidgetTester tester,
+    ) async {
       await host(tester, () {});
       final String ref = RefRegistry.registerForTesting(
         rect: const Rect.fromLTWH(40, 60, 20, 20),
@@ -2823,8 +2714,9 @@ void main() {
       expect(decoded['ref'], ref);
     });
 
-    testWidgets('a ref tap without reportPoint carries no point',
-        (WidgetTester tester) async {
+    testWidgets('a ref tap without reportPoint carries no point', (
+      WidgetTester tester,
+    ) async {
       await host(tester, () {});
       final String ref = RefRegistry.registerForTesting(
         rect: const Rect.fromLTWH(40, 60, 20, 20),
@@ -2844,14 +2736,16 @@ void main() {
       );
 
       expect(
-        (jsonDecode(response.result!) as Map<String, dynamic>)
-            .containsKey('point'),
+        (jsonDecode(response.result!) as Map<String, dynamic>).containsKey(
+          'point',
+        ),
         isFalse,
       );
     });
 
-    testWidgets('hover with reportPoint reports where it hovered',
-        (WidgetTester tester) async {
+    testWidgets('hover with reportPoint reports where it hovered', (
+      WidgetTester tester,
+    ) async {
       await host(tester, () {});
       final String ref = RefRegistry.registerForTesting(
         rect: const Rect.fromLTWH(40, 60, 20, 20),
@@ -2877,8 +2771,9 @@ void main() {
       );
     });
 
-    testWidgets('drag from a ref by dx,dy reports both ends',
-        (WidgetTester tester) async {
+    testWidgets('drag from a ref by dx,dy reports both ends', (
+      WidgetTester tester,
+    ) async {
       await host(tester, () {});
       final String ref = RefRegistry.registerForTesting(
         rect: const Rect.fromLTWH(100, 100, 20, 20),
@@ -2908,8 +2803,9 @@ void main() {
       expect(to['x'], from['x']);
     });
 
-    testWidgets('drag between coordinates needs no ref',
-        (WidgetTester tester) async {
+    testWidgets('drag between coordinates needs no ref', (
+      WidgetTester tester,
+    ) async {
       await host(tester, () {});
 
       final ServiceExtensionResponse response = await settle(
@@ -2929,8 +2825,9 @@ void main() {
       expect((decoded['checks'] as Map<String, dynamic>)['gate'], 'skipped');
     });
 
-    testWidgets('a tap with neither ref nor coordinates keeps the ref error',
-        (WidgetTester tester) async {
+    testWidgets('a tap with neither ref nor coordinates keeps the ref error', (
+      WidgetTester tester,
+    ) async {
       final ServiceExtensionResponse response = await aiTestTapHandler(
         'ext.tapir.tap',
         <String, String>{'x': '10'},
@@ -2979,87 +2876,96 @@ void main() {
       return _refsFor(snapshot, 'Counter: 0').single;
     }
 
-    testWidgets('diff returns only the lines the tap changed',
-        (WidgetTester tester) async {
+    testWidgets('diff returns only the lines the tap changed', (
+      WidgetTester tester,
+    ) async {
       final String ref = await counterRef(tester);
 
-      final Map<String, dynamic> decoded =
-          await tapCounter(tester, ref, <String, String>{'snapshot': 'diff'});
+      final Map<String, dynamic> decoded = await tapCounter(
+        tester,
+        ref,
+        <String, String>{'snapshot': 'diff'},
+      );
 
       expect(decoded['snapshotMode'], 'diff');
       final List<String> lines = (decoded['snapshot'] as String).split('\n');
-      expect(
-        lines.take(2).toList(),
-        <String>[
-          '- - button "Counter: 0" [ref=$ref]',
-          '+ - button "Counter: 1" [ref=$ref]',
-        ],
-      );
+      expect(lines.take(2).toList(), <String>[
+        '- - button "Counter: 0" [ref=$ref]',
+        '+ - button "Counter: 1" [ref=$ref]',
+      ]);
       expect(lines.length, 3);
       expect(lines.last, startsWith('(2 of '));
     });
 
-    testWidgets('diff with no baseline yet returns the full snapshot',
-        (WidgetTester tester) async {
+    testWidgets('diff with no baseline yet returns the full snapshot', (
+      WidgetTester tester,
+    ) async {
       final String ref = await counterRef(tester);
       resetSnapshotBaselineForTesting();
 
-      final Map<String, dynamic> decoded =
-          await tapCounter(tester, ref, <String, String>{'snapshot': 'diff'});
+      final Map<String, dynamic> decoded = await tapCounter(
+        tester,
+        ref,
+        <String, String>{'snapshot': 'diff'},
+      );
 
       expect(decoded['snapshotMode'], 'diff');
       expect(decoded['snapshot'], contains('- button "Counter: 1" [ref=$ref]'));
       expect(decoded['snapshot'], isNot(contains('lines changed')));
     });
 
-    testWidgets('none omits the snapshot key and overrides includeSnapshot',
-        (WidgetTester tester) async {
+    testWidgets('none omits the snapshot key and overrides includeSnapshot', (
+      WidgetTester tester,
+    ) async {
       final String ref = await counterRef(tester);
 
       final Map<String, dynamic> decoded = await tapCounter(
         tester,
         ref,
-        <String, String>{
-          'snapshot': 'none',
-          'includeSnapshot': 'true',
-        },
+        <String, String>{'snapshot': 'none', 'includeSnapshot': 'true'},
       );
 
       expect(decoded.containsKey('snapshot'), isFalse);
       expect(decoded.containsKey('snapshotMode'), isFalse);
     });
 
-    testWidgets('full overrides includeSnapshot false',
-        (WidgetTester tester) async {
+    testWidgets('full overrides includeSnapshot false', (
+      WidgetTester tester,
+    ) async {
       final String ref = await counterRef(tester);
 
       final Map<String, dynamic> decoded = await tapCounter(
         tester,
         ref,
-        <String, String>{
-          'snapshot': 'full',
-          'includeSnapshot': 'false',
-        },
+        <String, String>{'snapshot': 'full', 'includeSnapshot': 'false'},
       );
 
       expect(decoded['snapshot'], contains('"Counter: 1" [ref=$ref]'));
       expect(decoded.containsKey('snapshotMode'), isFalse);
     });
 
-    testWidgets('no snapshot param keeps the full text and adds no key',
-        (WidgetTester tester) async {
+    testWidgets('no snapshot param keeps the full text and adds no key', (
+      WidgetTester tester,
+    ) async {
       final String ref = await counterRef(tester);
 
-      final Map<String, dynamic> decoded =
-          await tapCounter(tester, ref, const <String, String>{});
+      final Map<String, dynamic> decoded = await tapCounter(
+        tester,
+        ref,
+        const <String, String>{},
+      );
       final String fresh = (await tapirSnapBuild())['snapshot'] as String;
 
       expect(decoded['snapshot'], fresh);
       expect(decoded.containsKey('snapshotMode'), isFalse);
       expect(
         decoded.keys.toSet(),
-        <String>{'ref', 'checks', 'effect', 'snapshot'}
-            .intersection(decoded.keys.toSet()),
+        <String>{
+          'ref',
+          'checks',
+          'effect',
+          'snapshot',
+        }.intersection(decoded.keys.toSet()),
       );
     });
   });

@@ -60,7 +60,9 @@ void main() {
 
         expect(priorReceived, contains('chained message'));
         expect(
-            recentCapturedLogs().first['message'], equals('chained message'));
+          recentCapturedLogs().first['message'],
+          equals('chained message'),
+        );
       });
 
       test('stores entries newest-first', () {
@@ -220,26 +222,29 @@ void main() {
 
         debugPrint('should pass INFO filter');
 
-        final List<Map<String, dynamic>> result =
-            recentCapturedLogs(minLevel: 'INFO');
+        final List<Map<String, dynamic>> result = recentCapturedLogs(
+          minLevel: 'INFO',
+        );
         expect(result, hasLength(1));
       });
 
       test(
-          'minLevel WARNING excludes debugPrint entries (level INFO < WARNING)',
-          () {
-        final DebugPrintCallback priorPrint = debugPrint;
-        addTearDown(() => debugPrint = priorPrint);
+        'minLevel WARNING excludes debugPrint entries (level INFO < WARNING)',
+        () {
+          final DebugPrintCallback priorPrint = debugPrint;
+          addTearDown(() => debugPrint = priorPrint);
 
-        installLogCapture();
-        addTearDown(uninstallLogCapture);
+          installLogCapture();
+          addTearDown(uninstallLogCapture);
 
-        debugPrint('below warning');
+          debugPrint('below warning');
 
-        final List<Map<String, dynamic>> result =
-            recentCapturedLogs(minLevel: 'WARNING');
-        expect(result, isEmpty);
-      });
+          final List<Map<String, dynamic>> result = recentCapturedLogs(
+            minLevel: 'WARNING',
+          );
+          expect(result, isEmpty);
+        },
+      );
     });
 
     // -------------------------------------------------------------------------

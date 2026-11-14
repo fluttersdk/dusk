@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_snapshot.dart';
@@ -17,8 +17,9 @@ void _useSmallView(WidgetTester tester) {
 /// Snapshots the screen and judges [point] on the first button ref found.
 Future<TapOwnerReport?> _judge(WidgetTester tester, Offset? point) async {
   final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
-  final String ref =
-      RegExp(r'button "[^"]*" \[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
+  final String ref = RegExp(r'button "[^"]*" \[ref=(e\d+)\]')
+      .firstMatch(snapshot)!
+      .group(1)!;
   final RefEntry entry = RefRegistry.lookup(ref)!;
   return judgeTapPoint(
     node: entry.node!,
@@ -112,8 +113,9 @@ void main() {
       _useSmallView(tester);
       final SemanticsHandle handle = tester.ensureSemantics();
       try {
-        await tester
-            .pumpWidget(mergedStageApp(onStageTap: () {}, onSkip: () {}));
+        await tester.pumpWidget(
+          mergedStageApp(onStageTap: () {}, onSkip: () {}),
+        );
 
         final TapOwnerReport? report = await _judge(tester, null);
 
@@ -175,11 +177,13 @@ void main() {
       _useSmallView(tester);
       final SemanticsHandle handle = tester.ensureSemantics();
       try {
-        await tester
-            .pumpWidget(mergedStageApp(onStageTap: () {}, onSkip: () {}));
+        await tester.pumpWidget(
+          mergedStageApp(onStageTap: () {}, onSkip: () {}),
+        );
         final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
-        final String ref =
-            RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
+        final String ref = RegExp(r'\[ref=(e\d+)\]')
+            .firstMatch(snapshot)!
+            .group(1)!;
         final RefEntry entry = RefRegistry.lookup(ref)!;
 
         final TapOwnerReport? report = judgeTapPoint(
@@ -197,37 +201,40 @@ void main() {
   });
 
   group('tapOwnerBounds()', () {
-    testWidgets('a retargetable owner is plain bounds plus the handled centre',
-        (
-      WidgetTester tester,
-    ) async {
-      _useSmallView(tester);
-      final SemanticsHandle handle = tester.ensureSemantics();
-      try {
-        await tester
-            .pumpWidget(mergedStageApp(onStageTap: () {}, onSkip: () {}));
-        final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
-        final String ref =
-            RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
-        final RefEntry entry = RefRegistry.lookup(ref)!;
+    testWidgets(
+      'a retargetable owner is plain bounds plus the handled centre',
+      (WidgetTester tester) async {
+        _useSmallView(tester);
+        final SemanticsHandle handle = tester.ensureSemantics();
+        try {
+          await tester.pumpWidget(
+            mergedStageApp(onStageTap: () {}, onSkip: () {}),
+          );
+          final String snapshot =
+              (await tapirSnapBuild())['snapshot'] as String;
+          final String ref = RegExp(r'\[ref=(e\d+)\]')
+              .firstMatch(snapshot)!
+              .group(1)!;
+          final RefEntry entry = RefRegistry.lookup(ref)!;
 
-        final Map<String, Object>? bounds = tapOwnerBounds(
-          node: entry.node!,
-          element: entry.element,
-          rect: entry.rect,
-        );
+          final Map<String, Object>? bounds = tapOwnerBounds(
+            node: entry.node!,
+            element: entry.element,
+            rect: entry.rect,
+          );
 
-        expect(bounds, <String, Object>{
-          'x': 656.0,
-          'y': 536.0,
-          'w': 120.0,
-          'h': 40.0,
-          'centreHandled': true,
-        });
-      } finally {
-        handle.dispose();
-      }
-    });
+          expect(bounds, <String, Object>{
+            'x': 656.0,
+            'y': 536.0,
+            'w': 120.0,
+            'h': 40.0,
+            'centreHandled': true,
+          });
+        } finally {
+          handle.dispose();
+        }
+      },
+    );
 
     testWidgets('an owner a tap cannot go to says so', (
       WidgetTester tester,
@@ -239,8 +246,9 @@ void main() {
           mergedChoiceApp(onStageTap: () {}, onYes: () {}, onNo: () {}),
         );
         final String snapshot = (await tapirSnapBuild())['snapshot'] as String;
-        final String ref =
-            RegExp(r'\[ref=(e\d+)\]').firstMatch(snapshot)!.group(1)!;
+        final String ref = RegExp(r'\[ref=(e\d+)\]')
+            .firstMatch(snapshot)!
+            .group(1)!;
         final RefEntry entry = RefRegistry.lookup(ref)!;
 
         final Map<String, Object>? bounds = tapOwnerBounds(
@@ -264,8 +272,9 @@ void main() {
       _useSmallView(tester);
       final SemanticsHandle handle = tester.ensureSemantics();
       try {
-        await tester
-            .pumpWidget(mergedStageApp(onStageTap: () {}, onSkip: () {}));
+        await tester.pumpWidget(
+          mergedStageApp(onStageTap: () {}, onSkip: () {}),
+        );
 
         final TapOwnerReport? report = await _judge(tester, null);
 
@@ -284,11 +293,14 @@ void main() {
       _useSmallView(tester);
       final SemanticsHandle handle = tester.ensureSemantics();
       try {
-        await tester
-            .pumpWidget(mergedStageApp(onStageTap: () {}, onSkip: () {}));
+        await tester.pumpWidget(
+          mergedStageApp(onStageTap: () {}, onSkip: () {}),
+        );
 
-        final TapOwnerReport? report =
-            await _judge(tester, const Offset(700, 550));
+        final TapOwnerReport? report = await _judge(
+          tester,
+          const Offset(700, 550),
+        );
 
         expect(report, isNull);
       } finally {

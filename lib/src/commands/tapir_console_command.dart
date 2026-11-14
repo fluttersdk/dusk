@@ -49,7 +49,9 @@ class TapirConsoleCommand extends DowelCommand {
     }
 
     final response = await ctx.callExtension<Map<String, dynamic>>(
-        'ext.tapir.console', params);
+      'ext.tapir.console',
+      params,
+    );
     reportFrameWarning(ctx, response);
     ctx.output.writeln(jsonEncode(response));
     return 0;

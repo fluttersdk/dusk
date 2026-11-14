@@ -12,11 +12,9 @@ class _StubContext extends DowelContext {
   _StubContext({
     required DowelInput input,
     required DowelOutput output,
-    Map<String, dynamic> response = const {},
-    Map<String, dynamic>? retryResponse,
-  })  : _response = response,
-        _retryResponse = retryResponse,
-        super.bare(input, output);
+    this._response = const {},
+    this._retryResponse,
+  }) : super.bare(input, output);
 
   final Map<String, dynamic> _response;
   final Map<String, dynamic>? _retryResponse;
@@ -25,8 +23,10 @@ class _StubContext extends DowelContext {
   int calls = 0;
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     lastMethod = method;
     lastParams = params;
     calls++;
@@ -48,50 +48,52 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    test('brings the page to front once and prints the re-taken snapshot',
-        () async {
-      final List<String> frames = <String>[];
-      final FakeCdpServer server = await FakeCdpServer.start(
-        pageUrl: 'http://localhost:5123/',
-        handlers: {
-          'Page.bringToFront': (Map<String, dynamic> _) async {
-            frames.add('Page.bringToFront');
-            return <String, dynamic>{};
+    test(
+      'brings the page to front once and prints the re-taken snapshot',
+      () async {
+        final List<String> frames = <String>[];
+        final FakeCdpServer server = await FakeCdpServer.start(
+          pageUrl: 'http://localhost:5123/',
+          handlers: {
+            'Page.bringToFront': (Map<String, dynamic> _) async {
+              frames.add('Page.bringToFront');
+              return <String, dynamic>{};
+            },
           },
-        },
-      );
-      addTearDown(server.stop);
-      final Directory stateDir = Directory('${tempDir.path}/.dowel');
-      await stateDir.create(recursive: true);
-      await File('${stateDir.path}/state.json').writeAsString(
-        jsonEncode({'cdpPort': server.port, 'webPort': 5123}),
-      );
-      StateFile.debugHomeOverride = tempDir.path;
+        );
+        addTearDown(server.stop);
+        final Directory stateDir = Directory('${tempDir.path}/.dowel');
+        await stateDir.create(recursive: true);
+        await File(
+          '${stateDir.path}/state.json',
+        ).writeAsString(jsonEncode({'cdpPort': server.port, 'webPort': 5123}));
+        StateFile.debugHomeOverride = tempDir.path;
 
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {}),
-        output: output,
-        response: const {
-          'snapshot': '- stale',
-          'warnings': {
-            'framesEnabled': false,
-            'lifecycleState': 'hidden',
-            'platform': 'web',
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {}),
+          output: output,
+          response: const {
+            'snapshot': '- stale',
+            'warnings': {
+              'framesEnabled': false,
+              'lifecycleState': 'hidden',
+              'platform': 'web',
+            },
           },
-        },
-        retryResponse: const {'snapshot': '- button "Save" [ref=e1]'},
-      );
+          retryResponse: const {'snapshot': '- button "Save" [ref=e1]'},
+        );
 
-      final exit = await TapirSnapCommand().handle(ctx);
+        final exit = await TapirSnapCommand().handle(ctx);
 
-      expect(exit, equals(0));
-      expect(frames, equals(<String>['Page.bringToFront']));
-      expect(ctx.calls, equals(2));
-      expect(output.content, contains('[ref=e1]'));
-      expect(output.content, isNot(contains('- stale')));
-      expect(output.content, isNot(contains('not producing frames')));
-    });
+        expect(exit, equals(0));
+        expect(frames, equals(<String>['Page.bringToFront']));
+        expect(ctx.calls, equals(2));
+        expect(output.content, contains('[ref=e1]'));
+        expect(output.content, isNot(contains('- stale')));
+        expect(output.content, isNot(contains('not producing frames')));
+      },
+    );
   });
 
   group('TapirSnapCommand', () {
@@ -109,21 +111,23 @@ void main() {
       expect(parser.options.keys, contains('depth'));
     });
 
-    test('handle calls ext.tapir.snap with no params when --depth omitted',
-        () async {
-      final ctx = _StubContext(
-        input: MapInput(const {}),
-        output: BufferedOutput(),
-        response: const {'snapshot': '- button "Foo" [ref=e1]'},
-      );
-      final exit = await TapirSnapCommand().handle(ctx);
-      expect(exit, equals(0));
-      expect(ctx.lastMethod, equals('ext.tapir.snap'));
-      // Caller passed nothing; command may add default flags (e.g.
-      // includeEnrichers) so we only assert the caller-supplied keys
-      // are NOT present.
-      expect(ctx.lastParams!.containsKey('depth'), isFalse);
-    });
+    test(
+      'handle calls ext.tapir.snap with no params when --depth omitted',
+      () async {
+        final ctx = _StubContext(
+          input: MapInput(const {}),
+          output: BufferedOutput(),
+          response: const {'snapshot': '- button "Foo" [ref=e1]'},
+        );
+        final exit = await TapirSnapCommand().handle(ctx);
+        expect(exit, equals(0));
+        expect(ctx.lastMethod, equals('ext.tapir.snap'));
+        // Caller passed nothing; command may add default flags (e.g.
+        // includeEnrichers) so we only assert the caller-supplied keys
+        // are NOT present.
+        expect(ctx.lastParams!.containsKey('depth'), isFalse);
+      },
+    );
 
     test('handle forwards --depth to ext.tapir.snap when provided', () async {
       final ctx = _StubContext(
@@ -141,7 +145,7 @@ void main() {
         input: MapInput(const {}),
         output: output,
         response: const {
-          'snapshot': '- text "Hello"\n- button "Click" [ref=e1]'
+          'snapshot': '- text "Hello"\n- button "Click" [ref=e1]',
         },
       );
       await TapirSnapCommand().handle(ctx);
@@ -149,37 +153,40 @@ void main() {
       expect(output.content, contains('[ref=e1]'));
     });
 
-    test('handle surfaces a renderErrors banner alongside the snapshot',
-        () async {
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {}),
-        output: output,
-        response: const {
-          'snapshot': '- button "Save" [ref=e1]',
-          'renderErrors': {
-            'count': 2,
-            'recent': [
-              {
-                'type': 'FlutterError',
-                'message': 'Incorrect use of ParentDataWidget.',
-              },
-            ],
-            'hint': 'Run tapir:exceptions (CLI) or tapir_exceptions (MCP) for '
-                'full messages + stack traces.',
+    test(
+      'handle surfaces a renderErrors banner alongside the snapshot',
+      () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {}),
+          output: output,
+          response: const {
+            'snapshot': '- button "Save" [ref=e1]',
+            'renderErrors': {
+              'count': 2,
+              'recent': [
+                {
+                  'type': 'FlutterError',
+                  'message': 'Incorrect use of ParentDataWidget.',
+                },
+              ],
+              'hint':
+                  'Run tapir:exceptions (CLI) or tapir_exceptions (MCP) for '
+                  'full messages + stack traces.',
+            },
           },
-        },
-      );
-      final exit = await TapirSnapCommand().handle(ctx);
-      expect(exit, equals(0));
-      // The banner is surfaced (it routes to stderr via ctx.output.error in
-      // production; BufferedOutput merges that channel into content for the
-      // assertion).
-      expect(output.content, contains('2 render error(s) captured'));
-      expect(output.content, contains('Incorrect use of ParentDataWidget.'));
-      // The snapshot payload is still emitted.
-      expect(output.content, contains('[ref=e1]'));
-    });
+        );
+        final exit = await TapirSnapCommand().handle(ctx);
+        expect(exit, equals(0));
+        // The banner is surfaced (it routes to stderr via ctx.output.error in
+        // production; BufferedOutput merges that channel into content for the
+        // assertion).
+        expect(output.content, contains('2 render error(s) captured'));
+        expect(output.content, contains('Incorrect use of ParentDataWidget.'));
+        // The snapshot payload is still emitted.
+        expect(output.content, contains('[ref=e1]'));
+      },
+    );
 
     test('handle surfaces the frame-production banner', () async {
       final output = BufferedOutput();
@@ -219,17 +226,19 @@ void main() {
       expect(output.content, isNot(contains('not producing frames')));
     });
 
-    test('handle falls back to JSON encode when response has no snapshot key',
-        () async {
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {}),
-        output: output,
-        response: const {'note': 'no snapshot key'},
-      );
-      await TapirSnapCommand().handle(ctx);
-      expect(output.content, contains('no snapshot key'));
-    });
+    test(
+      'handle falls back to JSON encode when response has no snapshot key',
+      () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {}),
+          output: output,
+          response: const {'note': 'no snapshot key'},
+        );
+        await TapirSnapCommand().handle(ctx);
+        expect(output.content, contains('no snapshot key'));
+      },
+    );
     test('configure declares --json defaulting to off', () {
       final parser = ArgParser();
       TapirSnapCommand().configure(parser);

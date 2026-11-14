@@ -30,8 +30,8 @@ import 'extensions/register_tapir_extensions.dart';
 ///
 /// Extension points:
 /// - [enrichers]: live-read list of snapshot enrichers. Magic registers
-///   MagicFormEnricher + MagicNavigationEnricher via this. Wind no longer
-///   uses this list as of wind alpha-10; wind diagnostics flow through
+///   MagicFormEnricher + MagicNavigationEnricher via this. Wind does not
+///   use this list; wind diagnostics flow through
 ///   `wind_kit_diagnostics_contracts.WindDebugRegistry` instead, read by
 ///   `ext_snapshot.dart` / `ext_observe.dart` directly.
 class TapirPlugin {

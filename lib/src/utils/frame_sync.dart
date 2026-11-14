@@ -24,13 +24,8 @@ const Duration kFrameSyncTimeout = Duration(milliseconds: 200);
 /// Every extension handler that settles a gesture, a text edit, or a
 /// navigation goes through this instead of awaiting the binding directly, so
 /// a starved engine degrades into an early return rather than a hang.
-Future<void> awaitFrameOrTimeout({
-  Duration timeout = kFrameSyncTimeout,
-}) {
-  return WidgetsBinding.instance.endOfFrame.timeout(
-    timeout,
-    onTimeout: () {},
-  );
+Future<void> awaitFrameOrTimeout({Duration timeout = kFrameSyncTimeout}) {
+  return WidgetsBinding.instance.endOfFrame.timeout(timeout, onTimeout: () {});
 }
 
 /// Awaits [count] consecutive frames, each bounded by [timeout].
@@ -177,7 +172,8 @@ void _deliverLifecycle(AppLifecycleState state) {
 Map<String, dynamic>? frameProductionWarning() {
   if (SchedulerBinding.instance.framesEnabled) return null;
 
-  const String starved = 'The engine is not producing frames, so the '
+  const String starved =
+      'The engine is not producing frames, so the '
       'semantics tree is not being rebuilt and dispatched gestures cannot '
       'take effect.';
 
@@ -187,12 +183,12 @@ Map<String, dynamic>? frameProductionWarning() {
     'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
     'hint': kIsWeb
         ? '$starved A backgrounded browser tab is the usual cause. Bring the '
-            'page to front (CDP Page.bringToFront) and retry before trusting '
-            'this result.'
+              'page to front (CDP Page.bringToFront) and retry before trusting '
+              'this result.'
         : '$starved The window is hidden, minimised or occluded, or the '
-            'display is asleep, and tapir could not force frames. Bring the '
-            'window to front (for example '
-            '`osascript -e \'tell application "<App>" to activate\'`) and '
-            'retry before trusting this result.',
+              'display is asleep, and tapir could not force frames. Bring the '
+              'window to front (for example '
+              '`osascript -e \'tell application "<App>" to activate\'`) and '
+              'retry before trusting this result.',
   };
 }

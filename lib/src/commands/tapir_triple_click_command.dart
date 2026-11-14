@@ -21,15 +21,26 @@ class TapirTripleClickCommand extends DowelCommand {
   @override
   void configure(ArgParser parser) {
     addJsonFlag(parser);
-    parser.addOption('ref',
-        help: 'Widget ref token (e.g. e5).', mandatory: true);
-    parser.addFlag('includeSnapshot',
-        help: 'Embed the post-action snapshot in the response.',
-        defaultsTo: false);
-    parser.addFlag('checkStable',
-        help: 'Run the Stable actionability gate.', defaultsTo: true);
-    parser.addFlag('checkReceivesEvents',
-        help: 'Run the Receives-Events actionability gate.', defaultsTo: true);
+    parser.addOption(
+      'ref',
+      help: 'Widget ref token (e.g. e5).',
+      mandatory: true,
+    );
+    parser.addFlag(
+      'includeSnapshot',
+      help: 'Embed the post-action snapshot in the response.',
+      defaultsTo: false,
+    );
+    parser.addFlag(
+      'checkStable',
+      help: 'Run the Stable actionability gate.',
+      defaultsTo: true,
+    );
+    parser.addFlag(
+      'checkReceivesEvents',
+      help: 'Run the Receives-Events actionability gate.',
+      defaultsTo: true,
+    );
   }
 
   @override
@@ -58,7 +69,10 @@ class TapirTripleClickCommand extends DowelCommand {
       ctx.output.writeln(jsonEncode(response));
     } else {
       emitEnvelope(
-          ctx, response, () => ctx.output.success('Triple-clicked $ref'));
+        ctx,
+        response,
+        () => ctx.output.success('Triple-clicked $ref'),
+      );
     }
     return 0;
   }

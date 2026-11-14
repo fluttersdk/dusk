@@ -63,16 +63,14 @@ final class PerfActions {
   }
 
   /// Overrides the page's viewport to [width] by [height] CSS pixels.
-  Future<void> resize(int width, int height) => driver.cdp(
-        'Emulation.setDeviceMetricsOverride',
-        <String, dynamic>{
-          'width': width,
-          'height': height,
-          // 0 keeps the browser's own device pixel ratio.
-          'deviceScaleFactor': 0,
-          'mobile': false,
-        },
-      );
+  Future<void> resize(int width, int height) =>
+      driver.cdp('Emulation.setDeviceMetricsOverride', <String, dynamic>{
+        'width': width,
+        'height': height,
+        // 0 keeps the browser's own device pixel ratio.
+        'deviceScaleFactor': 0,
+        'mobile': false,
+      });
 
   /// Drives [step] through the live tree. Returns the dispatch points when
   /// [record] asks for them and the verb has any, for the semantics pass to
@@ -105,11 +103,7 @@ final class PerfActions {
       case PerfStepVerb.tap:
         final Map<String, dynamic> result = await driver.call(
           'ext.tapir.tap',
-          <String, String>{
-            'ref': await target(),
-            ...quiet,
-            ...report,
-          },
+          <String, String>{'ref': await target(), ...quiet, ...report},
         );
         return record ? <String, dynamic>{'point': result['point']} : null;
       case PerfStepVerb.wheel:
@@ -133,24 +127,18 @@ final class PerfActions {
             : null;
       case PerfStepVerb.fill:
       case PerfStepVerb.type:
-        await driver.call(
-          'ext.tapir.${step.verb.wire}',
-          <String, String>{
-            'ref': await target(),
-            'text': step.text!,
-            ...quiet,
-          },
-        );
+        await driver.call('ext.tapir.${step.verb.wire}', <String, String>{
+          'ref': await target(),
+          'text': step.text!,
+          ...quiet,
+        });
       case PerfStepVerb.scroll:
-        await driver.call(
-          'ext.tapir.scroll',
-          <String, String>{
-            'ref': await target(),
-            'dx': '${step.dx}',
-            'dy': '${step.dy}',
-            ...quiet,
-          },
-        );
+        await driver.call('ext.tapir.scroll', <String, String>{
+          'ref': await target(),
+          'dx': '${step.dx}',
+          'dy': '${step.dy}',
+          ...quiet,
+        });
       case PerfStepVerb.pressKey:
       case PerfStepVerb.navigate:
       case PerfStepVerb.resize:
@@ -165,15 +153,15 @@ final class PerfActions {
   Future<void> untargeted(PerfStep step) async {
     switch (step.verb) {
       case PerfStepVerb.pressKey:
-        await driver.call(
-          'ext.tapir.press_key',
-          <String, String>{'key': step.key!, 'includeSnapshot': 'false'},
-        );
+        await driver.call('ext.tapir.press_key', <String, String>{
+          'key': step.key!,
+          'includeSnapshot': 'false',
+        });
       case PerfStepVerb.navigate:
-        await driver.call(
-          'ext.tapir.navigate',
-          <String, String>{'route': step.route!, 'includeSnapshot': 'false'},
-        );
+        await driver.call('ext.tapir.navigate', <String, String>{
+          'route': step.route!,
+          'includeSnapshot': 'false',
+        });
       case PerfStepVerb.resize:
         await resize(step.width!, step.height!);
       case PerfStepVerb.wait:
@@ -191,15 +179,12 @@ final class PerfActions {
   /// Hovers [ref] and answers the point it hovered: what a mouse does before
   /// it wheels, and where the wheel then goes.
   Future<Map<String, dynamic>> hover(String ref) async => perfMap(
-        (await driver.call(
-          'ext.tapir.hover',
-          <String, String>{
-            'ref': ref,
-            'reportPoint': 'true',
-            'includeSnapshot': 'false',
-          },
-        ))['point'],
-      );
+    (await driver.call('ext.tapir.hover', <String, String>{
+      'ref': ref,
+      'reportPoint': 'true',
+      'includeSnapshot': 'false',
+    }))['point'],
+  );
 
   /// Sends [PerfStep.ticks] wheel events at [point], one frame apart, the
   /// way a real wheel scrolls: a single large event jumps the list in one
@@ -207,16 +192,13 @@ final class PerfActions {
   Future<void> wheel(Map<String, dynamic> point, PerfStep step) async {
     for (int tick = 0; tick < step.ticks; tick++) {
       if (tick > 0) await driver.pause(_kWheelTickInterval);
-      await driver.cdp(
-        'Input.dispatchMouseEvent',
-        <String, dynamic>{
-          'type': 'mouseWheel',
-          'x': point['x'],
-          'y': point['y'],
-          'deltaX': step.dx,
-          'deltaY': step.dy,
-        },
-      );
+      await driver.cdp('Input.dispatchMouseEvent', <String, dynamic>{
+        'type': 'mouseWheel',
+        'x': point['x'],
+        'y': point['y'],
+        'deltaX': step.dx,
+        'deltaY': step.dy,
+      });
     }
   }
 
@@ -229,7 +211,7 @@ final class PerfActions {
   /// that is still building after a navigate or a tap has not drawn it yet.
   Future<String> resolve(PerfTarget target) async {
     final Stopwatch clock = Stopwatch()..start();
-    for (int poll = 1;; poll++) {
+    for (int poll = 1; ; poll++) {
       final String? ref = await lookup(target);
       if (ref != null) return ref;
       if (poll >= kPerfResolveMaxPolls || clock.elapsed >= kPerfResolveBudget) {
@@ -252,40 +234,39 @@ final class PerfActions {
   /// refuses an index on a label, since nothing can serve one.
   Future<String?> lookup(PerfTarget target) async =>
       switch ((target.kind, target.index)) {
-        (PerfTargetKind.text, 0) => (await driver.call(
-            'ext.tapir.find',
-            <String, String>{'text': target.value},
-          ))['ref'] as String?,
-        (PerfTargetKind.label, 0) => (await driver.call(
-            'ext.tapir.find',
-            <String, String>{'semanticsLabel': target.value},
-          ))['ref'] as String?,
-        (PerfTargetKind.key, _) => (await driver.call(
-            'ext.tapir.find',
-            <String, String>{'key': target.value},
-          ))['ref'] as String?,
+        (PerfTargetKind.text, 0) =>
+          (await driver.call('ext.tapir.find', <String, String>{
+                'text': target.value,
+              }))['ref']
+              as String?,
+        (PerfTargetKind.label, 0) =>
+          (await driver.call('ext.tapir.find', <String, String>{
+                'semanticsLabel': target.value,
+              }))['ref']
+              as String?,
+        (PerfTargetKind.key, _) =>
+          (await driver.call('ext.tapir.find', <String, String>{
+                'key': target.value,
+              }))['ref']
+              as String?,
         (PerfTargetKind.text, final int index) => _at(
-            await driver.call(
-              'ext.tapir.find_by_text',
-              <String, String>{'text': target.value},
-            ),
-            index,
-          ),
+          await driver.call('ext.tapir.find_by_text', <String, String>{
+            'text': target.value,
+          }),
+          index,
+        ),
         (PerfTargetKind.label, _) => throw StateError(
-            'PerfScenario.parse refuses an index on a label target.',
-          ),
+          'PerfScenario.parse refuses an index on a label target.',
+        ),
         (PerfTargetKind.role, final int index) => _named(
-            await driver.call(
-              'ext.tapir.observe',
-              <String, String>{
-                'roles': target.role!,
-                'includeEnrichers': 'false',
-                'limit': '$_kObserveLimit',
-              },
-            ),
-            target.value,
-            index,
-          ),
+          await driver.call('ext.tapir.observe', <String, String>{
+            'roles': target.role!,
+            'includeEnrichers': 'false',
+            'limit': '$_kObserveLimit',
+          }),
+          target.value,
+          index,
+        ),
       };
 }
 

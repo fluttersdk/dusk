@@ -51,7 +51,10 @@ class TapirSelectOptionCommand extends DowelCommand {
     );
     reportFrameWarning(ctx, response);
     emitEnvelope(
-        ctx, response, () => ctx.output.success('Selected "$value" on $ref'));
+      ctx,
+      response,
+      () => ctx.output.success('Selected "$value" on $ref'),
+    );
     return 0;
   }
 }

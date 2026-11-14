@@ -38,12 +38,14 @@ class TapirScreenshotCommand extends DowelCommand {
       ..addOption('quality', defaultsTo: '70', help: 'JPEG quality 1-100.')
       ..addOption(
         'ref',
-        help: 'Capture only this widget (an e<N> or q<N> token from '
+        help:
+            'Capture only this widget (an e<N> or q<N> token from '
             'tapir:snap / tapir:find). Omit for the whole viewport.',
       )
       ..addOption(
         'rect',
-        help: 'Sub-rect "x,y,w,h" in logical pixels, relative to the ref\'s '
+        help:
+            'Sub-rect "x,y,w,h" in logical pixels, relative to the ref\'s '
             'top-left. Requires --ref.',
       );
   }
@@ -56,8 +58,9 @@ class TapirScreenshotCommand extends DowelCommand {
     final String? rawRef = ctx.input.option('ref') as String?;
     final String? ref = (rawRef != null && rawRef.isNotEmpty) ? rawRef : null;
     final String? rawRect = ctx.input.option('rect') as String?;
-    final String? rect =
-        (rawRect != null && rawRect.isNotEmpty) ? rawRect : null;
+    final String? rect = (rawRect != null && rawRect.isNotEmpty)
+        ? rawRect
+        : null;
 
     if (output == null || output.isEmpty) {
       ctx.output.error(
@@ -142,9 +145,7 @@ class TapirScreenshotCommand extends DowelCommand {
     try {
       client = await CdpClient.connect(port: cdpPort);
     } on TapirCdpException catch (e) {
-      ctx.output.error(
-        'Failed to connect to Chrome CDP on port $cdpPort: $e',
-      );
+      ctx.output.error('Failed to connect to Chrome CDP on port $cdpPort: $e');
       return 1;
     }
 
@@ -162,7 +163,7 @@ class TapirScreenshotCommand extends DowelCommand {
           'format': format,
           if (format == 'jpeg') 'quality': quality,
           'fromSurface': true,
-          if (clip != null) 'clip': clip,
+          'clip': ?clip,
         },
       );
 
@@ -215,15 +216,11 @@ class TapirScreenshotCommand extends DowelCommand {
     String ref,
     String? rect,
   ) async {
-    final Map<String, dynamic> geometry =
-        await ctx.callExtension<Map<String, dynamic>>(
-      'ext.tapir.screenshot',
-      <String, dynamic>{
-        'ref': ref,
-        if (rect != null) 'rect': rect,
-        'geometry': 'true',
-      },
-    );
+    final Map<String, dynamic> geometry = await ctx
+        .callExtension<Map<String, dynamic>>(
+          'ext.tapir.screenshot',
+          <String, dynamic>{'ref': ref, 'rect': ?rect, 'geometry': 'true'},
+        );
     reportFrameWarning(ctx, geometry);
 
     final Object? raw = geometry['rect'];
@@ -275,16 +272,16 @@ class TapirScreenshotCommand extends DowelCommand {
     String? ref,
     String? rect,
   ) async {
-    final Map<String, dynamic> result =
-        await ctx.callExtension<Map<String, dynamic>>(
-      'ext.tapir.screenshot',
-      <String, dynamic>{
-        'format': format,
-        'quality': quality,
-        if (ref != null) 'ref': ref,
-        if (rect != null) 'rect': rect,
-      },
-    );
+    final Map<String, dynamic> result = await ctx
+        .callExtension<Map<String, dynamic>>(
+          'ext.tapir.screenshot',
+          <String, dynamic>{
+            'format': format,
+            'quality': quality,
+            'ref': ?ref,
+            'rect': ?rect,
+          },
+        );
     reportFrameWarning(ctx, result);
     final String? base64Str = result['base64'] as String?;
     if (base64Str == null) {
@@ -294,8 +291,9 @@ class TapirScreenshotCommand extends DowelCommand {
     final List<int> bytes = base64Decode(base64Str);
     await File(output).writeAsBytes(bytes);
     final String kb = (bytes.length / 1024).toStringAsFixed(1);
-    ctx.output
-        .success('Wrote ${bytes.length} bytes ($kb KB, $format) to $output');
+    ctx.output.success(
+      'Wrote ${bytes.length} bytes ($kb KB, $format) to $output',
+    );
     return 0;
   }
 }

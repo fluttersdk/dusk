@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,9 +29,7 @@ void main() {
     }) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: TextField(inputFormatters: formatters),
-          ),
+          home: Scaffold(body: TextField(inputFormatters: formatters)),
         ),
       );
 
@@ -49,16 +47,13 @@ void main() {
       final String ref = await pumpFieldAndRegisterRef(tester);
 
       final Future<developer.ServiceExtensionResponse> pending =
-          aiTestTypeHandler(
-        'ext.tapir.type',
-        <String, String>{
-          'ref': ref,
-          'text': 'QA Sweep User',
-          'checkStable': 'false',
-          'checkReceivesEvents': 'false',
-          'includeSnapshot': 'false',
-        },
-      );
+          aiTestTypeHandler('ext.tapir.type', <String, String>{
+            'ref': ref,
+            'text': 'QA Sweep User',
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+            'includeSnapshot': 'false',
+          });
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await pending;
@@ -87,16 +82,13 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> pending =
-          aiTestTypeHandler(
-        'ext.tapir.type',
-        <String, String>{
-          'ref': ref,
-          'text': 'abc',
-          'checkStable': 'false',
-          'checkReceivesEvents': 'false',
-          'includeSnapshot': 'false',
-        },
-      );
+          aiTestTypeHandler('ext.tapir.type', <String, String>{
+            'ref': ref,
+            'text': 'abc',
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+            'includeSnapshot': 'false',
+          });
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await pending;
@@ -143,12 +135,12 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> pending =
           aiTestTypeHandler('ext.tapir.type', <String, String>{
-        'ref': ref,
-        'text': 'QA Sweep',
-        'checkStable': 'false',
-        'checkReceivesEvents': 'false',
-        'includeSnapshot': 'false',
-      });
+            'ref': ref,
+            'text': 'QA Sweep',
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+            'includeSnapshot': 'false',
+          });
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await pending;
@@ -176,11 +168,11 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> pending =
           aiTestTypeHandler('ext.tapir.type', <String, String>{
-        'ref': ref,
-        'text': 'QA Sweep',
-        'checkStable': 'false',
-        'includeSnapshot': 'false',
-      });
+            'ref': ref,
+            'text': 'QA Sweep',
+            'checkStable': 'false',
+            'includeSnapshot': 'false',
+          });
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await pending;

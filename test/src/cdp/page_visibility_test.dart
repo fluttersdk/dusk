@@ -21,8 +21,10 @@ void main() {
       );
       addTearDown(server.stop);
 
-      final BringToFrontResult result =
-          await bringCdpPageToFront(server.port, 5123);
+      final BringToFrontResult result = await bringCdpPageToFront(
+        server.port,
+        5123,
+      );
 
       expect(result.succeeded, isTrue);
       expect(result.error, isNull);
@@ -41,8 +43,10 @@ void main() {
       );
       addTearDown(server.stop);
 
-      final BringToFrontResult result =
-          await bringCdpPageToFront(server.port, null);
+      final BringToFrontResult result = await bringCdpPageToFront(
+        server.port,
+        null,
+      );
 
       expect(result.succeeded, isTrue);
       expect(calls, hasLength(1));
@@ -61,8 +65,10 @@ void main() {
       );
       addTearDown(server.stop);
 
-      final BringToFrontResult result =
-          await bringCdpPageToFront(server.port, 5123);
+      final BringToFrontResult result = await bringCdpPageToFront(
+        server.port,
+        5123,
+      );
 
       expect(result.succeeded, isFalse);
       expect(result.error, contains(':5123'));
@@ -70,13 +76,17 @@ void main() {
     });
 
     test('fails without throwing when the port is unreachable', () async {
-      final ServerSocket probe =
-          await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final ServerSocket probe = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
       final int closedPort = probe.port;
       await probe.close();
 
-      final BringToFrontResult result =
-          await bringCdpPageToFront(closedPort, 5123);
+      final BringToFrontResult result = await bringCdpPageToFront(
+        closedPort,
+        5123,
+      );
 
       expect(result.succeeded, isFalse);
       expect(result.error, contains('unreachable'));
@@ -85,13 +95,18 @@ void main() {
     test('fails without throwing when Chrome answers with an error', () async {
       final FakeCdpServer server = await FakeCdpServer.start(
         pageUrl: 'http://localhost:5123/',
-        handlers: <String,
-            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
+        handlers:
+            <
+              String,
+              Future<Map<String, dynamic>> Function(Map<String, dynamic>)
+            >{},
       );
       addTearDown(server.stop);
 
-      final BringToFrontResult result =
-          await bringCdpPageToFront(server.port, 5123);
+      final BringToFrontResult result = await bringCdpPageToFront(
+        server.port,
+        5123,
+      );
 
       expect(result.succeeded, isFalse);
       expect(result.error, contains('Method not found'));

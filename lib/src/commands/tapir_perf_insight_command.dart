@@ -23,13 +23,15 @@ class TapirPerfInsightCommand extends DowelCommand {
     addJsonFlag(parser);
     parser.addOption(
       'id',
-      help: 'Insight id (e.g. I2) from the insights[] list tapir:perf_end '
+      help:
+          'Insight id (e.g. I2) from the insights[] list tapir:perf_end '
           'returned.',
       mandatory: true,
     );
     parser.addOption(
       'token',
-      help: 'sessionToken of that report. Optional: only the most recent '
+      help:
+          'sessionToken of that report. Optional: only the most recent '
           'closed session is kept, and a stale token is refused.',
     );
   }

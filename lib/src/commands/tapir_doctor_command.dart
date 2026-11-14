@@ -161,7 +161,7 @@ class TapirDoctorCommand extends DowelCommand {
   /// [webPort] identifies which page belongs to this run; the visibility
   /// read targets that page rather than whichever tab Chrome lists first.
   static Future<TapirCdpSessionReport?> Function(int port, int? webPort)
-      cdpSessionProbe = defaultCdpSessionProbe;
+  cdpSessionProbe = defaultCdpSessionProbe;
 
   /// Production probe, and the value tests restore [currentDirectoryProbe]
   /// to. A reset that rebuilds the same closure by hand leaves the real one
@@ -429,8 +429,9 @@ class TapirDoctorCommand extends DowelCommand {
     }
 
     final bool hasMagicInit = source.contains('Magic.init(');
-    final bool hasMagicIntegration =
-        source.contains('MagicTapirIntegration.install');
+    final bool hasMagicIntegration = source.contains(
+      'MagicTapirIntegration.install',
+    );
 
     if (hasMagicInit && hasMagicIntegration) {
       ctx.output.info('$label: Magic-stack detected, integration wired');
@@ -461,10 +462,13 @@ class TapirDoctorCommand extends DowelCommand {
   static DateTime? _defaultProcessStartTime(int pid) {
     try {
       if (Platform.isWindows) {
-        final ProcessResult res = Process.runSync(
-          'wmic',
-          <String>['process', 'where', 'ProcessId=$pid', 'get', 'CreationDate'],
-        );
+        final ProcessResult res = Process.runSync('wmic', <String>[
+          'process',
+          'where',
+          'ProcessId=$pid',
+          'get',
+          'CreationDate',
+        ]);
         final String raw = res.stdout.toString().trim();
         final RegExp pattern = RegExp(r'(\d{14})');
         final Match? match = pattern.firstMatch(raw);
@@ -480,10 +484,12 @@ class TapirDoctorCommand extends DowelCommand {
         );
       }
       // POSIX: `ps -o lstart=` emits e.g. "Fri May 16 14:30:25 2026".
-      final ProcessResult res = Process.runSync(
-        'ps',
-        <String>['-o', 'lstart=', '-p', '$pid'],
-      );
+      final ProcessResult res = Process.runSync('ps', <String>[
+        '-o',
+        'lstart=',
+        '-p',
+        '$pid',
+      ]);
       final String raw = res.stdout.toString().trim();
       if (raw.isEmpty) return null;
       return _parsePsLstart(raw);
@@ -596,8 +602,10 @@ class TapirDoctorCommand extends DowelCommand {
     }
 
     final int? webPort = _asInt(state?['webPort']);
-    final TapirCdpSessionReport? report =
-        await cdpSessionProbe(cdpPort, webPort);
+    final TapirCdpSessionReport? report = await cdpSessionProbe(
+      cdpPort,
+      webPort,
+    );
     if (report == null) {
       ctx.output.info('$label: Skipped (probe unavailable)');
       return;

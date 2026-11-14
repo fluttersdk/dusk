@@ -27,10 +27,9 @@ void main() {
           child: SizedBox(),
         ),
       );
-      final response = await screenshotHandler(
-        'ext.tapir.screenshot',
-        const {'rect': 'not,a,rect'},
-      );
+      final response = await screenshotHandler('ext.tapir.screenshot', const {
+        'rect': 'not,a,rect',
+      });
       expect(_isError(response), isTrue);
     });
 
@@ -41,10 +40,9 @@ void main() {
           child: SizedBox(),
         ),
       );
-      final response = await screenshotHandler(
-        'ext.tapir.screenshot',
-        const {'rect': '0,0,-100,-100'},
-      );
+      final response = await screenshotHandler('ext.tapir.screenshot', const {
+        'rect': '0,0,-100,-100',
+      });
       expect(_isError(response), isTrue);
     });
 
@@ -55,10 +53,9 @@ void main() {
           child: SizedBox(),
         ),
       );
-      final response = await screenshotHandler(
-        'ext.tapir.screenshot',
-        const {'rect': '0,0,foo,bar'},
-      );
+      final response = await screenshotHandler('ext.tapir.screenshot', const {
+        'rect': '0,0,foo,bar',
+      });
       expect(_isError(response), isTrue);
     });
 
@@ -69,10 +66,9 @@ void main() {
           child: SizedBox(),
         ),
       );
-      final response = await screenshotHandler(
-        'ext.tapir.screenshot',
-        const {'rect': '0,0,100'},
-      );
+      final response = await screenshotHandler('ext.tapir.screenshot', const {
+        'rect': '0,0,100',
+      });
       expect(_isError(response), isTrue);
     });
 
@@ -83,10 +79,9 @@ void main() {
           child: SizedBox(),
         ),
       );
-      final response = await screenshotHandler(
-        'ext.tapir.screenshot',
-        const {'ref': 'e999'},
-      );
+      final response = await screenshotHandler('ext.tapir.screenshot', const {
+        'ref': 'e999',
+      });
       expect(_isError(response), isTrue);
     });
   });
@@ -159,8 +154,9 @@ void main() {
   // resolves successfully.
   // =========================================================================
   group('screenshotHandler — end-to-end capture', () {
-    testWidgets('captures the root viewport as JPEG by default',
-        (WidgetTester tester) async {
+    testWidgets('captures the root viewport as JPEG by default', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(200, 100);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -168,10 +164,7 @@ void main() {
 
       await tester.pumpWidget(
         const RepaintBoundary(
-          child: ColoredBox(
-            color: Color(0xFFFF0000),
-            child: SizedBox.expand(),
-          ),
+          child: ColoredBox(color: Color(0xFFFF0000), child: SizedBox.expand()),
         ),
       );
 
@@ -191,8 +184,9 @@ void main() {
       expect(response!.result, contains('"base64"'));
     });
 
-    testWidgets('captures the root viewport as PNG when format=png',
-        (WidgetTester tester) async {
+    testWidgets('captures the root viewport as PNG when format=png', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(200, 100);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -200,10 +194,7 @@ void main() {
 
       await tester.pumpWidget(
         const RepaintBoundary(
-          child: ColoredBox(
-            color: Color(0xFF00FF00),
-            child: SizedBox.expand(),
-          ),
+          child: ColoredBox(color: Color(0xFF00FF00), child: SizedBox.expand()),
         ),
       );
 
@@ -219,8 +210,9 @@ void main() {
       expect(response!.result, contains('"format":"png"'));
     });
 
-    testWidgets('honours --quality flag on JPEG encode',
-        (WidgetTester tester) async {
+    testWidgets('honours --quality flag on JPEG encode', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(200, 100);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -228,10 +220,7 @@ void main() {
 
       await tester.pumpWidget(
         const RepaintBoundary(
-          child: ColoredBox(
-            color: Color(0xFF0000FF),
-            child: SizedBox.expand(),
-          ),
+          child: ColoredBox(color: Color(0xFF0000FF), child: SizedBox.expand()),
         ),
       );
 
@@ -252,8 +241,9 @@ void main() {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
-    testWidgets('reports the viewport rect when no ref is supplied',
-        (WidgetTester tester) async {
+    testWidgets('reports the viewport rect when no ref is supplied', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(400, 200);
       tester.view.devicePixelRatio = 2.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -263,9 +253,9 @@ void main() {
 
       final developer.ServiceExtensionResponse response =
           await screenshotHandler(
-        'ext.tapir.screenshot',
-        const <String, String>{'geometry': 'true'},
-      );
+            'ext.tapir.screenshot',
+            const <String, String>{'geometry': 'true'},
+          );
 
       expect(_isError(response), isFalse);
       final Map<String, dynamic> decoded =
@@ -279,8 +269,9 @@ void main() {
       expect(decoded['devicePixelRatio'], equals(2.0));
     });
 
-    testWidgets('reports the ref rect in viewport coordinates',
-        (WidgetTester tester) async {
+    testWidgets('reports the ref rect in viewport coordinates', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(400, 400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -305,10 +296,10 @@ void main() {
       );
 
       final developer.ServiceExtensionResponse response =
-          await screenshotHandler(
-        'ext.tapir.screenshot',
-        <String, String>{'ref': ref, 'geometry': 'true'},
-      );
+          await screenshotHandler('ext.tapir.screenshot', <String, String>{
+            'ref': ref,
+            'geometry': 'true',
+          });
 
       expect(_isError(response), isFalse);
       final Map<String, dynamic> decoded =
@@ -322,8 +313,9 @@ void main() {
       expect(rect['height'], equals(50.0));
     });
 
-    testWidgets('offsets a sub-rect by the ref origin',
-        (WidgetTester tester) async {
+    testWidgets('offsets a sub-rect by the ref origin', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(400, 400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -348,10 +340,11 @@ void main() {
       );
 
       final developer.ServiceExtensionResponse response =
-          await screenshotHandler(
-        'ext.tapir.screenshot',
-        <String, String>{'ref': ref, 'rect': '5,10,20,15', 'geometry': 'true'},
-      );
+          await screenshotHandler('ext.tapir.screenshot', <String, String>{
+            'ref': ref,
+            'rect': '5,10,20,15',
+            'geometry': 'true',
+          });
 
       final Map<String, dynamic> decoded =
           jsonDecode(response.result!) as Map<String, dynamic>;
@@ -362,15 +355,16 @@ void main() {
       expect(rect['height'], equals(15.0));
     });
 
-    testWidgets('errors on an unknown ref instead of guessing a region',
-        (WidgetTester tester) async {
+    testWidgets('errors on an unknown ref instead of guessing a region', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(const SizedBox.expand());
 
       final developer.ServiceExtensionResponse response =
           await screenshotHandler(
-        'ext.tapir.screenshot',
-        const <String, String>{'ref': 'e999', 'geometry': 'true'},
-      );
+            'ext.tapir.screenshot',
+            const <String, String>{'ref': 'e999', 'geometry': 'true'},
+          );
 
       expect(_isError(response), isTrue);
       expect(response.errorDetail ?? '', contains('e999'));
@@ -391,9 +385,7 @@ void main() {
         const Directionality(
           textDirection: TextDirection.ltr,
           child: CustomScrollView(
-            slivers: <Widget>[
-              SliverToBoxAdapter(child: SizedBox(height: 40)),
-            ],
+            slivers: <Widget>[SliverToBoxAdapter(child: SizedBox(height: 40))],
           ),
         ),
       );
@@ -409,10 +401,10 @@ void main() {
       );
 
       final developer.ServiceExtensionResponse response =
-          await screenshotHandler(
-        'ext.tapir.screenshot',
-        <String, String>{'ref': ref, 'geometry': 'true'},
-      );
+          await screenshotHandler('ext.tapir.screenshot', <String, String>{
+            'ref': ref,
+            'geometry': 'true',
+          });
 
       expect(response.result, isNull);
       expect(response.errorDetail, contains('no live rect'));
@@ -444,10 +436,10 @@ void main() {
       expect(ref, startsWith('q'));
 
       final developer.ServiceExtensionResponse response =
-          await screenshotHandler(
-        'ext.tapir.screenshot',
-        <String, String>{'ref': ref, 'geometry': 'true'},
-      );
+          await screenshotHandler('ext.tapir.screenshot', <String, String>{
+            'ref': ref,
+            'geometry': 'true',
+          });
 
       expect(
         response.result,
@@ -466,9 +458,9 @@ void main() {
 
       final developer.ServiceExtensionResponse response =
           await screenshotHandler(
-        'ext.tapir.screenshot',
-        const <String, String>{'ref': 'e999', 'geometry': 'true'},
-      );
+            'ext.tapir.screenshot',
+            const <String, String>{'ref': 'e999', 'geometry': 'true'},
+          );
 
       expect(response.errorDetail, contains('ext.tapir.find'));
     });

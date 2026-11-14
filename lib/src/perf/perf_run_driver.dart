@@ -90,11 +90,11 @@ final class PerfRunEnvironment {
 /// than this one. `tapir:perf_campaign` polls it after each cold start.
 Future<String> readTapirBootId(VmServiceClient client) async {
   final String isolateId = await client.getMainIsolateId();
-  final Map<String, dynamic> result =
-      await client.callServiceExtension<Map<String, dynamic>>(
-    'ext.tapir.boot_id',
-    isolateId: isolateId,
-  );
+  final Map<String, dynamic> result = await client
+      .callServiceExtension<Map<String, dynamic>>(
+        'ext.tapir.boot_id',
+        isolateId: isolateId,
+      );
   return result['bootId'] as String;
 }
 
@@ -114,15 +114,15 @@ Future<void> awaitTapirBoot(
   required String? replacing,
   required Duration timeout,
   Duration pollInterval = kPerfBootPollInterval,
-}) =>
-    pollTapirBoot(
-      () => readTapirBootId(client),
-      replacing: replacing,
-      timeout: timeout,
-      pollInterval: pollInterval,
-      failure: 'the app did not come back within ${timeout.inSeconds} s of '
-          'the restart',
-    );
+}) => pollTapirBoot(
+  () => readTapirBootId(client),
+  replacing: replacing,
+  timeout: timeout,
+  pollInterval: pollInterval,
+  failure:
+      'the app did not come back within ${timeout.inSeconds} s of '
+      'the restart',
+);
 
 /// The loop behind [awaitTapirBoot], over any boot id reader: [read] is asked
 /// every [pollInterval], waited out through [pause], until it answers an id
@@ -145,7 +145,7 @@ Future<void> pollTapirBoot(
       ? 1
       : timeout.inMicroseconds ~/ pollInterval.inMicroseconds + 1;
   Object? last;
-  for (int poll = 1;; poll++) {
+  for (int poll = 1; ; poll++) {
     try {
       final String id = await read().timeout(timeout - clock.elapsed);
       if (id != replacing) return;

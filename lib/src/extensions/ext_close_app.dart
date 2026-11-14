@@ -76,9 +76,7 @@ Future<developer.ServiceExtensionResponse> extTapirCloseAppHandler(
 
     // 2. Return confirmation immediately. The agent reads this before the OS
     //    terminates the isolate, giving it a chance to record the outcome.
-    return tapirResult(<String, dynamic>{
-      'closed': true,
-    });
+    return tapirResult(<String, dynamic>{'closed': true});
   } catch (e, stackTrace) {
     developer.log(
       '[tapir] ext.tapir.close_app error: $e\n$stackTrace',

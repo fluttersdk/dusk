@@ -45,7 +45,8 @@ class TapirWaitCommand extends DowelCommand {
     final expression = ctx.input.option('expression') as String?;
     final timeoutMs = ctx.input.option('timeoutMs') as String?;
 
-    final hasCondition = (text != null && text.isNotEmpty) ||
+    final hasCondition =
+        (text != null && text.isNotEmpty) ||
         (textGone != null && textGone.isNotEmpty) ||
         (expression != null && expression.isNotEmpty);
 
@@ -67,7 +68,9 @@ class TapirWaitCommand extends DowelCommand {
     }
 
     final response = await ctx.callExtension<Map<String, dynamic>>(
-        'ext.tapir.wait_for', params);
+      'ext.tapir.wait_for',
+      params,
+    );
     reportFrameWarning(ctx, response);
 
     // A timed-out wait comes back as a SUCCESS envelope carrying

@@ -22,10 +22,7 @@ import 'ext_snapshot.dart' show snapshotForAction;
 /// [registerExtensionIdempotent], so hot-restart is safe.
 void registerScrollExtensions() {
   registerTapirExtension('ext.tapir.scroll', aiTestScrollHandler);
-  registerTapirExtension(
-    'ext.tapir.select_option',
-    aiTestSelectOptionHandler,
-  );
+  registerTapirExtension('ext.tapir.select_option', aiTestSelectOptionHandler);
 }
 
 // -----------------------------------------------------------------------------
@@ -62,8 +59,8 @@ const double _kDefaultScrollPixels = 300.0;
     'right' => (magnitude, 0.0),
     'left' => (-magnitude, 0.0),
     final String other => throw FormatException(
-        "direction must be up, down, left or right, got '$other'",
-      ),
+      "direction must be up, down, left or right, got '$other'",
+    ),
   };
 }
 
@@ -309,8 +306,9 @@ Future<void> aiTestScrollByDelta(
 /// Returns `null` when the ref is unknown / unmounted; callers fall back
 /// to the root-scrollable walk in that case.
 BuildContext? _resolveRefContext(String ref) {
-  final RefEntry? entry =
-      ref.startsWith('q') ? _resolveQueryToEntry(ref) : RefRegistry.lookup(ref);
+  final RefEntry? entry = ref.startsWith('q')
+      ? _resolveQueryToEntry(ref)
+      : RefRegistry.lookup(ref);
   if (entry == null) return null;
   final Element element = entry.element;
   return element.mounted ? element : null;
@@ -454,8 +452,9 @@ Future<developer.ServiceExtensionResponse> aiTestSelectOptionHandler(
     // the CURRENT tree is both what the effect block is supposed to report
     // and the only way to do it without carrying a BuildContext across the
     // gap.
-    final String? settled =
-        _readSelectedValue(ref == null ? null : _resolveRefContext(ref));
+    final String? settled = _readSelectedValue(
+      ref == null ? null : _resolveRefContext(ref),
+    );
 
     return tapirResult(<String, dynamic>{
       'selected': true,
@@ -497,10 +496,8 @@ bool aiTestSelectOptionInElement(
     // the runtime type name check followed by a dynamic dispatch.
     if (widget.runtimeType.toString().startsWith('DropdownButton')) {
       // Retrieve onChanged via dynamic — the generated getter is public.
-      // ignore: avoid_dynamic_calls
       final dynamic onChanged = (widget as dynamic).onChanged;
       if (onChanged != null) {
-        // ignore: avoid_dynamic_calls
         onChanged(value);
         invoked = true;
         return;
@@ -535,7 +532,6 @@ String? _readSelectedValue(BuildContext? context) {
     if (element.widget.runtimeType.toString().startsWith('DropdownButton')) {
       // Same dynamic dispatch the invoke path uses: DropdownButton<T> cannot
       // be cast to DropdownButton<dynamic> under covariant generics.
-      // ignore: avoid_dynamic_calls
       final dynamic current = (element.widget as dynamic).value;
       if (current != null) {
         found = current.toString();
@@ -566,10 +562,8 @@ bool _selectOptionInTree(String value) {
     final Widget widget = element.widget;
 
     if (widget.runtimeType.toString().startsWith('DropdownButton')) {
-      // ignore: avoid_dynamic_calls
       final dynamic onChanged = (widget as dynamic).onChanged;
       if (onChanged != null) {
-        // ignore: avoid_dynamic_calls
         onChanged(value);
         invoked = true;
         return;

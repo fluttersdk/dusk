@@ -25,15 +25,21 @@ class TapirHoverCommand extends DowelCommand {
       help: 'Snapshot ref token (e.g. e1).',
       mandatory: true,
     );
-    parser.addFlag('includeSnapshot',
-        help: 'Embed the post-hover snapshot in the response.',
-        defaultsTo: false);
-    parser.addFlag('checkStable',
-        help: 'Run the Stable (2-frame rect-unchanged) actionability gate.',
-        defaultsTo: true);
-    parser.addFlag('checkReceivesEvents',
-        help: 'Run the Receives-Events (front-most hit-test) gate.',
-        defaultsTo: true);
+    parser.addFlag(
+      'includeSnapshot',
+      help: 'Embed the post-hover snapshot in the response.',
+      defaultsTo: false,
+    );
+    parser.addFlag(
+      'checkStable',
+      help: 'Run the Stable (2-frame rect-unchanged) actionability gate.',
+      defaultsTo: true,
+    );
+    parser.addFlag(
+      'checkReceivesEvents',
+      help: 'Run the Receives-Events (front-most hit-test) gate.',
+      defaultsTo: true,
+    );
   }
 
   @override

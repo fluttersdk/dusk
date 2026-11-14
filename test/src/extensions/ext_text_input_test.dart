@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -21,89 +21,47 @@ void main() {
       // Test (a): Envelope shape on valid input
       // -----------------------------------------------------------------------
 
-      test(
-        '(a) returns normally when key is "Enter"',
-        () async {
-          expect(
-            () => pressKey(key: 'Enter'),
-            returnsNormally,
-          );
-        },
-      );
+      test('(a) returns normally when key is "Enter"', () async {
+        expect(() => pressKey(key: 'Enter'), returnsNormally);
+      });
 
-      test(
-        '(a) returns normally when key is "Tab"',
-        () async {
-          expect(
-            () => pressKey(key: 'Tab'),
-            returnsNormally,
-          );
-        },
-      );
+      test('(a) returns normally when key is "Tab"', () async {
+        expect(() => pressKey(key: 'Tab'), returnsNormally);
+      });
 
-      test(
-        '(a) returns normally when key is "Escape"',
-        () async {
-          expect(
-            () => pressKey(key: 'Escape'),
-            returnsNormally,
-          );
-        },
-      );
+      test('(a) returns normally when key is "Escape"', () async {
+        expect(() => pressKey(key: 'Escape'), returnsNormally);
+      });
 
-      test(
-        '(a) returns normally when key is "ArrowUp"',
-        () async {
-          expect(
-            () => pressKey(key: 'ArrowUp'),
-            returnsNormally,
-          );
-        },
-      );
+      test('(a) returns normally when key is "ArrowUp"', () async {
+        expect(() => pressKey(key: 'ArrowUp'), returnsNormally);
+      });
 
-      test(
-        '(a) returns normally when key is "Backspace"',
-        () async {
-          expect(
-            () => pressKey(key: 'Backspace'),
-            returnsNormally,
-          );
-        },
-      );
+      test('(a) returns normally when key is "Backspace"', () async {
+        expect(() => pressKey(key: 'Backspace'), returnsNormally);
+      });
 
       // -----------------------------------------------------------------------
       // Test (b): Modifier combo dispatch
       // -----------------------------------------------------------------------
 
-      test(
-        '(b) accepts modifiers parameter without throwing',
-        () async {
-          expect(
-            () => pressKey(key: 'Enter', modifiers: ['ctrl']),
-            returnsNormally,
-          );
-        },
-      );
+      test('(b) accepts modifiers parameter without throwing', () async {
+        expect(
+          () => pressKey(key: 'Enter', modifiers: ['ctrl']),
+          returnsNormally,
+        );
+      });
 
-      test(
-        '(b) accepts multiple modifiers without throwing',
-        () async {
-          expect(
-            () => pressKey(key: 'Enter', modifiers: ['ctrl', 'shift']),
-            returnsNormally,
-          );
-        },
-      );
+      test('(b) accepts multiple modifiers without throwing', () async {
+        expect(
+          () => pressKey(key: 'Enter', modifiers: ['ctrl', 'shift']),
+          returnsNormally,
+        );
+      });
 
-      test(
-        '(b) modifiers parameter defaults to empty list',
-        () async {
-          expect(
-            () => pressKey(key: 'Enter'),
-            returnsNormally,
-          );
-        },
-      );
+      test('(b) modifiers parameter defaults to empty list', () async {
+        expect(() => pressKey(key: 'Enter'), returnsNormally);
+      });
 
       // -----------------------------------------------------------------------
       // Test (d): The key reaches the focus tree, as a real press does
@@ -143,42 +101,40 @@ void main() {
         },
       );
 
-      testWidgets(
-        '(d) a digit is pressed with its own keys',
-        (WidgetTester tester) async {
-          final List<KeyEvent> heard = <KeyEvent>[];
-          await tester.pumpWidget(_KeyListener(heard: heard));
+      testWidgets('(d) a digit is pressed with its own keys', (
+        WidgetTester tester,
+      ) async {
+        final List<KeyEvent> heard = <KeyEvent>[];
+        await tester.pumpWidget(_KeyListener(heard: heard));
 
-          await pressKey(key: '0');
-          await pressKey(key: '7');
+        await pressKey(key: '0');
+        await pressKey(key: '7');
 
-          expect(
-            heard.whereType<KeyDownEvent>().map((KeyEvent e) => e.physicalKey),
-            <PhysicalKeyboardKey>[
-              PhysicalKeyboardKey.digit0,
-              PhysicalKeyboardKey.digit7,
-            ],
-          );
-          expect(
-            heard.whereType<KeyDownEvent>().map((KeyEvent e) => e.logicalKey),
-            <LogicalKeyboardKey>[
-              LogicalKeyboardKey.digit0,
-              LogicalKeyboardKey.digit7,
-            ],
-          );
-        },
-      );
+        expect(
+          heard.whereType<KeyDownEvent>().map((KeyEvent e) => e.physicalKey),
+          <PhysicalKeyboardKey>[
+            PhysicalKeyboardKey.digit0,
+            PhysicalKeyboardKey.digit7,
+          ],
+        );
+        expect(
+          heard.whereType<KeyDownEvent>().map((KeyEvent e) => e.logicalKey),
+          <LogicalKeyboardKey>[
+            LogicalKeyboardKey.digit0,
+            LogicalKeyboardKey.digit7,
+          ],
+        );
+      });
 
-      testWidgets(
-        '(d) a press leaves no key held',
-        (WidgetTester tester) async {
-          await tester.pumpWidget(_KeyListener(heard: <KeyEvent>[]));
+      testWidgets('(d) a press leaves no key held', (
+        WidgetTester tester,
+      ) async {
+        await tester.pumpWidget(_KeyListener(heard: <KeyEvent>[]));
 
-          await pressKey(key: 'm');
+        await pressKey(key: 'm');
 
-          expect(HardwareKeyboard.instance.physicalKeysPressed, isEmpty);
-        },
-      );
+        expect(HardwareKeyboard.instance.physicalKeysPressed, isEmpty);
+      });
 
       // -----------------------------------------------------------------------
       // Test (c): Bad-input rejection
@@ -187,38 +143,29 @@ void main() {
       test(
         '(c) throws ArgumentError for a character outside letters and digits',
         () async {
-          expect(
-            () => pressKey(key: '%'),
-            throwsA(isA<ArgumentError>()),
-          );
+          expect(() => pressKey(key: '%'), throwsA(isA<ArgumentError>()));
         },
       );
 
-      test(
-        '(c) throws ArgumentError when key is unknown',
-        () async {
-          expect(
-            () => pressKey(key: 'InvalidKeyName'),
-            throwsA(isA<ArgumentError>()),
-          );
-        },
-      );
+      test('(c) throws ArgumentError when key is unknown', () async {
+        expect(
+          () => pressKey(key: 'InvalidKeyName'),
+          throwsA(isA<ArgumentError>()),
+        );
+      });
 
-      test(
-        '(c) ArgumentError message includes the unknown key name',
-        () async {
-          expect(
-            () => pressKey(key: 'BadKey'),
-            throwsA(
-              isA<ArgumentError>().having(
-                (e) => e.message,
-                'message',
-                contains('BadKey'),
-              ),
+      test('(c) ArgumentError message includes the unknown key name', () async {
+        expect(
+          () => pressKey(key: 'BadKey'),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('BadKey'),
             ),
-          );
-        },
-      );
+          ),
+        );
+      });
 
       test(
         '(c) ArgumentError message includes list of supported keys',
@@ -236,15 +183,9 @@ void main() {
         },
       );
 
-      test(
-        '(c) throws ArgumentError when key is empty string',
-        () async {
-          expect(
-            () => pressKey(key: ''),
-            throwsA(isA<ArgumentError>()),
-          );
-        },
-      );
+      test('(c) throws ArgumentError when key is empty string', () async {
+        expect(() => pressKey(key: ''), throwsA(isA<ArgumentError>()));
+      });
 
       // -----------------------------------------------------------------------
       // Test (d): Missing-required-param rejection (handler level)
@@ -253,8 +194,10 @@ void main() {
       test(
         '(d) aiTestPressKeyHandler returns error when key is missing',
         () async {
-          final response =
-              await aiTestPressKeyHandler('ext.tapir.press_key', {});
+          final response = await aiTestPressKeyHandler(
+            'ext.tapir.press_key',
+            {},
+          );
           expect(response.result, isNull);
         },
       );
@@ -262,8 +205,10 @@ void main() {
       test(
         '(d) aiTestPressKeyHandler error mentions missing key param',
         () async {
-          final response =
-              await aiTestPressKeyHandler('ext.tapir.press_key', {});
+          final response = await aiTestPressKeyHandler(
+            'ext.tapir.press_key',
+            {},
+          );
           expect(response.errorDetail ?? '', contains('key'));
         },
       );
@@ -271,51 +216,38 @@ void main() {
       test(
         '(d) aiTestPressKeyHandler returns error when key is empty',
         () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {'key': ''},
-          );
+          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+            'key': '',
+          });
           expect(response.result, isNull);
         },
       );
 
-      test(
-        '(d) aiTestPressKeyHandler succeeds when key is valid',
-        () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {'key': 'Enter'},
-          );
-          final resultStr = response.result;
-          expect(resultStr, isNotNull);
-          expect(
-            () => jsonDecode(resultStr!),
-            returnsNormally,
-          );
-        },
-      );
+      test('(d) aiTestPressKeyHandler succeeds when key is valid', () async {
+        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          'key': 'Enter',
+        });
+        final resultStr = response.result;
+        expect(resultStr, isNotNull);
+        expect(() => jsonDecode(resultStr!), returnsNormally);
+      });
 
       test(
         '(d) aiTestPressKeyHandler success response is valid JSON for Tab',
         () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {'key': 'Tab'},
-          );
-          expect(
-            () => jsonDecode(response.result ?? ''),
-            returnsNormally,
-          );
+          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+            'key': 'Tab',
+          });
+          expect(() => jsonDecode(response.result ?? ''), returnsNormally);
         },
       );
 
       test(
         '(d) aiTestPressKeyHandler success response contains ok:true',
         () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {'key': 'Escape'},
-          );
+          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+            'key': 'Escape',
+          });
           final decoded = jsonDecode(response.result ?? '{}');
           expect(decoded['ok'], equals(true));
         },
@@ -324,13 +256,15 @@ void main() {
       test(
         '(d) aiTestPressKeyHandler accepts case-insensitive --key=TAB',
         () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {'key': 'TAB'},
-          );
+          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+            'key': 'TAB',
+          });
           final resultStr = response.result;
-          expect(resultStr, isNotNull,
-              reason: 'TAB (uppercase) should fold to Tab via _lookupKey');
+          expect(
+            resultStr,
+            isNotNull,
+            reason: 'TAB (uppercase) should fold to Tab via _lookupKey',
+          );
           final decoded = jsonDecode(resultStr!);
           expect(decoded['ok'], equals(true));
         },
@@ -339,13 +273,15 @@ void main() {
       test(
         '(d) aiTestPressKeyHandler accepts case-insensitive --key=enter',
         () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {'key': 'enter'},
-          );
+          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+            'key': 'enter',
+          });
           final resultStr = response.result;
-          expect(resultStr, isNotNull,
-              reason: 'enter (lowercase) should fold to Enter via _lookupKey');
+          expect(
+            resultStr,
+            isNotNull,
+            reason: 'enter (lowercase) should fold to Enter via _lookupKey',
+          );
           final decoded = jsonDecode(resultStr!);
           expect(decoded['ok'], equals(true));
         },
@@ -354,10 +290,9 @@ void main() {
       test(
         '(d) aiTestPressKeyHandler rejects unknown key (no case-folding match)',
         () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {'key': 'NoSuchKey'},
-          );
+          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+            'key': 'NoSuchKey',
+          });
           expect(response.result, isNull);
           expect(response.errorDetail ?? '', contains('unknown key'));
         },
@@ -366,10 +301,9 @@ void main() {
       test(
         '(d) aiTestPressKeyHandler success response echoes the key',
         () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {'key': 'Enter'},
-          );
+          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+            'key': 'Enter',
+          });
           final decoded = jsonDecode(response.result ?? '{}');
           expect(decoded['key'], equals('Enter'));
         },
@@ -382,41 +316,31 @@ void main() {
       test(
         '(e) registerTextInputExtensions can be called multiple times',
         () async {
-          expect(
-            () {
-              registerTextInputExtensions();
-              registerTextInputExtensions();
-            },
-            returnsNormally,
-          );
+          expect(() {
+            registerTextInputExtensions();
+            registerTextInputExtensions();
+          }, returnsNormally);
         },
       );
 
       test(
         '(e) calling registerTextInputExtensions twice does not throw',
         () async {
-          expect(
-            () {
-              registerTextInputExtensions();
-              registerTextInputExtensions();
-            },
-            returnsNormally,
-          );
+          expect(() {
+            registerTextInputExtensions();
+            registerTextInputExtensions();
+          }, returnsNormally);
         },
       );
 
-      test(
-        '(e) handler is still available after second registerTextInputExtensions',
-        () async {
-          registerTextInputExtensions();
-          registerTextInputExtensions();
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {'key': 'Enter'},
-          );
-          expect(response.result, isNotNull);
-        },
-      );
+      test('(e) handler is still available after second registerTextInputExtensions', () async {
+        registerTextInputExtensions();
+        registerTextInputExtensions();
+        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          'key': 'Enter',
+        });
+        expect(response.result, isNotNull);
+      });
     });
 
     group('aiTestPressKeyHandler modifier parsing', () {
@@ -424,60 +348,38 @@ void main() {
       // Test modifier parameter parsing (additional handler-level tests)
       // -----------------------------------------------------------------------
 
-      test(
-        'parses comma-separated modifiers from params',
-        () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {
-              'key': 'Enter',
-              'modifiers': 'ctrl,shift',
-            },
-          );
-          expect(response.result, isNotNull);
-          final decoded = jsonDecode(response.result!);
-          expect(decoded['ok'], equals(true));
-        },
-      );
+      test('parses comma-separated modifiers from params', () async {
+        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          'key': 'Enter',
+          'modifiers': 'ctrl,shift',
+        });
+        expect(response.result, isNotNull);
+        final decoded = jsonDecode(response.result!);
+        expect(decoded['ok'], equals(true));
+      });
 
-      test(
-        'handles whitespace in modifier list',
-        () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {
-              'key': 'Tab',
-              'modifiers': 'ctrl, shift, alt',
-            },
-          );
-          expect(response.result, isNotNull);
-        },
-      );
+      test('handles whitespace in modifier list', () async {
+        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          'key': 'Tab',
+          'modifiers': 'ctrl, shift, alt',
+        });
+        expect(response.result, isNotNull);
+      });
 
-      test(
-        'ignores empty modifier strings from split',
-        () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {
-              'key': 'Enter',
-              'modifiers': 'ctrl,,shift',
-            },
-          );
-          expect(response.result, isNotNull);
-        },
-      );
+      test('ignores empty modifier strings from split', () async {
+        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          'key': 'Enter',
+          'modifiers': 'ctrl,,shift',
+        });
+        expect(response.result, isNotNull);
+      });
 
-      test(
-        'handles null modifiers param gracefully',
-        () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {'key': 'Tab'},
-          );
-          expect(response.result, isNotNull);
-        },
-      );
+      test('handles null modifiers param gracefully', () async {
+        final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+          'key': 'Tab',
+        });
+        expect(response.result, isNotNull);
+      });
 
       for (final String modifiers in <String>[
         '["control","shift"]',
@@ -504,16 +406,11 @@ void main() {
 
             final response = await aiTestPressKeyHandler(
               'ext.tapir.press_key',
-              <String, String>{
-                'key': 'S',
-                'modifiers': modifiers,
-              },
+              <String, String>{'key': 'S', 'modifiers': modifiers},
             );
 
             expect(response.result, isNotNull);
-            expect(heldOnKey, <(bool, bool)>[
-              (true, true),
-            ]);
+            expect(heldOnKey, <(bool, bool)>[(true, true)]);
             expect(HardwareKeyboard.instance.logicalKeysPressed, isEmpty);
           },
         );
@@ -534,10 +431,7 @@ void main() {
 
           final response = await aiTestPressKeyHandler(
             'ext.tapir.press_key',
-            <String, String>{
-              'key': 'Enter',
-              'modifiers': 'shift,hyper',
-            },
+            <String, String>{'key': 'Enter', 'modifiers': 'shift,hyper'},
           );
 
           expect(response.result, isNull);
@@ -593,7 +487,8 @@ void main() {
                     const SingleActivator(
                       LogicalKeyboardKey.tab,
                       shift: true,
-                    ): () => fired++,
+                    ): () =>
+                        fired++,
                   },
                   child: Focus(
                     autofocus: true,
@@ -612,10 +507,7 @@ void main() {
           Future<void> press(Map<String, String> params) async {
             final future = aiTestPressKeyHandler(
               'ext.tapir.press_key',
-              <String, String>{
-                ...params,
-                'includeSnapshot': 'false',
-              },
+              <String, String>{...params, 'includeSnapshot': 'false'},
             );
             bool done = false;
             unawaited(future.whenComplete(() => done = true));
@@ -628,10 +520,7 @@ void main() {
             expect(response.result, isNotNull);
           }
 
-          await press(<String, String>{
-            'key': 'Tab',
-            'modifiers': 'shift',
-          });
+          await press(<String, String>{'key': 'Tab', 'modifiers': 'shift'});
 
           expect(fired, 1);
           expect(
@@ -639,9 +528,7 @@ void main() {
             contains(LogicalKeyboardKey.tab),
           );
 
-          await press(<String, String>{
-            'key': 'Tab',
-          });
+          await press(<String, String>{'key': 'Tab'});
 
           expect(fired, 1);
           expect(HardwareKeyboard.instance.logicalKeysPressed, isEmpty);
@@ -651,13 +538,10 @@ void main() {
       test(
         'returns error when key is invalid despite valid modifiers',
         () async {
-          final response = await aiTestPressKeyHandler(
-            'ext.tapir.press_key',
-            {
-              'key': 'BadKey',
-              'modifiers': 'ctrl',
-            },
-          );
+          final response = await aiTestPressKeyHandler('ext.tapir.press_key', {
+            'key': 'BadKey',
+            'modifiers': 'ctrl',
+          });
           expect(response.result, isNull);
         },
       );
@@ -670,37 +554,34 @@ void main() {
       // (d) Zero-rect entry → type fails with descriptive actionability error
       // -----------------------------------------------------------------------
 
-      testWidgets(
-        '(d) zero-rect ref returns "zero rect" actionability error',
-        (WidgetTester tester) async {
-          await tester.pumpWidget(
-            const MaterialApp(
-              home: Scaffold(
-                body: Center(child: TextField()),
-              ),
-            ),
-          );
+      testWidgets('(d) zero-rect ref returns "zero rect" actionability error', (
+        WidgetTester tester,
+      ) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(body: Center(child: TextField())),
+          ),
+        );
 
-          final Element element = tester.element(find.byType(TextField));
-          final String ref = RefRegistry.registerForTesting(
-            rect: const Rect.fromLTWH(10, 10, 0, 40),
-            element: element,
-            groupId: 'g',
-            isTextField: true,
-          );
+        final Element element = tester.element(find.byType(TextField));
+        final String ref = RefRegistry.registerForTesting(
+          rect: const Rect.fromLTWH(10, 10, 0, 40),
+          element: element,
+          groupId: 'g',
+          isTextField: true,
+        );
 
-          final response = await aiTestTypeHandler(
-            'ext.tapir.type',
-            <String, String>{'ref': ref, 'text': 'hello'},
-          );
+        final response = await aiTestTypeHandler(
+          'ext.tapir.type',
+          <String, String>{'ref': ref, 'text': 'hello'},
+        );
 
-          expect(response.result, isNull);
-          expect(
-            response.errorDetail ?? '',
-            contains('Widget ref=$ref is not actionable: zero rect'),
-          );
-        },
-      );
+        expect(response.result, isNull);
+        expect(
+          response.errorDetail ?? '',
+          contains('Widget ref=$ref is not actionable: zero rect'),
+        );
+      });
 
       testWidgets(
         '(d) off-viewport ref returns "off-viewport" actionability error',
@@ -712,9 +593,7 @@ void main() {
 
           await tester.pumpWidget(
             const MaterialApp(
-              home: Scaffold(
-                body: Center(child: TextField()),
-              ),
+              home: Scaffold(body: Center(child: TextField())),
             ),
           );
 
@@ -777,15 +656,12 @@ void main() {
           // advance under fake-async. Stable + receives-events gates
           // opt-out: registerForTesting mints a synthetic rect that does
           // not align with the live TextField geometry.
-          final future = aiTestTypeHandler(
-            'ext.tapir.type',
-            <String, String>{
-              'ref': ref,
-              'text': 'typed',
-              'checkStable': 'false',
-              'checkReceivesEvents': 'false',
-            },
-          );
+          final future = aiTestTypeHandler('ext.tapir.type', <String, String>{
+            'ref': ref,
+            'text': 'typed',
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          });
           await tester.pump();
           await tester.pump();
           final response = await future;
@@ -873,7 +749,7 @@ void main() {
             PageRouteBuilder<void>(
               transitionDuration: Duration.zero,
               reverseTransitionDuration: Duration.zero,
-              pageBuilder: (_, __, ___) =>
+              pageBuilder: (_, _, _) =>
                   Scaffold(body: TextField(controller: visible)),
             ),
           );
@@ -964,7 +840,7 @@ void main() {
             PageRouteBuilder<void>(
               transitionDuration: Duration.zero,
               reverseTransitionDuration: Duration.zero,
-              pageBuilder: (_, __, ___) => Scaffold(
+              pageBuilder: (_, _, _) => Scaffold(
                 body: Column(
                   children: <Widget>[
                     // The label sits level with the covered field and well
@@ -1023,7 +899,7 @@ void main() {
             PageRouteBuilder<void>(
               transitionDuration: Duration.zero,
               reverseTransitionDuration: Duration.zero,
-              pageBuilder: (_, __, ___) =>
+              pageBuilder: (_, _, _) =>
                   Scaffold(body: TextField(controller: visible)),
             ),
           );
@@ -1041,71 +917,68 @@ void main() {
         },
       );
 
-      testWidgets(
-        '(no rect) a lone muted field is still written',
-        (WidgetTester tester) async {
-          // The rect-less fallback's second pass: with every field muted, the
-          // first one is the answer rather than none at all.
-          final TextEditingController only = TextEditingController();
-          addTearDown(only.dispose);
+      testWidgets('(no rect) a lone muted field is still written', (
+        WidgetTester tester,
+      ) async {
+        // The rect-less fallback's second pass: with every field muted, the
+        // first one is the answer rather than none at all.
+        final TextEditingController only = TextEditingController();
+        addTearDown(only.dispose);
 
-          await tester.pumpWidget(
-            MaterialApp(
-              home: Scaffold(
-                body: TickerMode(
-                  enabled: false,
-                  child: TextField(controller: only),
-                ),
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: TickerMode(
+                enabled: false,
+                child: TextField(controller: only),
               ),
             ),
-          );
+          ),
+        );
 
-          await typeIntoElement(
-            element: WidgetsBinding.instance.rootElement!,
-            text: 'z',
-          );
-          await tester.pump();
+        await typeIntoElement(
+          element: WidgetsBinding.instance.rootElement!,
+          text: 'z',
+        );
+        await tester.pump();
 
-          expect(only.text, equals('z'));
-        },
-      );
+        expect(only.text, equals('z'));
+      });
 
-      testWidgets(
-        '(no rect) the fallback skips a field on a covered route',
-        (WidgetTester tester) async {
-          final TextEditingController covered = TextEditingController();
-          final TextEditingController visible = TextEditingController();
-          addTearDown(covered.dispose);
-          addTearDown(visible.dispose);
+      testWidgets('(no rect) the fallback skips a field on a covered route', (
+        WidgetTester tester,
+      ) async {
+        final TextEditingController covered = TextEditingController();
+        final TextEditingController visible = TextEditingController();
+        addTearDown(covered.dispose);
+        addTearDown(visible.dispose);
 
-          final GlobalKey<NavigatorState> navigator =
-              GlobalKey<NavigatorState>();
-          await tester.pumpWidget(
-            MaterialApp(
-              navigatorKey: navigator,
-              home: Scaffold(body: TextField(controller: covered)),
-            ),
-          );
-          navigator.currentState!.push(
-            PageRouteBuilder<void>(
-              transitionDuration: Duration.zero,
-              reverseTransitionDuration: Duration.zero,
-              pageBuilder: (_, __, ___) =>
-                  Scaffold(body: TextField(controller: visible)),
-            ),
-          );
-          await tester.pumpAndSettle();
+        final GlobalKey<NavigatorState> navigator = GlobalKey<NavigatorState>();
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: navigator,
+            home: Scaffold(body: TextField(controller: covered)),
+          ),
+        );
+        navigator.currentState!.push(
+          PageRouteBuilder<void>(
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+            pageBuilder: (_, _, _) =>
+                Scaffold(body: TextField(controller: visible)),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-          await typeIntoElement(
-            element: WidgetsBinding.instance.rootElement!,
-            text: 'typed',
-          );
-          await tester.pump();
+        await typeIntoElement(
+          element: WidgetsBinding.instance.rootElement!,
+          text: 'typed',
+        );
+        await tester.pump();
 
-          expect(visible.text, equals('typed'));
-          expect(covered.text, isEmpty);
-        },
-      );
+        expect(visible.text, equals('typed'));
+        expect(covered.text, isEmpty);
+      });
 
       testWidgets(
         '(rect) clear empties the field matching targetRect, not the first',
@@ -1148,14 +1021,11 @@ void main() {
             isTextField: true,
           );
 
-          final future = aiTestClearHandler(
-            'ext.tapir.clear',
-            <String, String>{
-              'ref': ref,
-              'checkStable': 'false',
-              'checkReceivesEvents': 'false',
-            },
-          );
+          final future = aiTestClearHandler('ext.tapir.clear', <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          });
           await tester.pump();
           await tester.pump();
           await future;
@@ -1203,18 +1073,16 @@ void main() {
             'ext.tapir.find',
             <String, String>{'semanticsLabel': 'search-field'},
           );
-          final String qRef = (jsonDecode(findResponse.result!)
-              as Map<String, dynamic>)['ref'] as String;
+          final String qRef =
+              (jsonDecode(findResponse.result!) as Map<String, dynamic>)['ref']
+                  as String;
           expect(qRef, startsWith('q'));
 
-          final future = aiTestClearHandler(
-            'ext.tapir.clear',
-            <String, String>{
-              'ref': qRef,
-              'checkStable': 'false',
-              'checkReceivesEvents': 'false',
-            },
-          );
+          final future = aiTestClearHandler('ext.tapir.clear', <String, String>{
+            'ref': qRef,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+          });
           await tester.pump(const Duration(milliseconds: 100));
           await tester.pump();
           await tester.pump();
@@ -1258,32 +1126,31 @@ void main() {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
-    testWidgets(
-      'type on a dropdown ref is refused and no field changes',
-      (WidgetTester tester) async {
-        final SemanticsHandle semantics = tester.ensureSemantics();
-        final TextEditingController name = TextEditingController(text: 'Ada');
-        addTearDown(name.dispose);
-        await tester.pumpWidget(_DropdownForm(name: name));
+    testWidgets('type on a dropdown ref is refused and no field changes', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      final TextEditingController name = TextEditingController(text: 'Ada');
+      addTearDown(name.dispose);
+      await tester.pumpWidget(_DropdownForm(name: name));
 
-        final String ref = _registerNodeRef(
-          tester,
-          find.byType(DropdownButton<String>),
-        );
-        final response = await _drive(
-          tester,
-          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Bob')),
-        );
+      final String ref = _registerNodeRef(
+        tester,
+        find.byType(DropdownButton<String>),
+      );
+      final response = await _drive(
+        tester,
+        aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Bob')),
+      );
 
-        expect(response.result, isNull);
-        expect(
-          parseMessageFromErrorDetail(response.errorDetail ?? ''),
-          contains('ref $ref is a button, not a text field'),
-        );
-        expect(name.text, equals('Ada'));
-        semantics.dispose();
-      },
-    );
+      expect(response.result, isNull);
+      expect(
+        parseMessageFromErrorDetail(response.errorDetail ?? ''),
+        contains('ref $ref is a button, not a text field'),
+      );
+      expect(name.text, equals('Ada'));
+      semantics.dispose();
+    });
 
     testWidgets(
       'clear on a dropdown ref is refused and leaves the Name field alone',
@@ -1319,9 +1186,9 @@ void main() {
 
         final Finder label = find.text('Full name');
         expect(
-          tester.getRect(label).overlaps(
-                tester.getRect(find.byType(EditableText)),
-              ),
+          tester
+              .getRect(label)
+              .overlaps(tester.getRect(find.byType(EditableText))),
           isFalse,
         );
         final String ref = _registerNodeRef(tester, label);
@@ -1372,69 +1239,67 @@ void main() {
       },
     );
 
-    testWidgets(
-      'type on a checkbox ref is refused as a checkbox',
-      (WidgetTester tester) async {
-        final SemanticsHandle semantics = tester.ensureSemantics();
-        final TextEditingController name = TextEditingController(text: 'Ada');
-        addTearDown(name.dispose);
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Column(
-                children: <Widget>[
-                  TextField(controller: name),
-                  Checkbox(value: false, onChanged: (_) {}),
-                ],
-              ),
+    testWidgets('type on a checkbox ref is refused as a checkbox', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      final TextEditingController name = TextEditingController(text: 'Ada');
+      addTearDown(name.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: <Widget>[
+                TextField(controller: name),
+                Checkbox(value: false, onChanged: (_) {}),
+              ],
             ),
           ),
-        );
+        ),
+      );
 
-        final String ref = _registerNodeRef(tester, find.byType(Checkbox));
-        final response = await _drive(
-          tester,
-          aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Bob')),
-        );
+      final String ref = _registerNodeRef(tester, find.byType(Checkbox));
+      final response = await _drive(
+        tester,
+        aiTestTypeHandler('ext.tapir.type', _quietParams(ref, text: 'Bob')),
+      );
 
-        expect(response.result, isNull);
-        expect(
-          response.errorDetail ?? '',
-          contains('ref $ref is a checkbox, not a text field'),
-        );
-        expect(name.text, equals('Ada'));
-        semantics.dispose();
-      },
-    );
+      expect(response.result, isNull);
+      expect(
+        response.errorDetail ?? '',
+        contains('ref $ref is a checkbox, not a text field'),
+      );
+      expect(name.text, equals('Ada'));
+      semantics.dispose();
+    });
 
-    testWidgets(
-      'type with no rect reports the element walk as its target',
-      (WidgetTester tester) async {
-        final TextEditingController name = TextEditingController();
-        addTearDown(name.dispose);
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(body: TextField(controller: name)),
-          ),
-        );
-        TestRefRegistry.inject('e700', tester.element(find.byType(TextField)));
-        addTearDown(TestRefRegistry.clear);
+    testWidgets('type with no rect reports the element walk as its target', (
+      WidgetTester tester,
+    ) async {
+      final TextEditingController name = TextEditingController();
+      addTearDown(name.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: TextField(controller: name)),
+        ),
+      );
+      TestRefRegistry.inject('e700', tester.element(find.byType(TextField)));
+      addTearDown(TestRefRegistry.clear);
 
-        final response = await _drive(
-          tester,
-          aiTestTypeHandler(
-            'ext.tapir.type',
-            _quietParams('e700', text: 'walked'),
-          ),
-        );
+      final response = await _drive(
+        tester,
+        aiTestTypeHandler(
+          'ext.tapir.type',
+          _quietParams('e700', text: 'walked'),
+        ),
+      );
 
-        expect(name.text, equals('walked'));
-        expect(
-          (_effectOf(response)['target'] as Map<String, dynamic>)['matchKind'],
-          equals('element'),
-        );
-      },
-    );
+      expect(name.text, equals('walked'));
+      expect(
+        (_effectOf(response)['target'] as Map<String, dynamic>)['matchKind'],
+        equals('element'),
+      );
+    });
   });
 
   group('aiTestTypeHandler settled value', () {
@@ -1511,8 +1376,9 @@ void main() {
   });
 
   group('TestRefRegistry', () {
-    testWidgets('inject + lookup roundtrip, clear empties the table',
-        (tester) async {
+    testWidgets('inject + lookup roundtrip, clear empties the table', (
+      tester,
+    ) async {
       await tester.pumpWidget(const SizedBox.shrink());
       final element = tester.element(find.byType(SizedBox));
       TestRefRegistry.inject('e42', element);
@@ -1527,8 +1393,9 @@ void main() {
   });
 
   group('typeIntoElement error paths', () {
-    testWidgets('throws ArgumentError when no EditableText is in the subtree',
-        (tester) async {
+    testWidgets('throws ArgumentError when no EditableText is in the subtree', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: Text('plain'))),
       );
@@ -1548,282 +1415,260 @@ void main() {
   group('aiTestTypeHandler snapshot-in-response', () {
     setUp(RefRegistry.resetForTesting);
 
-    testWidgets(
-      'embeds snapshot field in success response by default',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('embeds snapshot field in success response by default', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        final TextEditingController controller = TextEditingController();
-        addTearDown(controller.dispose);
+      final TextEditingController controller = TextEditingController();
+      addTearDown(controller.dispose);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(child: TextField(controller: controller)),
-            ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(child: TextField(controller: controller)),
           ),
-        );
+        ),
+      );
 
-        final Element element = tester.element(find.byType(TextField));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 200, 40),
-          element: element,
-          groupId: 'g',
-          isTextField: true,
-        );
+      final Element element = tester.element(find.byType(TextField));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 200, 40),
+        element: element,
+        groupId: 'g',
+        isTextField: true,
+      );
 
-        final future = aiTestTypeHandler(
-          'ext.tapir.type',
-          <String, String>{
-            'ref': ref,
-            'text': 'snap-type',
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTypeHandler('ext.tapir.type', <String, String>{
+        'ref': ref,
+        'text': 'snap-type',
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['text'], equals('snap-type'));
-        expect(decoded['snapshot'], isA<String>());
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['text'], equals('snap-type'));
+      expect(decoded['snapshot'], isA<String>());
+    });
 
-    testWidgets(
-      'omits snapshot when includeSnapshot is false',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('omits snapshot when includeSnapshot is false', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        final TextEditingController controller = TextEditingController();
-        addTearDown(controller.dispose);
+      final TextEditingController controller = TextEditingController();
+      addTearDown(controller.dispose);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(child: TextField(controller: controller)),
-            ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(child: TextField(controller: controller)),
           ),
-        );
+        ),
+      );
 
-        final Element element = tester.element(find.byType(TextField));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 200, 40),
-          element: element,
-          groupId: 'g',
-          isTextField: true,
-        );
+      final Element element = tester.element(find.byType(TextField));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 200, 40),
+        element: element,
+        groupId: 'g',
+        isTextField: true,
+      );
 
-        final future = aiTestTypeHandler(
-          'ext.tapir.type',
-          <String, String>{
-            'ref': ref,
-            'text': 'no-snap-type',
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'false',
-          },
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTypeHandler('ext.tapir.type', <String, String>{
+        'ref': ref,
+        'text': 'no-snap-type',
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+        'includeSnapshot': 'false',
+      });
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded.containsKey('snapshot'), isFalse);
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded.containsKey('snapshot'), isFalse);
+    });
 
-    testWidgets(
-      'snapshot YAML reflects the post-type tree',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('snapshot YAML reflects the post-type tree', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        final TextEditingController controller = TextEditingController();
-        addTearDown(controller.dispose);
+      final TextEditingController controller = TextEditingController();
+      addTearDown(controller.dispose);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(child: TextField(controller: controller)),
-            ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(child: TextField(controller: controller)),
           ),
-        );
+        ),
+      );
 
-        final Element element = tester.element(find.byType(TextField));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 200, 40),
-          element: element,
-          groupId: 'g',
-          isTextField: true,
-        );
+      final Element element = tester.element(find.byType(TextField));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 200, 40),
+        element: element,
+        groupId: 'g',
+        isTextField: true,
+      );
 
-        final future = aiTestTypeHandler(
-          'ext.tapir.type',
-          <String, String>{
-            'ref': ref,
-            'text': 'snap-type-content',
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTypeHandler('ext.tapir.type', <String, String>{
+        'ref': ref,
+        'text': 'snap-type-content',
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        // The TextField's textbox role is the marker emitted by
-        // tapirSnapBuild for editable nodes.
-        expect(decoded['snapshot'] as String, contains('textbox'));
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      // The TextField's textbox role is the marker emitted by
+      // tapirSnapBuild for editable nodes.
+      expect(decoded['snapshot'] as String, contains('textbox'));
+    });
 
-    testWidgets(
-      'snapshot=diff answers the field line the type changed',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        resetSnapshotBaselineForTesting();
-        addTearDown(resetSnapshotBaselineForTesting);
+    testWidgets('snapshot=diff answers the field line the type changed', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      resetSnapshotBaselineForTesting();
+      addTearDown(resetSnapshotBaselineForTesting);
 
-        final TextEditingController controller = TextEditingController();
-        addTearDown(controller.dispose);
+      final TextEditingController controller = TextEditingController();
+      addTearDown(controller.dispose);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(child: TextField(controller: controller)),
-            ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(child: TextField(controller: controller)),
           ),
-        );
-        await tapirSnapBuild();
+        ),
+      );
+      await tapirSnapBuild();
 
-        final Element element = tester.element(find.byType(TextField));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 200, 40),
-          element: element,
-          groupId: 'g',
-          isTextField: true,
-        );
+      final Element element = tester.element(find.byType(TextField));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 200, 40),
+        element: element,
+        groupId: 'g',
+        isTextField: true,
+      );
 
-        final future = aiTestTypeHandler(
-          'ext.tapir.type',
-          <String, String>{
-            'ref': ref,
-            'text': 'diff-typed',
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'snapshot': 'diff',
-          },
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTypeHandler('ext.tapir.type', <String, String>{
+        'ref': ref,
+        'text': 'diff-typed',
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+        'snapshot': 'diff',
+      });
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['snapshotMode'], 'diff');
-        final List<String> lines = (decoded['snapshot'] as String).split('\n');
-        expect(
-          lines.where((String l) => l.startsWith('+ ')),
-          contains(contains('"diff-typed"')),
-        );
-        expect(lines.last, endsWith('lines changed)'));
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['snapshotMode'], 'diff');
+      final List<String> lines = (decoded['snapshot'] as String).split('\n');
+      expect(
+        lines.where((String l) => l.startsWith('+ ')),
+        contains(contains('"diff-typed"')),
+      );
+      expect(lines.last, endsWith('lines changed)'));
+    });
   });
 
   group('aiTestPressKeyHandler snapshot-in-response', () {
-    testWidgets(
-      'embeds snapshot field in success response by default',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('presskey-snap'))),
-          ),
-        );
+    testWidgets('embeds snapshot field in success response by default', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('presskey-snap'))),
+        ),
+      );
 
-        final future = aiTestPressKeyHandler(
-          'ext.tapir.press_key',
-          <String, String>{'key': 'Enter'},
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestPressKeyHandler(
+        'ext.tapir.press_key',
+        <String, String>{'key': 'Enter'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['ok'], isTrue);
-        expect(decoded['key'], equals('Enter'));
-        expect(decoded['snapshot'], isA<String>());
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['ok'], isTrue);
+      expect(decoded['key'], equals('Enter'));
+      expect(decoded['snapshot'], isA<String>());
+    });
 
-    testWidgets(
-      'omits snapshot when includeSnapshot is false',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('presskey-nosnap'))),
-          ),
-        );
+    testWidgets('omits snapshot when includeSnapshot is false', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('presskey-nosnap'))),
+        ),
+      );
 
-        final future = aiTestPressKeyHandler(
-          'ext.tapir.press_key',
-          <String, String>{
-            'key': 'Tab',
-            'includeSnapshot': 'false',
-          },
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestPressKeyHandler(
+        'ext.tapir.press_key',
+        <String, String>{'key': 'Tab', 'includeSnapshot': 'false'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded.containsKey('snapshot'), isFalse);
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded.containsKey('snapshot'), isFalse);
+    });
 
-    testWidgets(
-      'snapshot YAML reflects the post-key tree contents',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(
-              body: Center(child: Text('presskey-content-marker')),
-            ),
-          ),
-        );
+    testWidgets('snapshot YAML reflects the post-key tree contents', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('presskey-content-marker'))),
+        ),
+      );
 
-        final future = aiTestPressKeyHandler(
-          'ext.tapir.press_key',
-          <String, String>{'key': 'Escape'},
-        );
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestPressKeyHandler(
+        'ext.tapir.press_key',
+        <String, String>{'key': 'Escape'},
+      );
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(
-            decoded['snapshot'] as String, contains('presskey-content-marker'));
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(
+        decoded['snapshot'] as String,
+        contains('presskey-content-marker'),
+      );
+    });
 
     testWidgets(
       'snapshot=diff on a key that changed nothing reports zero lines',
@@ -1848,8 +1693,10 @@ void main() {
         final Map<String, dynamic> decoded =
             jsonDecode(response.result!) as Map<String, dynamic>;
         expect(decoded['snapshotMode'], 'diff');
-        expect(decoded['snapshot'],
-            matches(RegExp(r'^\(0 of \d+ lines changed\)$')));
+        expect(
+          decoded['snapshot'],
+          matches(RegExp(r'^\(0 of \d+ lines changed\)$')),
+        );
       },
     );
   });
@@ -1885,10 +1732,7 @@ void main() {
         const <String, String>{'ref': 'e9999', 'text': 'hello'},
       );
       expect(response.result, isNull);
-      expect(
-        response.errorDetail ?? '',
-        contains('not found in registry'),
-      );
+      expect(response.errorDetail ?? '', contains('not found in registry'));
     });
   });
 
@@ -1924,10 +1768,7 @@ void main() {
         const <String, String>{'ref': 'e9999'},
       );
       expect(response.result, isNull);
-      expect(
-        response.errorDetail ?? '',
-        contains('not found in registry'),
-      );
+      expect(response.errorDetail ?? '', contains('not found in registry'));
     });
   });
 }
@@ -1936,7 +1777,7 @@ void main() {
 Map<String, String> _quietParams(String ref, {String? text}) =>
     <String, String>{
       'ref': ref,
-      if (text != null) 'text': text,
+      'text': ?text,
       'checkStable': 'false',
       'checkReceivesEvents': 'false',
       'includeSnapshot': 'false',

@@ -30,13 +30,21 @@ class TapirDblclickCommand extends DowelCommand {
       'ref',
       help: 'Widget ref token from a prior tapir:snap call (e.g. e5).',
     );
-    parser.addFlag('includeSnapshot',
-        help: 'Embed the post-dblclick snapshot in the response.',
-        defaultsTo: false);
-    parser.addFlag('checkStable',
-        help: 'Run the Stable actionability gate.', defaultsTo: true);
-    parser.addFlag('checkReceivesEvents',
-        help: 'Run the Receives-Events actionability gate.', defaultsTo: true);
+    parser.addFlag(
+      'includeSnapshot',
+      help: 'Embed the post-dblclick snapshot in the response.',
+      defaultsTo: false,
+    );
+    parser.addFlag(
+      'checkStable',
+      help: 'Run the Stable actionability gate.',
+      defaultsTo: true,
+    );
+    parser.addFlag(
+      'checkReceivesEvents',
+      help: 'Run the Receives-Events actionability gate.',
+      defaultsTo: true,
+    );
   }
 
   @override
@@ -67,7 +75,10 @@ class TapirDblclickCommand extends DowelCommand {
       ctx.output.writeln(jsonEncode(response));
     } else {
       emitEnvelope(
-          ctx, response, () => ctx.output.success('Double-clicked ref $ref'));
+        ctx,
+        response,
+        () => ctx.output.success('Double-clicked ref $ref'),
+      );
     }
     return 0;
   }

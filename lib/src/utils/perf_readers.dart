@@ -38,9 +38,9 @@ import 'perf_insights.dart' show PerfMode;
 /// liveness counter is REQUIRED, not optional, because `ext.tapir.perf_end`'s
 /// stalled-engine refusal is computed from it.
 Map<String, Object?> Function() framePerfReader = () => <String, Object?>{
-      'frames': <Map<String, Object?>>[],
-      'livenessCounter': 0,
-    };
+  'frames': <Map<String, Object?>>[],
+  'livenessCounter': 0,
+};
 
 /// Reader for the magic-side performance extras, the source of the report's
 /// `counters.magic` and `summary.routeTransitions`.
@@ -70,16 +70,16 @@ Map<String, Object?> Function() framePerfReader = () => <String, Object?>{
 /// failing the report, so a key added here before tapir ships support for it
 /// costs nothing.
 Map<String, Object?> Function() perfExtrasReader = () => <String, Object?>{
-      'controllerNotifies': <String, int>{},
-      'notifyCauses': <String, int>{},
-      'queryReloads': <String, int>{},
-      'actions': <String, int>{},
-      'events': <String, int>{},
-      'casts': <String, int>{},
-      'timerTicks': <String, int>{},
-      'broadcasts': <String, int>{},
-      'routeTransitions': <Map<String, Object?>>[],
-    };
+  'controllerNotifies': <String, int>{},
+  'notifyCauses': <String, int>{},
+  'queryReloads': <String, int>{},
+  'actions': <String, int>{},
+  'events': <String, int>{},
+  'casts': <String, int>{},
+  'timerTicks': <String, int>{},
+  'broadcasts': <String, int>{},
+  'routeTransitions': <Map<String, Object?>>[],
+};
 
 /// Command that opens a measurement session in the packages tapir cannot
 /// import: it zeroes wind's counters and crumbs's frame buffer, and turns
@@ -169,7 +169,7 @@ void Function() perfSessionEndHook = () {};
 /// **Contract**: appended once per isolate from `MagicPerfIntegration.install()`,
 /// cleared by `MagicPerfIntegration.resetForTesting()`. Defaults to empty.
 List<List<Map<String, Object?>> Function(Map<String, Object?> report)>
-    perfInsightContributors =
+perfInsightContributors =
     <List<Map<String, Object?>> Function(Map<String, Object?> report)>[];
 
 /// Reader for the host-side timeline rows `ext.tapir.perf_trace` exports
@@ -210,8 +210,8 @@ List<List<Map<String, Object?>> Function(Map<String, Object?> report)>
 ///
 /// **Contract**: set-once-per-isolate from `MagicPerfIntegration.install()`.
 /// Reset to this default by `MagicPerfIntegration.resetForTesting()`.
-List<Map<String, Object?>> Function() perfTimelineReader =
-    () => <Map<String, Object?>>[];
+List<Map<String, Object?>> Function() perfTimelineReader = () =>
+    <Map<String, Object?>>[];
 
 /// Reader for the renderer the app draws with, the source of the report's
 /// `env.renderer`.
@@ -225,5 +225,5 @@ List<Map<String, Object?>> Function() perfTimelineReader =
 ///
 /// **Contract**: an unset value reads `unknown`, never null or empty, so a
 /// report always says where the renderer question stands.
-String Function() rendererReader =
-    () => kIsWeb ? (kIsWasm ? 'skwasm' : 'canvaskit') : 'unknown';
+String Function() rendererReader = () =>
+    kIsWeb ? (kIsWasm ? 'skwasm' : 'canvaskit') : 'unknown';

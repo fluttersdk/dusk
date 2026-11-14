@@ -1,16 +1,17 @@
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/tapir_plugin.dart';
 import 'package:tapir/src/extensions/ext_navigation.dart';
 import 'package:tapir/src/extensions/ext_snapshot.dart';
 
-/// Tests for the navigation extensions (Step 6 of tapir-alpha-2 plan).
+/// Tests for the navigation extensions.
 ///
 /// Covers:
 /// 1. `extTapirNavigateHandler` — route param validation + success envelope.
@@ -36,8 +37,10 @@ void main() {
 
   group('buildNavigateResponse', () {
     test('returns navigated=true and the supplied route', () {
-      final Map<String, dynamic> result =
-          buildNavigateResponse('/dashboard', exactPath: true);
+      final Map<String, dynamic> result = buildNavigateResponse(
+        '/dashboard',
+        exactPath: true,
+      );
 
       expect(result['navigated'], isTrue);
       expect(result['route'], equals('/dashboard'));
@@ -45,8 +48,10 @@ void main() {
     });
 
     test('encodes to valid JSON with correct fields', () {
-      final Map<String, dynamic> result =
-          buildNavigateResponse('/monitors/abc', exactPath: false);
+      final Map<String, dynamic> result = buildNavigateResponse(
+        '/monitors/abc',
+        exactPath: false,
+      );
       final String json = jsonEncode(result);
       final Map<String, dynamic> decoded =
           jsonDecode(json) as Map<String, dynamic>;
@@ -57,15 +62,19 @@ void main() {
     });
 
     test('preserves arbitrary route strings verbatim', () {
-      final Map<String, dynamic> result =
-          buildNavigateResponse('/monitors/123/metrics', exactPath: true);
+      final Map<String, dynamic> result = buildNavigateResponse(
+        '/monitors/123/metrics',
+        exactPath: true,
+      );
 
       expect(result['route'], equals('/monitors/123/metrics'));
     });
 
     test('always returns exactly navigated, route and exactPath', () {
-      final Map<String, dynamic> result =
-          buildNavigateResponse('/foo', exactPath: true);
+      final Map<String, dynamic> result = buildNavigateResponse(
+        '/foo',
+        exactPath: true,
+      );
 
       expect(
         result.keys,
@@ -101,8 +110,9 @@ void main() {
     });
 
     test('carries popped=false and navigatedBack=false for a no-op', () {
-      final Map<String, dynamic> result =
-          buildNavigateBackResponse(popped: false);
+      final Map<String, dynamic> result = buildNavigateBackResponse(
+        popped: false,
+      );
 
       expect(result['popped'], isFalse);
       expect(result['navigatedBack'], isFalse);
@@ -157,8 +167,9 @@ void main() {
       expect(buildGetRoutesResponse()['uri'], isNull);
     });
 
-    testWidgets('uri is the mounted Router\'s location, not the page name',
-        (WidgetTester tester) async {
+    testWidgets('uri is the mounted Router\'s location, not the page name', (
+      WidgetTester tester,
+    ) async {
       // A Router-based app names no page, so `location` reads '' while the
       // router is on /monitors: the diagnosis measured exactly that in
       // uptizm, where a post-idle route re-check compared '' with ''.
@@ -181,9 +192,9 @@ void main() {
     test('returns extensionError when route param is missing', () async {
       final developer.ServiceExtensionResponse response =
           await extTapirNavigateHandler(
-        'ext.tapir.navigate',
-        <String, String>{},
-      );
+            'ext.tapir.navigate',
+            <String, String>{},
+          );
 
       expect(
         response.errorCode,
@@ -194,10 +205,9 @@ void main() {
 
     test('returns extensionError when route param is empty string', () async {
       final developer.ServiceExtensionResponse response =
-          await extTapirNavigateHandler(
-        'ext.tapir.navigate',
-        <String, String>{'route': ''},
-      );
+          await extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
+            'route': '',
+          });
 
       expect(
         response.errorCode,
@@ -207,46 +217,50 @@ void main() {
     });
 
     testWidgets(
-        'forwards the requested route to the registered navigate adapter',
-        (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1440, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
+      'forwards the requested route to the registered navigate adapter',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
 
-      // Adapter wiring is the Magic-aware dispatch path in production:
-      // host main.dart binds MagicRoute.to here. We only assert the
-      // route is forwarded — the navigated=true / navigated=false
-      // envelope depends on URL-verify reading the router URI, which
-      // needs a real Router widget and is exercised by the uptizm-app
-      // MCP smoke test (live GoRouter, both directions).
-      String? routeSeenByAdapter;
-      TapirPlugin.registerNavigateAdapter((String route) async {
-        routeSeenByAdapter = route;
-        return true;
-      });
-      addTearDown(() => TapirPlugin.registerNavigateAdapter(null));
+        // Adapter wiring is the Magic-aware dispatch path in production:
+        // host main.dart binds MagicRoute.to here. We only assert the
+        // route is forwarded — the navigated=true / navigated=false
+        // envelope depends on URL-verify reading the router URI, which
+        // needs a real Router widget and is exercised by the uptizm-app
+        // MCP smoke test (live GoRouter, both directions).
+        String? routeSeenByAdapter;
+        TapirPlugin.registerNavigateAdapter((String route) async {
+          routeSeenByAdapter = route;
+          return true;
+        });
+        addTearDown(() => TapirPlugin.registerNavigateAdapter(null));
 
-      await tester
-          .pumpWidget(const MaterialApp(home: Scaffold(body: Text('Home'))));
+        await tester.pumpWidget(
+          const MaterialApp(home: Scaffold(body: Text('Home'))),
+        );
 
-      // Spawn the handler; we only need the adapter call to land.
-      // Pumping two frames lets the handler progress past its initial
-      // dismissAllModals + adapter await. We don't await the full
-      // handler future — the URL-verify poll past this point requires
-      // a router that this test doesn't mount.
-      // ignore: unawaited_futures
-      extTapirNavigateHandler(
-        'ext.tapir.navigate',
-        <String, String>{'route': '/settings', 'includeSnapshot': 'false'},
-      );
-      await tester.pump();
-      await tester.pump();
+        // Spawn the handler; we only need the adapter call to land.
+        // Pumping two frames lets the handler progress past its initial
+        // dismissAllModals + adapter await. We don't await the full
+        // handler future — the URL-verify poll past this point requires
+        // a router that this test doesn't mount.
+        unawaited(
+          extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
+            'route': '/settings',
+            'includeSnapshot': 'false',
+          }),
+        );
+        await tester.pump();
+        await tester.pump();
 
-      expect(routeSeenByAdapter, equals('/settings'));
-    });
+        expect(routeSeenByAdapter, equals('/settings'));
+      },
+    );
 
-    testWidgets('adapter is preferred over Navigator when both are available',
-        (WidgetTester tester) async {
+    testWidgets('adapter is preferred over Navigator when both are available', (
+      WidgetTester tester,
+    ) async {
       // Regression guard for the adapter-first reorder. Constructs a widget
       // tree where BOTH a registered navigate adapter AND a pushable named
       // Navigator route exist, then asserts:
@@ -268,9 +282,8 @@ void main() {
           routes: <String, WidgetBuilder>{
             '/': (BuildContext context) =>
                 const Scaffold(body: Text('adapter-wins-home')),
-            '/adapter-wins-target': (BuildContext context) => const Scaffold(
-                  body: Text('adapter-wins-content'),
-                ),
+            '/adapter-wins-target': (BuildContext context) =>
+                const Scaffold(body: Text('adapter-wins-content')),
           },
         ),
       );
@@ -286,13 +299,11 @@ void main() {
       addTearDown(() => TapirPlugin.registerNavigateAdapter(null));
 
       // 3. Drive the handler.
-      // ignore: unawaited_futures
-      extTapirNavigateHandler(
-        'ext.tapir.navigate',
-        <String, String>{
+      unawaited(
+        extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
           'route': '/adapter-wins-target',
           'includeSnapshot': 'false',
-        },
+        }),
       );
       await tester.pump();
       await tester.pump();
@@ -325,27 +336,33 @@ void main() {
           MaterialApp.router(routerConfig: _routerConfig(at)),
         );
         final Future<developer.ServiceExtensionResponse> future =
-            extTapirNavigateHandler(
-          'ext.tapir.navigate',
-          <String, String>{'route': route, 'includeSnapshot': 'false'},
-        );
+            extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
+              'route': route,
+              'includeSnapshot': 'false',
+            });
         await tester.pump();
         await tester.pump();
         return jsonDecode((await future).result!) as Map<String, dynamic>;
       }
 
       testWidgets(
-          'is false on a page under the route: the verdict stays a prefix '
-          'match', (WidgetTester tester) async {
-        final Map<String, dynamic> body =
-            await navigate(tester, at: '/monitors/7', route: '/monitors');
+        'is false on a page under the route: the verdict stays a prefix '
+        'match',
+        (WidgetTester tester) async {
+          final Map<String, dynamic> body = await navigate(
+            tester,
+            at: '/monitors/7',
+            route: '/monitors',
+          );
 
-        expect(body['navigated'], isTrue);
-        expect(body['exactPath'], isFalse);
-      });
+          expect(body['navigated'], isTrue);
+          expect(body['exactPath'], isFalse);
+        },
+      );
 
-      testWidgets('is true when the path is the route, query aside',
-          (WidgetTester tester) async {
+      testWidgets('is true when the path is the route, query aside', (
+        WidgetTester tester,
+      ) async {
         final Map<String, dynamic> body = await navigate(
           tester,
           at: '/monitors?page=2',
@@ -356,10 +373,14 @@ void main() {
         expect(body['exactPath'], isTrue);
       });
 
-      testWidgets('is false beside navigated: false',
-          (WidgetTester tester) async {
-        final Map<String, dynamic> body =
-            await navigate(tester, at: '/settings', route: '/monitors');
+      testWidgets('is false beside navigated: false', (
+        WidgetTester tester,
+      ) async {
+        final Map<String, dynamic> body = await navigate(
+          tester,
+          at: '/settings',
+          route: '/monitors',
+        );
 
         expect(body['navigated'], isFalse);
         expect(body['exactPath'], isFalse);
@@ -378,9 +399,9 @@ void main() {
     test('returns a ServiceExtensionResponse instance', () async {
       final developer.ServiceExtensionResponse response =
           await extTapirNavigateHandler(
-        'ext.tapir.navigate',
-        <String, String>{},
-      );
+            'ext.tapir.navigate',
+            <String, String>{},
+          );
 
       expect(response, isA<developer.ServiceExtensionResponse>());
     });
@@ -395,22 +416,24 @@ void main() {
     // WidgetsBinding.instance.endOfFrame, which requires a frame scheduler.
     // In a plain test() the frame never fires and the future never resolves.
 
-    testWidgets('returns a ServiceExtensionResponse instance',
-        (WidgetTester tester) async {
+    testWidgets('returns a ServiceExtensionResponse instance', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
       final Future<developer.ServiceExtensionResponse> future =
           extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{},
-      );
+            'ext.tapir.navigate_back',
+            <String, String>{},
+          );
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
       expect(response, isA<developer.ServiceExtensionResponse>());
     });
 
-    testWidgets('returns result envelope with navigatedBack=true',
-        (WidgetTester tester) async {
+    testWidgets('returns result envelope with navigatedBack=true', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -421,14 +444,13 @@ void main() {
           initialRoute: '/',
           routes: <String, WidgetBuilder>{
             '/': (BuildContext context) => Scaffold(
-                  body: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pushNamed('/second'),
-                    child: const Text('Go'),
-                  ),
-                ),
-            '/second': (BuildContext context) => const Scaffold(
-                  body: Text('Second'),
-                ),
+              body: ElevatedButton(
+                onPressed: () => Navigator.of(context).pushNamed('/second'),
+                child: const Text('Go'),
+              ),
+            ),
+            '/second': (BuildContext context) =>
+                const Scaffold(body: Text('Second')),
           },
         ),
       );
@@ -440,9 +462,9 @@ void main() {
       // 3. Drive the back handler.
       final Future<developer.ServiceExtensionResponse> future =
           extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{},
-      );
+            'ext.tapir.navigate_back',
+            <String, String>{},
+          );
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -454,15 +476,16 @@ void main() {
       expect(body['popped'], isTrue);
     });
 
-    testWidgets('does not require any params (handles empty map)',
-        (WidgetTester tester) async {
+    testWidgets('does not require any params (handles empty map)', (
+      WidgetTester tester,
+    ) async {
       // Pump a minimal app so the frame scheduler is running.
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
       final Future<developer.ServiceExtensionResponse> future =
           extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{},
-      );
+            'ext.tapir.navigate_back',
+            <String, String>{},
+          );
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -470,34 +493,35 @@ void main() {
     });
 
     testWidgets(
-        'answers navigatedBack=false and popped=false at the root route',
-        (WidgetTester tester) async {
-      // A no-op at the bottom of the stack must not read as a successful
-      // back: `navigatedBack` and `popped` agree.
-      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
-      final Future<developer.ServiceExtensionResponse> future =
-          extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{'includeSnapshot': 'false'},
-      );
-      await tester.pump();
-      await tester.pump();
-      final developer.ServiceExtensionResponse response = await future;
+      'answers navigatedBack=false and popped=false at the root route',
+      (WidgetTester tester) async {
+        // A no-op at the bottom of the stack must not read as a successful
+        // back: `navigatedBack` and `popped` agree.
+        await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+        final Future<developer.ServiceExtensionResponse> future =
+            extTapirNavigateBackHandler(
+              'ext.tapir.navigate_back',
+              <String, String>{'includeSnapshot': 'false'},
+            );
+        await tester.pump();
+        await tester.pump();
+        final developer.ServiceExtensionResponse response = await future;
 
-      final Map<String, dynamic> body =
-          jsonDecode(response.result!) as Map<String, dynamic>;
-      expect(body['navigatedBack'], isFalse);
-      expect(body['popped'], isFalse);
-      expect(body['navigatedBack'], body['popped']);
-    });
+        final Map<String, dynamic> body =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(body['navigatedBack'], isFalse);
+        expect(body['popped'], isFalse);
+        expect(body['navigatedBack'], body['popped']);
+      },
+    );
 
     testWidgets('result encodes to valid JSON', (WidgetTester tester) async {
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
       final Future<developer.ServiceExtensionResponse> future =
           extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{},
-      );
+            'ext.tapir.navigate_back',
+            <String, String>{},
+          );
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -510,42 +534,44 @@ void main() {
 
   group('extTapirNavigateBackHandler nested Navigators', () {
     testWidgets(
-        'pops a page stacked inside a nested Navigator and get_routes follows',
-        (WidgetTester tester) async {
-      // The shape a go_router ShellRoute builds: the root Navigator holds ONE
-      // page (the shell) and can never pop, the pages stacked inside the shell
-      // can. Before the fix the handler popped the root only, did nothing, and
-      // still answered navigatedBack: true, so `uri` kept naming the detail
-      // page because that page was still mounted.
-      final _ShellStackDelegate delegate = _ShellStackDelegate();
-      await tester.pumpWidget(
-        MaterialApp.router(
-          routerConfig: _shellStackConfig('/monitors', delegate),
-        ),
-      );
-      delegate.push(Uri.parse('/monitors/7'));
-      await tester.pumpAndSettle();
-      expect(find.text('page /monitors/7'), findsOneWidget);
-      expect(buildGetRoutesResponse()['uri'], '/monitors/7');
+      'pops a page stacked inside a nested Navigator and get_routes follows',
+      (WidgetTester tester) async {
+        // The shape a go_router ShellRoute builds: the root Navigator holds ONE
+        // page (the shell) and can never pop, the pages stacked inside the shell
+        // can. Before the fix the handler popped the root only, did nothing, and
+        // still answered navigatedBack: true, so `uri` kept naming the detail
+        // page because that page was still mounted.
+        final _ShellStackDelegate delegate = _ShellStackDelegate();
+        await tester.pumpWidget(
+          MaterialApp.router(
+            routerConfig: _shellStackConfig('/monitors', delegate),
+          ),
+        );
+        delegate.push(Uri.parse('/monitors/7'));
+        await tester.pumpAndSettle();
+        expect(find.text('page /monitors/7'), findsOneWidget);
+        expect(buildGetRoutesResponse()['uri'], '/monitors/7');
 
-      final Future<developer.ServiceExtensionResponse> future =
-          extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{'includeSnapshot': 'false'},
-      );
-      await tester.pump();
-      await tester.pump();
-      await future;
+        final Future<developer.ServiceExtensionResponse> future =
+            extTapirNavigateBackHandler(
+              'ext.tapir.navigate_back',
+              <String, String>{'includeSnapshot': 'false'},
+            );
+        await tester.pump();
+        await tester.pump();
+        await future;
 
-      // The Router reports the new location in a post-frame callback, so it
-      // lands within the frames the handler already awaited on a live engine.
-      await tester.pump();
-      expect(find.text('page /monitors/7'), findsNothing);
-      expect(buildGetRoutesResponse()['uri'], '/monitors');
-    });
+        // The Router reports the new location in a post-frame callback, so it
+        // lands within the frames the handler already awaited on a live engine.
+        await tester.pump();
+        expect(find.text('page /monitors/7'), findsNothing);
+        expect(buildGetRoutesResponse()['uri'], '/monitors');
+      },
+    );
 
-    testWidgets('pops the root Navigator before a nested one',
-        (WidgetTester tester) async {
+    testWidgets('pops the root Navigator before a nested one', (
+      WidgetTester tester,
+    ) async {
       // A page pushed on the root covers whatever a nested Navigator shows, so
       // it is the top of the visible stack and is the one back leaves.
       await tester.pumpWidget(
@@ -553,24 +579,24 @@ void main() {
           home: Navigator(
             onGenerateInitialRoutes: (NavigatorState navigator, String name) =>
                 <Route<void>>[
-              MaterialPageRoute<void>(
-                builder: (BuildContext context) => const Text('nested-a'),
-              ),
-              MaterialPageRoute<void>(
-                builder: (BuildContext context) => Builder(
-                  builder: (BuildContext context) => TextButton(
-                    onPressed: () =>
-                        Navigator.of(context, rootNavigator: true).push(
-                      MaterialPageRoute<void>(
-                        builder: (BuildContext context) =>
-                            const Text('root-cover'),
+                  MaterialPageRoute<void>(
+                    builder: (BuildContext context) => const Text('nested-a'),
+                  ),
+                  MaterialPageRoute<void>(
+                    builder: (BuildContext context) => Builder(
+                      builder: (BuildContext context) => TextButton(
+                        onPressed: () =>
+                            Navigator.of(context, rootNavigator: true).push(
+                              MaterialPageRoute<void>(
+                                builder: (BuildContext context) =>
+                                    const Text('root-cover'),
+                              ),
+                            ),
+                        child: const Text('nested-b'),
                       ),
                     ),
-                    child: const Text('nested-b'),
                   ),
-                ),
-              ),
-            ],
+                ],
           ),
         ),
       );
@@ -580,9 +606,9 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> future =
           extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{'includeSnapshot': 'false'},
-      );
+            'ext.tapir.navigate_back',
+            <String, String>{'includeSnapshot': 'false'},
+          );
       await tester.pump();
       await tester.pump();
       await future;
@@ -592,8 +618,9 @@ void main() {
       expect(find.text('nested-b'), findsOneWidget);
     });
 
-    testWidgets('leaves a hidden branch alone when the visible one is bare',
-        (WidgetTester tester) async {
+    testWidgets('leaves a hidden branch alone when the visible one is bare', (
+      WidgetTester tester,
+    ) async {
       // A go_router StatefulShellRoute keeps every branch alive offstage. A
       // page stacked on the hidden branch is not what the user sees, so back
       // must not pop it and must not answer popped: true for it.
@@ -612,9 +639,9 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> future =
           extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{'includeSnapshot': 'false'},
-      );
+            'ext.tapir.navigate_back',
+            <String, String>{'includeSnapshot': 'false'},
+          );
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -623,14 +650,12 @@ void main() {
       final Map<String, dynamic> body =
           jsonDecode(response.result!) as Map<String, dynamic>;
       expect(body['popped'], isFalse);
-      expect(
-        find.text('hidden-detail', skipOffstage: false),
-        findsOneWidget,
-      );
+      expect(find.text('hidden-detail', skipOffstage: false), findsOneWidget);
     });
 
-    testWidgets('pops the visible branch, not a hidden one before it',
-        (WidgetTester tester) async {
+    testWidgets('pops the visible branch, not a hidden one before it', (
+      WidgetTester tester,
+    ) async {
       // The hidden branch comes first in tree order, so a plain pre-order walk
       // reaches it before the visible branch.
       await tester.pumpWidget(
@@ -649,9 +674,9 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> future =
           extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{'includeSnapshot': 'false'},
-      );
+            'ext.tapir.navigate_back',
+            <String, String>{'includeSnapshot': 'false'},
+          );
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -662,10 +687,7 @@ void main() {
       expect(body['popped'], isTrue);
       expect(find.text('visible-detail'), findsNothing);
       expect(find.text('visible-list'), findsOneWidget);
-      expect(
-        find.text('hidden-detail', skipOffstage: false),
-        findsOneWidget,
-      );
+      expect(find.text('hidden-detail', skipOffstage: false), findsOneWidget);
     });
   });
 
@@ -677,9 +699,9 @@ void main() {
     test('returns a ServiceExtensionResponse instance', () async {
       final developer.ServiceExtensionResponse response =
           await extTapirGetRoutesHandler(
-        'ext.tapir.get_routes',
-        <String, String>{},
-      );
+            'ext.tapir.get_routes',
+            <String, String>{},
+          );
 
       expect(response, isA<developer.ServiceExtensionResponse>());
     });
@@ -687,9 +709,9 @@ void main() {
     test('result contains location and title keys', () async {
       final developer.ServiceExtensionResponse response =
           await extTapirGetRoutesHandler(
-        'ext.tapir.get_routes',
-        <String, String>{},
-      );
+            'ext.tapir.get_routes',
+            <String, String>{},
+          );
 
       expect(response.result, isNotNull);
       final Map<String, dynamic> body =
@@ -701,9 +723,9 @@ void main() {
     test('location and title are strings in the JSON envelope', () async {
       final developer.ServiceExtensionResponse response =
           await extTapirGetRoutesHandler(
-        'ext.tapir.get_routes',
-        <String, String>{},
-      );
+            'ext.tapir.get_routes',
+            <String, String>{},
+          );
 
       expect(response.result, isNotNull);
       final Map<String, dynamic> body =
@@ -715,9 +737,9 @@ void main() {
     test('does not require any params (handles empty map)', () async {
       final developer.ServiceExtensionResponse response =
           await extTapirGetRoutesHandler(
-        'ext.tapir.get_routes',
-        <String, String>{},
-      );
+            'ext.tapir.get_routes',
+            <String, String>{},
+          );
 
       expect(response, isNotNull);
     });
@@ -728,8 +750,9 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('extTapirNavigateHandler snapshot-in-response', () {
-    testWidgets('embeds snapshot field in success response by default',
-        (WidgetTester tester) async {
+    testWidgets('embeds snapshot field in success response by default', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -738,21 +761,17 @@ void main() {
         MaterialApp(
           initialRoute: '/',
           routes: <String, WidgetBuilder>{
-            '/': (BuildContext context) => const Scaffold(
-                  body: Text('Home'),
-                ),
-            '/settings': (BuildContext context) => const Scaffold(
-                  body: Text('nav-snap-settings'),
-                ),
+            '/': (BuildContext context) => const Scaffold(body: Text('Home')),
+            '/settings': (BuildContext context) =>
+                const Scaffold(body: Text('nav-snap-settings')),
           },
         ),
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          extTapirNavigateHandler(
-        'ext.tapir.navigate',
-        <String, String>{'route': '/settings'},
-      );
+          extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
+            'route': '/settings',
+          });
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -769,8 +788,9 @@ void main() {
       expect(body['snapshot'], isA<String>());
     });
 
-    testWidgets('omits snapshot when includeSnapshot is false',
-        (WidgetTester tester) async {
+    testWidgets('omits snapshot when includeSnapshot is false', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -787,13 +807,10 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          extTapirNavigateHandler(
-        'ext.tapir.navigate',
-        <String, String>{
-          'route': '/about',
-          'includeSnapshot': 'false',
-        },
-      );
+          extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
+            'route': '/about',
+            'includeSnapshot': 'false',
+          });
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -808,8 +825,9 @@ void main() {
       expect(body.containsKey('navigated'), isTrue);
     });
 
-    testWidgets('snapshot YAML is a populated string after navigate',
-        (WidgetTester tester) async {
+    testWidgets('snapshot YAML is a populated string after navigate', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -824,18 +842,16 @@ void main() {
           initialRoute: '/',
           routes: <String, WidgetBuilder>{
             '/': (BuildContext context) => const Scaffold(body: Text('Home')),
-            '/marker': (BuildContext context) => const Scaffold(
-                  body: Text('navigate-content-marker'),
-                ),
+            '/marker': (BuildContext context) =>
+                const Scaffold(body: Text('navigate-content-marker')),
           },
         ),
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          extTapirNavigateHandler(
-        'ext.tapir.navigate',
-        <String, String>{'route': '/marker'},
-      );
+          extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
+            'route': '/marker',
+          });
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -845,8 +861,9 @@ void main() {
       expect(body['snapshot'], isA<String>());
     });
 
-    testWidgets('snapshot=diff answers the lines against the last snapshot',
-        (WidgetTester tester) async {
+    testWidgets('snapshot=diff answers the lines against the last snapshot', (
+      WidgetTester tester,
+    ) async {
       resetSnapshotBaselineForTesting();
       addTearDown(resetSnapshotBaselineForTesting);
       // No transition, so the two settle frames land on the finished page.
@@ -856,7 +873,7 @@ void main() {
           onGenerateRoute: (RouteSettings settings) => PageRouteBuilder<void>(
             settings: settings,
             transitionDuration: Duration.zero,
-            pageBuilder: (_, __, ___) => Scaffold(
+            pageBuilder: (_, _, _) => Scaffold(
               body: Text(settings.name == '/' ? 'diff-home' : 'diff-next'),
             ),
           ),
@@ -865,10 +882,10 @@ void main() {
       await tapirSnapBuild();
 
       final Future<developer.ServiceExtensionResponse> future =
-          extTapirNavigateHandler(
-        'ext.tapir.navigate',
-        <String, String>{'route': '/next', 'snapshot': 'diff'},
-      );
+          extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
+            'route': '/next',
+            'snapshot': 'diff',
+          });
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -880,8 +897,9 @@ void main() {
       expect(body['snapshot'], contains('lines changed)'));
     });
 
-    testWidgets('snapshot=none omits the snapshot',
-        (WidgetTester tester) async {
+    testWidgets('snapshot=none omits the snapshot', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           initialRoute: '/',
@@ -894,10 +912,10 @@ void main() {
       );
 
       final Future<developer.ServiceExtensionResponse> future =
-          extTapirNavigateHandler(
-        'ext.tapir.navigate',
-        <String, String>{'route': '/away', 'snapshot': 'none'},
-      );
+          extTapirNavigateHandler('ext.tapir.navigate', <String, String>{
+            'route': '/away',
+            'snapshot': 'none',
+          });
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -909,8 +927,9 @@ void main() {
   });
 
   group('extTapirNavigateBackHandler snapshot-in-response', () {
-    testWidgets('embeds snapshot field in success response by default',
-        (WidgetTester tester) async {
+    testWidgets('embeds snapshot field in success response by default', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -920,14 +939,13 @@ void main() {
           initialRoute: '/',
           routes: <String, WidgetBuilder>{
             '/': (BuildContext context) => Scaffold(
-                  body: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pushNamed('/second'),
-                    child: const Text('navback-home-marker'),
-                  ),
-                ),
-            '/second': (BuildContext context) => const Scaffold(
-                  body: Text('navback-second-page'),
-                ),
+              body: ElevatedButton(
+                onPressed: () => Navigator.of(context).pushNamed('/second'),
+                child: const Text('navback-home-marker'),
+              ),
+            ),
+            '/second': (BuildContext context) =>
+                const Scaffold(body: Text('navback-second-page')),
           },
         ),
       );
@@ -936,9 +954,9 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> future =
           extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{},
-      );
+            'ext.tapir.navigate_back',
+            <String, String>{},
+          );
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -949,14 +967,15 @@ void main() {
       expect(body['snapshot'], isA<String>());
     });
 
-    testWidgets('omits snapshot when includeSnapshot is false',
-        (WidgetTester tester) async {
+    testWidgets('omits snapshot when includeSnapshot is false', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(const MaterialApp(home: Scaffold()));
       final Future<developer.ServiceExtensionResponse> future =
           extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{'includeSnapshot': 'false'},
-      );
+            'ext.tapir.navigate_back',
+            <String, String>{'includeSnapshot': 'false'},
+          );
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -967,8 +986,9 @@ void main() {
       expect(body['navigatedBack'], isFalse);
     });
 
-    testWidgets('snapshot YAML is a populated string after navigate_back',
-        (WidgetTester tester) async {
+    testWidgets('snapshot YAML is a populated string after navigate_back', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -981,14 +1001,13 @@ void main() {
           initialRoute: '/',
           routes: <String, WidgetBuilder>{
             '/': (BuildContext context) => Scaffold(
-                  body: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pushNamed('/inner'),
-                    child: const Text('navback-content-marker'),
-                  ),
-                ),
-            '/inner': (BuildContext context) => const Scaffold(
-                  body: Text('Inner'),
-                ),
+              body: ElevatedButton(
+                onPressed: () => Navigator.of(context).pushNamed('/inner'),
+                child: const Text('navback-content-marker'),
+              ),
+            ),
+            '/inner': (BuildContext context) =>
+                const Scaffold(body: Text('Inner')),
           },
         ),
       );
@@ -997,9 +1016,9 @@ void main() {
 
       final Future<developer.ServiceExtensionResponse> future =
           extTapirNavigateBackHandler(
-        'ext.tapir.navigate_back',
-        <String, String>{},
-      );
+            'ext.tapir.navigate_back',
+            <String, String>{},
+          );
       await tester.pump();
       await tester.pump();
       final developer.ServiceExtensionResponse response = await future;
@@ -1035,26 +1054,25 @@ void main() {
 /// A one-screen Router whose provider starts on [location], with no page
 /// names: what a go_router app looks like to tapir.
 RouterConfig<Uri> _routerConfig(String location) => RouterConfig<Uri>(
-      routeInformationProvider: PlatformRouteInformationProvider(
-        initialRouteInformation: RouteInformation(uri: Uri.parse(location)),
-      ),
-      routeInformationParser: const _UriParser(),
-      routerDelegate: _UriDelegate(),
-    );
+  routeInformationProvider: PlatformRouteInformationProvider(
+    initialRouteInformation: RouteInformation(uri: Uri.parse(location)),
+  ),
+  routeInformationParser: const _UriParser(),
+  routerDelegate: _UriDelegate(),
+);
 
 /// A Router hosting a nested Navigator inside a single root page: what a
 /// go_router `ShellRoute` looks like to tapir. [delegate] owns the stack.
 RouterConfig<Uri> _shellStackConfig(
   String location,
   _ShellStackDelegate delegate,
-) =>
-    RouterConfig<Uri>(
-      routeInformationProvider: PlatformRouteInformationProvider(
-        initialRouteInformation: RouteInformation(uri: Uri.parse(location)),
-      ),
-      routeInformationParser: const _UriParser(),
-      routerDelegate: delegate,
-    );
+) => RouterConfig<Uri>(
+  routeInformationProvider: PlatformRouteInformationProvider(
+    initialRouteInformation: RouteInformation(uri: Uri.parse(location)),
+  ),
+  routeInformationParser: const _UriParser(),
+  routerDelegate: delegate,
+);
 
 final class _UriParser extends RouteInformationParser<Uri> {
   const _UriParser();
@@ -1085,11 +1103,9 @@ final class _UriDelegate extends RouterDelegate<Uri> with ChangeNotifier {
 
   @override
   Widget build(BuildContext context) => Navigator(
-        pages: <Page<void>>[
-          MaterialPage<void>(child: Text('${_current ?? ''}')),
-        ],
-        onDidRemovePage: (Page<Object?> page) {},
-      );
+    pages: <Page<void>>[MaterialPage<void>(child: Text('${_current ?? ''}'))],
+    onDidRemovePage: (Page<Object?> page) {},
+  );
 }
 
 /// A page with no transition, so a pop finishes inside the frame that starts it.
@@ -1100,16 +1116,15 @@ final class _InstantPage extends Page<void> {
 
   @override
   Route<void> createRoute(BuildContext context) => PageRouteBuilder<void>(
-        settings: this,
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (
-          BuildContext context,
-          Animation<double> animation,
-          Animation<double> secondaryAnimation,
-        ) =>
-            child,
-      );
+    settings: this,
+    transitionDuration: Duration.zero,
+    reverseTransitionDuration: Duration.zero,
+    pageBuilder: (
+      BuildContext context,
+      Animation<double> animation,
+      Animation<double> secondaryAnimation,
+    ) => child,
+  );
 }
 
 /// One Navigator per branch, each seeded with its own page names, stacked the
@@ -1117,10 +1132,7 @@ final class _InstantPage extends Page<void> {
 /// [IndexedStack] whose inactive children sit under `Offstage` and a disabled
 /// `TickerMode`.
 final class _TwoBranchShell extends StatelessWidget {
-  const _TwoBranchShell({
-    required this.activeIndex,
-    required this.branches,
-  });
+  const _TwoBranchShell({required this.activeIndex, required this.branches});
 
   final int activeIndex;
 
@@ -1128,19 +1140,16 @@ final class _TwoBranchShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => IndexedStack(
-        index: activeIndex,
-        children: <Widget>[
-          for (int index = 0; index < branches.length; index++)
-            Offstage(
-              offstage: index != activeIndex,
-              child: TickerMode(
-                enabled: index == activeIndex,
-                child: Navigator(
-                  onGenerateInitialRoutes: (
-                    NavigatorState navigator,
-                    String name,
-                  ) =>
-                      <Route<void>>[
+    index: activeIndex,
+    children: <Widget>[
+      for (int index = 0; index < branches.length; index++)
+        Offstage(
+          offstage: index != activeIndex,
+          child: TickerMode(
+            enabled: index == activeIndex,
+            child: Navigator(
+              onGenerateInitialRoutes:
+                  (NavigatorState navigator, String name) => <Route<void>>[
                     for (final String page in branches[index])
                       PageRouteBuilder<void>(
                         transitionDuration: Duration.zero,
@@ -1149,15 +1158,14 @@ final class _TwoBranchShell extends StatelessWidget {
                           BuildContext context,
                           Animation<double> animation,
                           Animation<double> secondaryAnimation,
-                        ) =>
-                            Text(page),
+                        ) => Text(page),
                       ),
                   ],
-                ),
-              ),
             ),
-        ],
-      );
+          ),
+        ),
+    ],
+  );
 }
 
 /// Root Navigator with ONE page hosting a nested Navigator whose pages follow
@@ -1188,35 +1196,35 @@ final class _ShellStackDelegate extends RouterDelegate<Uri>
 
   @override
   Widget build(BuildContext context) => Navigator(
-        pages: <Page<void>>[
-          _InstantPage(
-            key: const ValueKey<String>('shell'),
-            child: ListenableBuilder(
-              listenable: this,
-              builder: (BuildContext context, Widget? child) {
-                // A Navigator refuses an empty page list, and the first build
-                // lands before the initial location is parsed.
-                if (_stack.isEmpty) return const SizedBox.shrink();
+    pages: <Page<void>>[
+      _InstantPage(
+        key: const ValueKey<String>('shell'),
+        child: ListenableBuilder(
+          listenable: this,
+          builder: (BuildContext context, Widget? child) {
+            // A Navigator refuses an empty page list, and the first build
+            // lands before the initial location is parsed.
+            if (_stack.isEmpty) return const SizedBox.shrink();
 
-                return Navigator(
-                  pages: <Page<void>>[
-                    for (final Uri uri in _stack)
-                      _InstantPage(
-                        key: ValueKey<String>('$uri'),
-                        child: Text('page $uri'),
-                      ),
-                  ],
-                  onDidRemovePage: (Page<Object?> page) {
-                    _stack.removeWhere(
-                      (Uri uri) => ValueKey<String>('$uri') == page.key,
-                    );
-                    notifyListeners();
-                  },
+            return Navigator(
+              pages: <Page<void>>[
+                for (final Uri uri in _stack)
+                  _InstantPage(
+                    key: ValueKey<String>('$uri'),
+                    child: Text('page $uri'),
+                  ),
+              ],
+              onDidRemovePage: (Page<Object?> page) {
+                _stack.removeWhere(
+                  (Uri uri) => ValueKey<String>('$uri') == page.key,
                 );
+                notifyListeners();
               },
-            ),
-          ),
-        ],
-        onDidRemovePage: (Page<Object?> page) {},
-      );
+            );
+          },
+        ),
+      ),
+    ],
+    onDidRemovePage: (Page<Object?> page) {},
+  );
 }

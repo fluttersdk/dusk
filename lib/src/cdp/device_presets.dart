@@ -71,7 +71,8 @@ const Map<String, DevicePreset> kDevicePresets = <String, DevicePreset>{
     deviceScaleFactor: 3.0,
     isMobile: true,
     hasTouch: true,
-    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'
+    userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'
         ' AppleWebKit/605.1.15 (KHTML, like Gecko)'
         ' Version/19.2 Mobile/15E148 Safari/605.1.15',
   ),
@@ -81,7 +82,8 @@ const Map<String, DevicePreset> kDevicePresets = <String, DevicePreset>{
     deviceScaleFactor: 3.0,
     isMobile: true,
     hasTouch: true,
-    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'
+    userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'
         ' AppleWebKit/605.1.15 (KHTML, like Gecko)'
         ' Version/19.2 Mobile/15E148 Safari/605.1.15',
   ),
@@ -91,7 +93,8 @@ const Map<String, DevicePreset> kDevicePresets = <String, DevicePreset>{
     deviceScaleFactor: 3.0,
     isMobile: true,
     hasTouch: true,
-    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'
+    userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'
         ' AppleWebKit/605.1.15 (KHTML, like Gecko)'
         ' Version/19.2 Mobile/15E148 Safari/605.1.15',
   ),
@@ -101,7 +104,8 @@ const Map<String, DevicePreset> kDevicePresets = <String, DevicePreset>{
     deviceScaleFactor: 2.75,
     isMobile: true,
     hasTouch: true,
-    userAgent: 'Mozilla/5.0 (Linux; Android 13; Pixel 5)'
+    userAgent:
+        'Mozilla/5.0 (Linux; Android 13; Pixel 5)'
         ' AppleWebKit/537.36 (KHTML, like Gecko)'
         ' Chrome/130.0.6723.92 Mobile Safari/537.36',
   ),
@@ -111,7 +115,8 @@ const Map<String, DevicePreset> kDevicePresets = <String, DevicePreset>{
     deviceScaleFactor: 2.625,
     isMobile: true,
     hasTouch: true,
-    userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8)'
+    userAgent:
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8)'
         ' AppleWebKit/537.36 (KHTML, like Gecko)'
         ' Chrome/130.0.6723.92 Mobile Safari/537.36',
   ),
@@ -121,7 +126,8 @@ const Map<String, DevicePreset> kDevicePresets = <String, DevicePreset>{
     deviceScaleFactor: 2.0,
     isMobile: true,
     hasTouch: true,
-    userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)'
+    userAgent:
+        'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)'
         ' AppleWebKit/605.1.15 (KHTML, like Gecko)'
         ' Version/19.2 Mobile/15E148 Safari/605.1.15',
   ),
@@ -131,7 +137,8 @@ const Map<String, DevicePreset> kDevicePresets = <String, DevicePreset>{
     deviceScaleFactor: 1.0,
     isMobile: false,
     hasTouch: false,
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5)'
+    userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5)'
         ' AppleWebKit/537.36 (KHTML, like Gecko)'
         ' Chrome/130.0.6723.92 Safari/537.36',
   ),
@@ -141,7 +148,8 @@ const Map<String, DevicePreset> kDevicePresets = <String, DevicePreset>{
     deviceScaleFactor: 1.0,
     isMobile: false,
     hasTouch: false,
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5)'
+    userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5)'
         ' AppleWebKit/537.36 (KHTML, like Gecko)'
         ' Chrome/130.0.6723.92 Safari/537.36',
   ),

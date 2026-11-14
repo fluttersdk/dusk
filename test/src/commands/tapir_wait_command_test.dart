@@ -8,17 +8,18 @@ class _StubContext extends DowelContext {
   _StubContext({
     required DowelInput input,
     required DowelOutput output,
-    Map<String, dynamic> response = const {},
-  })  : _response = response,
-        super.bare(input, output);
+    this._response = const {},
+  }) : super.bare(input, output);
 
   final Map<String, dynamic> _response;
   String? lastMethod;
   Map<String, dynamic>? lastParams;
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     lastMethod = method;
     lastParams = params;
     return _response as T;
@@ -39,23 +40,21 @@ void main() {
       expect(TapirWaitCommand().description, isNotEmpty);
     });
 
-    test('configure declares --text / --textGone / --expression / --timeoutMs',
-        () {
-      // Switched from the signature-DSL to configure(ArgParser) so the
-      // camelCase option names (textGone / timeoutMs) pass dowel's
-      // signature-parser strict-lowercase rule. Inspect the configured
-      // parser directly.
-      final parser = ArgParser();
-      TapirWaitCommand().configure(parser);
-      expect(
+    test(
+      'configure declares --text / --textGone / --expression / --timeoutMs',
+      () {
+        // Switched from the signature-DSL to configure(ArgParser) so the
+        // camelCase option names (textGone / timeoutMs) pass dowel's
+        // signature-parser strict-lowercase rule. Inspect the configured
+        // parser directly.
+        final parser = ArgParser();
+        TapirWaitCommand().configure(parser);
+        expect(
           parser.options.keys,
-          containsAll(<String>[
-            'text',
-            'textGone',
-            'expression',
-            'timeoutMs',
-          ]));
-    });
+          containsAll(<String>['text', 'textGone', 'expression', 'timeoutMs']),
+        );
+      },
+    );
 
     test('handle calls ext.tapir.wait_for', () async {
       final ctx = _StubContext(
@@ -106,25 +105,23 @@ void main() {
     });
 
     test(
-        'handle forwards --timeoutMs param when provided alongside a condition',
-        () async {
-      final ctx = _StubContext(
-        input: MapInput(const {'text': 'Ready', 'timeoutMs': '5000'}),
-        output: BufferedOutput(),
-        response: const {'matched': true},
-      );
+      'handle forwards --timeoutMs param when provided alongside a condition',
+      () async {
+        final ctx = _StubContext(
+          input: MapInput(const {'text': 'Ready', 'timeoutMs': '5000'}),
+          output: BufferedOutput(),
+          response: const {'matched': true},
+        );
 
-      await TapirWaitCommand().handle(ctx);
+        await TapirWaitCommand().handle(ctx);
 
-      expect(ctx.lastParams, containsPair('timeoutMs', '5000'));
-    });
+        expect(ctx.lastParams, containsPair('timeoutMs', '5000'));
+      },
+    );
 
     test('handle returns 1 when no condition option is provided', () async {
       final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {}),
-        output: output,
-      );
+      final ctx = _StubContext(input: MapInput(const {}), output: output);
 
       final code = await TapirWaitCommand().handle(ctx);
 

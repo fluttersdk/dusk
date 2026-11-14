@@ -8,17 +8,18 @@ class _StubContext extends DowelContext {
   _StubContext({
     required DowelInput input,
     required DowelOutput output,
-    Map<String, dynamic> response = const {},
-  })  : _response = response,
-        super.bare(input, output);
+    this._response = const {},
+  }) : super.bare(input, output);
 
   final Map<String, dynamic> _response;
   String? lastMethod;
   Map<String, dynamic>? lastParams;
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     lastMethod = method;
     lastParams = params;
     return _response as T;
@@ -88,26 +89,28 @@ void main() {
     });
 
     group('.handle() outcome summary', () {
-      test('unverified effect prints what the field holds and exits 1',
-          () async {
-        final output = BufferedOutput();
-        final ctx = _StubContext(
-          input: MapInput(const {'ref': 'e3', 'text': '12ab'}),
-          output: output,
-          response: const {
-            'effect': {'kind': 'text', 'verified': false, 'value': '12'},
-          },
-        );
+      test(
+        'unverified effect prints what the field holds and exits 1',
+        () async {
+          final output = BufferedOutput();
+          final ctx = _StubContext(
+            input: MapInput(const {'ref': 'e3', 'text': '12ab'}),
+            output: output,
+            response: const {
+              'effect': {'kind': 'text', 'verified': false, 'value': '12'},
+            },
+          );
 
-        final code = await TapirTypeCommand().handle(ctx);
+          final code = await TapirTypeCommand().handle(ctx);
 
-        expect(code, equals(1));
-        expect(output.content, contains('[ERROR]'));
-        expect(output.content, contains('e3'));
-        expect(output.content, contains('"12"'));
-        expect(output.content, contains('"12ab"'));
-        expect(output.content, isNot(contains('Typed into')));
-      });
+          expect(code, equals(1));
+          expect(output.content, contains('[ERROR]'));
+          expect(output.content, contains('e3'));
+          expect(output.content, contains('"12"'));
+          expect(output.content, contains('"12ab"'));
+          expect(output.content, isNot(contains('Typed into')));
+        },
+      );
 
       test('verified effect keeps the plain summary and exits 0', () async {
         final output = BufferedOutput();
@@ -177,48 +180,56 @@ void main() {
         expect(output.content, isNot(contains('nearest')));
       });
 
-      test('--json prints the envelope untouched for an unverified effect',
-          () async {
+      test(
+        '--json prints the envelope untouched for an unverified effect',
+        () async {
+          final output = BufferedOutput();
+          final ctx = _StubContext(
+            input: MapInput(const {'ref': 'e3', 'text': '12ab', 'json': true}),
+            output: output,
+            response: const {
+              'effect': {'kind': 'text', 'verified': false, 'value': '12'},
+            },
+          );
+
+          final code = await TapirTypeCommand().handle(ctx);
+
+          expect(code, equals(0));
+          expect(output.content, contains('"verified":false'));
+          expect(output.content, isNot(contains('[ERROR]')));
+        },
+      );
+    });
+
+    test(
+      '--snapshot passes the mode through and prints the text after',
+      () async {
         final output = BufferedOutput();
         final ctx = _StubContext(
-          input: MapInput(const {'ref': 'e3', 'text': '12ab', 'json': true}),
+          input: MapInput(const {
+            'ref': 'e3',
+            'text': 'hi',
+            'snapshot': 'full',
+          }),
           output: output,
           response: const {
-            'effect': {'kind': 'text', 'verified': false, 'value': '12'},
+            'text': 'hi',
+            'snapshot': '- textbox "Name": "hi" [ref=e3]\n',
           },
         );
 
         final code = await TapirTypeCommand().handle(ctx);
 
         expect(code, equals(0));
-        expect(output.content, contains('"verified":false'));
-        expect(output.content, isNot(contains('[ERROR]')));
-      });
-    });
-
-    test('--snapshot passes the mode through and prints the text after',
-        () async {
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput(const {'ref': 'e3', 'text': 'hi', 'snapshot': 'full'}),
-        output: output,
-        response: const {
-          'text': 'hi',
-          'snapshot': '- textbox "Name": "hi" [ref=e3]\n',
-        },
-      );
-
-      final code = await TapirTypeCommand().handle(ctx);
-
-      expect(code, equals(0));
-      expect(ctx.lastParams, containsPair('snapshot', 'full'));
-      expect(ctx.lastParams!.containsKey('includeSnapshot'), isFalse);
-      final String content = output.content;
-      expect(content.indexOf('Typed into e3'), greaterThanOrEqualTo(0));
-      expect(
-        content.indexOf('Typed into e3'),
-        lessThan(content.indexOf('- textbox "Name": "hi" [ref=e3]')),
-      );
-    });
+        expect(ctx.lastParams, containsPair('snapshot', 'full'));
+        expect(ctx.lastParams!.containsKey('includeSnapshot'), isFalse);
+        final String content = output.content;
+        expect(content.indexOf('Typed into e3'), greaterThanOrEqualTo(0));
+        expect(
+          content.indexOf('Typed into e3'),
+          lessThan(content.indexOf('- textbox "Name": "hi" [ref=e3]')),
+        );
+      },
+    );
   });
 }

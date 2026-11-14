@@ -229,9 +229,9 @@ Future<developer.ServiceExtensionResponse> tapirPerfBeginHandler(
       wrapErrorDetail(
         mode == null
             ? 'ext.tapir.perf_begin: mode "$modeName" is not one of '
-                'attribution, timing.'
+                  'attribution, timing.'
             : 'ext.tapir.perf_begin: phases=true profiles layout and paint, '
-                'and mode=timing profiles nothing; pick one.',
+                  'and mode=timing profiles nothing; pick one.',
         TapirErrorEnvelope.unexpected(),
       ),
     );
@@ -457,7 +457,8 @@ Future<developer.ServiceExtensionResponse> tapirPerfEndHandler(
           'livenessFinal': livenessFinal,
           'complete': false,
         },
-        'reason': 'The liveness counter advanced by $advanced between '
+        'reason':
+            'The liveness counter advanced by $advanced between '
             'perf_begin and perf_end (baseline $baseline, '
             'final $livenessFinal), so there is nothing to measure: every '
             'metric would be a zero or a single-sample average that reads as '
@@ -494,7 +495,8 @@ Future<developer.ServiceExtensionResponse> tapirPerfEndHandler(
       List<Map<String, Object?>> inSession,
       int outside,
       bool clockMismatch,
-    }) window = perfSessionFrames(flushed['frames'], session.startUs, endUs);
+    })
+    window = perfSessionFrames(flushed['frames'], session.startUs, endUs);
 
     // 4. The cross-package sections. Timing mode reads neither: it reports
     //    frame timings only, and a counter read it then discards is still a
@@ -598,9 +600,10 @@ Future<developer.ServiceExtensionResponse> tapirPerfInsightHandler(
 
   final _ClosedSession? closed = _lastClosed;
   final String? problem = switch (closed) {
-    null => 'no closed perf session to drill into. Run ext.tapir.perf_begin, '
-        'drive the interaction, then ext.tapir.perf_end; its insights[] list '
-        'carries the ids.',
+    null =>
+      'no closed perf session to drill into. Run ext.tapir.perf_begin, '
+          'drive the interaction, then ext.tapir.perf_end; its insights[] list '
+          'carries the ids.',
     _ when token != null && token != closed.token =>
       'session $token is not held; only the most recent closed session '
           '(${closed.token}) is kept. Drill into it, or rerun the session.',
@@ -633,10 +636,7 @@ Future<developer.ServiceExtensionResponse> tapirPerfInsightHandler(
     );
   }
 
-  return tapirResult(<String, dynamic>{
-    'sessionToken': closed.token,
-    ...drill,
-  });
+  return tapirResult(<String, dynamic>{'sessionToken': closed.token, ...drill});
 }
 
 // ---------------------------------------------------------------------------
@@ -652,17 +652,17 @@ Future<developer.ServiceExtensionResponse> tapirPerfInsightHandler(
 /// semantics tree each frame; a reader comparing against a non-tapir run needs
 /// to know that.
 Map<String, Object?> _env(_PerfSession session) => <String, Object?>{
-      'platform': defaultTargetPlatform.name,
-      'isWeb': kIsWeb,
-      'buildMode': kProfileMode
-          ? 'profile'
-          : kDebugMode
-              ? 'debug'
-              : 'release',
-      'renderer': rendererReader(),
-      'semanticsEnabled': SemanticsBinding.instance.semanticsEnabled,
-      'phases': session.phases,
-    };
+  'platform': defaultTargetPlatform.name,
+  'isWeb': kIsWeb,
+  'buildMode': kProfileMode
+      ? 'profile'
+      : kDebugMode
+      ? 'debug'
+      : 'release',
+  'renderer': rendererReader(),
+  'semanticsEnabled': SemanticsBinding.instance.semanticsEnabled,
+  'phases': session.phases,
+};
 
 /// Splits [rawFrames] into the frames that belong to the session window
 /// `[startUs, endUs]` and a count of the ones that do not.
@@ -684,15 +684,8 @@ Map<String, Object?> _env(_PerfSession session) => <String, Object?>{
 ///
 /// `ext.tapir.perf_trace` cuts its frames by the same rule, so the trace and
 /// the report it sits beside never disagree on which frames the session had.
-({
-  List<Map<String, Object?>> inSession,
-  int outside,
-  bool clockMismatch,
-}) perfSessionFrames(
-  Object? rawFrames,
-  int startUs,
-  int endUs,
-) {
+({List<Map<String, Object?>> inSession, int outside, bool clockMismatch})
+perfSessionFrames(Object? rawFrames, int startUs, int endUs) {
   final List<Map<String, Object?>> all = rawFrames is List<Object?>
       ? rawFrames.whereType<Map<String, Object?>>().toList()
       : <Map<String, Object?>>[];

@@ -14,10 +14,8 @@ import '../cdp/fake_cdp_server.dart';
 // ---------------------------------------------------------------------------
 
 class _StubContext extends DowelContext {
-  _StubContext({
-    required DowelInput input,
-    required DowelOutput output,
-  }) : super.bare(input, output);
+  _StubContext({required DowelInput input, required DowelOutput output})
+    : super.bare(input, output);
 }
 
 // ---------------------------------------------------------------------------
@@ -25,10 +23,7 @@ class _StubContext extends DowelContext {
 // StateFile.debugHomeOverride so TapirResizeCommand.handle() reads it.
 // ---------------------------------------------------------------------------
 
-Future<String> _writeState(
-  Directory tempDir,
-  Map<String, dynamic> data,
-) async {
+Future<String> _writeState(Directory tempDir, Map<String, dynamic> data) async {
   final stateDir = Directory('${tempDir.path}/.dowel');
   await stateDir.create(recursive: true);
   final stateFile = File('${stateDir.path}/state.json');
@@ -71,10 +66,7 @@ void main() {
     });
 
     test('description contains "viewport"', () {
-      expect(
-        TapirResizeCommand().description,
-        contains('viewport'),
-      );
+      expect(TapirResizeCommand().description, contains('viewport'));
     });
 
     test('boot is CommandBoot.none', () {
@@ -85,15 +77,16 @@ void main() {
       final parser = ArgParser();
       TapirResizeCommand().configure(parser);
       expect(
-          parser.options.keys,
-          containsAll(<String>[
-            'width',
-            'height',
-            'dpr',
-            'mobile',
-            'touch',
-            'reset',
-          ]));
+        parser.options.keys,
+        containsAll(<String>[
+          'width',
+          'height',
+          'dpr',
+          'mobile',
+          'touch',
+          'reset',
+        ]),
+      );
     });
   });
 
@@ -208,9 +201,9 @@ void main() {
           handlers: {
             'Emulation.setDeviceMetricsOverride':
                 (Map<String, dynamic> params) async {
-              capturedMetricsParams = params;
-              return <String, dynamic>{};
-            },
+                  capturedMetricsParams = params;
+                  return <String, dynamic>{};
+                },
           },
         );
         addTearDown(server.stop);
@@ -259,19 +252,19 @@ void main() {
         handlers: {
           'Emulation.setUserAgentOverride':
               (Map<String, dynamic> params) async {
-            callOrder.add('ua');
-            return <String, dynamic>{};
-          },
+                callOrder.add('ua');
+                return <String, dynamic>{};
+              },
           'Emulation.setTouchEmulationEnabled':
               (Map<String, dynamic> params) async {
-            callOrder.add('touch');
-            return <String, dynamic>{};
-          },
+                callOrder.add('touch');
+                return <String, dynamic>{};
+              },
           'Emulation.clearDeviceMetricsOverride':
               (Map<String, dynamic> _) async {
-            callOrder.add('clear');
-            return <String, dynamic>{};
-          },
+                callOrder.add('clear');
+                return <String, dynamic>{};
+              },
         },
       );
       addTearDown(server.stop);
@@ -307,13 +300,14 @@ void main() {
 
       final server = await FakeCdpServer.start(
         handlers: {
-          'Emulation.setDeviceMetricsOverride':
-              (Map<String, dynamic> _) async => <String, dynamic>{},
+          'Emulation.setDeviceMetricsOverride': (
+            Map<String, dynamic> _,
+          ) async => <String, dynamic>{},
           'Emulation.setTouchEmulationEnabled':
               (Map<String, dynamic> params) async {
-            capturedTouchParams = params;
-            return <String, dynamic>{};
-          },
+                capturedTouchParams = params;
+                return <String, dynamic>{};
+              },
         },
       );
       addTearDown(server.stop);
@@ -369,10 +363,7 @@ void main() {
       final exit = await TapirResizeCommand().handle(ctx);
 
       expect(exit, equals(1));
-      expect(
-        output.content,
-        contains('Failed to connect to Chrome CDP'),
-      );
+      expect(output.content, contains('Failed to connect to Chrome CDP'));
     });
 
     // -----------------------------------------------------------------------
@@ -411,8 +402,7 @@ void main() {
     // -----------------------------------------------------------------------
     // (g) The override belongs to the CDP session that sent it.
     // -----------------------------------------------------------------------
-    test('sends the exact metrics override, and says it ends with the command',
-        () async {
+    test('sends the exact metrics override, and says it ends with the command', () async {
       // Measured against Chrome: Emulation.setDeviceMetricsOverride is dropped
       // when the DevTools session that sent it detaches, whatever its
       // parameters (dsf 0 or 1, mobile true or false). So a command that sets
@@ -423,9 +413,9 @@ void main() {
         handlers: {
           'Emulation.setDeviceMetricsOverride':
               (Map<String, dynamic> params) async {
-            sent = params;
-            return <String, dynamic>{};
-          },
+                sent = params;
+                return <String, dynamic>{};
+              },
         },
       );
       addTearDown(server.stop);
@@ -451,45 +441,49 @@ void main() {
     });
 
     test(
-        '--hold keeps the session, and so the override, until Chrome goes away',
-        () async {
-      Map<String, dynamic>? sent;
-      final server = await FakeCdpServer.start(
-        handlers: {
-          'Emulation.setDeviceMetricsOverride':
-              (Map<String, dynamic> params) async {
-            sent = params;
-            return <String, dynamic>{};
+      '--hold keeps the session, and so the override, until Chrome goes away',
+      () async {
+        Map<String, dynamic>? sent;
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Emulation.setDeviceMetricsOverride':
+                (Map<String, dynamic> params) async {
+                  sent = params;
+                  return <String, dynamic>{};
+                },
           },
-        },
-      );
-      addTearDown(server.stop);
-      await _writeState(tempDir, {'cdpPort': server.port});
-      StateFile.debugHomeOverride = tempDir.path;
+        );
+        addTearDown(server.stop);
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
 
-      final output = BufferedOutput();
-      final ctx = _StubContext(
-        input: MapInput({'width': '390', 'height': '844', 'hold': true}),
-        output: output,
-      );
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({'width': '390', 'height': '844', 'hold': true}),
+          output: output,
+        );
 
-      bool finished = false;
-      final Future<int> run = TapirResizeCommand().handle(ctx).whenComplete(
-            () => finished = true,
-          );
+        bool finished = false;
+        final Future<int> run = TapirResizeCommand()
+            .handle(ctx)
+            .whenComplete(() => finished = true);
 
-      for (int i = 0; i < 50 && sent == null; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      }
-      expect(sent, isNotNull, reason: 'the override must have been sent');
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      expect(finished, isFalse,
-          reason: 'closing the session drops the override');
+        for (int i = 0; i < 50 && sent == null; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+        expect(sent, isNotNull, reason: 'the override must have been sent');
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        expect(
+          finished,
+          isFalse,
+          reason: 'closing the session drops the override',
+        );
 
-      await server.stop();
+        await server.stop();
 
-      expect(await run.timeout(const Duration(seconds: 5)), equals(0));
-      expect(output.content, contains('Holding'));
-    });
+        expect(await run.timeout(const Duration(seconds: 5)), equals(0));
+        expect(output.content, contains('Holding'));
+      },
+    );
   });
 }

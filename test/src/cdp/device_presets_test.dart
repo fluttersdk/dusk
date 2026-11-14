@@ -45,10 +45,16 @@ void main() {
       ];
       for (final key in mobileKeys) {
         final preset = kDevicePresets[key]!;
-        expect(preset.hasTouch, isTrue,
-            reason: '$key should have hasTouch=true');
-        expect(preset.isMobile, isTrue,
-            reason: '$key should have isMobile=true');
+        expect(
+          preset.hasTouch,
+          isTrue,
+          reason: '$key should have hasTouch=true',
+        );
+        expect(
+          preset.isMobile,
+          isTrue,
+          reason: '$key should have isMobile=true',
+        );
       }
     });
 
@@ -56,10 +62,16 @@ void main() {
       const desktopKeys = ['desktop-1440', 'desktop-1920'];
       for (final key in desktopKeys) {
         final preset = kDevicePresets[key]!;
-        expect(preset.isMobile, isFalse,
-            reason: '$key should have isMobile=false');
-        expect(preset.hasTouch, isFalse,
-            reason: '$key should have hasTouch=false');
+        expect(
+          preset.isMobile,
+          isFalse,
+          reason: '$key should have isMobile=false',
+        );
+        expect(
+          preset.hasTouch,
+          isFalse,
+          reason: '$key should have hasTouch=false',
+        );
       }
     });
 

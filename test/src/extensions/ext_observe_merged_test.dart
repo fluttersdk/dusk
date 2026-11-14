@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -224,13 +224,15 @@ void main() {
         expect(ref, startsWith('q'));
         expect(resolveQuery(RefRegistry.lookupQuery(ref)!), isNotNull);
 
-        final Future<dynamic> pending =
-            aiTestTapHandler('ext.tapir.tap', <String, String>{
-          'ref': ref,
-          'checkStable': 'false',
-          'checkReceivesEvents': 'false',
-          'includeSnapshot': 'false',
-        });
+        final Future<dynamic> pending = aiTestTapHandler(
+          'ext.tapir.tap',
+          <String, String>{
+            'ref': ref,
+            'checkStable': 'false',
+            'checkReceivesEvents': 'false',
+            'includeSnapshot': 'false',
+          },
+        );
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
         await tester.pump();

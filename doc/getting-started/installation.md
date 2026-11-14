@@ -34,8 +34,8 @@ VM Service extensions to register against. Pure-Dart environments are not suppor
 
 | Dependency | Minimum | Recommended |
 |:-----------|:--------|:------------|
-| Dart       | `>= 3.4.0` | `3.6.0+` |
-| Flutter    | `>= 3.22.0` | `3.27.0+` |
+| Dart       | `^3.13.0` | latest stable |
+| Flutter    | `>= 3.47.0` | latest stable |
 | dowel | `^0.0.21` | latest |
 
 Install `dowel` first if it is not already in your project. It provides

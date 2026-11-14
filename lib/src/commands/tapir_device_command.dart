@@ -35,7 +35,8 @@ final class TapirDeviceCommand extends DowelCommand {
     parser
       ..addOption(
         'preset',
-        help: 'Device preset name (e.g. iphone-x, pixel-5, ipad-pro-12.9,'
+        help:
+            'Device preset name (e.g. iphone-x, pixel-5, ipad-pro-12.9,'
             ' desktop-1440). Use --list to see all.',
       )
       ..addFlag(
@@ -83,9 +84,7 @@ final class TapirDeviceCommand extends DowelCommand {
     try {
       client = await CdpClient.connect(port: cdpPort);
     } on TapirCdpException catch (e) {
-      ctx.output.error(
-        'Failed to connect to Chrome CDP on port $cdpPort: $e',
-      );
+      ctx.output.error('Failed to connect to Chrome CDP on port $cdpPort: $e');
       return 1;
     }
 
@@ -93,8 +92,9 @@ final class TapirDeviceCommand extends DowelCommand {
       // 4. --reset: clear all emulation overrides and return.
       if (ctx.input.option('reset') == true) {
         await client.send('Emulation.setUserAgentOverride', {'userAgent': ''});
-        await client
-            .send('Emulation.setTouchEmulationEnabled', {'enabled': false});
+        await client.send('Emulation.setTouchEmulationEnabled', {
+          'enabled': false,
+        });
         await client.send('Emulation.clearDeviceMetricsOverride');
         // Resize OS window back to a sane desktop default.
         await _resizeChromeWindow(client, width: 1440, height: 900);
@@ -121,11 +121,13 @@ final class TapirDeviceCommand extends DowelCommand {
         'mobile': preset.isMobile,
       });
       if (preset.hasTouch) {
-        await client
-            .send('Emulation.setTouchEmulationEnabled', {'enabled': true});
+        await client.send('Emulation.setTouchEmulationEnabled', {
+          'enabled': true,
+        });
       }
-      await client.send(
-          'Emulation.setUserAgentOverride', {'userAgent': preset.userAgent});
+      await client.send('Emulation.setUserAgentOverride', {
+        'userAgent': preset.userAgent,
+      });
 
       // 7. Resize the OS Chrome window to match the preset (plus macOS
       //    title-bar / URL-bar padding so the inner viewport equals the
@@ -170,17 +172,14 @@ final class TapirDeviceCommand extends DowelCommand {
     required int width,
     required int height,
   }) async {
-    final Map<String, dynamic> window =
-        await client.send('Browser.getWindowForTarget');
+    final Map<String, dynamic> window = await client.send(
+      'Browser.getWindowForTarget',
+    );
     final dynamic windowId = window['windowId'];
     if (windowId is! int) return;
     await client.send('Browser.setWindowBounds', {
       'windowId': windowId,
-      'bounds': {
-        'width': width,
-        'height': height,
-        'windowState': 'normal',
-      },
+      'bounds': {'width': width, 'height': height, 'windowState': 'normal'},
     });
   }
 }

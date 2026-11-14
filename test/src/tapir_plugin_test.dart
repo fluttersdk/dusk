@@ -15,14 +15,16 @@ void main() {
     expect(TapirPlugin.installCount, equals(before + 1));
   });
 
-  test('install() is idempotent — second call increments counter but no-ops',
-      () {
-    final before = TapirPlugin.installCount;
-    TapirPlugin.install();
-    TapirPlugin.install();
-    TapirPlugin.install();
-    expect(TapirPlugin.installCount, greaterThan(before));
-  });
+  test(
+    'install() is idempotent — second call increments counter but no-ops',
+    () {
+      final before = TapirPlugin.installCount;
+      TapirPlugin.install();
+      TapirPlugin.install();
+      TapirPlugin.install();
+      expect(TapirPlugin.installCount, greaterThan(before));
+    },
+  );
 
   test('install() skips when TAPIR_DISABLE=1', () {
     TapirPlugin.aiTestDisableEnvValue = '1';
@@ -83,15 +85,17 @@ void main() {
   group('semantics handle', () {
     tearDown(TapirPlugin.resetSemanticsForTesting);
 
-    test('acquire is idempotent and release reports whether it dropped one',
-        () {
-      TapirPlugin.resetSemanticsForTesting();
-      expect(TapirPlugin.acquireSemantics(), isTrue);
-      expect(TapirPlugin.acquireSemantics(), isFalse);
-      expect(TapirPlugin.releaseSemantics(), isTrue);
-      expect(TapirPlugin.semanticsReleased, isTrue);
-      expect(TapirPlugin.releaseSemantics(), isFalse);
-    });
+    test(
+      'acquire is idempotent and release reports whether it dropped one',
+      () {
+        TapirPlugin.resetSemanticsForTesting();
+        expect(TapirPlugin.acquireSemantics(), isTrue);
+        expect(TapirPlugin.acquireSemantics(), isFalse);
+        expect(TapirPlugin.releaseSemantics(), isTrue);
+        expect(TapirPlugin.semanticsReleased, isTrue);
+        expect(TapirPlugin.releaseSemantics(), isFalse);
+      },
+    );
 
     test('acquire clears the released flag', () {
       TapirPlugin.resetSemanticsForTesting();

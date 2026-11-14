@@ -17,17 +17,18 @@ class _StubContext extends DowelContext {
   _StubContext({
     required DowelInput input,
     required DowelOutput output,
-    Map<String, dynamic> response = const {},
-  })  : _response = response,
-        super.bare(input, output);
+    this._response = const {},
+  }) : super.bare(input, output);
 
   final Map<String, dynamic> _response;
   String? lastMethod;
   Map<String, dynamic>? lastParams;
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     lastMethod = method;
     lastParams = params;
     return _response as T;
@@ -39,10 +40,7 @@ class _StubContext extends DowelContext {
 // StateFile.debugHomeOverride so TapirScreenshotCommand.handle() reads it.
 // ---------------------------------------------------------------------------
 
-Future<void> _writeState(
-  Directory tempDir,
-  Map<String, dynamic> data,
-) async {
+Future<void> _writeState(Directory tempDir, Map<String, dynamic> data) async {
   final stateDir = Directory('${tempDir.path}/.dowel');
   await stateDir.create(recursive: true);
   final stateFile = File('${stateDir.path}/state.json');
@@ -102,8 +100,11 @@ void main() {
         StateFile.debugHomeOverride = tempDir.path;
 
         final ctx = _StubContext(
-          input:
-              MapInput({'output': outPath, 'format': 'png', 'quality': '90'}),
+          input: MapInput({
+            'output': outPath,
+            'format': 'png',
+            'quality': '90',
+          }),
           output: BufferedOutput(),
           response: const {'base64': fakeBase64},
         );
@@ -184,47 +185,51 @@ void main() {
         expect(ctx.lastParams, containsPair('format', 'jpeg'));
       });
 
-      test('an explicit --format wins and warns when the extension disagrees',
-          () async {
-        await _writeState(tempDir, {'pid': 1234});
-        StateFile.debugHomeOverride = tempDir.path;
+      test(
+        'an explicit --format wins and warns when the extension disagrees',
+        () async {
+          await _writeState(tempDir, {'pid': 1234});
+          StateFile.debugHomeOverride = tempDir.path;
 
-        final output = BufferedOutput();
-        final ctx = _StubContext(
-          input: MapInput({
-            'output': '${tempDir.path}/snap.png',
-            'format': 'jpeg',
-          }),
-          output: output,
-          response: const {'base64': 'aGVsbG8='},
-        );
-        final exit = await TapirScreenshotCommand().handle(ctx);
+          final output = BufferedOutput();
+          final ctx = _StubContext(
+            input: MapInput({
+              'output': '${tempDir.path}/snap.png',
+              'format': 'jpeg',
+            }),
+            output: output,
+            response: const {'base64': 'aGVsbG8='},
+          );
+          final exit = await TapirScreenshotCommand().handle(ctx);
 
-        expect(exit, equals(0));
-        expect(ctx.lastParams, containsPair('format', 'jpeg'));
-        expect(output.content, contains('[ERROR]'));
-        expect(output.content, contains('--format=jpeg'));
-        expect(output.content, contains('.png'));
-      });
+          expect(exit, equals(0));
+          expect(ctx.lastParams, containsPair('format', 'jpeg'));
+          expect(output.content, contains('[ERROR]'));
+          expect(output.content, contains('--format=jpeg'));
+          expect(output.content, contains('.png'));
+        },
+      );
 
-      test('an explicit --format that matches the extension stays quiet',
-          () async {
-        await _writeState(tempDir, {'pid': 1234});
-        StateFile.debugHomeOverride = tempDir.path;
+      test(
+        'an explicit --format that matches the extension stays quiet',
+        () async {
+          await _writeState(tempDir, {'pid': 1234});
+          StateFile.debugHomeOverride = tempDir.path;
 
-        final output = BufferedOutput();
-        final ctx = _StubContext(
-          input: MapInput({
-            'output': '${tempDir.path}/snap.png',
-            'format': 'png',
-          }),
-          output: output,
-          response: const {'base64': 'aGVsbG8='},
-        );
-        await TapirScreenshotCommand().handle(ctx);
+          final output = BufferedOutput();
+          final ctx = _StubContext(
+            input: MapInput({
+              'output': '${tempDir.path}/snap.png',
+              'format': 'png',
+            }),
+            output: output,
+            response: const {'base64': 'aGVsbG8='},
+          );
+          await TapirScreenshotCommand().handle(ctx);
 
-        expect(output.content, isNot(contains('[ERROR]')));
-      });
+          expect(output.content, isNot(contains('[ERROR]')));
+        },
+      );
 
       test('returns 1 when --output is missing', () async {
         await _writeState(tempDir, {'pid': 1234});
@@ -303,15 +308,19 @@ void main() {
           expect(exit, equals(0));
 
           // 2. CDP calls were made in the correct order.
-          expect(callOrder,
-              equals(<String>['Page.enable', 'Page.captureScreenshot']));
+          expect(
+            callOrder,
+            equals(<String>['Page.enable', 'Page.captureScreenshot']),
+          );
 
           // 3. captureScreenshot received the expected params.
           expect(capturedScreenshotParams, isNotNull);
           expect(capturedScreenshotParams!['format'], equals('png'));
           expect(capturedScreenshotParams!['fromSurface'], equals(true));
-          expect(capturedScreenshotParams!.containsKey('captureBeyondViewport'),
-              isFalse);
+          expect(
+            capturedScreenshotParams!.containsKey('captureBeyondViewport'),
+            isFalse,
+          );
 
           // 4. The file on disk contains the decoded PNG bytes.
           expect(File(outPath).existsSync(), isTrue);
@@ -328,109 +337,100 @@ void main() {
       // -----------------------------------------------------------------------
       // (b) JPEG with quality: quality param is forwarded in captureScreenshot.
       // -----------------------------------------------------------------------
-      test(
-        'forwards quality param for jpeg format',
-        () async {
-          Map<String, dynamic>? capturedParams;
+      test('forwards quality param for jpeg format', () async {
+        Map<String, dynamic>? capturedParams;
 
-          final server = await FakeCdpServer.start(
-            handlers: {
-              'Page.enable': (Map<String, dynamic> _) async =>
-                  <String, dynamic>{},
-              'Page.captureScreenshot': (Map<String, dynamic> params) async {
-                capturedParams = params;
-                return <String, dynamic>{'data': fakePngBase64};
-              },
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Page.enable': (Map<String, dynamic> _) async =>
+                <String, dynamic>{},
+            'Page.captureScreenshot': (Map<String, dynamic> params) async {
+              capturedParams = params;
+              return <String, dynamic>{'data': fakePngBase64};
             },
-          );
-          addTearDown(server.stop);
+          },
+        );
+        addTearDown(server.stop);
 
-          await _writeState(tempDir, {'cdpPort': server.port});
-          StateFile.debugHomeOverride = tempDir.path;
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
 
-          final ctx = _StubContext(
-            input: MapInput({
-              'output': '${tempDir.path}/shot.jpg',
-              'format': 'jpeg',
-              'quality': '80',
-            }),
-            output: BufferedOutput(),
-          );
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/shot.jpg',
+            'format': 'jpeg',
+            'quality': '80',
+          }),
+          output: BufferedOutput(),
+        );
 
-          await TapirScreenshotCommand().handle(ctx);
+        await TapirScreenshotCommand().handle(ctx);
 
-          expect(capturedParams!['format'], equals('jpeg'));
-          expect(capturedParams!['quality'], equals(80));
-        },
-      );
+        expect(capturedParams!['format'], equals('jpeg'));
+        expect(capturedParams!['quality'], equals(80));
+      });
 
       // -----------------------------------------------------------------------
       // (c) PNG format: quality param is NOT forwarded.
       // -----------------------------------------------------------------------
-      test(
-        'does not forward quality for png format',
-        () async {
-          Map<String, dynamic>? capturedParams;
+      test('does not forward quality for png format', () async {
+        Map<String, dynamic>? capturedParams;
 
-          final server = await FakeCdpServer.start(
-            handlers: {
-              'Page.enable': (Map<String, dynamic> _) async =>
-                  <String, dynamic>{},
-              'Page.captureScreenshot': (Map<String, dynamic> params) async {
-                capturedParams = params;
-                return <String, dynamic>{'data': fakePngBase64};
-              },
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Page.enable': (Map<String, dynamic> _) async =>
+                <String, dynamic>{},
+            'Page.captureScreenshot': (Map<String, dynamic> params) async {
+              capturedParams = params;
+              return <String, dynamic>{'data': fakePngBase64};
             },
-          );
-          addTearDown(server.stop);
+          },
+        );
+        addTearDown(server.stop);
 
-          await _writeState(tempDir, {'cdpPort': server.port});
-          StateFile.debugHomeOverride = tempDir.path;
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
 
-          final ctx = _StubContext(
-            input: MapInput({
-              'output': '${tempDir.path}/shot.png',
-              'format': 'png',
-              'quality': '90',
-            }),
-            output: BufferedOutput(),
-          );
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/shot.png',
+            'format': 'png',
+            'quality': '90',
+          }),
+          output: BufferedOutput(),
+        );
 
-          await TapirScreenshotCommand().handle(ctx);
+        await TapirScreenshotCommand().handle(ctx);
 
-          expect(capturedParams!.containsKey('quality'), isFalse);
-        },
-      );
+        expect(capturedParams!.containsKey('quality'), isFalse);
+      });
 
       // -----------------------------------------------------------------------
       // (d) CDP connect failure → exit 1 + error message.
       // -----------------------------------------------------------------------
-      test(
-        'exits 1 with error message when CDP connect fails',
-        () async {
-          final server = await FakeCdpServer.start();
-          final int closedPort = server.port;
-          await server.stop();
+      test('exits 1 with error message when CDP connect fails', () async {
+        final server = await FakeCdpServer.start();
+        final int closedPort = server.port;
+        await server.stop();
 
-          await _writeState(tempDir, {'cdpPort': closedPort});
-          StateFile.debugHomeOverride = tempDir.path;
+        await _writeState(tempDir, {'cdpPort': closedPort});
+        StateFile.debugHomeOverride = tempDir.path;
 
-          final output = BufferedOutput();
-          final ctx = _StubContext(
-            input: MapInput({
-              'output': '${tempDir.path}/shot.png',
-              'format': 'png',
-              'quality': '90',
-            }),
-            output: output,
-          );
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/shot.png',
+            'format': 'png',
+            'quality': '90',
+          }),
+          output: output,
+        );
 
-          final exit = await TapirScreenshotCommand().handle(ctx);
+        final exit = await TapirScreenshotCommand().handle(ctx);
 
-          expect(exit, equals(1));
-          expect(output.content, contains('Failed to connect to Chrome CDP'));
-        },
-      );
+        expect(exit, equals(1));
+        expect(output.content, contains('Failed to connect to Chrome CDP'));
+      });
 
       // -----------------------------------------------------------------------
       // (e) Non-numeric cdpPort (corrupt / cross-version state) → native path,
@@ -464,38 +464,35 @@ void main() {
       // (f) CDP response missing `data` → exit 1 with a clear error, not an
       //     uncaught cast exception.
       // -----------------------------------------------------------------------
-      test(
-        'exits 1 with error message when CDP returns no data',
-        () async {
-          final server = await FakeCdpServer.start(
-            handlers: {
-              'Page.enable': (Map<String, dynamic> _) async =>
-                  <String, dynamic>{},
-              'Page.captureScreenshot': (Map<String, dynamic> _) async =>
-                  <String, dynamic>{},
-            },
-          );
-          addTearDown(server.stop);
+      test('exits 1 with error message when CDP returns no data', () async {
+        final server = await FakeCdpServer.start(
+          handlers: {
+            'Page.enable': (Map<String, dynamic> _) async =>
+                <String, dynamic>{},
+            'Page.captureScreenshot': (Map<String, dynamic> _) async =>
+                <String, dynamic>{},
+          },
+        );
+        addTearDown(server.stop);
 
-          await _writeState(tempDir, {'cdpPort': server.port});
-          StateFile.debugHomeOverride = tempDir.path;
+        await _writeState(tempDir, {'cdpPort': server.port});
+        StateFile.debugHomeOverride = tempDir.path;
 
-          final output = BufferedOutput();
-          final ctx = _StubContext(
-            input: MapInput({
-              'output': '${tempDir.path}/shot.png',
-              'format': 'png',
-              'quality': '90',
-            }),
-            output: output,
-          );
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput({
+            'output': '${tempDir.path}/shot.png',
+            'format': 'png',
+            'quality': '90',
+          }),
+          output: output,
+        );
 
-          final exit = await TapirScreenshotCommand().handle(ctx);
+        final exit = await TapirScreenshotCommand().handle(ctx);
 
-          expect(exit, equals(1));
-          expect(output.content, contains('no image data'));
-        },
-      );
+        expect(exit, equals(1));
+        expect(output.content, contains('no image data'));
+      });
     });
 
     // -------------------------------------------------------------------------

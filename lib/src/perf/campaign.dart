@@ -151,8 +151,9 @@ Future<PerfCampaign> loadPerfCampaign(
   Map<String, String> env = const <String, String>{},
 }) async {
   final String file = perfAbsolutePath(path);
-  final Map<Object?, Object?> document =
-      _campaignDocument(await File(file).readAsString());
+  final Map<Object?, Object?> document = _campaignDocument(
+    await File(file).readAsString(),
+  );
   return _CampaignReader(file: file, env: env).read(document);
 }
 
@@ -212,16 +213,19 @@ final class _CampaignReader {
     // 1. Keys nothing reads.
     for (final Object? key in document.keys) {
       if (!_kCampaignKeys.contains(key)) {
-        problems.add('unknown key "$key"; allowed: '
-            '${_kCampaignKeys.join(', ')}.');
+        problems.add(
+          'unknown key "$key"; allowed: '
+          '${_kCampaignKeys.join(', ')}.',
+        );
       }
     }
 
     // 2. Each section on its own, so one edit fixes them all. `after_start`
     //    goes to the loader as `loadYaml` answered it: the loader
     //    interpolates it, once.
-    final List<PerfCampaignScenario> scenarios =
-        await _scenarios(document['scenarios']);
+    final List<PerfCampaignScenario> scenarios = await _scenarios(
+      document['scenarios'],
+    );
     final PerfHooks hooks = _hooks(document['hooks']);
     final PerfAndroid android = _android(document['android']);
     final int retries = _retries(document['retries']);
@@ -265,12 +269,14 @@ final class _CampaignReader {
       try {
         loaded = await loadPerfScenarios(path, env: env);
       } on PerfScenarioException catch (e) {
-        problems
-            .addAll(<String>[for (final String p in e.problems) '$shown: $p']);
+        problems.addAll(<String>[
+          for (final String p in e.problems) '$shown: $p',
+        ]);
         continue;
       } on FileSystemException catch (e) {
-        problems
-            .add('$shown: cannot read (${e.osError?.message ?? e.message}).');
+        problems.add(
+          '$shown: cannot read (${e.osError?.message ?? e.message}).',
+        );
         continue;
       }
       secrets.addAll(loaded.secrets);
@@ -281,8 +287,10 @@ final class _CampaignReader {
       for (final PerfScenario scenario in loaded.scenarios) {
         final String? first = owner[scenario.name];
         if (first != null) {
-          problems.add('duplicate scenario name "${scenario.name}" in '
-              '$first and $shown: each name is a run file.');
+          problems.add(
+            'duplicate scenario name "${scenario.name}" in '
+            '$first and $shown: each name is a run file.',
+          );
           continue;
         }
         owner[scenario.name] = shown;
@@ -299,13 +307,16 @@ final class _CampaignReader {
     final String basename = parts.removeLast();
     if (parts.any((String part) => part.contains('*')) ||
         basename.contains('**')) {
-      problems.add('$at: "$entry" may hold a * in the file name only, never '
-          'in a directory and never as **.');
+      problems.add(
+        '$at: "$entry" may hold a * in the file name only, never '
+        'in a directory and never as **.',
+      );
       return const <String>[];
     }
 
-    final String resolved =
-        Uri.file(file).resolveUri(Uri.file(entry)).toFilePath();
+    final String resolved = Uri.file(file)
+        .resolveUri(Uri.file(entry))
+        .toFilePath();
     if (!basename.contains('*')) {
       if (File(resolved).existsSync()) return <String>[resolved];
       problems.add('$at: "$entry" is not a file.');
@@ -316,13 +327,15 @@ final class _CampaignReader {
     final RegExp glob = RegExp(
       '^${basename.split('*').map(RegExp.escape).join('[^/]*')}\$',
     );
-    final List<String> matches = !directory.existsSync()
-        ? <String>[]
-        : <String>[
-            for (final File match in directory.listSync().whereType<File>())
-              if (glob.hasMatch(match.uri.pathSegments.last)) match.path,
-          ]
-      ..sort();
+    final List<String> matches =
+        !directory.existsSync()
+              ? <String>[]
+              : <String>[
+                  for (final File match
+                      in directory.listSync().whereType<File>())
+                    if (glob.hasMatch(match.uri.pathSegments.last)) match.path,
+                ]
+          ..sort();
     if (matches.isEmpty) problems.add('$at: "$entry" matches no file.');
     return matches;
   }
@@ -350,8 +363,10 @@ final class _CampaignReader {
     // A hook is never echoed: it is the one string a secret could be
     // spliced into by hand.
     if (raw.contains(r'${')) {
-      problems.add('$at holds a "\${": hooks run in a shell; read the '
-          r'variable there as $NAME.');
+      problems.add(
+        '$at holds a "\${": hooks run in a shell; read the '
+        r'variable there as $NAME.',
+      );
       return null;
     }
     return raw;
@@ -384,8 +399,10 @@ final class _CampaignReader {
 
   String? _permission(Object? raw, String at) {
     if (raw is String && _kPermissionName.hasMatch(raw)) return raw;
-    problems.add('$at must be a permission name of letters, digits, _ and . '
-        'only, since the device shell reads it (got $raw).');
+    problems.add(
+      '$at must be a permission name of letters, digits, _ and . '
+      'only, since the device shell reads it (got $raw).',
+    );
     return null;
   }
 
@@ -430,8 +447,10 @@ final class _CampaignReader {
   void _unknownKeys(Map<Object?, Object?> map, Set<String> allowed, String at) {
     for (final Object? key in map.keys) {
       if (!allowed.contains(key)) {
-        problems.add('$at: unknown key "$key"; allowed: '
-            '${allowed.join(', ')}.');
+        problems.add(
+          '$at: unknown key "$key"; allowed: '
+          '${allowed.join(', ')}.',
+        );
       }
     }
   }

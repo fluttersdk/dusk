@@ -33,32 +33,31 @@ Map<String, Object?> _ms(Map<String, Object?> summary, String key) =>
 
 void main() {
   group('summarizeFramePerf percentiles', () {
-    test(
-      'a 10-element list puts p50, p90 and p99 on different elements',
-      () {
-        // Percentile index = ((n - 1) * p).round(), matching
-        // frame_timing_summarizer.dart's _findPercentile exactly.
-        // n=10: p50 index 5 (4.5 rounds up) -> 6ms, p90 index 8 -> 9ms,
-        //       p99 index 9 -> 50ms (last).
-        final List<int> buildMsValues = <int>[1, 2, 3, 4, 5, 6, 7, 8, 9, 50];
-        final List<Map<String, Object?>> frames = <Map<String, Object?>>[
-          for (int i = 0; i < buildMsValues.length; i++)
-            _frame(frameNumber: i + 1, buildMicros: buildMsValues[i] * 1000),
-        ];
+    test('a 10-element list puts p50, p90 and p99 on different elements', () {
+      // Percentile index = ((n - 1) * p).round(), matching
+      // frame_timing_summarizer.dart's _findPercentile exactly.
+      // n=10: p50 index 5 (4.5 rounds up) -> 6ms, p90 index 8 -> 9ms,
+      //       p99 index 9 -> 50ms (last).
+      final List<int> buildMsValues = <int>[1, 2, 3, 4, 5, 6, 7, 8, 9, 50];
+      final List<Map<String, Object?>> frames = <Map<String, Object?>>[
+        for (int i = 0; i < buildMsValues.length; i++)
+          _frame(frameNumber: i + 1, buildMicros: buildMsValues[i] * 1000),
+      ];
 
-        final Map<String, Object?> build =
-            _ms(summarizeFramePerf(frames), 'buildMs');
+      final Map<String, Object?> build = _ms(
+        summarizeFramePerf(frames),
+        'buildMs',
+      );
 
-        expect(build['p50'], 6.0);
-        expect(
-          build['p90'],
-          9.0,
-          reason: 'p90 index 8 must land on the 9ms element, not the 50ms one',
-        );
-        expect(build['p99'], 50.0);
-        expect(build['worst'], 50.0);
-      },
-    );
+      expect(build['p50'], 6.0);
+      expect(
+        build['p90'],
+        9.0,
+        reason: 'p90 index 8 must land on the 9ms element, not the 50ms one',
+      );
+      expect(build['p99'], 50.0);
+      expect(build['worst'], 50.0);
+    });
   });
 
   group('summarizeFramePerf budget count', () {
@@ -83,23 +82,26 @@ void main() {
   });
 
   group('summarizeFramePerf empty input', () {
-    test('an empty list returns zeros rather than throwing or dividing by zero',
-        () {
-      final Map<String, Object?> summary =
-          summarizeFramePerf(<Map<String, Object?>>[]);
+    test(
+      'an empty list returns zeros rather than throwing or dividing by zero',
+      () {
+        final Map<String, Object?> summary = summarizeFramePerf(
+          <Map<String, Object?>>[],
+        );
 
-      expect(summary['count'], 0);
-      expect(summary['painted'], 0);
-      expect(summary['dropped'], 0);
-      expect(summary['overBudget'], 0);
-      expect(_ms(summary, 'buildMs'), <String, Object?>{
-        'p50': 0.0,
-        'p90': 0.0,
-        'p99': 0.0,
-        'worst': 0.0,
-      });
-      expect(_ms(summary, 'rasterMs')['worst'], 0.0);
-    });
+        expect(summary['count'], 0);
+        expect(summary['painted'], 0);
+        expect(summary['dropped'], 0);
+        expect(summary['overBudget'], 0);
+        expect(_ms(summary, 'buildMs'), <String, Object?>{
+          'p50': 0.0,
+          'p90': 0.0,
+          'p99': 0.0,
+          'worst': 0.0,
+        });
+        expect(_ms(summary, 'rasterMs')['worst'], 0.0);
+      },
+    );
   });
 
   group('summarizeFramePerf dropped-frame detection', () {
@@ -118,18 +120,20 @@ void main() {
       expect(summary['count'], 5);
     });
 
-    test('a non-monotonic or duplicate sequence never reports a negative count',
-        () {
-      final Map<String, Object?> summary = summarizeFramePerf(
-        <Map<String, Object?>>[
-          _frame(frameNumber: 5, buildMicros: 1000),
-          _frame(frameNumber: 5, buildMicros: 1000),
-          _frame(frameNumber: 3, buildMicros: 1000),
-        ],
-      );
+    test(
+      'a non-monotonic or duplicate sequence never reports a negative count',
+      () {
+        final Map<String, Object?> summary = summarizeFramePerf(
+          <Map<String, Object?>>[
+            _frame(frameNumber: 5, buildMicros: 1000),
+            _frame(frameNumber: 5, buildMicros: 1000),
+            _frame(frameNumber: 3, buildMicros: 1000),
+          ],
+        );
 
-      expect(summary['dropped'], 0);
-    });
+        expect(summary['dropped'], 0);
+      },
+    );
 
     test('frameGaps names each gap and how many frames it swallowed', () {
       expect(

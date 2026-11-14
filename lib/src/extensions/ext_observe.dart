@@ -52,10 +52,7 @@ const Set<String> _kDefaultEnricherKeys = <String>{
 /// exposes the 6 core fields including hex colours and per-state breakdowns;
 /// the default subset keeps only the two that drive agent decisions
 /// (breakpoint + active state).
-const Set<String> _kDefaultWindKeys = <String>{
-  'breakpoint',
-  'states',
-};
+const Set<String> _kDefaultWindKeys = <String>{'breakpoint', 'states'};
 
 // ---------------------------------------------------------------------------
 // Aggregator
@@ -258,10 +255,7 @@ Future<developer.ServiceExtensionResponse> extTapirObserveHandler(
     );
     return developer.ServiceExtensionResponse.error(
       developer.ServiceExtensionResponse.extensionError,
-      wrapErrorDetail(
-        'ext.tapir.observe: $e',
-        TapirErrorEnvelope.unexpected(),
-      ),
+      wrapErrorDetail('ext.tapir.observe: $e', TapirErrorEnvelope.unexpected()),
     );
   }
 }
@@ -290,14 +284,16 @@ Map<String, dynamic>? _buildCandidate({
   final bool isEnabled = data.flagsCollection.isEnabled != Tristate.isFalse;
   final FlutterView? view =
       WidgetsBinding.instance.platformDispatcher.implicitView;
-  final bool inViewport = view == null ||
+  final bool inViewport =
+      view == null ||
       !isRectOutsideViewport(rect, view.physicalSize / view.devicePixelRatio);
   // Informational, not gating: the agent decides what an off-viewport or
   // zero-area candidate means. Same overlap rule as the actionability gate's
   // `off-viewport` precondition.
   final bool isVisible = !rect.isEmpty && inViewport;
   // An off-screen or area-less candidate has no centre worth probing.
-  final bool occluded = view != null &&
+  final bool occluded =
+      view != null &&
       isVisible &&
       probeHitAt(
             target: renderObject,
@@ -346,8 +342,11 @@ Map<String, dynamic>? _buildCandidate({
 
   // #60: present only on a merge boundary whose centre is not on its control,
   // so a healthy candidate keeps the shape it had.
-  final Map<String, Object>? tapOwner =
-      tapOwnerBounds(node: node, element: element, rect: rect);
+  final Map<String, Object>? tapOwner = tapOwnerBounds(
+    node: node,
+    element: element,
+    rect: rect,
+  );
   if (tapOwner != null) candidate['tapOwner'] = tapOwner;
 
   // Merge enricher-projected fields per mode. Off => emit nothing extra.
@@ -401,7 +400,7 @@ void _mergeEnricherFields(
   // Wind registers a WindDebugResolver at app boot (Wind.installDebugResolver);
   // observe reads it here without ever importing wind types. Mirrors the
   // additive walk in ext_snapshot.dart so the `wind:` block survives in
-  // observe output after alpha-10's enricher removal.
+  // observe output without any enricher registration.
   final WindDebugResolver? resolver = WindDebugRegistry.current;
   if (resolver != null) {
     final Map<String, Object?> windData = resolver.resolve(element);
@@ -414,8 +413,9 @@ void _mergeEnricherFields(
             !_kDefaultWindKeys.contains(subKey)) {
           return;
         }
-        filteredChildren[subKey] =
-            subValue is List ? subValue.join(', ') : subValue?.toString() ?? '';
+        filteredChildren[subKey] = subValue is List
+            ? subValue.join(', ')
+            : subValue?.toString() ?? '';
       });
       if (filteredChildren.isNotEmpty) {
         candidate.putIfAbsent('wind', () => filteredChildren);

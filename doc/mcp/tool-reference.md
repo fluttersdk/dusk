@@ -1345,20 +1345,24 @@ Error: option not found, or actionability gate failure on the dropdown itself.
 
 Dispatch: `ext.tapir.set_checkbox`
 
-Read + conditionally toggle a `Checkbox` or `Switch` widget by ref. Idempotent: when the
-current value already matches `value`, the call returns without tapping.
+Read the checked or toggled flag of the ref's Semantics node and tap only when it differs
+from `value`, so a checkbox, switch or radio from any library works (Flutter, `material_ui`,
+`wind_kit`, a hand-built `Semantics(checked: ...)`). Idempotent: when the current value
+already matches `value`, the call returns without tapping. A ref whose node, or whose
+descendant node, carries no checked or toggled state is refused instead of assumed
+unchecked, and a mixed checkbox is always tapped once with `previousValue: null`.
 
 ### Input schema
 
 | Parameter | Type | Required | Description |
 |:---|:---|:---|:---|
-| `ref` | string | yes | Checkbox or Switch widget ref (`e<N>`). |
+| `ref` | string | yes | Ref (`e<N>`) of a checkbox, switch or radio. |
 | `value` | string | yes | `"true"` or `"false"` (target checked state). |
 
 ### Returns
 
-Success: `{ ref, previousValue, value, toggled: bool }`. `toggled` is `false` when the
-state already matched.
+Success: `{ ref, previousValue, value, toggled: bool, effect }`. `toggled` is `false` when
+the state already matched; `previousValue` is `null` for a mixed checkbox.
 
 ### Example call
 

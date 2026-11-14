@@ -23,22 +23,19 @@ void main() {
     // (a) Default reader returns empty list — missing-crumbs graceful path.
     // -------------------------------------------------------------------------
 
-    test(
-      '(a) default reader returns empty list and count 0',
-      () async {
-        final response = await aiTestConsoleHandler(
-          'ext.tapir.console',
-          <String, String>{},
-        );
+    test('(a) default reader returns empty list and count 0', () async {
+      final response = await aiTestConsoleHandler(
+        'ext.tapir.console',
+        <String, String>{},
+      );
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['logs'], isA<List>());
-        expect((decoded['logs'] as List).isEmpty, isTrue);
-        expect(decoded['count'], equals(0));
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['logs'], isA<List>());
+      expect((decoded['logs'] as List).isEmpty, isTrue);
+      expect(decoded['count'], equals(0));
+    });
 
     // -------------------------------------------------------------------------
     // (b) Custom reader wired — default limit 50 forwarded.
@@ -66,45 +63,37 @@ void main() {
     // (c) Custom limit param is forwarded to the reader.
     // -------------------------------------------------------------------------
 
-    test(
-      '(c) custom limit param forwarded to reader',
-      () async {
-        int? capturedLimit;
-        recentLogsReader = ({int limit = 50, String? minLevel}) {
-          capturedLimit = limit;
-          return const [];
-        };
+    test('(c) custom limit param forwarded to reader', () async {
+      int? capturedLimit;
+      recentLogsReader = ({int limit = 50, String? minLevel}) {
+        capturedLimit = limit;
+        return const [];
+      };
 
-        await aiTestConsoleHandler(
-          'ext.tapir.console',
-          <String, String>{'limit': '10'},
-        );
+      await aiTestConsoleHandler('ext.tapir.console', <String, String>{
+        'limit': '10',
+      });
 
-        expect(capturedLimit, equals(10));
-      },
-    );
+      expect(capturedLimit, equals(10));
+    });
 
     // -------------------------------------------------------------------------
     // (d) minLevel param is forwarded to the reader.
     // -------------------------------------------------------------------------
 
-    test(
-      '(d) minLevel param forwarded to reader',
-      () async {
-        String? capturedMinLevel;
-        recentLogsReader = ({int limit = 50, String? minLevel}) {
-          capturedMinLevel = minLevel;
-          return const [];
-        };
+    test('(d) minLevel param forwarded to reader', () async {
+      String? capturedMinLevel;
+      recentLogsReader = ({int limit = 50, String? minLevel}) {
+        capturedMinLevel = minLevel;
+        return const [];
+      };
 
-        await aiTestConsoleHandler(
-          'ext.tapir.console',
-          <String, String>{'minLevel': 'WARNING'},
-        );
+      await aiTestConsoleHandler('ext.tapir.console', <String, String>{
+        'minLevel': 'WARNING',
+      });
 
-        expect(capturedMinLevel, equals('WARNING'));
-      },
-    );
+      expect(capturedMinLevel, equals('WARNING'));
+    });
 
     // -------------------------------------------------------------------------
     // (e) Reader returning logs — response carries logs + count.
@@ -114,19 +103,19 @@ void main() {
       '(e) reader returning logs: response carries correct shape and count',
       () async {
         recentLogsReader = ({int limit = 50, String? minLevel}) => [
-              {
-                'level': 'INFO',
-                'message': 'hello',
-                'time': '2024-01-01T00:00:00.000Z',
-                'logger': 'test.logger',
-              },
-              {
-                'level': 'WARNING',
-                'message': 'watch out',
-                'time': '2024-01-01T00:01:00.000Z',
-                'logger': 'test.logger',
-              },
-            ];
+          {
+            'level': 'INFO',
+            'message': 'hello',
+            'time': '2024-01-01T00:00:00.000Z',
+            'logger': 'test.logger',
+          },
+          {
+            'level': 'WARNING',
+            'message': 'watch out',
+            'time': '2024-01-01T00:01:00.000Z',
+            'logger': 'test.logger',
+          },
+        ];
 
         final response = await aiTestConsoleHandler(
           'ext.tapir.console',
@@ -190,29 +179,26 @@ void main() {
       },
     );
 
-    test(
-      '(g) minLevel WARNING excludes in-package INFO entries',
-      () async {
-        final DebugPrintCallback prior = debugPrint;
-        addTearDown(() => debugPrint = prior);
+    test('(g) minLevel WARNING excludes in-package INFO entries', () async {
+      final DebugPrintCallback prior = debugPrint;
+      addTearDown(() => debugPrint = prior);
 
-        installLogCapture();
-        addTearDown(uninstallLogCapture);
+      installLogCapture();
+      addTearDown(uninstallLogCapture);
 
-        debugPrint('info level message');
+      debugPrint('info level message');
 
-        final response = await aiTestConsoleHandler(
-          'ext.tapir.console',
-          <String, String>{'minLevel': 'WARNING'},
-        );
+      final response = await aiTestConsoleHandler(
+        'ext.tapir.console',
+        <String, String>{'minLevel': 'WARNING'},
+      );
 
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        final List<dynamic> logs = decoded['logs'] as List<dynamic>;
-        expect(logs, isEmpty);
-        expect(decoded['count'], equals(0));
-      },
-    );
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final List<dynamic> logs = decoded['logs'] as List<dynamic>;
+      expect(logs, isEmpty);
+      expect(decoded['count'], equals(0));
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -240,13 +226,13 @@ void main() {
 
         // Crumbs reader returns the same entry (same level+message+logger).
         recentLogsReader = ({int limit = 50, String? minLevel}) => [
-              <String, dynamic>{
-                'level': 'INFO',
-                'message': 'shared message',
-                'logger': 'debugPrint',
-                'time': '2024-01-01T00:00:00.000Z',
-              },
-            ];
+          <String, dynamic>{
+            'level': 'INFO',
+            'message': 'shared message',
+            'logger': 'debugPrint',
+            'time': '2024-01-01T00:00:00.000Z',
+          },
+        ];
 
         final response = await aiTestConsoleHandler(
           'ext.tapir.console',
@@ -258,10 +244,11 @@ void main() {
         final List<dynamic> logs = decoded['logs'] as List<dynamic>;
         // Must appear only once despite both sources containing it.
         expect(
-            logs.where((dynamic e) {
-              return (e as Map<String, dynamic>)['message'] == 'shared message';
-            }).length,
-            equals(1));
+          logs.where((dynamic e) {
+            return (e as Map<String, dynamic>)['message'] == 'shared message';
+          }).length,
+          equals(1),
+        );
       },
     );
 
@@ -278,13 +265,13 @@ void main() {
 
         // Crumbs contributes a distinct entry.
         recentLogsReader = ({int limit = 50, String? minLevel}) => [
-              <String, dynamic>{
-                'level': 'WARNING',
-                'message': 'from crumbs',
-                'logger': 'my.logger',
-                'time': '2024-01-01T00:00:00.000Z',
-              },
-            ];
+          <String, dynamic>{
+            'level': 'WARNING',
+            'message': 'from crumbs',
+            'logger': 'my.logger',
+            'time': '2024-01-01T00:00:00.000Z',
+          },
+        ];
 
         final response = await aiTestConsoleHandler(
           'ext.tapir.console',
@@ -313,9 +300,11 @@ void main() {
       expect(kTapirConsoleMcpName, equals('tapir_console'));
     });
 
-    test('tapir_console MCP descriptor extensionMethod is ext.tapir.console',
-        () {
-      expect(kTapirConsoleMcpExtension, equals('ext.tapir.console'));
-    });
+    test(
+      'tapir_console MCP descriptor extensionMethod is ext.tapir.console',
+      () {
+        expect(kTapirConsoleMcpExtension, equals('ext.tapir.console'));
+      },
+    );
   });
 }

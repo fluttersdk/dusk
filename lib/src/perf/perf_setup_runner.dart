@@ -91,7 +91,8 @@ final class PerfSetupRunner {
       }
 
       // 4. Everything else says where the app was when it failed.
-      final String label = '$where ${step.origin ?? 'setup[$i]'} '
+      final String label =
+          '$where ${step.origin ?? 'setup[$i]'} '
           '(${gesture?.verb.wire ?? step.verb.wire})';
       try {
         if (await _step(step, label)) landedLate = true;
@@ -146,7 +147,7 @@ final class PerfSetupRunner {
     final int maxPolls =
         guard.timeoutMs ~/ _kWhenPollInterval.inMilliseconds + 1;
     final Stopwatch clock = Stopwatch()..start();
-    for (int poll = 1;; poll++) {
+    for (int poll = 1; ; poll++) {
       final String? unless = guard.unlessText;
       if (unless != null && await _shows(unless, where)) return false;
       if (await _shows(guard.text, where)) return true;
@@ -164,11 +165,9 @@ final class PerfSetupRunner {
 
   /// Whether `ext.tapir.find --text` matches [text] on the screen right now.
   Future<bool> _shows(String text, String where) async =>
-      (await actions.call(
-        'ext.tapir.find',
-        <String, String>{'text': text},
-        where,
-      ))['ref'] !=
+      (await actions.call('ext.tapir.find', <String, String>{
+        'text': text,
+      }, where))['ref'] !=
       null;
 
   /// One entry other than `hot_restart`, which [run] runs itself. Answers
@@ -199,10 +198,7 @@ final class PerfSetupRunner {
           final int slice = left < _kWaitSliceMs ? left : _kWaitSliceMs;
           final Map<String, dynamic> result = await actions.call(
             'ext.tapir.wait_for',
-            <String, String>{
-              'text': step.argument!,
-              'timeoutMs': '$slice',
-            },
+            <String, String>{'text': step.argument!, 'timeoutMs': '$slice'},
             where,
           );
           matched = result['matched'] == true;
@@ -246,10 +242,7 @@ final class PerfSetupRunner {
     bool landedLate = false;
     Map<String, dynamic> payload = await actions.call(
       'ext.tapir.navigate',
-      <String, String>{
-        'route': route,
-        'includeSnapshot': 'false',
-      },
+      <String, String>{'route': route, 'includeSnapshot': 'false'},
       where,
     );
     if (payload['navigated'] != true) {
@@ -308,7 +301,7 @@ final class PerfSetupRunner {
   Future<bool> _awaitLanding(String route, String where) async {
     final String wanted = _routePath(route);
     final Stopwatch clock = Stopwatch()..start();
-    for (int poll = 1;; poll++) {
+    for (int poll = 1; ; poll++) {
       final Object? uri = (await actions.call(
         'ext.tapir.get_routes',
         const <String, String>{},
@@ -349,7 +342,7 @@ final class PerfSetupRunner {
     final int maxPolls =
         budget.inMicroseconds ~/ kPerfResolvePollInterval.inMicroseconds;
     final Stopwatch clock = Stopwatch()..start();
-    for (int poll = 1;; poll++) {
+    for (int poll = 1; ; poll++) {
       final Map<String, dynamic> routes = await actions.call(
         'ext.tapir.get_routes',
         const <String, String>{},

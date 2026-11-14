@@ -1,8 +1,8 @@
 import 'dart:async' show unawaited;
 import 'dart:developer' as developer;
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 import 'package:dowel/dowel.dart';
 
@@ -41,10 +41,7 @@ void registerNavigationExtensions() {
     'ext.tapir.navigate_back',
     extTapirNavigateBackHandler,
   );
-  registerTapirExtension(
-    'ext.tapir.get_routes',
-    extTapirGetRoutesHandler,
-  );
+  registerTapirExtension('ext.tapir.get_routes', extTapirGetRoutesHandler);
 }
 
 // ---------------------------------------------------------------------------
@@ -72,8 +69,9 @@ void registerNavigationExtensions() {
   final String? observed = _readActiveRouterUri();
   if (observed == null) return null;
   final Uri requestedUri = Uri.parse(requested);
-  final String requestedPath =
-      requestedUri.path.isEmpty ? '/' : requestedUri.path;
+  final String requestedPath = requestedUri.path.isEmpty
+      ? '/'
+      : requestedUri.path;
   final Uri observedUri = Uri.tryParse(observed) ?? Uri();
   final String observedPath = observedUri.path.isEmpty ? '/' : observedUri.path;
   final bool exact = observedPath == requestedPath;
@@ -122,12 +120,11 @@ String? _readActiveRouterUri() {
 Map<String, dynamic> buildNavigateResponse(
   String route, {
   required bool exactPath,
-}) =>
-    <String, dynamic>{
-      'navigated': true,
-      'route': route,
-      'exactPath': exactPath,
-    };
+}) => <String, dynamic>{
+  'navigated': true,
+  'route': route,
+  'exactPath': exactPath,
+};
 
 /// Builds the success payload for `ext.tapir.navigate_back`.
 ///
@@ -154,10 +151,10 @@ Map<String, dynamic> buildNavigateBackResponse({bool popped = true}) =>
 ///   which after a restart means the app cannot be navigated yet.
 @visibleForTesting
 Map<String, dynamic> buildGetRoutesResponse() => <String, dynamic>{
-      'location': _currentLocation(),
-      'title': _currentTitle(),
-      'uri': _readActiveRouterUri(),
-    };
+  'location': _currentLocation(),
+  'title': _currentTitle(),
+  'uri': _readActiveRouterUri(),
+};
 
 // ---------------------------------------------------------------------------
 // VM Service extension handlers
@@ -298,7 +295,8 @@ Future<developer.ServiceExtensionResponse> extTapirNavigateHandler(
             'navigated': false,
             'route': route,
             'exactPath': false,
-            'reason': 'router did not honor the new route; observed URI did not '
+            'reason':
+                'router did not honor the new route; observed URI did not '
                 'change. Route may be unregistered or guarded by a redirect.',
           };
     try {
@@ -374,8 +372,9 @@ Future<developer.ServiceExtensionResponse> extTapirNavigateBackHandler(
 
     // 4. Embed post-action snapshot (opt-out via includeSnapshot:'false')
     //    + return confirmation.
-    final Map<String, dynamic> payload =
-        buildNavigateBackResponse(popped: popped);
+    final Map<String, dynamic> payload = buildNavigateBackResponse(
+      popped: popped,
+    );
     try {
       payload.addAll(await snapshotForAction(params));
     } catch (e) {
@@ -483,11 +482,11 @@ NavigatorState? _findPoppableNavigator(Element root) {
 /// Whether [widget] keeps its subtree mounted but out of the user's sight: an
 /// active [Offstage], a disabled [TickerMode], or a hidden [Visibility].
 bool _hidesSubtree(Widget widget) => switch (widget) {
-      Offstage(offstage: true) => true,
-      TickerMode(enabled: false) => true,
-      Visibility(visible: false) => true,
-      _ => false,
-    };
+  Offstage(offstage: true) => true,
+  TickerMode(enabled: false) => true,
+  Visibility(visible: false) => true,
+  _ => false,
+};
 
 /// Returns the active route name from the Navigator stack, or an empty string
 /// when no Navigator is active or the current route is unnamed.

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/extensions/ext_fill.dart';
@@ -25,8 +25,9 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
 
-        final TextEditingController controller =
-            TextEditingController(text: 'old value');
+        final TextEditingController controller = TextEditingController(
+          text: 'old value',
+        );
         addTearDown(controller.dispose);
 
         await tester.pumpWidget(
@@ -49,16 +50,13 @@ void main() {
         // endOfFrame ticks; pump alongside so frames advance under fake-async.
         // checkStable / checkReceivesEvents opt-out: the synthetic rect does
         // not align with the live TextField geometry.
-        final future = aiTestFillHandler(
-          'ext.tapir.fill',
-          <String, String>{
-            'ref': ref,
-            'text': 'fresh text',
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'false',
-          },
-        );
+        final future = aiTestFillHandler('ext.tapir.fill', <String, String>{
+          'ref': ref,
+          'text': 'fresh text',
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+          'includeSnapshot': 'false',
+        });
         for (var i = 0; i < 8; i++) {
           await tester.pump();
         }
@@ -74,91 +72,85 @@ void main() {
       },
     );
 
-    testWidgets(
-      'missing ref returns a missing-param error',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(const MaterialApp(home: Scaffold()));
-        final response = await aiTestFillHandler(
-          'ext.tapir.fill',
-          const <String, String>{'text': 'hello'},
-        );
-        expect(response.result, isNull);
-        expect(response.errorDetail ?? '', contains('missing required param'));
-      },
-    );
+    testWidgets('missing ref returns a missing-param error', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+      final response = await aiTestFillHandler(
+        'ext.tapir.fill',
+        const <String, String>{'text': 'hello'},
+      );
+      expect(response.result, isNull);
+      expect(response.errorDetail ?? '', contains('missing required param'));
+    });
 
-    testWidgets(
-      'unknown ref returns a not-found error',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(const MaterialApp(home: Scaffold()));
-        final response = await aiTestFillHandler(
-          'ext.tapir.fill',
-          const <String, String>{'ref': 'e999', 'text': 'hello'},
-        );
-        expect(response.result, isNull);
-        expect(response.errorDetail ?? '', contains('not found in registry'));
-      },
-    );
+    testWidgets('unknown ref returns a not-found error', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+      final response = await aiTestFillHandler(
+        'ext.tapir.fill',
+        const <String, String>{'ref': 'e999', 'text': 'hello'},
+      );
+      expect(response.result, isNull);
+      expect(response.errorDetail ?? '', contains('not found in registry'));
+    });
 
-    testWidgets(
-      'resolves a q-handle against the live tree and fills it',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('resolves a q-handle against the live tree and fills it', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        final TextEditingController controller = TextEditingController();
-        addTearDown(controller.dispose);
+      final TextEditingController controller = TextEditingController();
+      addTearDown(controller.dispose);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: TextField(
-                  key: const ValueKey<String>('fill-field'),
-                  controller: controller,
-                ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: TextField(
+                key: const ValueKey<String>('fill-field'),
+                controller: controller,
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        final String ref = RefRegistry.registerQuery(
-          const TapirQuery(keyValue: 'fill-field'),
-        );
+      final String ref = RefRegistry.registerQuery(
+        const TapirQuery(keyValue: 'fill-field'),
+      );
 
-        final future = aiTestFillHandler(
-          'ext.tapir.fill',
-          <String, String>{
-            'ref': ref,
-            'text': 'retry value',
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'false',
-          },
-        );
-        for (var i = 0; i < 8; i++) {
-          await tester.pump();
-        }
-        final response = await future;
+      final future = aiTestFillHandler('ext.tapir.fill', <String, String>{
+        'ref': ref,
+        'text': 'retry value',
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+        'includeSnapshot': 'false',
+      });
+      for (var i = 0; i < 8; i++) {
+        await tester.pump();
+      }
+      final response = await future;
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> json =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(json['text'], equals('retry value'));
-        expect(controller.text, equals('retry value'));
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> json =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(json['text'], equals('retry value'));
+      expect(controller.text, equals('retry value'));
 
-        // The type step read the controller back; fill carries that verdict
-        // up rather than restating `filled: true`, which only says the
-        // focus + clear + type sequence ran.
-        final Map<String, dynamic> effect =
-            json['effect'] as Map<String, dynamic>;
-        expect(effect['kind'], equals('text'));
-        expect(effect['verified'], isTrue);
-        expect(effect['value'], equals('retry value'));
-      },
-    );
+      // The type step read the controller back; fill carries that verdict
+      // up rather than restating `filled: true`, which only says the
+      // focus + clear + type sequence ran.
+      final Map<String, dynamic> effect =
+          json['effect'] as Map<String, dynamic>;
+      expect(effect['kind'], equals('text'));
+      expect(effect['verified'], isTrue);
+      expect(effect['value'], equals('retry value'));
+    });
 
     testWidgets(
       'a permanently stale q-handle surfaces a stale error after the retry',
@@ -195,8 +187,9 @@ void main() {
         resetSnapshotBaselineForTesting();
         addTearDown(resetSnapshotBaselineForTesting);
 
-        final TextEditingController controller =
-            TextEditingController(text: 'before');
+        final TextEditingController controller = TextEditingController(
+          text: 'before',
+        );
         addTearDown(controller.dispose);
 
         await tester.pumpWidget(
@@ -216,16 +209,13 @@ void main() {
           isTextField: true,
         );
 
-        final future = aiTestFillHandler(
-          'ext.tapir.fill',
-          <String, String>{
-            'ref': ref,
-            'text': 'after',
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'snapshot': 'diff',
-          },
-        );
+        final future = aiTestFillHandler('ext.tapir.fill', <String, String>{
+          'ref': ref,
+          'text': 'after',
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+          'snapshot': 'diff',
+        });
         for (var i = 0; i < 8; i++) {
           await tester.pump();
         }
@@ -243,86 +233,81 @@ void main() {
       },
     );
 
-    testWidgets(
-      'snapshot=none overrides includeSnapshot true',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('snapshot=none overrides includeSnapshot true', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        final TextEditingController controller = TextEditingController();
-        addTearDown(controller.dispose);
+      final TextEditingController controller = TextEditingController();
+      addTearDown(controller.dispose);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(child: TextField(controller: controller)),
-            ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(child: TextField(controller: controller)),
           ),
-        );
+        ),
+      );
 
-        final Element element = tester.element(find.byType(TextField));
-        final String ref = RefRegistry.registerForTesting(
-          rect: const Rect.fromLTWH(100, 100, 200, 40),
-          element: element,
-          groupId: 'g',
-          isTextField: true,
-        );
+      final Element element = tester.element(find.byType(TextField));
+      final String ref = RefRegistry.registerForTesting(
+        rect: const Rect.fromLTWH(100, 100, 200, 40),
+        element: element,
+        groupId: 'g',
+        isTextField: true,
+      );
 
-        final future = aiTestFillHandler(
-          'ext.tapir.fill',
-          <String, String>{
-            'ref': ref,
-            'text': 'x',
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-            'includeSnapshot': 'true',
-            'snapshot': 'none',
-          },
-        );
-        for (var i = 0; i < 8; i++) {
-          await tester.pump();
-        }
-        final response = await future;
+      final future = aiTestFillHandler('ext.tapir.fill', <String, String>{
+        'ref': ref,
+        'text': 'x',
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+        'includeSnapshot': 'true',
+        'snapshot': 'none',
+      });
+      for (var i = 0; i < 8; i++) {
+        await tester.pump();
+      }
+      final response = await future;
 
-        final Map<String, dynamic> json =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(json.containsKey('snapshot'), isFalse);
-      },
-    );
+      final Map<String, dynamic> json =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(json.containsKey('snapshot'), isFalse);
+    });
   });
 
   group('aiTestFillHandler on a ref that is not a text field', () {
     setUp(RefRegistry.resetForTesting);
     tearDown(RefRegistry.resetForTesting);
 
-    testWidgets(
-      'a dropdown ref is refused and the Name field keeps its text',
-      (WidgetTester tester) async {
-        final SemanticsHandle semantics = tester.ensureSemantics();
-        final TextEditingController name = TextEditingController(text: 'Ada');
-        addTearDown(name.dispose);
-        await tester.pumpWidget(_DropdownForm(name: name));
+    testWidgets('a dropdown ref is refused and the Name field keeps its text', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      final TextEditingController name = TextEditingController(text: 'Ada');
+      addTearDown(name.dispose);
+      await tester.pumpWidget(_DropdownForm(name: name));
 
-        final String ref = _registerNodeRef(
-          tester,
-          find.byType(DropdownButton<String>),
-        );
-        final response = await _drive(
-          tester,
-          aiTestFillHandler('ext.tapir.fill', _quietParams(ref, 'Bob')),
-        );
+      final String ref = _registerNodeRef(
+        tester,
+        find.byType(DropdownButton<String>),
+      );
+      final response = await _drive(
+        tester,
+        aiTestFillHandler('ext.tapir.fill', _quietParams(ref, 'Bob')),
+      );
 
-        expect(response.result, isNull);
-        expect(
-          parseMessageFromErrorDetail(response.errorDetail ?? ''),
-          contains('ref $ref is a button, not a text field'),
-        );
-        expect(name.text, equals('Ada'));
-        semantics.dispose();
-      },
-    );
+      expect(response.result, isNull);
+      expect(
+        parseMessageFromErrorDetail(response.errorDetail ?? ''),
+        contains('ref $ref is a button, not a text field'),
+      );
+      expect(name.text, equals('Ada'));
+      semantics.dispose();
+    });
 
     testWidgets(
       'a label ref fills the adjacent field and reports it as nearest',
@@ -340,8 +325,9 @@ void main() {
 
         expect(response.result, isNotNull, reason: response.errorDetail);
         expect(name.text, equals('Ada'));
-        final Map<String, dynamic> effect = (jsonDecode(response.result!)
-            as Map<String, dynamic>)['effect'] as Map<String, dynamic>;
+        final Map<String, dynamic> effect =
+            (jsonDecode(response.result!) as Map<String, dynamic>)['effect']
+                as Map<String, dynamic>;
         expect(effect['verified'], isTrue);
         expect(
           (effect['target'] as Map<String, dynamic>)['matchKind'],
@@ -401,12 +387,12 @@ void main() {
 
 /// Gate opt-outs for a test-minted ref, whose rect is not re-validated.
 Map<String, String> _quietParams(String ref, String text) => <String, String>{
-      'ref': ref,
-      'text': text,
-      'checkStable': 'false',
-      'checkReceivesEvents': 'false',
-      'includeSnapshot': 'false',
-    };
+  'ref': ref,
+  'text': text,
+  'checkStable': 'false',
+  'checkReceivesEvents': 'false',
+  'includeSnapshot': 'false',
+};
 
 /// Registers an `e<N>` ref the way a snapshot mints one from a semantics
 /// node: the node and its rect, carried by the app-root element.

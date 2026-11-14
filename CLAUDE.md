@@ -2,7 +2,7 @@
 
 ## Stack
 
-Flutter package `tapir` (Dart 3.4+, Flutter 3.22+), a plugin of `dowel`. `TapirDowelProvider` contributes the `tapir:*` CLI commands and the `tapir_*` MCP tool descriptors, both over the `ext.tapir.*` VM Service extensions. The counts are asserted in `test/tapir_dowel_provider_mcp_tools_test.dart`; do not copy them into prose without updating every doc that holds them.
+Flutter package `tapir` (Dart 3.13+, Flutter 3.47+), a plugin of `dowel`. `TapirDowelProvider` contributes the `tapir:*` CLI commands and the `tapir_*` MCP tool descriptors, both over the `ext.tapir.*` VM Service extensions. The counts are asserted in `test/tapir_dowel_provider_mcp_tools_test.dart`; do not copy them into prose without updating every doc that holds them.
 
 Production dependencies are limited to the list in Off-limits item 10. Consumers wrap `TapirPlugin.install()` in `if (!kReleaseMode)`, so debug and profile builds carry tapir (a profile build is what `tapir:perf_run` measures) and release builds tree-shake it.
 

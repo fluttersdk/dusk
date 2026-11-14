@@ -18,9 +18,7 @@ const int _kTableRowLimit = 20;
 /// Extend this set when a new counter with the same "more is good" shape
 /// ships (`tapir_perf_run_command.dart:440-457` lists every `wind.*`/`magic.*`
 /// key `tapir:perf_run` can emit).
-const Set<String> _kHigherIsBetterMetrics = <String>{
-  'wind.cacheHits',
-};
+const Set<String> _kHigherIsBetterMetrics = <String>{'wind.cacheHits'};
 
 /// `dowel tapir:perf_compare <a.json> <b.json> [--json]`: judge run B
 /// against run A, both written by `tapir:perf_run`.
@@ -48,8 +46,10 @@ class TapirPerfCompareCommand extends DowelCommand {
     addJsonFlag(parser);
     parser
       ..addOption('a', help: 'The baseline run file (or the first argument).')
-      ..addOption('b',
-          help: 'The candidate run file (or the second argument).');
+      ..addOption(
+        'b',
+        help: 'The candidate run file (or the second argument).',
+      );
   }
 
   @override
@@ -171,12 +171,11 @@ Map<String, Object?> comparePerfRuns(
   final String verdict = gated.any((_Row r) => r.verdict == _Verdict.regressed)
       ? _Verdict.regressed.name
       : gated.any((_Row r) => r.verdict == _Verdict.improved)
-          ? _Verdict.improved.name
-          : _Verdict.unchanged.name;
-  final List<_Row> listed = rows
-      .where((_Row r) => r.info || r.verdict != _Verdict.unchanged)
-      .toList()
-    ..sort(_Row.byWeight);
+      ? _Verdict.improved.name
+      : _Verdict.unchanged.name;
+  final List<_Row> listed =
+      rows.where((_Row r) => r.info || r.verdict != _Verdict.unchanged).toList()
+        ..sort(_Row.byWeight);
 
   return <String, Object?>{
     'verdict': verdict,
@@ -192,7 +191,8 @@ Map<String, Object?> comparePerfRuns(
     'timing': <String, Object?>{
       'gated': timed,
       if (!timed)
-        'note': 'Milliseconds were not compared: only timing-mode medians '
+        'note':
+            'Milliseconds were not compared: only timing-mode medians '
             'are, and ${timingA == null ? 'A' : 'B'} has no timing pass. '
             'Rerun both with tapir:perf_run --timing.',
     },
@@ -233,27 +233,28 @@ final class _Row {
   final bool info;
 
   int get _rank => switch ((info, verdict, severity)) {
-        (false, _Verdict.regressed, 'error') => 0,
-        (false, _Verdict.regressed, _) => 1,
-        (false, _Verdict.improved, _) => 2,
-        _ => 3,
-      };
+    (false, _Verdict.regressed, 'error') => 0,
+    (false, _Verdict.regressed, _) => 1,
+    (false, _Verdict.improved, _) => 2,
+    _ => 3,
+  };
 
   static int byWeight(_Row x, _Row y) {
     final int byRank = x._rank.compareTo(y._rank);
     if (byRank != 0) return byRank;
-    return (y.deltaPct?.abs() ?? double.infinity)
-        .compareTo(x.deltaPct?.abs() ?? double.infinity);
+    return (y.deltaPct?.abs() ?? double.infinity).compareTo(
+      x.deltaPct?.abs() ?? double.infinity,
+    );
   }
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'metric': metric,
-        'a': a,
-        'b': b,
-        'deltaPct': deltaPct,
-        'verdict': verdict.name,
-        if (severity != null) 'severity': severity,
-      };
+    'metric': metric,
+    'a': a,
+    'b': b,
+    'deltaPct': deltaPct,
+    'verdict': verdict.name,
+    if (severity != null) 'severity': severity,
+  };
 }
 
 /// Judges every metric in either map; a metric one side lacks is zero there.
@@ -294,14 +295,14 @@ _Row _judgeOne({
   required bool higherIsBetter,
 }) {
   _Row row(_Verdict verdict, double? deltaPct, String? severity) => _Row(
-        metric: name,
-        a: a,
-        b: b,
-        deltaPct: deltaPct,
-        verdict: verdict,
-        severity: info ? 'info' : severity,
-        info: info,
-      );
+    metric: name,
+    a: a,
+    b: b,
+    deltaPct: deltaPct,
+    verdict: verdict,
+    severity: info ? 'info' : severity,
+    info: info,
+  );
 
   if (a == 0) {
     if (b == 0) return row(_Verdict.unchanged, 0, null);
@@ -369,8 +370,10 @@ Future<Map<String, Object?>> _read(String path) async {
 Map<String, Object?> _measuredSummary(Map<String, Object?> run, String side) {
   final Object? summary = run['summary'];
   if (summary is! Map<String, Object?>) {
-    throw FormatException('Run $side has no summary; is it a tapir:perf_run '
-        'file?');
+    throw FormatException(
+      'Run $side has no summary; is it a tapir:perf_run '
+      'file?',
+    );
   }
   if (summary['repeats'] is! int || (summary['repeats']! as int) == 0) {
     throw FormatException(
@@ -407,10 +410,10 @@ bool _emulator(Map<String, Object?> run) {
 }
 
 Map<String, num> _numbers(Object? raw) => <String, num>{
-      if (raw is Map<String, Object?>)
-        for (final MapEntry<String, Object?> e in raw.entries)
-          if (e.value is num) e.key: e.value! as num,
-    };
+  if (raw is Map<String, Object?>)
+    for (final MapEntry<String, Object?> e in raw.entries)
+      if (e.value is num) e.key: e.value! as num,
+};
 
 /// The repeat-to-repeat range of each metric in [summary]'s [section].
 Map<String, double> _noise(Map<String, Object?> summary, String section) {
@@ -427,17 +430,18 @@ Map<String, double> _noise(Map<String, Object?> summary, String section) {
 
 bool _hasErrorRegression(Map<String, Object?> result) =>
     (result['rows']! as List<Object?>).cast<Map<String, Object?>>().any(
-          (Map<String, Object?> r) =>
-              r['verdict'] == 'regressed' && r['severity'] == 'error',
-        );
+      (Map<String, Object?> r) =>
+          r['verdict'] == 'regressed' && r['severity'] == 'error',
+    );
 
 void _printTable(DowelContext ctx, Map<String, Object?> result) {
   final Map<String, Object?> thresholds =
       result['thresholds']! as Map<String, Object?>;
-  final Map<String, Object?> painted = (result['frames']!
-      as Map<String, Object?>)['painted']! as Map<String, Object?>;
-  final List<Map<String, Object?>> rows =
-      (result['rows']! as List<Object?>).cast<Map<String, Object?>>();
+  final Map<String, Object?> painted =
+      (result['frames']! as Map<String, Object?>)['painted']!
+          as Map<String, Object?>;
+  final List<Map<String, Object?>> rows = (result['rows']! as List<Object?>)
+      .cast<Map<String, Object?>>();
 
   ctx.output.writeln(
     'perf_compare: ${result['verdict']} (per painted frame; warn '

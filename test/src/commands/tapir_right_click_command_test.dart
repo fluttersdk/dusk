@@ -9,17 +9,18 @@ class _StubContext extends DowelContext {
   _StubContext({
     required DowelInput input,
     required DowelOutput output,
-    Map<String, dynamic> response = const {},
-  })  : _response = response,
-        super.bare(input, output);
+    this._response = const {},
+  }) : super.bare(input, output);
 
   final Map<String, dynamic> _response;
   String? lastMethod;
   Map<String, dynamic>? lastParams;
 
   @override
-  Future<T> callExtension<T>(String method,
-      [Map<String, dynamic>? params]) async {
+  Future<T> callExtension<T>(
+    String method, [
+    Map<String, dynamic>? params,
+  ]) async {
     lastMethod = method;
     lastParams = params;
     return _response as T;
@@ -40,13 +41,14 @@ void main() {
       final parser = ArgParser();
       TapirRightClickCommand().configure(parser);
       expect(
-          parser.options.keys,
-          containsAll(<String>[
-            'ref',
-            'includeSnapshot',
-            'checkStable',
-            'checkReceivesEvents'
-          ]));
+        parser.options.keys,
+        containsAll(<String>[
+          'ref',
+          'includeSnapshot',
+          'checkStable',
+          'checkReceivesEvents',
+        ]),
+      );
     });
 
     test('handle forwards --ref + flags to ext.tapir.right_click', () async {
@@ -62,8 +64,10 @@ void main() {
     });
 
     test('handle returns exit=1 when --ref is missing', () async {
-      final ctx =
-          _StubContext(input: MapInput(const {}), output: BufferedOutput());
+      final ctx = _StubContext(
+        input: MapInput(const {}),
+        output: BufferedOutput(),
+      );
       final exit = await TapirRightClickCommand().handle(ctx);
       expect(exit, equals(1));
       expect(ctx.lastMethod, isNull);
@@ -71,7 +75,9 @@ void main() {
 
     test('handle returns exit=1 when --ref is empty', () async {
       final ctx = _StubContext(
-          input: MapInput(const {'ref': ''}), output: BufferedOutput());
+        input: MapInput(const {'ref': ''}),
+        output: BufferedOutput(),
+      );
       expect(await TapirRightClickCommand().handle(ctx), equals(1));
     });
 
@@ -89,8 +95,10 @@ void main() {
 
     test('handle emits "Right-clicked" success line by default', () async {
       final output = BufferedOutput();
-      final ctx =
-          _StubContext(input: MapInput(const {'ref': 'e7'}), output: output);
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e7'}),
+        output: output,
+      );
       await TapirRightClickCommand().handle(ctx);
       expect(output.content, contains('Right-clicked e7'));
     });

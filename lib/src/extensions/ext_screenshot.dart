@@ -26,10 +26,7 @@ import 'ext_pointer.dart' show resolveRefForAction;
 /// is a no-op per extension name on repeated calls via
 /// [registerExtensionIdempotent].
 void registerScreenshotExtension() {
-  registerTapirExtension(
-    'ext.tapir.screenshot',
-    screenshotHandler,
-  );
+  registerTapirExtension('ext.tapir.screenshot', screenshotHandler);
 }
 
 /// Handler for `ext.tapir.screenshot`.
@@ -97,10 +94,12 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
     //    them through CDP instead. Answering here rather than in a separate
     //    extension keeps one resolution path for `ref` + `rect`.
     if (params['geometry'] == 'true') {
-      return tapirResult(_resolveViewportGeometry(
-        ref: (ref != null && ref.isNotEmpty) ? ref : null,
-        subRect: subRect,
-      ));
+      return tapirResult(
+        _resolveViewportGeometry(
+          ref: (ref != null && ref.isNotEmpty) ? ref : null,
+          subRect: subRect,
+        ),
+      );
     }
 
     // 3. Resolve the capture target: the OffsetLayer to rasterise PLUS the
@@ -128,8 +127,9 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
       if (format == 'png') {
         // 5a. PNG path: lossless, larger payload (~300-800 KB for a full HD
         //     screen at 2x). Use only when pixel-exact output is required.
-        final ByteData? byteData =
-            await img.toByteData(format: ui.ImageByteFormat.png);
+        final ByteData? byteData = await img.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
 
         if (byteData == null) {
           return developer.ServiceExtensionResponse.error(
@@ -146,8 +146,9 @@ Future<developer.ServiceExtensionResponse> screenshotHandler(
         // 5b. JPEG path (default): lossy q70 encode via the `image` package.
         //     Steps: toImage() → PNG bytes → decodePng → encodeJpg. This keeps
         //     payloads in the 40-120 KB range for typical app screens.
-        final ByteData? pngByteData =
-            await img.toByteData(format: ui.ImageByteFormat.png);
+        final ByteData? pngByteData = await img.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
 
         if (pngByteData == null) {
           return developer.ServiceExtensionResponse.error(
@@ -211,8 +212,12 @@ Map<String, dynamic> _resolveViewportGeometry({
   required String? ref,
   required Rect? subRect,
 }) {
-  final double devicePixelRatio = WidgetsBinding
-          .instance.platformDispatcher.implicitView?.devicePixelRatio ??
+  final double devicePixelRatio =
+      WidgetsBinding
+          .instance
+          .platformDispatcher
+          .implicitView
+          ?.devicePixelRatio ??
       1.0;
 
   final Rect rect;
@@ -322,8 +327,9 @@ _CaptureTarget _resolveCaptureTarget({
   // 1. Determine the starting render object — the leaf whose paint bounds
   //    define the capture region. For ref-less calls this is the app root;
   //    for ref calls it is the registered widget's RenderObject.
-  final RenderObject startRO =
-      (ref == null) ? _resolveRootRenderObject() : _resolveRefRenderObject(ref);
+  final RenderObject startRO = (ref == null)
+      ? _resolveRootRenderObject()
+      : _resolveRefRenderObject(ref);
 
   // 2. Find the nearest ancestor (or self) flagged isRepaintBoundary. Any
   //    such RenderObject has an OffsetLayer attached (TransformLayer for

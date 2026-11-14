@@ -7,8 +7,9 @@ library;
 
 /// A ref-bearing snapshot line: the `[ref=eN]` token, then only the
 /// state-dependent suffix markers (` [offscreen]`, ` [occluded]`) to the end.
-final RegExp _refLine =
-    RegExp(r'\[ref=(\w+)\](?: \[(?:offscreen|occluded)\])*$');
+final RegExp _refLine = RegExp(
+  r'\[ref=(\w+)\](?: \[(?:offscreen|occluded)\])*$',
+);
 
 /// Diffs [current] against [previous], both in the `ext.tapir.snap` text
 /// format.

@@ -2,7 +2,7 @@
 
 A three-step walkthrough from zero to driving the bundled `example/` Flutter app with a snapshot, a tap and a screenshot through the tapir CLI.
 
-Prerequisites: a Flutter SDK that ships Dart 3.12 or newer for the example app (its `pubspec.yaml` declares `sdk: ^3.12.0`) and a clone of the repository. The `example/` app already calls `TapirPlugin.install()` inside `!kReleaseMode` and resolves `tapir` from the parent directory. To drive your own app instead, follow [Installation](installation.md) first.
+Prerequisites: Flutter 3.47 or newer (Dart 3.13, the package and example floor) and a clone of the repository. The `example/` app already calls `TapirPlugin.install()` inside `!kReleaseMode` and resolves `tapir` from the parent directory. To drive your own app instead, follow [Installation](installation.md) first.
 
 - [1. Start the example app and capture a snapshot](#1-start-the-example-app)
 - [2. Tap a widget using its ref token](#2-tap-a-widget)

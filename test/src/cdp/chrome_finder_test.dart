@@ -17,64 +17,58 @@ void main() {
     // ---------------------------------------------------------------
     // (a) probe() returns ChromeInfo on a valid /json/version response
     // ---------------------------------------------------------------
-    test(
-      'probe() returns ChromeInfo when fake server responds with valid /json/version JSON',
-      () async {
-        const Map<String, dynamic> body = <String, dynamic>{
-          'webSocketDebuggerUrl': 'ws://localhost:9222/devtools/browser/abc',
-          'Browser': 'Chrome/130.0.0.0',
-          'Protocol-Version': '1.3',
-        };
+    test('probe() returns ChromeInfo when fake server responds with valid /json/version JSON', () async {
+      const Map<String, dynamic> body = <String, dynamic>{
+        'webSocketDebuggerUrl': 'ws://localhost:9222/devtools/browser/abc',
+        'Browser': 'Chrome/130.0.0.0',
+        'Protocol-Version': '1.3',
+      };
 
-        // Stub the HTTP get seam: succeed on first call.
-        ChromeFinder.chromeFinderHttpGet = (Uri uri) async {
-          expect(uri.port, equals(9222));
-          expect(uri.path, equals('/json/version'));
-          return jsonEncode(body);
-        };
+      // Stub the HTTP get seam: succeed on first call.
+      ChromeFinder.chromeFinderHttpGet = (Uri uri) async {
+        expect(uri.port, equals(9222));
+        expect(uri.path, equals('/json/version'));
+        return jsonEncode(body);
+      };
 
-        final ChromeInfo info = await ChromeFinder.probe(port: 9222);
+      final ChromeInfo info = await ChromeFinder.probe(port: 9222);
 
-        expect(
-          info.webSocketDebuggerUrl,
-          equals('ws://localhost:9222/devtools/browser/abc'),
-        );
-        expect(info.browser, equals('Chrome/130.0.0.0'));
-        expect(info.protocolVersion, equals('1.3'));
-      },
-    );
+      expect(
+        info.webSocketDebuggerUrl,
+        equals('ws://localhost:9222/devtools/browser/abc'),
+      );
+      expect(info.browser, equals('Chrome/130.0.0.0'));
+      expect(info.protocolVersion, equals('1.3'));
+    });
 
     // ---------------------------------------------------------------
     // (b) probe() retries on connection refused, then succeeds
     // ---------------------------------------------------------------
-    test(
-      'probe() retries on connection refused then succeeds when fake server comes up',
-      () async {
-        var callCount = 0;
+    test('probe() retries on connection refused then succeeds when fake server comes up', () async {
+      var callCount = 0;
 
-        // First two calls simulate SocketException; third succeeds.
-        ChromeFinder.chromeFinderHttpGet = (Uri uri) async {
-          callCount++;
-          if (callCount < 3) {
-            throw const SocketException('Connection refused');
-          }
-          return jsonEncode(<String, dynamic>{
-            'webSocketDebuggerUrl': 'ws://localhost:9223/devtools/browser/xyz',
-            'Browser': 'Chrome/130.0.0.0',
-            'Protocol-Version': '1.3',
-          });
-        };
+      // First two calls simulate SocketException; third succeeds.
+      ChromeFinder.chromeFinderHttpGet = (Uri uri) async {
+        callCount++;
+        if (callCount < 3) {
+          throw const SocketException('Connection refused');
+        }
+        return jsonEncode(<String, dynamic>{
+          'webSocketDebuggerUrl': 'ws://localhost:9223/devtools/browser/xyz',
+          'Browser': 'Chrome/130.0.0.0',
+          'Protocol-Version': '1.3',
+        });
+      };
 
-        final ChromeInfo info = await ChromeFinder.probe(
-          port: 9223,
-          timeout: const Duration(seconds: 5),
-          interval: const Duration(milliseconds: 1),
-        );
+      final ChromeInfo info = await ChromeFinder.probe(
+        port: 9223,
+        timeout: const Duration(seconds: 5),
+        interval: const Duration(milliseconds: 1),
+      );
 
-        expect(info.browser, equals('Chrome/130.0.0.0'));
-        expect(callCount, equals(3));
-      },
-    );
+      expect(info.browser, equals('Chrome/130.0.0.0'));
+      expect(callCount, equals(3));
+    });
 
     // ---------------------------------------------------------------
     // (c) probe() throws TapirCdpException on HTTP 404
@@ -107,37 +101,36 @@ void main() {
     // (d) probe() throws TapirCdpException with "timed out" when port
     //     never accepts connection
     // ---------------------------------------------------------------
-    test(
-      'probe() throws TapirCdpException with "timed out" message when port never accepts connection',
-      () async {
-        ChromeFinder.chromeFinderHttpGet = (Uri uri) async {
-          throw const SocketException('Connection refused');
-        };
+    test('probe() throws TapirCdpException with "timed out" message when port never accepts connection', () async {
+      ChromeFinder.chromeFinderHttpGet = (Uri uri) async {
+        throw const SocketException('Connection refused');
+      };
 
-        await expectLater(
-          ChromeFinder.probe(
-            port: 9225,
-            timeout: const Duration(milliseconds: 50),
-            interval: const Duration(milliseconds: 5),
+      await expectLater(
+        ChromeFinder.probe(
+          port: 9225,
+          timeout: const Duration(milliseconds: 50),
+          interval: const Duration(milliseconds: 5),
+        ),
+        throwsA(
+          isA<TapirCdpException>().having(
+            (TapirCdpException e) => e.message,
+            'message',
+            contains('timed out'),
           ),
-          throwsA(
-            isA<TapirCdpException>().having(
-              (TapirCdpException e) => e.message,
-              'message',
-              contains('timed out'),
-            ),
-          ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
     test('defaultHttpGet returns the body of a live endpoint', () async {
       // The seam every other test swaps out. Its own body has to be
       // exercised somewhere, because the `finally` that closes the client
       // races the response stream: returning the future bare instead of
       // awaiting it truncated the read.
-      final HttpServer server =
-          await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final HttpServer server = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
       addTearDown(() => server.close(force: true));
       final String payload = '{"ok":true,"pad":"${'x' * 20000}"}';
       unawaited(
@@ -154,24 +147,28 @@ void main() {
       expect(body, equals(payload));
     });
 
-    test('defaultHttpGet raises the typed 404 the caller branches on',
-        () async {
-      final HttpServer server =
-          await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      addTearDown(() => server.close(force: true));
-      unawaited(
-        server.forEach((HttpRequest request) async {
-          request.response.statusCode = HttpStatus.notFound;
-          await request.response.close();
-        }),
-      );
+    test(
+      'defaultHttpGet raises the typed 404 the caller branches on',
+      () async {
+        final HttpServer server = await HttpServer.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+        );
+        addTearDown(() => server.close(force: true));
+        unawaited(
+          server.forEach((HttpRequest request) async {
+            request.response.statusCode = HttpStatus.notFound;
+            await request.response.close();
+          }),
+        );
 
-      await expectLater(
-        ChromeFinder.defaultHttpGet(
-          Uri.parse('http://127.0.0.1:${server.port}/json/version'),
-        ),
-        throwsA(isA<ChromeFinderHttpNotFoundException>()),
-      );
-    });
+        await expectLater(
+          ChromeFinder.defaultHttpGet(
+            Uri.parse('http://127.0.0.1:${server.port}/json/version'),
+          ),
+          throwsA(isA<ChromeFinderHttpNotFoundException>()),
+        );
+      },
+    );
   });
 }

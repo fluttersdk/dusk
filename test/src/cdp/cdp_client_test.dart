@@ -40,112 +40,107 @@ void main() {
     // (b) HTTP /json/version unreachable → TapirCdpException with
     //     "port unreachable" message.
     // ---------------------------------------------------------------
-    test(
-      'connect() throws TapirCdpException with "port unreachable" when /json/version fails',
-      () async {
-        // Stub cdpHttpGet to throw a SocketException-flavoured failure that
-        // models a closed port. CdpClient should surface this as a typed
-        // TapirCdpException containing the literal "port unreachable" phrase.
-        CdpClient.cdpHttpGet = (Uri uri) async {
-          throw const SocketException('Connection refused');
-        };
+    test('connect() throws TapirCdpException with "port unreachable" when /json/version fails', () async {
+      // Stub cdpHttpGet to throw a SocketException-flavoured failure that
+      // models a closed port. CdpClient should surface this as a typed
+      // TapirCdpException containing the literal "port unreachable" phrase.
+      CdpClient.cdpHttpGet = (Uri uri) async {
+        throw const SocketException('Connection refused');
+      };
 
-        await expectLater(
-          () => CdpClient.connect(port: 65432),
-          throwsA(
-            isA<TapirCdpException>().having(
-              (TapirCdpException e) => e.message,
-              'message',
-              contains('port unreachable'),
-            ),
+      await expectLater(
+        () => CdpClient.connect(port: 65432),
+        throwsA(
+          isA<TapirCdpException>().having(
+            (TapirCdpException e) => e.message,
+            'message',
+            contains('port unreachable'),
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
     // ---------------------------------------------------------------
     // (c) WebSocket connect refused → TapirCdpException.
     // ---------------------------------------------------------------
-    test(
-      'connect() throws TapirCdpException when the WebSocket handshake is refused',
-      () async {
-        // The HTTP /json/version step succeeds (handshake URL parsed) but
-        // the WebSocket connect throws. CdpClient must rethrow as a typed
-        // TapirCdpException so callers (TapirResizeCommand, etc.) can branch
-        // on a single exception type.
-        final FakeCdpServer server = await FakeCdpServer.start();
-        addTearDown(server.stop);
+    test('connect() throws TapirCdpException when the WebSocket handshake is refused', () async {
+      // The HTTP /json/version step succeeds (handshake URL parsed) but
+      // the WebSocket connect throws. CdpClient must rethrow as a typed
+      // TapirCdpException so callers (TapirResizeCommand, etc.) can branch
+      // on a single exception type.
+      final FakeCdpServer server = await FakeCdpServer.start();
+      addTearDown(server.stop);
 
-        CdpClient.cdpWsConnect = (String url) async {
-          throw const SocketException('WebSocket connection refused');
-        };
+      CdpClient.cdpWsConnect = (String url) async {
+        throw const SocketException('WebSocket connection refused');
+      };
 
-        await expectLater(
-          () => CdpClient.connect(port: server.port),
-          throwsA(
-            isA<TapirCdpException>().having(
-              (TapirCdpException e) => e.message,
-              'message',
-              contains('WebSocket'),
-            ),
+      await expectLater(
+        () => CdpClient.connect(port: server.port),
+        throwsA(
+          isA<TapirCdpException>().having(
+            (TapirCdpException e) => e.message,
+            'message',
+            contains('WebSocket'),
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
     // ---------------------------------------------------------------
     // (d) send() round-trips a method call through the correlation map.
     // ---------------------------------------------------------------
-    test(
-      'send() round-trips a JSON-RPC call through the id<->Completer map',
-      () async {
-        final FakeCdpServer server = await FakeCdpServer.start(
-          handlers: <String,
-              Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{
-            'Browser.getVersion': (Map<String, dynamic> params) async {
-              return <String, dynamic>{
-                'protocolVersion': '1.3',
-                'product': 'Chrome/130.0.0.0',
-                'revision': '@abc',
-                'userAgent': 'Mozilla/5.0',
-                'jsVersion': '13.0',
-              };
+    test('send() round-trips a JSON-RPC call through the id<->Completer map', () async {
+      final FakeCdpServer server = await FakeCdpServer.start(
+        handlers:
+            <
+              String,
+              Future<Map<String, dynamic>> Function(Map<String, dynamic>)
+            >{
+              'Browser.getVersion': (Map<String, dynamic> params) async {
+                return <String, dynamic>{
+                  'protocolVersion': '1.3',
+                  'product': 'Chrome/130.0.0.0',
+                  'revision': '@abc',
+                  'userAgent': 'Mozilla/5.0',
+                  'jsVersion': '13.0',
+                };
+              },
+              'Emulation.setDeviceMetricsOverride':
+                  (Map<String, dynamic> params) async {
+                    // Echo the params back inside the result so the test can assert
+                    // the correlation map preserved them across the round-trip.
+                    return <String, dynamic>{'echoed': params};
+                  },
             },
-            'Emulation.setDeviceMetricsOverride':
-                (Map<String, dynamic> params) async {
-              // Echo the params back inside the result so the test can assert
-              // the correlation map preserved them across the round-trip.
-              return <String, dynamic>{'echoed': params};
-            },
-          },
-        );
-        addTearDown(server.stop);
+      );
+      addTearDown(server.stop);
 
-        final CdpClient client = await CdpClient.connect(port: server.port);
-        addTearDown(client.close);
+      final CdpClient client = await CdpClient.connect(port: server.port);
+      addTearDown(client.close);
 
-        final Map<String, dynamic> getVersion =
-            await client.send('Browser.getVersion');
-        expect(getVersion['product'], equals('Chrome/130.0.0.0'));
-        expect(getVersion['protocolVersion'], equals('1.3'));
+      final Map<String, dynamic> getVersion = await client.send(
+        'Browser.getVersion',
+      );
+      expect(getVersion['product'], equals('Chrome/130.0.0.0'));
+      expect(getVersion['protocolVersion'], equals('1.3'));
 
-        final Map<String, dynamic> setMetrics = await client.send(
-          'Emulation.setDeviceMetricsOverride',
-          <String, dynamic>{
-            'width': 375,
-            'height': 812,
-            'deviceScaleFactor': 3,
-            'mobile': true,
-          },
-        );
-        final Map<String, dynamic> echoed =
-            setMetrics['echoed'] as Map<String, dynamic>;
-        expect(echoed['width'], equals(375));
-        expect(echoed['height'], equals(812));
-        expect(echoed['deviceScaleFactor'], equals(3));
-        expect(echoed['mobile'], isTrue);
-      },
-    );
+      final Map<String, dynamic> setMetrics = await client.send(
+        'Emulation.setDeviceMetricsOverride',
+        <String, dynamic>{
+          'width': 375,
+          'height': 812,
+          'deviceScaleFactor': 3,
+          'mobile': true,
+        },
+      );
+      final Map<String, dynamic> echoed =
+          setMetrics['echoed'] as Map<String, dynamic>;
+      expect(echoed['width'], equals(375));
+      expect(echoed['height'], equals(812));
+      expect(echoed['deviceScaleFactor'], equals(3));
+      expect(echoed['mobile'], isTrue);
+    });
 
     // ---------------------------------------------------------------
     // (e) send() with an error response completeError's the Future.
@@ -156,8 +151,11 @@ void main() {
         // Passing an empty handlers map causes FakeCdpServer to reply with the
         // JSON-RPC -32601 "Method not found" error envelope for every method.
         final FakeCdpServer server = await FakeCdpServer.start(
-          handlers: <String,
-              Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
+          handlers:
+              <
+                String,
+                Future<Map<String, dynamic>> Function(Map<String, dynamic>)
+              >{},
         );
         addTearDown(server.stop);
 
@@ -180,57 +178,61 @@ void main() {
     // ---------------------------------------------------------------
     // (f) close() drains pending Completers without hanging.
     // ---------------------------------------------------------------
-    test(
-      'close() drains pending Completers without hanging',
-      () async {
-        // Use delayResponseMs so the FakeCdpServer never replies before close
-        // is called. The send() Future must complete (with an error) once
-        // close() drains the pending map; if drain leaks, the test times out.
-        final FakeCdpServer server = await FakeCdpServer.start(
-          handlers: <String,
-              Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{
-            'Browser.getVersion': (Map<String, dynamic> _) async {
-              return <String, dynamic>{};
+    test('close() drains pending Completers without hanging', () async {
+      // Use delayResponseMs so the FakeCdpServer never replies before close
+      // is called. The send() Future must complete (with an error) once
+      // close() drains the pending map; if drain leaks, the test times out.
+      final FakeCdpServer server = await FakeCdpServer.start(
+        handlers:
+            <
+              String,
+              Future<Map<String, dynamic>> Function(Map<String, dynamic>)
+            >{
+              'Browser.getVersion': (Map<String, dynamic> _) async {
+                return <String, dynamic>{};
+              },
             },
-          },
-          delayResponseMs: const Duration(seconds: 30),
-        );
-        addTearDown(server.stop);
+        delayResponseMs: const Duration(seconds: 30),
+      );
+      addTearDown(server.stop);
 
-        final CdpClient client = await CdpClient.connect(port: server.port);
+      final CdpClient client = await CdpClient.connect(port: server.port);
 
-        // Fire a request that will not return before close(). Attach an
-        // error sink IMMEDIATELY so the Future never propagates an unhandled
-        // error when close() drains the Completer below.
-        Object? pendingError;
-        final Future<void> pendingObserved =
-            client.send('Browser.getVersion').then<void>(
-          (_) => null,
-          onError: (Object e) {
-            pendingError = e;
-          },
-        );
+      // Fire a request that will not return before close(). Attach an
+      // error sink IMMEDIATELY so the Future never propagates an unhandled
+      // error when close() drains the Completer below.
+      Object? pendingError;
+      final Future<void> pendingObserved = client
+          .send('Browser.getVersion')
+          .then<void>(
+            (_) => null,
+            onError: (Object e) {
+              pendingError = e;
+            },
+          );
 
-        // Give the WS write time to flush, then close the client.
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-        await client.close().timeout(const Duration(seconds: 2));
+      // Give the WS write time to flush, then close the client.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await client.close().timeout(const Duration(seconds: 2));
 
-        // The pending send must complete (with an error) so callers do not
-        // leak Completers across a tear-down.
-        await pendingObserved.timeout(const Duration(seconds: 2));
-        expect(pendingError, isA<TapirCdpException>());
+      // The pending send must complete (with an error) so callers do not
+      // leak Completers across a tear-down.
+      await pendingObserved.timeout(const Duration(seconds: 2));
+      expect(pendingError, isA<TapirCdpException>());
 
-        expect(client.isConnected, isFalse);
-      },
-    );
+      expect(client.isConnected, isFalse);
+    });
 
     test('matchUrlSubstring picks the tab whose URL contains it', () async {
       // A developer routinely has several Chrome tabs on one debugging port,
       // and `connect` used to take the first `type: page` it saw. Naming the
       // app's own port is what stops a command driving somebody else's tab.
       final FakeCdpServer server = await FakeCdpServer.start(
-        handlers: <String,
-            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
+        handlers:
+            <
+              String,
+              Future<Map<String, dynamic>> Function(Map<String, dynamic>)
+            >{},
       );
       addTearDown(server.stop);
 
@@ -243,24 +245,29 @@ void main() {
       expect(client, isNotNull);
     });
 
-    test('a substring that matches no tab names the port in the error',
-        () async {
-      final FakeCdpServer server = await FakeCdpServer.start(
-        handlers: <String,
-            Future<Map<String, dynamic>> Function(Map<String, dynamic>)>{},
-      );
-      addTearDown(server.stop);
+    test(
+      'a substring that matches no tab names the port in the error',
+      () async {
+        final FakeCdpServer server = await FakeCdpServer.start(
+          handlers:
+              <
+                String,
+                Future<Map<String, dynamic>> Function(Map<String, dynamic>)
+              >{},
+        );
+        addTearDown(server.stop);
 
-      await expectLater(
-        CdpClient.connect(port: server.port, matchUrlSubstring: ':65535'),
-        throwsA(
-          isA<TapirCdpException>().having(
-            (TapirCdpException e) => e.toString(),
-            'message',
-            allOf(contains(':65535'), contains('different browser')),
+        await expectLater(
+          CdpClient.connect(port: server.port, matchUrlSubstring: ':65535'),
+          throwsA(
+            isA<TapirCdpException>().having(
+              (TapirCdpException e) => e.toString(),
+              'message',
+              allOf(contains(':65535'), contains('different browser')),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   });
 }

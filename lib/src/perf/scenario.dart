@@ -116,9 +116,9 @@ enum PerfStepVerb {
 
   /// Whether the step acts on a widget named by a target.
   bool get takesTarget => switch (this) {
-        tap || fill || type || scroll || wheel || drag => true,
-        pressKey || navigate || resize || wait => false,
-      };
+    tap || fill || type || scroll || wheel || drag => true,
+    pressKey || navigate || resize || wait => false,
+  };
 
   /// Whether the step drives Chrome DevTools, which only the browser has.
   bool get chromeOnly => this == wheel || this == resize;
@@ -222,13 +222,13 @@ final class PerfTarget {
   final int index;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        if (kind == PerfTargetKind.role) ...<String, Object?>{
-          'role': role,
-          'name': value,
-        } else
-          kind.name: value,
-        if (index != 0) 'index': index,
-      };
+    if (kind == PerfTargetKind.role) ...<String, Object?>{
+      'role': role,
+      'name': value,
+    } else
+      kind.name: value,
+    if (index != 0) 'index': index,
+  };
 }
 
 /// The `when:` of an include: whether the steps it flattened run at all.
@@ -277,7 +277,7 @@ final class PerfSetupGuard {
         'text': text,
         if (unlessText != null) 'unless_text': unlessText,
         'timeout_ms': timeoutMs,
-        if (parentJson != null) 'parent': parentJson,
+        'parent': ?parentJson,
       };
 }
 
@@ -292,13 +292,10 @@ final class PerfSetupStep {
   }) : gesture = null;
 
   /// A gesture from the steps' grammar, run unmeasured before the window.
-  const PerfSetupStep.gesture(
-    PerfStep this.gesture, {
-    this.origin,
-    this.guard,
-  })  : verb = PerfSetupVerb.gesture,
-        argument = null,
-        timeoutMs = null;
+  const PerfSetupStep.gesture(PerfStep this.gesture, {this.origin, this.guard})
+    : verb = PerfSetupVerb.gesture,
+      argument = null,
+      timeoutMs = null;
 
   final PerfSetupVerb verb;
 
@@ -323,14 +320,14 @@ final class PerfSetupStep {
   /// This entry at its place in the flattened list.
   PerfSetupStep _placed(String origin, PerfSetupGuard? guard) =>
       verb == PerfSetupVerb.gesture
-          ? PerfSetupStep.gesture(gesture!, origin: origin, guard: guard)
-          : PerfSetupStep(
-              verb,
-              argument: argument,
-              timeoutMs: timeoutMs,
-              origin: origin,
-              guard: guard,
-            );
+      ? PerfSetupStep.gesture(gesture!, origin: origin, guard: guard)
+      : PerfSetupStep(
+          verb,
+          argument: argument,
+          timeoutMs: timeoutMs,
+          origin: origin,
+          guard: guard,
+        );
 
   /// The entry as the run file writes it: the verb alone, or a map of the
   /// verb and its arguments.
@@ -344,11 +341,8 @@ final class PerfSetupStep {
     final Object entry = switch (verb) {
       PerfSetupVerb.hotRestart || PerfSetupVerb.waitForNetworkIdle => verb.wire,
       PerfSetupVerb.waitForText => <String, Object?>{
-          verb.wire: <String, Object?>{
-            'text': argument,
-            'timeout_ms': timeoutMs,
-          },
-        },
+        verb.wire: <String, Object?>{'text': argument, 'timeout_ms': timeoutMs},
+      },
       PerfSetupVerb.navigate => <String, Object?>{verb.wire: argument},
       PerfSetupVerb.gesture => gesture!.toJson(),
     };
@@ -448,16 +442,16 @@ final class PerfStep {
       PerfStepVerb.wait => ms!,
       PerfStepVerb.pressKey => <String, Object?>{'key': key},
       PerfStepVerb.resize => <String, Object?>{
-          'width': width,
-          'height': height,
-        },
+        'width': width,
+        'height': height,
+      },
       _ => <String, Object?>{
-          'target': target!.toJson(),
-          if (text != null) 'text': secret ? '***' : text,
-          if (dx != 0) 'dx': dx,
-          if (dy != 0) 'dy': dy,
-          if (ticks != 1) 'ticks': ticks,
-        },
+        'target': target!.toJson(),
+        if (text != null) 'text': secret ? '***' : text,
+        if (dx != 0) 'dx': dx,
+        if (dy != 0) 'dy': dy,
+        if (ticks != 1) 'ticks': ticks,
+      },
     };
     return <String, Object?>{
       verb.wire: args,
@@ -487,9 +481,9 @@ final class PerfThresholds {
   final double errorPct;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'warn': _plainNumber(warnPct),
-        'error': _plainNumber(errorPct),
-      };
+    'warn': _plainNumber(warnPct),
+    'error': _plainNumber(errorPct),
+  };
 }
 
 /// A validated scenario.
@@ -534,21 +528,21 @@ final class PerfScenario {
   final PerfThresholds thresholds;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'name': name,
-        if (viewport != null)
-          'viewport': <String, Object?>{
-            'width': viewport!.width,
-            'height': viewport!.height,
-          },
-        'platforms': PerfPlatform.values
-            .where(platforms.contains)
-            .map((PerfPlatform p) => p.name)
-            .toList(),
-        'setup': _setupJson(setup),
-        'steps': steps.map((PerfStep s) => s.toJson()).toList(),
-        'repeat': repeat,
-        'thresholds': thresholds.toJson(),
-      };
+    'name': name,
+    if (viewport != null)
+      'viewport': <String, Object?>{
+        'width': viewport!.width,
+        'height': viewport!.height,
+      },
+    'platforms': PerfPlatform.values
+        .where(platforms.contains)
+        .map((PerfPlatform p) => p.name)
+        .toList(),
+    'setup': _setupJson(setup),
+    'steps': steps.map((PerfStep s) => s.toJson()).toList(),
+    'repeat': repeat,
+    'thresholds': thresholds.toJson(),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -601,8 +595,10 @@ final class _ScenarioReader {
     };
     for (final Object? key in document.keys) {
       if (key == 'variants' && file == null) {
-        problems.add('variants: a file with variants holds several scenarios; '
-            'load it with loadPerfScenarios.');
+        problems.add(
+          'variants: a file with variants holds several scenarios; '
+          'load it with loadPerfScenarios.',
+        );
       } else if (!allowed.contains(key)) {
         problems.add('unknown key "$key"; allowed: ${allowed.join(', ')}.');
       }
@@ -652,15 +648,15 @@ final class _ScenarioReader {
     }
     final int repeat =
         _positiveInt(_screen(document['repeat'], 'repeat'), 'repeat') ?? 3;
-    final ({int width, int height})? viewport =
-        _viewport(_screen(document['viewport'], 'viewport'));
-    final Set<PerfPlatform> platforms = _platforms(
-          _screen(document['platforms'], 'platforms'),
-          'platforms',
-        ) ??
+    final ({int width, int height})? viewport = _viewport(
+      _screen(document['viewport'], 'viewport'),
+    );
+    final Set<PerfPlatform> platforms =
+        _platforms(_screen(document['platforms'], 'platforms'), 'platforms') ??
         PerfPlatform.values.toSet();
-    final PerfThresholds thresholds =
-        _thresholds(_screen(document['thresholds'], 'thresholds'));
+    final PerfThresholds thresholds = _thresholds(
+      _screen(document['thresholds'], 'thresholds'),
+    );
 
     // 2. The lists. Steps are checked against the platforms read above.
     final List<PerfSetupStep> setup = <PerfSetupStep>[];
@@ -686,8 +682,10 @@ final class _ScenarioReader {
     Object? raw,
   ) {
     if (raw is! Map<Object?, Object?> || raw.isEmpty) {
-      problems.add('variants must be a non-empty map of <key>: {viewport, '
-          'platforms, repeat, steps}; leave it out for one scenario.');
+      problems.add(
+        'variants must be a non-empty map of <key>: {viewport, '
+        'platforms, repeat, steps}; leave it out for one scenario.',
+      );
       return const <PerfScenario>[];
     }
     final List<PerfScenario> scenarios = <PerfScenario>[];
@@ -698,26 +696,35 @@ final class _ScenarioReader {
       //    it becomes in the name.
       final String suffix = '$key';
       if (!isSafePerfName(suffix)) {
-        problems.add('variants: key "$suffix" must use [a-z0-9_-] only: it '
-            'ends the scenario name and the file name.');
+        problems.add(
+          'variants: key "$suffix" must use [a-z0-9_-] only: it '
+          'ends the scenario name and the file name.',
+        );
         continue;
       }
       if (!seen.add(suffix)) {
-        problems.add('variants: key "$suffix" appears twice; 390 and "390" '
-            'name one variant.');
+        problems.add(
+          'variants: key "$suffix" appears twice; 390 and "390" '
+          'name one variant.',
+        );
         continue;
       }
       final Object overrides = value ?? const <Object?, Object?>{};
       if (overrides is! Map<Object?, Object?>) {
-        problems.add('variants.$suffix must be a map of '
-            '${_kVariantKeys.join(', ')}.');
+        problems.add(
+          'variants.$suffix must be a map of '
+          '${_kVariantKeys.join(', ')}.',
+        );
         continue;
       }
-      final Iterable<Object?> unknown =
-          overrides.keys.where((Object? k) => !_kVariantKeys.contains(k));
+      final Iterable<Object?> unknown = overrides.keys.where(
+        (Object? k) => !_kVariantKeys.contains(k),
+      );
       for (final Object? k in unknown) {
-        problems.add('variants.$suffix: unknown key "$k"; allowed: '
-            '${_kVariantKeys.join(', ')}.');
+        problems.add(
+          'variants.$suffix: unknown key "$k"; allowed: '
+          '${_kVariantKeys.join(', ')}.',
+        );
       }
       if (unknown.isNotEmpty) continue;
 
@@ -727,8 +734,9 @@ final class _ScenarioReader {
       final PerfScenario scenario = _readOne(
         <Object?, Object?>{...document, ...overrides}..remove('variants'),
         variant: suffix,
-        stepsAt:
-            overrides.containsKey('steps') ? 'variants.$suffix.steps' : 'steps',
+        stepsAt: overrides.containsKey('steps')
+            ? 'variants.$suffix.steps'
+            : 'steps',
       );
       for (int i = from; i < problems.length; i++) {
         problems[i] = '${scenario.name}: ${problems[i]}';
@@ -738,10 +746,7 @@ final class _ScenarioReader {
     return scenarios;
   }
 
-  _Frame get _rootFrame => _Frame(
-        file: file,
-        chain: <String>[if (file != null) file!],
-      );
+  _Frame get _rootFrame => _Frame(file: file, chain: <String>[?file]);
 
   /// How interpolation problems name the file being read.
   String get _rootLabel => file == null ? '' : _shown(file!);
@@ -777,25 +782,19 @@ final class _ScenarioReader {
     Map<String, Object> scope,
     String label,
     String at,
-  ) =>
-      switch (node) {
-        Map<Object?, Object?>() => <Object?, Object?>{
-            for (final MapEntry<Object?, Object?>(:Object? key, :Object? value)
-                in node.entries)
-              key: _plain(
-                value,
-                scope,
-                label,
-                at.isEmpty ? '$key' : '$at.$key',
-              ),
-          },
-        List<Object?>() => <Object?>[
-            for (final (int i, Object? value) in node.indexed)
-              _plain(value, scope, label, '$at[$i]'),
-          ],
-        String() => _interpolate(node, scope, label, at),
-        _ => node,
-      };
+  ) => switch (node) {
+    Map<Object?, Object?>() => <Object?, Object?>{
+      for (final MapEntry<Object?, Object?>(:Object? key, :Object? value)
+          in node.entries)
+        key: _plain(value, scope, label, at.isEmpty ? '$key' : '$at.$key'),
+    },
+    List<Object?>() => <Object?>[
+      for (final (int i, Object? value) in node.indexed)
+        _plain(value, scope, label, '$at[$i]'),
+    ],
+    String() => _interpolate(node, scope, label, at),
+    _ => node,
+  };
 
   /// [source] with `${name}` read from [scope], `${env.NAME}` from [env] and
   /// `$$` as one `$`. A substituted value is never scanned again, so a `$`
@@ -871,18 +870,18 @@ final class _ScenarioReader {
   /// [node] with every [_Secret] in it refused, reported at its path and
   /// replaced by `***`, so no later problem can quote it.
   Object? _screen(Object? node, String at) => switch (node) {
-        _Secret() => _refuseSecret(at),
-        Map<Object?, Object?>() => <Object?, Object?>{
-            for (final MapEntry<Object?, Object?>(:Object? key, :Object? value)
-                in node.entries)
-              key: _screen(value, '$at.$key'),
-          },
-        List<Object?>() => <Object?>[
-            for (final (int i, Object? value) in node.indexed)
-              _screen(value, '$at[$i]'),
-          ],
-        _ => node,
-      };
+    _Secret() => _refuseSecret(at),
+    Map<Object?, Object?>() => <Object?, Object?>{
+      for (final MapEntry<Object?, Object?>(:Object? key, :Object? value)
+          in node.entries)
+        key: _screen(value, '$at.$key'),
+    },
+    List<Object?>() => <Object?>[
+      for (final (int i, Object? value) in node.indexed)
+        _screen(value, '$at[$i]'),
+    ],
+    _ => node,
+  };
 
   /// [_screen] for a step or setup entry, which leaves the `text` of a
   /// `fill` or `type` as it is: the one place a secret may go.
@@ -896,7 +895,8 @@ final class _ScenarioReader {
                 for (final MapEntry<Object?, Object?>(
                       key: Object? arg,
                       value: Object? given,
-                    ) in value.entries)
+                    )
+                    in value.entries)
                   arg: arg == 'text'
                       ? given
                       : _screen(given, '$where.$key.$arg'),
@@ -1011,8 +1011,9 @@ final class _ScenarioReader {
     Set<PerfPlatform> platforms,
   ) {
     raw = _screenEntry(raw, where);
-    final (String? wire, Object? args) =
-        _verbEntry(raw, where, const <String>{'only'});
+    final (String? wire, Object? args) = _verbEntry(raw, where, const <String>{
+      'only',
+    });
     if (wire == null) return null;
 
     // 1. A gesture is read exactly as a step is, `only` and all.
@@ -1036,8 +1037,10 @@ final class _ScenarioReader {
       return null;
     }
     if (raw is Map<Object?, Object?> && raw.containsKey('only')) {
-      problems.add('$where: only limits a gesture; ${verb.wire} runs on every '
-          'platform the scenario lists.');
+      problems.add(
+        '$where: only limits a gesture; ${verb.wire} runs on every '
+        'platform the scenario lists.',
+      );
     }
     switch (verb) {
       case PerfSetupVerb.gesture:
@@ -1068,22 +1071,22 @@ final class _ScenarioReader {
     }
   }
 
-  List<PerfStep> _steps(
-    Object? raw,
-    String at,
-    Set<PerfPlatform> platforms,
-  ) {
+  List<PerfStep> _steps(Object? raw, String at, Set<PerfPlatform> platforms) {
     if (raw is! List<Object?> || raw.isEmpty) {
-      problems.add('$at must be a non-empty list: a session that drives '
-          'nothing draws no frames and perf_end refuses it.');
+      problems.add(
+        '$at must be a non-empty list: a session that drives '
+        'nothing draws no frames and perf_end refuses it.',
+      );
       return const <PerfStep>[];
     }
     final List<PerfStep> steps = <PerfStep>[];
     for (int i = 0; i < raw.length; i++) {
       final Object? entry = raw[i];
       if (entry is Map<Object?, Object?> && entry.containsKey('include')) {
-        problems.add('$at[$i]: include is a setup entry; the measured steps '
-            'are written out, so the file shows everything the window times.');
+        problems.add(
+          '$at[$i]: include is a setup entry; the measured steps '
+          'are written out, so the file shows everything the window times.',
+        );
         continue;
       }
       final PerfStep? step = _step(entry, '$at[$i]', platforms);
@@ -1094,8 +1097,9 @@ final class _ScenarioReader {
 
   PerfStep? _step(Object? raw, String where, Set<PerfPlatform> platforms) {
     raw = _screenEntry(raw, where);
-    final (String? wire, Object? args) =
-        _verbEntry(raw, where, const <String>{'only'});
+    final (String? wire, Object? args) = _verbEntry(raw, where, const <String>{
+      'only',
+    });
     if (wire == null) return null;
     final PerfStepVerb? verb = PerfStepVerb.tryParse(wire);
     if (verb == null) {
@@ -1190,7 +1194,8 @@ final class _ScenarioReader {
         : null;
     final double dx = _number(args['dx'], '$at.dx');
     final double dy = _number(args['dy'], '$at.dy');
-    final bool moves = verb == PerfStepVerb.scroll ||
+    final bool moves =
+        verb == PerfStepVerb.scroll ||
         verb == PerfStepVerb.wheel ||
         verb == PerfStepVerb.drag;
     if (moves && dx == 0 && dy == 0) {
@@ -1248,16 +1253,20 @@ final class _ScenarioReader {
         ? 0
         : (_nonNegativeInt(raw['index'], '$at.index') ?? 0);
     if (kind == PerfTargetKind.key && index != 0) {
-      problems.add('$at.index: a key names one widget, so an index is not '
-          'supported on a key target.');
+      problems.add(
+        '$at.index: a key names one widget, so an index is not '
+        'supported on a key target.',
+      );
     }
     // `ext.tapir.find` takes no index, and the list extension behind a label
     // index walks only the root pipeline owner, which holds no semantics
     // tree in a running app: an index here would match nothing, every time.
     if (kind == PerfTargetKind.label && index != 0) {
-      problems.add('$at.index: a label target cannot be indexed; name the '
-          'control as {role, name, index} with the role tapir:snap prints, or '
-          'use {text, index}.');
+      problems.add(
+        '$at.index: a label target cannot be indexed; name the '
+        'control as {role, name, index} with the role tapir:snap prints, or '
+        'use {text, index}.',
+      );
     }
     if (kind != PerfTargetKind.role) {
       final String? value = _string(raw[kind.name], '$at.${kind.name}');
@@ -1285,11 +1294,15 @@ final class _ScenarioReader {
   /// Splits `verb` or `{verb: args, <allowed>...}` into the verb and its
   /// arguments; reports and returns `(null, null)` otherwise.
   (String?, Object?) _verbEntry(
-      Object? raw, String where, Set<String> allowed) {
+    Object? raw,
+    String where,
+    Set<String> allowed,
+  ) {
     if (raw is String) return (raw, null);
     if (raw is Map<Object?, Object?>) {
-      final List<Object?> verbs =
-          raw.keys.where((Object? k) => !allowed.contains(k)).toList();
+      final List<Object?> verbs = raw.keys
+          .where((Object? k) => !allowed.contains(k))
+          .toList();
       if (verbs.length == 1 && verbs.single is String) {
         return (verbs.single! as String, raw[verbs.single]);
       }

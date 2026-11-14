@@ -124,12 +124,11 @@ PerfSetupRunner _runner(
   PerfPlatform platform = PerfPlatform.android,
   ({int width, int height})? viewport,
   PerfRedactor? redactor,
-}) =>
-    PerfSetupRunner(
-      PerfActions(driver, PerfRunEnvironment(platform: platform)),
-      viewport: viewport,
-      redactor: redactor,
-    );
+}) => PerfSetupRunner(
+  PerfActions(driver, PerfRunEnvironment(platform: platform)),
+  viewport: viewport,
+  redactor: redactor,
+);
 
 PerfSetupStep _tap(String text, {PerfSetupGuard? guard, String? origin}) =>
     PerfSetupStep.gesture(
@@ -144,63 +143,61 @@ PerfSetupStep _tap(String text, {PerfSetupGuard? guard, String? origin}) =>
 void main() {
   group('PerfSetupRunner', () {
     group('.run() with a when guard', () {
-      test('polls every 250 ms and runs the group once its text shows',
-          () async {
-        // The login form draws its field on the third poll, as a cold start
-        // that is still booting does.
-        final _ScreenDriver driver = _ScreenDriver(
-          appearsAfter: <String, int>{'Email Address': 2},
-        );
-        final PerfSetupGuard guard = PerfSetupGuard(
-          text: 'Email Address',
-          origin: 'setup[0]',
-        );
+      test(
+        'polls every 250 ms and runs the group once its text shows',
+        () async {
+          // The login form draws its field on the third poll, as a cold start
+          // that is still booting does.
+          final _ScreenDriver driver = _ScreenDriver(
+            appearsAfter: <String, int>{'Email Address': 2},
+          );
+          final PerfSetupGuard guard = PerfSetupGuard(
+            text: 'Email Address',
+            origin: 'setup[0]',
+          );
 
-        await _runner(driver).run(
-          <PerfSetupStep>[
+          await _runner(driver).run(<PerfSetupStep>[
             _tap('Email Address', guard: guard, origin: 'login.yaml steps[0]'),
-          ],
-          'login',
-        );
+          ], 'login');
 
-        // Three polls for the guard, then the tap's own lookup.
-        expect(driver.findsOf('Email Address'), 4);
-        expect(
-          driver
-              .callsTo('pause')
-              .map((_Call c) => c.params['ms'])
-              .take(2)
-              .toList(),
-          <int>[250, 250],
-        );
-        expect(driver.callsTo('ext.tapir.tap'), hasLength(1));
-      });
+          // Three polls for the guard, then the tap's own lookup.
+          expect(driver.findsOf('Email Address'), 4);
+          expect(
+            driver
+                .callsTo('pause')
+                .map((_Call c) => c.params['ms'])
+                .take(2)
+                .toList(),
+            <int>[250, 250],
+          );
+          expect(driver.callsTo('ext.tapir.tap'), hasLength(1));
+        },
+      );
 
-      test('skips the group when unless_text shows, and it wins over text',
-          () async {
-        final _ScreenDriver driver = _ScreenDriver(
-          shown: <String>{'Sign in', 'Monitors', 'Afterwards'},
-        );
-        final PerfSetupGuard guard = PerfSetupGuard(
-          text: 'Sign in',
-          unlessText: 'Monitors',
-          origin: 'setup[0]',
-        );
+      test(
+        'skips the group when unless_text shows, and it wins over text',
+        () async {
+          final _ScreenDriver driver = _ScreenDriver(
+            shown: <String>{'Sign in', 'Monitors', 'Afterwards'},
+          );
+          final PerfSetupGuard guard = PerfSetupGuard(
+            text: 'Sign in',
+            unlessText: 'Monitors',
+            origin: 'setup[0]',
+          );
 
-        await _runner(driver).run(
-          <PerfSetupStep>[
+          await _runner(driver).run(<PerfSetupStep>[
             _tap('Sign in', guard: guard),
             _tap('Sign in', guard: guard),
             _tap('Afterwards'),
-          ],
-          'login',
-        );
+          ], 'login');
 
-        final List<_Call> taps = driver.callsTo('ext.tapir.tap');
-        expect(taps, hasLength(1));
-        expect(driver.findsOf('Monitors'), 1);
-        expect(driver.findsOf('Afterwards'), 1);
-      });
+          final List<_Call> taps = driver.callsTo('ext.tapir.tap');
+          expect(taps, hasLength(1));
+          expect(driver.findsOf('Monitors'), 1);
+          expect(driver.findsOf('Afterwards'), 1);
+        },
+      );
 
       test('skips the group on timeout when there is no unless_text', () async {
         final _ScreenDriver driver = _ScreenDriver();
@@ -210,10 +207,8 @@ void main() {
           origin: 'setup[0]',
         );
 
-        final ({bool landedLate}) result = await _runner(driver).run(
-          <PerfSetupStep>[_tap('Sign in', guard: guard)],
-          'login',
-        );
+        final ({bool landedLate}) result = await _runner(driver)
+            .run(<PerfSetupStep>[_tap('Sign in', guard: guard)], 'login');
 
         // 0, 250, 500, 750 and 1000 ms: five polls cover the budget.
         expect(driver.findsOf('Sign in'), 5);
@@ -221,93 +216,91 @@ void main() {
         expect(result.landedLate, isFalse);
       });
 
-      test('fails on timeout naming both texts when unless_text is set',
-          () async {
-        final _ScreenDriver driver = _ScreenDriver();
-        final PerfSetupGuard guard = PerfSetupGuard(
-          text: 'Sign in',
-          unlessText: 'Monitors',
-          timeoutMs: 500,
-          origin: 'setup[1]',
-        );
+      test(
+        'fails on timeout naming both texts when unless_text is set',
+        () async {
+          final _ScreenDriver driver = _ScreenDriver();
+          final PerfSetupGuard guard = PerfSetupGuard(
+            text: 'Sign in',
+            unlessText: 'Monitors',
+            timeoutMs: 500,
+            origin: 'setup[1]',
+          );
 
-        await expectLater(
-          _runner(driver).run(
-            <PerfSetupStep>[_tap('Sign in', guard: guard)],
-            'login',
-          ),
-          throwsA(
-            isA<PerfRunException>().having(
-              (PerfRunException e) => e.message,
-              'message',
-              allOf(
-                contains('login setup[1] (when)'),
-                contains('"Sign in"'),
-                contains('"Monitors"'),
-                contains('500 ms'),
-                contains('Diagnostics:'),
+          await expectLater(
+            _runner(driver)
+                .run(<PerfSetupStep>[_tap('Sign in', guard: guard)], 'login'),
+            throwsA(
+              isA<PerfRunException>().having(
+                (PerfRunException e) => e.message,
+                'message',
+                allOf(
+                  contains('login setup[1] (when)'),
+                  contains('"Sign in"'),
+                  contains('"Monitors"'),
+                  contains('500 ms'),
+                  contains('Diagnostics:'),
+                ),
               ),
             ),
-          ),
-        );
-        expect(driver.callsTo('ext.tapir.tap'), isEmpty);
-      });
+          );
+          expect(driver.callsTo('ext.tapir.tap'), isEmpty);
+        },
+      );
 
-      test('decides an outer guard first and never polls an inner one it skips',
-          () async {
-        final _ScreenDriver driver = _ScreenDriver(shown: <String>{'Home'});
-        final PerfSetupGuard outer = PerfSetupGuard(
-          text: 'Sign in',
-          unlessText: 'Home',
-          origin: 'setup[0]',
-        );
-        final PerfSetupGuard inner = PerfSetupGuard(
-          text: 'Two-factor',
-          origin: 'login.yaml steps[1]',
-          parent: outer,
-        );
+      test(
+        'decides an outer guard first and never polls an inner one it skips',
+        () async {
+          final _ScreenDriver driver = _ScreenDriver(shown: <String>{'Home'});
+          final PerfSetupGuard outer = PerfSetupGuard(
+            text: 'Sign in',
+            unlessText: 'Home',
+            origin: 'setup[0]',
+          );
+          final PerfSetupGuard inner = PerfSetupGuard(
+            text: 'Two-factor',
+            origin: 'login.yaml steps[1]',
+            parent: outer,
+          );
 
-        await _runner(driver).run(
-          <PerfSetupStep>[
+          await _runner(driver).run(<PerfSetupStep>[
             _tap('Sign in', guard: outer),
             _tap('Code', guard: inner),
-          ],
-          'login',
-        );
+          ], 'login');
 
-        expect(driver.findsOf('Two-factor'), 0);
-        expect(driver.callsTo('ext.tapir.tap'), isEmpty);
-      });
+          expect(driver.findsOf('Two-factor'), 0);
+          expect(driver.callsTo('ext.tapir.tap'), isEmpty);
+        },
+      );
 
-      test('an inner guard that skips leaves the rest of the outer group',
-          () async {
-        final _ScreenDriver driver = _ScreenDriver(
-          shown: <String>{'Sign in', 'Skip me'},
-        );
-        final PerfSetupGuard outer = PerfSetupGuard(
-          text: 'Sign in',
-          origin: 'setup[0]',
-        );
-        final PerfSetupGuard inner = PerfSetupGuard(
-          text: 'Two-factor',
-          unlessText: 'Skip me',
-          origin: 'login.yaml steps[1]',
-          parent: outer,
-        );
+      test(
+        'an inner guard that skips leaves the rest of the outer group',
+        () async {
+          final _ScreenDriver driver = _ScreenDriver(
+            shown: <String>{'Sign in', 'Skip me'},
+          );
+          final PerfSetupGuard outer = PerfSetupGuard(
+            text: 'Sign in',
+            origin: 'setup[0]',
+          );
+          final PerfSetupGuard inner = PerfSetupGuard(
+            text: 'Two-factor',
+            unlessText: 'Skip me',
+            origin: 'login.yaml steps[1]',
+            parent: outer,
+          );
 
-        await _runner(driver).run(
-          <PerfSetupStep>[
+          await _runner(driver).run(<PerfSetupStep>[
             _tap('Sign in', guard: outer),
             _tap('Code', guard: inner),
             _tap('Sign in', guard: outer),
-          ],
-          'login',
-        );
+          ], 'login');
 
-        expect(driver.callsTo('ext.tapir.tap'), hasLength(2));
-        // Each guard is decided once per pass.
-        expect(driver.findsOf('Skip me'), 1);
-      });
+          expect(driver.callsTo('ext.tapir.tap'), hasLength(2));
+          // Each guard is decided once per pass.
+          expect(driver.findsOf('Skip me'), 1);
+        },
+      );
 
       test('a step the platform skips does not spend the guard', () async {
         final _ScreenDriver driver = _ScreenDriver(shown: <String>{'Sign in'});
@@ -316,96 +309,89 @@ void main() {
           origin: 'setup[0]',
         );
 
-        await _runner(driver).run(
-          <PerfSetupStep>[
-            PerfSetupStep.gesture(
-              const PerfStep(
-                PerfStepVerb.wait,
-                ms: 10,
-                only: <PerfPlatform>{PerfPlatform.ios},
-              ),
-              guard: guard,
+        await _runner(driver).run(<PerfSetupStep>[
+          PerfSetupStep.gesture(
+            const PerfStep(
+              PerfStepVerb.wait,
+              ms: 10,
+              only: <PerfPlatform>{PerfPlatform.ios},
             ),
-          ],
-          'login',
-        );
+            guard: guard,
+          ),
+        ], 'login');
 
         expect(driver.findsOf('Sign in'), 0);
       });
     });
 
     group('.run()', () {
-      test('applies the viewport first and again after every restart',
-          () async {
-        final _ScreenDriver driver = _ScreenDriver();
+      test(
+        'applies the viewport first and again after every restart',
+        () async {
+          final _ScreenDriver driver = _ScreenDriver();
 
-        await _runner(
-          driver,
-          platform: PerfPlatform.chrome,
-          viewport: (width: 390, height: 844),
-        ).run(
-          const <PerfSetupStep>[PerfSetupStep(PerfSetupVerb.hotRestart)],
-          'list',
-        );
+          await _runner(
+            driver,
+            platform: PerfPlatform.chrome,
+            viewport: (width: 390, height: 844),
+          ).run(const <PerfSetupStep>[
+            PerfSetupStep(PerfSetupVerb.hotRestart),
+          ], 'list');
 
-        expect(
-          driver.calls.map((_Call c) => c.method).toList(),
-          <String>[
+          expect(driver.calls.map((_Call c) => c.method).toList(), <String>[
             'cdp:Emulation.setDeviceMetricsOverride',
             'restart',
             'cdp:Emulation.setDeviceMetricsOverride',
-          ],
-        );
-        expect(driver.calls.first.params['width'], 390);
-      });
+          ]);
+          expect(driver.calls.first.params['width'], 390);
+        },
+      );
 
-      test('answers landedLate when a navigate lands after answering false',
-          () async {
-        final _ScreenDriver driver = _ScreenDriver(navigateHonoured: false);
+      test(
+        'answers landedLate when a navigate lands after answering false',
+        () async {
+          final _ScreenDriver driver = _ScreenDriver(navigateHonoured: false);
 
-        final ({bool landedLate}) result = await _runner(driver).run(
-          const <PerfSetupStep>[
-            PerfSetupStep(
-              PerfSetupVerb.navigate,
-              argument: '/monitors',
-              origin: 'setup[0]',
-            ),
-          ],
-          'list',
-        );
+          final ({bool landedLate}) result = await _runner(driver)
+              .run(const <PerfSetupStep>[
+                PerfSetupStep(
+                  PerfSetupVerb.navigate,
+                  argument: '/monitors',
+                  origin: 'setup[0]',
+                ),
+              ], 'list');
 
-        expect(result.landedLate, isTrue);
-      });
+          expect(result.landedLate, isTrue);
+        },
+      );
 
-      test('names a hand-built step by its index when it has no origin',
-          () async {
-        final _ScreenDriver driver = _ScreenDriver();
+      test(
+        'names a hand-built step by its index when it has no origin',
+        () async {
+          final _ScreenDriver driver = _ScreenDriver();
 
-        await expectLater(
-          _runner(driver).run(
-            const <PerfSetupStep>[
+          await expectLater(
+            _runner(driver).run(const <PerfSetupStep>[
               PerfSetupStep(
                 PerfSetupVerb.waitForText,
                 argument: 'Never',
                 timeoutMs: 10,
               ),
-            ],
-            'list',
-          ),
-          throwsA(
-            isA<PerfRunException>().having(
-              (PerfRunException e) => e.message,
-              'message',
-              contains('list setup[0] (wait_for_text)'),
+            ], 'list'),
+            throwsA(
+              isA<PerfRunException>().having(
+                (PerfRunException e) => e.message,
+                'message',
+                contains('list setup[0] (wait_for_text)'),
+              ),
             ),
-          ),
-        );
-      });
+          );
+        },
+      );
     });
 
     group('.diagnose()', () {
-      test(
-          'masks a secret before cutting a long exception message, so no '
+      test('masks a secret before cutting a long exception message, so no '
           'prefix of it survives the cut', () async {
         const String secret = r'ab"c$d';
         final String head = 'x' * 197;
@@ -427,19 +413,21 @@ void main() {
         expect(line, isNot(contains('${head}ab')));
       });
 
-      test('cuts a long message at 200 characters without a redactor',
-          () async {
-        final _ScreenDriver driver = _ScreenDriver(
-          exceptions: <Map<String, dynamic>>[
-            <String, dynamic>{'type': 'StateError', 'message': 'y' * 250},
-          ],
-        );
+      test(
+        'cuts a long message at 200 characters without a redactor',
+        () async {
+          final _ScreenDriver driver = _ScreenDriver(
+            exceptions: <Map<String, dynamic>>[
+              <String, dynamic>{'type': 'StateError', 'message': 'y' * 250},
+            ],
+          );
 
-        final String line = await _runner(driver).diagnose();
+          final String line = await _runner(driver).diagnose();
 
-        expect(line, contains('StateError: ${'y' * 200}...'));
-        expect(line, isNot(contains('y' * 201)));
-      });
+          expect(line, contains('StateError: ${'y' * 200}...'));
+          expect(line, isNot(contains('y' * 201)));
+        },
+      );
     });
 
     group('.awaitRouter()', () {
@@ -451,15 +439,12 @@ void main() {
         expect(driver.callsTo('ext.tapir.get_routes'), hasLength(1));
       });
 
-      test(
-          'waits out a Router mounting at 15 s when given a 60 s budget, one '
+      test('waits out a Router mounting at 15 s when given a 60 s budget, one '
           'read every 100 ms', () async {
         final _ScreenDriver driver = _ScreenDriver()..unmountedReads = 150;
 
-        await _runner(driver).awaitRouter(
-          'after_start',
-          budget: const Duration(seconds: 60),
-        );
+        await _runner(driver)
+            .awaitRouter('after_start', budget: const Duration(seconds: 60));
 
         expect(driver.callsTo('ext.tapir.get_routes'), hasLength(151));
         expect(

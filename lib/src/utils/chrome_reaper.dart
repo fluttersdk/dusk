@@ -143,10 +143,10 @@ Future<int?> captureChromePid({required int parentPid}) async {
   if (_windowsSkip()) return null;
 
   try {
-    final ProcessResult result = await chromeReaperRunner(
-      'pgrep',
-      <String>['-P', '$parentPid'],
-    );
+    final ProcessResult result = await chromeReaperRunner('pgrep', <String>[
+      '-P',
+      '$parentPid',
+    ]);
     if (result.exitCode != 0) return null;
 
     final List<int> children = const LineSplitter()
@@ -157,10 +157,12 @@ Future<int?> captureChromePid({required int parentPid}) async {
 
     for (final int child in children) {
       try {
-        final ProcessResult ps = await chromeReaperRunner(
-          'ps',
-          <String>['-p', '$child', '-o', 'command='],
-        );
+        final ProcessResult ps = await chromeReaperRunner('ps', <String>[
+          '-p',
+          '$child',
+          '-o',
+          'command=',
+        ]);
         if (ps.exitCode != 0) continue;
         final String command = (ps.stdout as String).trim();
         if (command.contains(_chromeProfileMarker)) return child;
@@ -187,10 +189,12 @@ Future<String?> captureChromeProfileDir({required int chromePid}) async {
   if (_windowsSkip()) return null;
 
   try {
-    final ProcessResult ps = await chromeReaperRunner(
-      'ps',
-      <String>['-p', '$chromePid', '-o', 'command='],
-    );
+    final ProcessResult ps = await chromeReaperRunner('ps', <String>[
+      '-p',
+      '$chromePid',
+      '-o',
+      'command=',
+    ]);
     if (ps.exitCode != 0) return null;
     final String command = (ps.stdout as String).trim();
     final Match? match = _userDataDirPattern.firstMatch(command);
@@ -279,10 +283,10 @@ Future<void> reapOrphans() async {
   if (_windowsSkip()) return;
 
   try {
-    final ProcessResult result = await chromeReaperRunner(
-      'pgrep',
-      <String>['-fl', _chromeProfileMarker],
-    );
+    final ProcessResult result = await chromeReaperRunner('pgrep', <String>[
+      '-fl',
+      _chromeProfileMarker,
+    ]);
     if (result.exitCode != 0) return;
 
     final List<int> pids = _parsePgrepFullList(result.stdout as String);
@@ -307,8 +311,9 @@ List<int> _parsePgrepFullList(String stdout) {
     final String trimmed = line.trim();
     if (trimmed.isEmpty) continue;
     final int spaceIdx = trimmed.indexOf(' ');
-    final String pidStr =
-        spaceIdx < 0 ? trimmed : trimmed.substring(0, spaceIdx);
+    final String pidStr = spaceIdx < 0
+        ? trimmed
+        : trimmed.substring(0, spaceIdx);
     final int? pid = int.tryParse(pidStr);
     if (pid != null) out.add(pid);
   }

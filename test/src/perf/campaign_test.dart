@@ -124,40 +124,43 @@ scenarios: ["scenarios/a.y*"]
         );
       });
 
-      test('a variants file expands to one entry per key, with its variant',
-          () async {
-        write('scenarios/list-scroll.yaml', _variants);
-        write('scenarios/tap.yaml', _tap);
-        final String path = write('campaign.yaml', '''
+      test(
+        'a variants file expands to one entry per key, with its variant',
+        () async {
+          write('scenarios/list-scroll.yaml', _variants);
+          write('scenarios/tap.yaml', _tap);
+          final String path = write('campaign.yaml', '''
 scenarios: [scenarios/list-scroll.yaml, scenarios/tap.yaml]
 ''');
 
-        final PerfCampaign campaign = await loadPerfCampaign(path);
+          final PerfCampaign campaign = await loadPerfCampaign(path);
 
-        expect(
-          campaign.scenarios.map((PerfCampaignScenario s) => s.scenario.name),
-          <String>['list-scroll-1440', 'list-scroll-390', 'tap'],
-        );
-        expect(
-          campaign.scenarios.map((PerfCampaignScenario s) => s.variant),
-          <String?>['1440', '390', null],
-        );
-        expect(campaign.scenarios[0].platforms, <PerfPlatform>{
-          PerfPlatform.chrome,
-        });
-        expect(campaign.scenarios[1].platforms, <PerfPlatform>{
-          PerfPlatform.chrome,
-          PerfPlatform.android,
-        });
-        expect(
-          campaign.scenarios[0].path,
-          File('${dir.path}/scenarios/list-scroll.yaml').absolute.path,
-        );
-      });
+          expect(
+            campaign.scenarios.map((PerfCampaignScenario s) => s.scenario.name),
+            <String>['list-scroll-1440', 'list-scroll-390', 'tap'],
+          );
+          expect(
+            campaign.scenarios.map((PerfCampaignScenario s) => s.variant),
+            <String?>['1440', '390', null],
+          );
+          expect(campaign.scenarios[0].platforms, <PerfPlatform>{
+            PerfPlatform.chrome,
+          });
+          expect(campaign.scenarios[1].platforms, <PerfPlatform>{
+            PerfPlatform.chrome,
+            PerfPlatform.android,
+          });
+          expect(
+            campaign.scenarios[0].path,
+            File('${dir.path}/scenarios/list-scroll.yaml').absolute.path,
+          );
+        },
+      );
 
-      test('a variant key that ends with the base name is still the key',
-          () async {
-        write('scenarios/a.yaml', '''
+      test(
+        'a variant key that ends with the base name is still the key',
+        () async {
+          write('scenarios/a.yaml', '''
 name: a-1
 steps:
   - wait: 400
@@ -165,22 +168,24 @@ variants:
   1: {}
   b-2: {}
 ''');
-        final String path = write('campaign.yaml', '''
+          final String path = write('campaign.yaml', '''
 scenarios: [scenarios/a.yaml]
 ''');
 
-        final PerfCampaign campaign = await loadPerfCampaign(path);
+          final PerfCampaign campaign = await loadPerfCampaign(path);
 
-        expect(
-          campaign.scenarios.map((PerfCampaignScenario s) => s.variant),
-          <String?>['1', 'b-2'],
-        );
-      });
+          expect(
+            campaign.scenarios.map((PerfCampaignScenario s) => s.variant),
+            <String?>['1', 'b-2'],
+          );
+        },
+      );
 
-      test('an empty match, a missing file and a bad glob are all reported',
-          () async {
-        write('scenarios/a.yaml', _tap.replaceFirst('tap', 'a'));
-        final String path = write('campaign.yaml', '''
+      test(
+        'an empty match, a missing file and a bad glob are all reported',
+        () async {
+          write('scenarios/a.yaml', _tap.replaceFirst('tap', 'a'));
+          final String path = write('campaign.yaml', '''
 scenarios:
   - scenarios/*.nope
   - scenarios/missing.yaml
@@ -189,38 +194,41 @@ scenarios:
   - absent/*.yaml
 ''');
 
-        final String problems = await problemsOf(path);
+          final String problems = await problemsOf(path);
 
-        expect(problems, contains('scenarios/*.nope'));
-        expect(problems, contains('matches no file'));
-        expect(problems, contains('scenarios/missing.yaml'));
-        expect(problems, contains('*/a.yaml'));
-        expect(problems, contains('scenarios/**/a.yaml'));
-        expect(problems, contains('absent/*.yaml'));
-        expect(problems.split('\n'), hasLength(5));
-      });
+          expect(problems, contains('scenarios/*.nope'));
+          expect(problems, contains('matches no file'));
+          expect(problems, contains('scenarios/missing.yaml'));
+          expect(problems, contains('*/a.yaml'));
+          expect(problems, contains('scenarios/**/a.yaml'));
+          expect(problems, contains('absent/*.yaml'));
+          expect(problems.split('\n'), hasLength(5));
+        },
+      );
 
-      test('a scenario file that fails to load is named, with every problem',
-          () async {
-        write('scenarios/a.yaml', 'name: a\nsteps: nope\n');
-        write('scenarios/b.yaml', 'name: "B!"\nsteps:\n  - wait: 400\n');
-        write('scenarios/c.yaml', _tap.replaceFirst('tap', 'c'));
-        final String path = write('campaign.yaml', '''
+      test(
+        'a scenario file that fails to load is named, with every problem',
+        () async {
+          write('scenarios/a.yaml', 'name: a\nsteps: nope\n');
+          write('scenarios/b.yaml', 'name: "B!"\nsteps:\n  - wait: 400\n');
+          write('scenarios/c.yaml', _tap.replaceFirst('tap', 'c'));
+          final String path = write('campaign.yaml', '''
 scenarios: [scenarios/*.yaml]
 ''');
 
-        final List<String> problems = (await problemsOf(path)).split('\n');
+          final List<String> problems = (await problemsOf(path)).split('\n');
 
-        expect(
-          problems.where((String p) => p.startsWith('scenarios/a.yaml: ')),
-          isNotEmpty,
-        );
-        expect(
-          problems.where((String p) => p.startsWith('scenarios/b.yaml: ')),
-          isNotEmpty,
-        );
-        expect(problems.where((String p) => p.contains('c.yaml')), isEmpty);
-      });
+          expect(
+            problems.where((String p) => p.startsWith('scenarios/a.yaml: ')),
+            isNotEmpty,
+          );
+          expect(
+            problems.where((String p) => p.startsWith('scenarios/b.yaml: ')),
+            isNotEmpty,
+          );
+          expect(problems.where((String p) => p.contains('c.yaml')), isEmpty);
+        },
+      );
 
       test('two files that yield one name are reported', () async {
         write('scenarios/a.yaml', _tap);
@@ -306,20 +314,21 @@ android: {device: pixel}
 
       test('android reads the avd, the reverse ports and the grants', () async {
         write('scenarios/a.yaml', _tap);
-        final PerfCampaign campaign = await loadPerfCampaign(write('c.yaml', '''
+        final PerfCampaign campaign = await loadPerfCampaign(
+          write('c.yaml', '''
 scenarios: [scenarios/a.yaml]
 android:
   avd: uptizm_pixel8_api35
   reverse: [8001, 8080]
   grant: [android.permission.POST_NOTIFICATIONS]
-'''));
+'''),
+        );
 
         expect(campaign.android.avd, 'uptizm_pixel8_api35');
         expect(campaign.android.reverse, <int>[8001, 8080]);
-        expect(
-          campaign.android.grant,
-          <String>['android.permission.POST_NOTIFICATIONS'],
-        );
+        expect(campaign.android.grant, <String>[
+          'android.permission.POST_NOTIFICATIONS',
+        ]);
       });
 
       test('android is empty when the campaign leaves it out', () async {
@@ -338,13 +347,15 @@ android:
 
       test('android reverse and grant are checked entry by entry', () async {
         write('scenarios/a.yaml', _tap);
-        final String problems = await problemsOf(write('c.yaml', '''
+        final String problems = await problemsOf(
+          write('c.yaml', '''
 scenarios: [scenarios/a.yaml]
 android:
   avd: ""
   reverse: [8001, 0, http]
   grant: [ok, 3]
-'''));
+'''),
+        );
 
         expect(problems, contains('android.avd'));
         expect(problems, contains('android.reverse[1]'));
@@ -353,18 +364,19 @@ android:
         expect(problems, isNot(contains('android.reverse[0]')));
       });
 
-      test(
-          'a grant that is not a plain permission name is refused: the '
+      test('a grant that is not a plain permission name is refused: the '
           'device shell reads it', () async {
         write('scenarios/a.yaml', _tap);
-        final String problems = await problemsOf(write('c.yaml', r'''
+        final String problems = await problemsOf(
+          write('c.yaml', r'''
 scenarios: [scenarios/a.yaml]
 android:
   grant:
     - android.permission.CAMERA
     - "android.permission.CAMERA; reboot"
     - "$(id)"
-'''));
+'''),
+        );
 
         expect(problems, isNot(contains('android.grant[0]')));
         expect(problems, contains('android.grant[1]'));
@@ -375,14 +387,15 @@ android:
     group('hooks', () {
       test('a hook is read as the shell string it is', () async {
         write('scenarios/a.yaml', _tap);
-        final PerfCampaign campaign =
-            await loadPerfCampaign(write('c.yaml', r'''
+        final PerfCampaign campaign = await loadPerfCampaign(
+          write('c.yaml', r'''
 scenarios: [scenarios/a.yaml]
 hooks:
   before_campaign: ./services.sh up
   before_scenario: echo "$TAPIR_PERF_SCENARIO"
   after_campaign: ./services.sh down "$TAPIR_PERF_STATUS"
-'''));
+'''),
+        );
 
         expect(campaign.hooks.beforeCampaign, './services.sh up');
         expect(campaign.hooks.beforeScenario, r'echo "$TAPIR_PERF_SCENARIO"');
@@ -392,35 +405,39 @@ hooks:
         );
       });
 
-      test(r'a ${ inside a hook is rejected, and the hook is not echoed',
-          () async {
-        write('scenarios/a.yaml', _tap);
-        final String problems = await problemsOf(
-          write('c.yaml', r'''
+      test(
+        r'a ${ inside a hook is rejected, and the hook is not echoed',
+        () async {
+          write('scenarios/a.yaml', _tap);
+          final String problems = await problemsOf(
+            write('c.yaml', r'''
 scenarios: [scenarios/a.yaml]
 hooks:
   before_campaign: "login --password ${env.PASSWORD}"
   before_scenario: "echo ${TAPIR_PERF_SCENARIO}"
 '''),
-          env: <String, String>{'PASSWORD': _secret},
-        );
+            env: <String, String>{'PASSWORD': _secret},
+          );
 
-        expect(problems, contains('hooks.before_campaign'));
-        expect(problems, contains('hooks.before_scenario'));
-        expect(
-          problems,
-          contains(r'hooks run in a shell; read the variable there as $NAME'),
-        );
-        expect(problems, isNot(contains('login --password')));
-        expect(problems, isNot(contains(_secret)));
-      });
+          expect(problems, contains('hooks.before_campaign'));
+          expect(problems, contains('hooks.before_scenario'));
+          expect(
+            problems,
+            contains(r'hooks run in a shell; read the variable there as $NAME'),
+          );
+          expect(problems, isNot(contains('login --password')));
+          expect(problems, isNot(contains(_secret)));
+        },
+      );
 
       test('a hook must be a non-empty string', () async {
         write('scenarios/a.yaml', _tap);
-        final String problems = await problemsOf(write('c.yaml', '''
+        final String problems = await problemsOf(
+          write('c.yaml', '''
 scenarios: [scenarios/a.yaml]
 hooks: {before_campaign: [up], before_scenario: "", after_campaign: 1}
-'''));
+'''),
+        );
 
         expect(problems, contains('hooks.before_campaign'));
         expect(problems, contains('hooks.before_scenario'));
@@ -429,21 +446,24 @@ hooks: {before_campaign: [up], before_scenario: "", after_campaign: 1}
 
       test(r'a ${ inside after_campaign is rejected too', () async {
         write('scenarios/a.yaml', _tap);
-        final String problems = await problemsOf(write('c.yaml', r'''
+        final String problems = await problemsOf(
+          write('c.yaml', r'''
 scenarios: [scenarios/a.yaml]
 hooks: {after_campaign: "down ${TAPIR_PERF_STATUS}"}
-'''));
+'''),
+        );
 
         expect(problems, contains(r'hooks.after_campaign holds a "${"'));
       });
     });
 
     group('after_start', () {
-      test('an include with a secret env value produces a masked toJson',
-          () async {
-        write('scenarios/a.yaml', _tap);
-        write('fragments/login.yaml', _login);
-        final String path = write('campaign.yaml', r'''
+      test(
+        'an include with a secret env value produces a masked toJson',
+        () async {
+          write('scenarios/a.yaml', _tap);
+          write('fragments/login.yaml', _login);
+          final String path = write('campaign.yaml', r'''
 scenarios: [scenarios/a.yaml]
 after_start:
   - hot_restart
@@ -452,25 +472,26 @@ after_start:
   - tap: {target: {role: button, name: Sign in}}
 ''');
 
-        final PerfCampaign campaign = await loadPerfCampaign(
-          path,
-          env: <String, String>{'PASSWORD': _secret},
-        );
-        final String json = jsonEncode(
-          campaign.afterStart.map((PerfSetupStep s) => s.toJson()).toList(),
-        );
+          final PerfCampaign campaign = await loadPerfCampaign(
+            path,
+            env: <String, String>{'PASSWORD': _secret},
+          );
+          final String json = jsonEncode(
+            campaign.afterStart.map((PerfSetupStep s) => s.toJson()).toList(),
+          );
 
-        expect(campaign.afterStart, hasLength(4));
-        expect(json, contains('***'));
-        expect(json, contains('demo@example.com'));
-        expect(json, isNot(contains(_secret)));
-        expect(json, isNot(contains(_secretInJson)));
-        expect(campaign.secrets, <String>{_secret});
-        expect(
-          campaign.afterStart[1].origin,
-          'fragments/login.yaml steps[0]',
-        );
-      });
+          expect(campaign.afterStart, hasLength(4));
+          expect(json, contains('***'));
+          expect(json, contains('demo@example.com'));
+          expect(json, isNot(contains(_secret)));
+          expect(json, isNot(contains(_secretInJson)));
+          expect(campaign.secrets, <String>{_secret});
+          expect(
+            campaign.afterStart[1].origin,
+            'fragments/login.yaml steps[0]',
+          );
+        },
+      );
 
       test('a problem in after_start never carries the secret', () async {
         write('scenarios/a.yaml', _tap);
@@ -533,20 +554,22 @@ after_start:
         expect(campaign.secretEnvNames, <String>{'TOKEN', 'PASSWORD'});
       });
 
-      test('a short secret in after_start is a problem naming the variable',
-          () async {
-        write('scenarios/a.yaml', 'name: a\nsteps:\n  - wait: 400\n');
-        final String problems = await problemsOf(
-          write('campaign.yaml', r'''
+      test(
+        'a short secret in after_start is a problem naming the variable',
+        () async {
+          write('scenarios/a.yaml', 'name: a\nsteps:\n  - wait: 400\n');
+          final String problems = await problemsOf(
+            write('campaign.yaml', r'''
 scenarios: [scenarios/a.yaml]
 after_start:
   - fill: {target: {label: Pin}, text: "${env.PIN}"}
 '''),
-          env: <String, String>{'PIN': '1'},
-        );
+            env: <String, String>{'PIN': '1'},
+          );
 
-        expect(problems, contains(r'${env.PIN} is 1 character'));
-      });
+          expect(problems, contains(r'${env.PIN} is 1 character'));
+        },
+      );
 
       test('a secret in a scenario problem stays masked', () async {
         write('scenarios/a.yaml', r'''
@@ -593,10 +616,7 @@ steps:
 
   group('PerfCampaignException', () {
     test('prints every problem under one header', () {
-      final PerfCampaignException e = PerfCampaignException(<String>[
-        'a',
-        'b',
-      ]);
+      final PerfCampaignException e = PerfCampaignException(<String>['a', 'b']);
 
       expect(e.toString(), 'Invalid perf campaign:\n- a\n- b');
     });

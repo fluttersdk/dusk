@@ -77,10 +77,7 @@ void main() {
           isTrue,
           reason: 'response body must have the closed key',
         );
-        expect(
-          result['closed'],
-          isTrue,
-        );
+        expect(result['closed'], isTrue);
       },
     );
 
@@ -115,40 +112,31 @@ void main() {
     // (c) Idempotent registration
     // -------------------------------------------------------------------------
 
-    test(
-      '(c) registerCloseAppExtension can be called multiple times without throw',
-      () {
-        expect(
-          () {
-            registerCloseAppExtension();
-            registerCloseAppExtension();
-          },
-          returnsNormally,
-        );
-      },
-    );
-
-    test(
-      '(c) handler is still callable after double registration',
-      () async {
-        closeAppImpl = () async {};
-
+    test('(c) registerCloseAppExtension can be called multiple times without throw', () {
+      expect(() {
         registerCloseAppExtension();
         registerCloseAppExtension();
+      }, returnsNormally);
+    });
 
-        final response = await extTapirCloseAppHandler(
-          'ext.tapir.close_app',
-          <String, String>{},
-        );
+    test('(c) handler is still callable after double registration', () async {
+      closeAppImpl = () async {};
 
-        expect(
-          response.errorCode,
-          isNull,
-          reason: 'double registration must not break the handler',
-        );
-        expect(response.result, isNotNull);
-      },
-    );
+      registerCloseAppExtension();
+      registerCloseAppExtension();
+
+      final response = await extTapirCloseAppHandler(
+        'ext.tapir.close_app',
+        <String, String>{},
+      );
+
+      expect(
+        response.errorCode,
+        isNull,
+        reason: 'double registration must not break the handler',
+      );
+      expect(response.result, isNotNull);
+    });
 
     // -------------------------------------------------------------------------
     // (d) Extra / ignored params do not break the handler
@@ -190,8 +178,9 @@ void main() {
           parseMessageFromErrorDetail(response.errorDetail ?? ''),
           contains('boom'),
         );
-        final Map<String, dynamic>? envelope =
-            parseEnvelopeFromErrorDetail(response.errorDetail ?? '');
+        final Map<String, dynamic>? envelope = parseEnvelopeFromErrorDetail(
+          response.errorDetail ?? '',
+        );
         expect(envelope, isNotNull);
         expect(envelope!['type'], equals('unexpected'));
       },

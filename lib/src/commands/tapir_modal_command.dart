@@ -16,8 +16,9 @@ class TapirModalCommand extends DowelCommand {
 
   @override
   Future<int> handle(DowelContext ctx) async {
-    final response = await ctx
-        .callExtension<Map<String, dynamic>>('ext.tapir.dismiss_modals');
+    final response = await ctx.callExtension<Map<String, dynamic>>(
+      'ext.tapir.dismiss_modals',
+    );
     reportFrameWarning(ctx, response);
     ctx.output.success('Modals dismissed');
     return 0;

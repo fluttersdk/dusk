@@ -30,13 +30,12 @@ class TapirSetCheckboxCommand extends DowelCommand {
       'ref',
       help: 'Widget ref token from a prior tapir:snap call (e.g. e5).',
     );
-    parser.addOption(
-      'value',
-      help: 'Target checked state: "true" or "false".',
+    parser.addOption('value', help: 'Target checked state: "true" or "false".');
+    parser.addFlag(
+      'includeSnapshot',
+      help: 'Embed the post-toggle snapshot in the response.',
+      defaultsTo: false,
     );
-    parser.addFlag('includeSnapshot',
-        help: 'Embed the post-toggle snapshot in the response.',
-        defaultsTo: false);
   }
 
   @override
@@ -69,8 +68,11 @@ class TapirSetCheckboxCommand extends DowelCommand {
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      emitEnvelope(ctx, response,
-          () => ctx.output.success('Checkbox $ref set to $value'));
+      emitEnvelope(
+        ctx,
+        response,
+        () => ctx.output.success('Checkbox $ref set to $value'),
+      );
     }
     return 0;
   }

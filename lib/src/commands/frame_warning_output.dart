@@ -18,9 +18,9 @@ void reportFrameWarning(DowelContext ctx, Map<String, dynamic>? result) {
   final lifecycle = warnings['lifecycleState'] ?? 'unknown';
   final cause = warnings['platform'] == 'web'
       ? 'A backgrounded browser tab is the usual cause: bring the page to '
-          'front and retry.'
+            'front and retry.'
       : 'The window is hidden, minimised or occluded, or the display is '
-          'asleep: bring the window to front and retry.';
+            'asleep: bring the window to front and retry.';
   ctx.output.error(
     '⚠ The app is not producing frames (lifecycle: $lifecycle), so this '
     'result may be stale. $cause',

@@ -28,20 +28,19 @@ class TapirFindCommand extends DowelCommand {
     );
     parser.addOption(
       'contains',
-      help: 'Match the widget\'s visible text by substring (case-sensitive). '
+      help:
+          'Match the widget\'s visible text by substring (case-sensitive). '
           'Use instead of --text when the visible label is dynamic.',
     );
     parser.addOption(
       'semanticsLabel',
       help: 'Match the widget\'s accessibility label.',
     );
-    parser.addOption(
-      'key',
-      help: 'Match the widget\'s ValueKey identifier.',
-    );
+    parser.addOption('key', help: 'Match the widget\'s ValueKey identifier.');
     parser.addOption(
       'within',
-      help: 'Evaluate the predicates inside one subtree: the e<N> ref of '
+      help:
+          'Evaluate the predicates inside one subtree: the e<N> ref of '
           'the region to search. Reach for it when a label repeats across '
           'the shell, which a sidebar and the page it opens usually do.',
     );

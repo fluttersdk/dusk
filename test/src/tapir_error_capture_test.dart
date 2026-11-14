@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/tapir_error_capture.dart';
@@ -129,8 +129,9 @@ void main() {
           );
         }
 
-        final List<Map<String, dynamic>> all =
-            recentCapturedExceptions(limit: 100);
+        final List<Map<String, dynamic>> all = recentCapturedExceptions(
+          limit: 100,
+        );
         expect(all, hasLength(50));
         // Newest-first: the last recorded error (59) is at the head.
         expect(all.first['message'] as String, contains('error number 59'));

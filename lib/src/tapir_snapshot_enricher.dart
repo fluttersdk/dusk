@@ -21,4 +21,6 @@ import 'ref_registry.dart';
 /// Wind diagnostics flow through `wind_kit_diagnostics_contracts.WindDebugRegistry`
 /// rather than this typedef (see [ext_snapshot.dart]'s wind walk).
 typedef TapirSnapshotEnricher = String? Function(
-    Element element, RefRegistry refs);
+  Element element,
+  RefRegistry refs,
+);

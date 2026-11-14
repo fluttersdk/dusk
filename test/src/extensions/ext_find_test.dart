@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -32,98 +32,86 @@ void main() {
   group('extTapirFindHandler — predicate gating', () {
     setUp(RefRegistry.resetForTesting);
 
-    test(
-      '(a) zero predicates returns extensionError',
-      () async {
-        final response = await extTapirFindHandler(
-          'ext.tapir.find',
-          <String, String>{},
-        );
-        expect(response.result, isNull);
-        expect(
-          parseMessageFromErrorDetail(response.errorDetail ?? ''),
-          contains(
-              'at least one of "text", "contains", "semanticsLabel", or "key"'),
-        );
-      },
-    );
+    test('(a) zero predicates returns extensionError', () async {
+      final response = await extTapirFindHandler(
+        'ext.tapir.find',
+        <String, String>{},
+      );
+      expect(response.result, isNull);
+      expect(
+        parseMessageFromErrorDetail(response.errorDetail ?? ''),
+        contains(
+          'at least one of "text", "contains", "semanticsLabel", or "key"',
+        ),
+      );
+    });
 
-    test(
-      '(a) empty predicate values are treated as missing',
-      () async {
-        final response = await extTapirFindHandler(
-          'ext.tapir.find',
-          <String, String>{'text': '', 'semanticsLabel': ''},
-        );
-        expect(response.result, isNull);
-        expect(
-          response.errorDetail ?? '',
-          contains('at least one of'),
-        );
-      },
-    );
+    test('(a) empty predicate values are treated as missing', () async {
+      final response = await extTapirFindHandler(
+        'ext.tapir.find',
+        <String, String>{'text': '', 'semanticsLabel': ''},
+      );
+      expect(response.result, isNull);
+      expect(response.errorDetail ?? '', contains('at least one of'));
+    });
   });
 
   group('extTapirFindHandler — match shape', () {
     setUp(RefRegistry.resetForTesting);
 
-    testWidgets(
-      '(b) text predicate returns a q-shape ref when match exists',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(b) text predicate returns a q-shape ref when match exists', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Center(child: Text('Submit'))),
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: Text('Submit'))),
+        ),
+      );
+
+      final response = await extTapirFindHandler(
+        'ext.tapir.find',
+        <String, String>{'text': 'Submit'},
+      );
+
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['matched'], isTrue);
+      expect(decoded['ref'], startsWith('q'));
+    });
+
+    testWidgets('(b) contains predicate matches Text.data via substring', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Center(child: Text('You have pushed the button 5 times')),
           ),
-        );
+        ),
+      );
 
-        final response = await extTapirFindHandler(
-          'ext.tapir.find',
-          <String, String>{'text': 'Submit'},
-        );
+      final response = await extTapirFindHandler(
+        'ext.tapir.find',
+        <String, String>{'contains': 'pushed the button'},
+      );
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['matched'], isTrue);
-        expect(decoded['ref'], startsWith('q'));
-      },
-    );
-
-    testWidgets(
-      '(b) contains predicate matches Text.data via substring',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: Text('You have pushed the button 5 times'),
-              ),
-            ),
-          ),
-        );
-
-        final response = await extTapirFindHandler(
-          'ext.tapir.find',
-          <String, String>{'contains': 'pushed the button'},
-        );
-
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['matched'], isTrue);
-        expect(decoded['ref'], startsWith('q'));
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['matched'], isTrue);
+      expect(decoded['ref'], startsWith('q'));
+    });
 
     testWidgets(
       '(b) contains predicate matches SemanticsNode.label via substring',
@@ -242,101 +230,97 @@ void main() {
       },
     );
 
-    testWidgets(
-      '(b) key predicate resolves a ValueKey via toString match',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(
-              body: SizedBox(
-                key: ValueKey<String>('monitor-row-7'),
-                width: 200,
-                height: 50,
-              ),
+    testWidgets('(b) key predicate resolves a ValueKey via toString match', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              key: ValueKey<String>('monitor-row-7'),
+              width: 200,
+              height: 50,
             ),
           ),
-        );
+        ),
+      );
 
-        final response = await extTapirFindHandler(
-          'ext.tapir.find',
-          <String, String>{'key': 'monitor-row-7'},
-        );
+      final response = await extTapirFindHandler(
+        'ext.tapir.find',
+        <String, String>{'key': 'monitor-row-7'},
+      );
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['matched'], isTrue);
-        expect(decoded['ref'], startsWith('q'));
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['matched'], isTrue);
+      expect(decoded['ref'], startsWith('q'));
+    });
   });
 
   group('q-ref action re-resolution', () {
     setUp(RefRegistry.resetForTesting);
 
-    testWidgets(
-      '(c) q-ref tap re-resolves the query at action time',
-      (WidgetTester tester) async {
-        tester.view.physicalSize = const Size(800, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(c) q-ref tap re-resolves the query at action time', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        int taps = 0;
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: GestureDetector(
-                  onTap: () => taps += 1,
-                  child: Semantics(
-                    label: 'tap-target',
-                    button: true,
-                    container: true,
-                    child: Container(
-                      width: 100,
-                      height: 100,
-                      color: const Color(0xFF000000),
-                    ),
+      int taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: GestureDetector(
+                onTap: () => taps += 1,
+                child: Semantics(
+                  label: 'tap-target',
+                  button: true,
+                  container: true,
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    color: const Color(0xFF000000),
                   ),
                 ),
               ),
             ),
           ),
-        );
-        await tester.pump();
+        ),
+      );
+      await tester.pump();
 
-        final findResponse = await extTapirFindHandler(
-          'ext.tapir.find',
-          <String, String>{'semanticsLabel': 'tap-target'},
-        );
-        final String qRef = (jsonDecode(findResponse.result!)
-            as Map<String, dynamic>)['ref'] as String;
-        expect(qRef, startsWith('q'));
+      final findResponse = await extTapirFindHandler(
+        'ext.tapir.find',
+        <String, String>{'semanticsLabel': 'tap-target'},
+      );
+      final String qRef =
+          (jsonDecode(findResponse.result!) as Map<String, dynamic>)['ref']
+              as String;
+      expect(qRef, startsWith('q'));
 
-        // Opt out of the Step 3.1 stable + receives-events gates: the
-        // q-ref rect is freshly resolved from the live semantics so
-        // stable would normally pass, but the test scheduler does not
-        // settle the gate's extra `await endOfFrame` deterministically.
-        // Production callers leave the defaults.
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': qRef,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      // Opt out of the Step 3.1 stable + receives-events gates: the
+      // q-ref rect is freshly resolved from the live semantics so
+      // stable would normally pass, but the test scheduler does not
+      // settle the gate's extra `await endOfFrame` deterministically.
+      // Production callers leave the defaults.
+      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': qRef,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.errorDetail, isNull);
-        expect(response.result, isNotNull);
-        expect(taps, equals(1));
-      },
-    );
+      expect(response.errorDetail, isNull);
+      expect(response.result, isNotNull);
+      expect(taps, equals(1));
+    });
 
     testWidgets(
       '(c) q-ref tap dispatches at the target, not the viewport center '
@@ -383,8 +367,9 @@ void main() {
           'ext.tapir.find',
           <String, String>{'semanticsLabel': 'corner-target'},
         );
-        final String qRef = (jsonDecode(findResponse.result!)
-            as Map<String, dynamic>)['ref'] as String;
+        final String qRef =
+            (jsonDecode(findResponse.result!) as Map<String, dynamic>)['ref']
+                as String;
         expect(qRef, startsWith('q'));
 
         // The entry anchors on the owning element, so the live dispatch rect
@@ -395,14 +380,11 @@ void main() {
         expect(dispatchRect.center.dx, lessThan(200));
         expect(dispatchRect.center.dy, lessThan(120));
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': qRef,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
+        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+          'ref': qRef,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+        });
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
         await tester.pump();
@@ -413,50 +395,49 @@ void main() {
       },
     );
 
-    testWidgets(
-      '(c) q-ref tap fires onTap for an excludeSemantics button '
-      '(WAnchor semanticLabel / WSwitch pattern)',
-      (WidgetTester tester) async {
-        // DPR=2 mirrors the live web run (retina); logical stays 800x600.
-        tester.view.physicalSize = const Size(1600, 1200);
-        tester.view.devicePixelRatio = 2.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('(c) q-ref tap fires onTap for an excludeSemantics button '
+        '(WAnchor semanticLabel / WSwitch pattern)', (
+      WidgetTester tester,
+    ) async {
+      // DPR=2 mirrors the live web run (retina); logical stays 800x600.
+      tester.view.physicalSize = const Size(1600, 1200);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        // Mirrors WAnchor's `semanticLabel != null` branch (used by WSwitch and
-        // icon-only buttons): a Semantics(button, onTap, excludeSemantics: true)
-        // wrapping the real gesture. The exclusion drops the descendant
-        // GestureDetector's node from the semantics tree, so the ONLY semantics
-        // node is this annotation node. A q-ref must still resolve to the
-        // owning element (not fall back to the root) and its pointer tap must
-        // reach the underlying GestureDetector. This reproduces the live bug
-        // where MSSwitch toggles (notification prefs, status-page monitor
-        // assignment) ignored tapir taps.
-        int taps = 0;
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Align(
-                alignment: Alignment.topLeft,
-                child: Semantics(
-                  // Outer boundary the real WSwitch wraps around WAnchor:
-                  // Semantics(container, toggled) -> MergeSemantics -> WAnchor's
-                  // Semantics(button, onTap, excludeSemantics: true). This is the
-                  // full live structure the earlier bare reproduction omitted.
-                  container: true,
-                  toggled: false,
-                  child: MergeSemantics(
-                    child: Semantics(
-                      button: true,
-                      label: 'toggle-x',
-                      onTap: () => taps += 1,
-                      excludeSemantics: true,
-                      child: MouseRegion(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onTap: () => taps += 1,
-                          child: const SizedBox(width: 80, height: 40),
-                        ),
+      // Mirrors WAnchor's `semanticLabel != null` branch (used by WSwitch and
+      // icon-only buttons): a Semantics(button, onTap, excludeSemantics: true)
+      // wrapping the real gesture. The exclusion drops the descendant
+      // GestureDetector's node from the semantics tree, so the ONLY semantics
+      // node is this annotation node. A q-ref must still resolve to the
+      // owning element (not fall back to the root) and its pointer tap must
+      // reach the underlying GestureDetector. This reproduces the live bug
+      // where MSSwitch toggles (notification prefs, status-page monitor
+      // assignment) ignored tapir taps.
+      int taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: Semantics(
+                // Outer boundary the real WSwitch wraps around WAnchor:
+                // Semantics(container, toggled) -> MergeSemantics -> WAnchor's
+                // Semantics(button, onTap, excludeSemantics: true). This is the
+                // full live structure the earlier bare reproduction omitted.
+                container: true,
+                toggled: false,
+                child: MergeSemantics(
+                  child: Semantics(
+                    button: true,
+                    label: 'toggle-x',
+                    onTap: () => taps += 1,
+                    excludeSemantics: true,
+                    child: MouseRegion(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () => taps += 1,
+                        child: const SizedBox(width: 80, height: 40),
                       ),
                     ),
                   ),
@@ -464,42 +445,40 @@ void main() {
               ),
             ),
           ),
-        );
-        await tester.pump();
+        ),
+      );
+      await tester.pump();
 
-        final findResponse = await extTapirFindHandler(
-          'ext.tapir.find',
-          <String, String>{'semanticsLabel': 'toggle-x'},
-        );
-        final String qRef = (jsonDecode(findResponse.result!)
-            as Map<String, dynamic>)['ref'] as String;
-        expect(qRef, startsWith('q'));
+      final findResponse = await extTapirFindHandler(
+        'ext.tapir.find',
+        <String, String>{'semanticsLabel': 'toggle-x'},
+      );
+      final String qRef =
+          (jsonDecode(findResponse.result!) as Map<String, dynamic>)['ref']
+              as String;
+      expect(qRef, startsWith('q'));
 
-        // The entry must anchor on the switch box (top-left), NOT the viewport:
-        // a root fallback here is exactly what made the live MSSwitch taps miss.
-        final RefEntry? entry = resolveRefForAction(qRef);
-        expect(entry, isNotNull);
-        final Rect dispatchRect = dispatchRectOf(entry!)!;
-        expect(dispatchRect.center.dx, lessThan(200));
-        expect(dispatchRect.center.dy, lessThan(120));
+      // The entry must anchor on the switch box (top-left), NOT the viewport:
+      // a root fallback here is exactly what made the live MSSwitch taps miss.
+      final RefEntry? entry = resolveRefForAction(qRef);
+      expect(entry, isNotNull);
+      final Rect dispatchRect = dispatchRectOf(entry!)!;
+      expect(dispatchRect.center.dx, lessThan(200));
+      expect(dispatchRect.center.dy, lessThan(120));
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': qRef,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.pump();
-        await tester.pump();
-        final response = await future;
+      final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+        'ref': qRef,
+        'checkStable': 'false',
+        'checkReceivesEvents': 'false',
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump();
+      final response = await future;
 
-        expect(response.errorDetail, isNull);
-        expect(taps, greaterThan(0));
-      },
-    );
+      expect(response.errorDetail, isNull);
+      expect(taps, greaterThan(0));
+    });
 
     testWidgets(
       '(c) find prefers the interactive node when a label collides with text',
@@ -549,14 +528,11 @@ void main() {
         // Both the Text and the button carry the label.
         expect(decoded['matchCount'], 2);
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': qRef,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
+        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+          'ref': qRef,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+        });
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
         await tester.pump();
@@ -612,14 +588,11 @@ void main() {
         // Both the Text and the tappable row carry the label.
         expect(decoded['matchCount'], 2);
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': qRef,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
+        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+          'ref': qRef,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+        });
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
         await tester.pump();
@@ -666,8 +639,9 @@ void main() {
           'ext.tapir.find',
           <String, String>{'semanticsLabel': 'persistent-target'},
         );
-        final String qRef = (jsonDecode(findResponse.result!)
-            as Map<String, dynamic>)['ref'] as String;
+        final String qRef =
+            (jsonDecode(findResponse.result!) as Map<String, dynamic>)['ref']
+                as String;
 
         // Rebuild the entire tree — the original SemanticsNode id changes
         // but the label stays put. An e-ref would now be stale; q-ref
@@ -696,14 +670,11 @@ void main() {
         );
         await tester.pump();
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': qRef,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
+        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+          'ref': qRef,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+        });
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
         await tester.pump();
@@ -741,8 +712,9 @@ void main() {
           'ext.tapir.find',
           <String, String>{'semanticsLabel': 'will-vanish'},
         );
-        final String qRef = (jsonDecode(findResponse.result!)
-            as Map<String, dynamic>)['ref'] as String;
+        final String qRef =
+            (jsonDecode(findResponse.result!) as Map<String, dynamic>)['ref']
+                as String;
 
         // Replace the entire tree with something the predicate does not
         // match. The stored TapirQuery now resolves to zero live nodes.
@@ -798,14 +770,11 @@ void main() {
         );
         expect(eRef, startsWith('e'));
 
-        final future = aiTestTapHandler(
-          'ext.tapir.tap',
-          <String, String>{
-            'ref': eRef,
-            'checkStable': 'false',
-            'checkReceivesEvents': 'false',
-          },
-        );
+        final future = aiTestTapHandler('ext.tapir.tap', <String, String>{
+          'ref': eRef,
+          'checkStable': 'false',
+          'checkReceivesEvents': 'false',
+        });
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();
         await tester.pump();
@@ -970,9 +939,7 @@ void main() {
           for (int index = 0; index < 3; index++)
             resolveQuery(
               TapirQuery(semanticsLabel: 'Favourite', matchIndex: index),
-            )!
-                .rect
-                .top,
+            )!.rect.top,
         ];
 
         expect(tops, <double>[0, 40, 80]);
@@ -1030,9 +997,7 @@ void main() {
         // label walk has to stop rather than be handed a widget that merely
         // reads alike.
         await tester.pumpWidget(
-          const MaterialApp(
-            home: Scaffold(body: Text('Favourite')),
-          ),
+          const MaterialApp(home: Scaffold(body: Text('Favourite'))),
         );
         await tester.pumpAndSettle();
 
@@ -1064,10 +1029,7 @@ void main() {
       expect(second, equals('q2'));
 
       expect(RefRegistry.lookupQuery(first)?.text, equals('Submit'));
-      expect(
-        RefRegistry.lookupQuery(second)?.semanticsLabel,
-        equals('Cancel'),
-      );
+      expect(RefRegistry.lookupQuery(second)?.semanticsLabel, equals('Cancel'));
 
       // e-shape lookup never hits the queries map.
       expect(RefRegistry.lookupQuery('e1'), isNull);
@@ -1080,8 +1042,9 @@ void main() {
       RefRegistry.resetForTesting();
       expect(RefRegistry.lookupQuery('q1'), isNull);
       // Counter resets — next mint is q1 again.
-      final String next =
-          RefRegistry.registerQuery(const TapirQuery(text: 'b'));
+      final String next = RefRegistry.registerQuery(
+        const TapirQuery(text: 'b'),
+      );
       expect(next, equals('q1'));
     });
   });
@@ -1093,39 +1056,34 @@ void main() {
     // structures), so the fallback is unreachable via the public handler. Its
     // transform-composition + DPR-correction math is verified directly here.
 
-    testWidgets(
-      'composes the node transform and divides the rect by the DPR',
-      (WidgetTester tester) async {
-        tester.view.devicePixelRatio = 2.0;
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('composes the node transform and divides the rect by the DPR', (
+      WidgetTester tester,
+    ) async {
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        final SemanticsNode node = SemanticsNode()
-          ..rect = const Rect.fromLTWH(0, 0, 200, 100)
-          ..transform = Matrix4.identity();
+      final SemanticsNode node = SemanticsNode()
+        ..rect = const Rect.fromLTWH(0, 0, 200, 100)
+        ..transform = Matrix4.identity();
 
-        // Semantics rects fold in the DPR (physical px); the fallback divides
-        // it back to the logical space tapir dispatches pointers in.
-        expect(
-          globalRectFromSemantics(node),
-          const Rect.fromLTWH(0, 0, 100, 50),
-        );
-      },
-    );
+      // Semantics rects fold in the DPR (physical px); the fallback divides
+      // it back to the logical space tapir dispatches pointers in.
+      expect(globalRectFromSemantics(node), const Rect.fromLTWH(0, 0, 100, 50));
+    });
 
-    testWidgets(
-      'leaves the rect untouched at DPR 1 and with no transform',
-      (WidgetTester tester) async {
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('leaves the rect untouched at DPR 1 and with no transform', (
+      WidgetTester tester,
+    ) async {
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        final SemanticsNode node = SemanticsNode()
-          ..rect = const Rect.fromLTWH(10, 20, 60, 40);
+      final SemanticsNode node = SemanticsNode()
+        ..rect = const Rect.fromLTWH(10, 20, 60, 40);
 
-        expect(
-          globalRectFromSemantics(node),
-          const Rect.fromLTWH(10, 20, 60, 40),
-        );
-      },
-    );
+      expect(
+        globalRectFromSemantics(node),
+        const Rect.fromLTWH(10, 20, 60, 40),
+      );
+    });
   });
 }

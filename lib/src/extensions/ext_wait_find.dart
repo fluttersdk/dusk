@@ -9,6 +9,7 @@ import '../ref_registry.dart';
 import '../utils/tapir_register.dart';
 import '../utils/tapir_response.dart';
 import '../utils/error_envelope.dart';
+
 import 'package:dowel/dowel.dart';
 
 // ---------------------------------------------------------------------------
@@ -32,14 +33,8 @@ import 'package:dowel/dowel.dart';
 /// (`extensions.dart#registerAllAiTestExtensions`).
 void registerWaitFindExtensions() {
   registerTapirExtension('ext.tapir.wait_for', aiTestWaitForHandler);
-  registerTapirExtension(
-    'ext.tapir.find_by_text',
-    aiTestFindByTextHandler,
-  );
-  registerTapirExtension(
-    'ext.tapir.find_by_label',
-    aiTestFindByLabelHandler,
-  );
+  registerTapirExtension('ext.tapir.find_by_text', aiTestFindByTextHandler);
+  registerTapirExtension('ext.tapir.find_by_label', aiTestFindByLabelHandler);
   registerTapirExtension(
     'ext.tapir.wait_for_network_idle',
     aiTestWaitForNetworkIdleHandler,
@@ -340,10 +335,7 @@ Future<Map<String, dynamic>> findByTextWaitLoop({
     //    frames. No endOfFrame await needed: we are reading, not writing.
     final bool found = _elementTreeContainsText(text, exact: true);
     if (found) {
-      return <String, dynamic>{
-        'matched': true,
-        'elapsedMs': elapsedMs,
-      };
+      return <String, dynamic>{'matched': true, 'elapsedMs': elapsedMs};
     }
 
     // 2. Yield to the event loop for one poll interval. Real timers advance
@@ -354,10 +346,7 @@ Future<Map<String, dynamic>> findByTextWaitLoop({
     elapsedMs += pollIntervalMs;
   }
 
-  return <String, dynamic>{
-    'matched': false,
-    'reason': 'timeout',
-  };
+  return <String, dynamic>{'matched': false, 'reason': 'timeout'};
 }
 
 /// Polls the element tree until a [Text] widget with [text] as its data is
@@ -386,10 +375,7 @@ Future<Map<String, dynamic>> findByTextGoneWaitLoop({
     // 1. Walk the element tree synchronously — read-only, no endOfFrame needed.
     final bool stillPresent = _elementTreeContainsText(text, exact: true);
     if (!stillPresent) {
-      return <String, dynamic>{
-        'matched': true,
-        'elapsedMs': elapsedMs,
-      };
+      return <String, dynamic>{'matched': true, 'elapsedMs': elapsedMs};
     }
 
     // 2. Yield for one poll interval so external state changes can propagate.
@@ -397,10 +383,7 @@ Future<Map<String, dynamic>> findByTextGoneWaitLoop({
     elapsedMs += pollIntervalMs;
   }
 
-  return <String, dynamic>{
-    'matched': false,
-    'reason': 'timeout',
-  };
+  return <String, dynamic>{'matched': false, 'reason': 'timeout'};
 }
 
 /// Walks the live element tree and registers a fresh [RefRegistry] entry for
@@ -479,7 +462,8 @@ List<String> findByLabelInSemantics({
     // 1. Check label match — node.label is the merged accessibility label.
     if (node.label == label) {
       // 2. Check optional role flag via SemanticsFlags named getters (Flutter 3.41+).
-      final bool roleMatches = roleFlag == null ||
+      final bool roleMatches =
+          roleFlag == null ||
           _semanticsFlagsHasRole(
             node.getSemanticsData().flagsCollection,
             roleFlag,
@@ -646,7 +630,8 @@ Future<developer.ServiceExtensionResponse> aiTestWaitForNetworkIdleHandler(
         _parseInt(params['timeoutMs']) ?? _kNetworkIdleDefaultTimeoutMs;
     final int idleMs =
         _parseInt(params['idleMs']) ?? _kNetworkIdleDefaultIdleMs;
-    final int pollIntervalMs = _parseInt(params['pollIntervalMs']) ??
+    final int pollIntervalMs =
+        _parseInt(params['pollIntervalMs']) ??
         _kNetworkIdleDefaultPollIntervalMs;
 
     final Map<String, dynamic> result = await networkIdleWaitLoop(

@@ -36,22 +36,28 @@ void main() {
   });
 
   group('perfAbsolutePath() and perfShownPath()', () {
-    test('resolve against the working directory and show relative to a file',
-        () {
-      final String sep = Platform.pathSeparator;
-      final String absolute = perfAbsolutePath('a$sep..${sep}b.yaml');
+    test(
+      'resolve against the working directory and show relative to a file',
+      () {
+        final String sep = Platform.pathSeparator;
+        final String absolute = perfAbsolutePath('a$sep..${sep}b.yaml');
 
-      expect(absolute, '${Directory.current.absolute.path}${sep}b.yaml');
-      expect(
-        perfShownPath('${sep}perf${sep}f${sep}login.yaml',
-            file: '${sep}perf${sep}campaign.yaml'),
-        'f${sep}login.yaml',
-      );
-      expect(
-        perfShownPath('${sep}elsewhere${sep}x.yaml',
-            file: '${sep}perf${sep}campaign.yaml'),
-        '${sep}elsewhere${sep}x.yaml',
-      );
-    });
+        expect(absolute, '${Directory.current.absolute.path}${sep}b.yaml');
+        expect(
+          perfShownPath(
+            '${sep}perf${sep}f${sep}login.yaml',
+            file: '${sep}perf${sep}campaign.yaml',
+          ),
+          'f${sep}login.yaml',
+        );
+        expect(
+          perfShownPath(
+            '${sep}elsewhere${sep}x.yaml',
+            file: '${sep}perf${sep}campaign.yaml',
+          ),
+          '${sep}elsewhere${sep}x.yaml',
+        );
+      },
+    );
   });
 }

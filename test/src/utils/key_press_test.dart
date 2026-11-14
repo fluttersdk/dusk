@@ -9,8 +9,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('deliverKeyPress', () {
-    test(
-        'throws a StateError naming the key when the binding has no key data '
+    test('throws a StateError naming the key when the binding has no key data '
         'handler', () {
       final dispatcher = TestWidgetsFlutterBinding.instance.platformDispatcher;
       final saved = dispatcher.onKeyData;
@@ -57,8 +56,7 @@ void main() {
       expect(heard.last.character, isNull);
     });
 
-    test(
-        'holds the modifiers while the key is delivered and releases them '
+    test('holds the modifiers while the key is delivered and releases them '
         'afterwards, in reverse', () {
       final List<(Type, LogicalKeyboardKey)> heard =
           <(Type, LogicalKeyboardKey)>[];
@@ -81,10 +79,7 @@ void main() {
       deliverKeyPress(
         logical: LogicalKeyboardKey.keyG,
         physical: PhysicalKeyboardKey.keyG,
-        modifiers: <KeyModifier>[
-          KeyModifier.control,
-          KeyModifier.shift,
-        ],
+        modifiers: <KeyModifier>[KeyModifier.control, KeyModifier.shift],
       );
 
       expect(shiftHeldOnKey, isTrue);
@@ -118,9 +113,7 @@ void main() {
         () => deliverKeyPress(
           logical: LogicalKeyboardKey.keyG,
           physical: PhysicalKeyboardKey.keyG,
-          modifiers: <KeyModifier>[
-            KeyModifier.shift,
-          ],
+          modifiers: <KeyModifier>[KeyModifier.shift],
         ),
         throwsStateError,
       );

@@ -34,12 +34,14 @@ class TapirObserveCommand extends DowelCommand {
   void configure(ArgParser parser) {
     parser.addOption(
       'intent',
-      help: 'Free-form caller hint describing what the agent is looking for '
+      help:
+          'Free-form caller hint describing what the agent is looking for '
           '(echoed back; not used server-side).',
     );
     parser.addOption(
       'roles',
-      help: 'Comma-separated role filter (e.g. button,textbox). Omit for '
+      help:
+          'Comma-separated role filter (e.g. button,textbox). Omit for '
           'every role.',
     );
     parser.addOption(
@@ -49,7 +51,8 @@ class TapirObserveCommand extends DowelCommand {
     );
     parser.addOption(
       'includeEnrichers',
-      help: 'One of true (default — subset), false (none), full (every '
+      help:
+          'One of true (default — subset), false (none), full (every '
           'enricher field).',
       defaultsTo: 'true',
     );

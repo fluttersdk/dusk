@@ -45,11 +45,13 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await _setLifecycle(tester, AppLifecycleState.resumed);
 
-      final developer.ServiceExtensionResponse? response =
-          await tester.runAsync(
-        () =>
-            wrapTapirHandler(_okHandler)('ext.tapir.test', <String, String>{}),
-      );
+      final developer.ServiceExtensionResponse? response = await tester
+          .runAsync(
+            () => wrapTapirHandler(_okHandler)(
+              'ext.tapir.test',
+              <String, String>{},
+            ),
+          );
 
       expect(_decode(response), equals(<String, dynamic>{'ok': true}));
     });
@@ -70,8 +72,9 @@ void main() {
         return tapirResult(<String, dynamic>{'ok': true});
       }
 
-      final Future<developer.ServiceExtensionResponse> call =
-          wrapTapirHandler(probe)('ext.tapir.test', <String, String>{});
+      final Future<developer.ServiceExtensionResponse> call = wrapTapirHandler(
+        probe,
+      )('ext.tapir.test', <String, String>{});
       await tester.pump();
       final developer.ServiceExtensionResponse response = await call;
 
@@ -91,11 +94,13 @@ void main() {
 
       // Real time and no pump: no frame follows the wake, the way a hidden
       // browser tab withholds requestAnimationFrame.
-      final developer.ServiceExtensionResponse? response =
-          await tester.runAsync(
-        () =>
-            wrapTapirHandler(_okHandler)('ext.tapir.test', <String, String>{}),
-      );
+      final developer.ServiceExtensionResponse? response = await tester
+          .runAsync(
+            () => wrapTapirHandler(_okHandler)(
+              'ext.tapir.test',
+              <String, String>{},
+            ),
+          );
 
       final Map<String, dynamic> decoded = _decode(response);
       expect(decoded.containsKey('framesForced'), isFalse);
@@ -109,13 +114,13 @@ void main() {
       _restoreFrames(tester);
       await _setLifecycle(tester, AppLifecycleState.hidden);
 
-      final developer.ServiceExtensionResponse? response =
-          await tester.runAsync(
-        () => wrapTapirHandler(
-          _okHandler,
-          ensureFrames: false,
-        )('ext.tapir.test', <String, String>{}),
-      );
+      final developer.ServiceExtensionResponse? response = await tester
+          .runAsync(
+            () => wrapTapirHandler(_okHandler, ensureFrames: false)(
+              'ext.tapir.test',
+              <String, String>{},
+            ),
+          );
 
       final Map<String, dynamic> decoded = _decode(response);
       expect(SchedulerBinding.instance.framesEnabled, isFalse);
@@ -187,19 +192,15 @@ void main() {
         return tapirResult(<String, dynamic>{'ok': true});
       }
 
-      final developer.ServiceExtensionResponse? response =
-          await tester.runAsync(
-        () =>
-            wrapTapirHandler(relocating)('ext.tapir.test', <String, String>{}),
-      );
+      final developer.ServiceExtensionResponse? response = await tester
+          .runAsync(
+            () => wrapTapirHandler(relocating)(
+              'ext.tapir.test',
+              <String, String>{},
+            ),
+          );
 
-      expect(
-        _decode(response)['reresolved'],
-        equals(<String>[
-          'e3',
-          'e7',
-        ]),
-      );
+      expect(_decode(response)['reresolved'], equals(<String>['e3', 'e7']));
     });
 
     testWidgets('does not leak into a call that re-resolved nothing', (
@@ -237,10 +238,8 @@ void main() {
 
   group('registerTapirExtension', () {
     test('registers the same method twice without throwing', () {
-      void register() => registerTapirExtension(
-            'ext.tapir.register_test',
-            _okHandler,
-          );
+      void register() =>
+          registerTapirExtension('ext.tapir.register_test', _okHandler);
 
       register();
       expect(register, returnsNormally);

@@ -77,7 +77,7 @@ Map<String, dynamic> textEffect({
     'kind': 'text',
     'verified': actual == expected,
     'value': actual,
-    if (target != null) 'target': target,
+    'target': ?target,
   };
 }
 
@@ -90,10 +90,7 @@ Map<String, dynamic> treeChangedEffect({
   required String before,
   required String after,
 }) {
-  return <String, dynamic>{
-    'kind': 'treeChanged',
-    'changed': before != after,
-  };
+  return <String, dynamic>{'kind': 'treeChanged', 'changed': before != after};
 }
 
 /// Effect of a scroll: the scrollable's pixel offset on both sides of it.

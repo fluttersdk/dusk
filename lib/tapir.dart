@@ -1,17 +1,15 @@
 /// tapir — E2E driver for Flutter apps (LLM agent + integration test surfaces).
 ///
 /// Public API:
-/// - [TapirPlugin]: host-side install entry. Idempotent. Wraps the app's
-///   widget root in a RepaintBoundary (no GlobalKey) so the screenshot
-///   extension can find it via render-tree walk.
+/// - [TapirPlugin]: host-side install entry. Idempotent.
 /// - [RefRegistry]: `e<N>` token system for stable element handles across
 ///   snapshot/action tool calls.
 /// - [TapirSnapshotEnricher]: typedef for the snapshot-enricher extension
 ///   point (Magic ships MagicFormEnricher via this). Wind diagnostics
 ///   flow through `wind_kit_diagnostics_contracts.WindDebugRegistry` instead
 ///   (registered by `Wind.installDebugResolver()`).
-/// - [TapirDowelProvider]: registers 42 tapir:* commands + 40 MCP tool
-///   descriptors into dowel.
+/// - [TapirDowelProvider]: registers the tapir:* commands and the MCP
+///   tool descriptors into dowel.
 /// - [buildPerfReport]: the pure builder behind `ext.tapir.perf_end`, callable
 ///   from a host's conformance test with the same maps the extension reads.
 /// - [PerfInteraction], [activeInteraction] and [perfInteractionAt]: the

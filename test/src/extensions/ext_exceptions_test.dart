@@ -9,8 +9,7 @@ import 'package:tapir/src/extensions/ext_exceptions.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('ext_exceptions — recentExceptionsReader function-pointer indirection',
-      () {
+  group('ext_exceptions — recentExceptionsReader function-pointer indirection', () {
     setUp(() {
       // 1. Reset the reader to the default (empty list) before each test.
       recentExceptionsReader = ({int limit = 20}) => const [];
@@ -20,44 +19,37 @@ void main() {
     // (a) Default reader returns empty list — missing-crumbs graceful path.
     // -------------------------------------------------------------------------
 
-    test(
-      '(a) default reader returns empty list and count 0',
-      () async {
-        final response = await aiTestExceptionsHandler(
-          'ext.tapir.exceptions',
-          <String, String>{},
-        );
+    test('(a) default reader returns empty list and count 0', () async {
+      final response = await aiTestExceptionsHandler(
+        'ext.tapir.exceptions',
+        <String, String>{},
+      );
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['exceptions'], isA<List>());
-        expect((decoded['exceptions'] as List).isEmpty, isTrue);
-        expect(decoded['count'], equals(0));
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['exceptions'], isA<List>());
+      expect((decoded['exceptions'] as List).isEmpty, isTrue);
+      expect(decoded['count'], equals(0));
+    });
 
     // -------------------------------------------------------------------------
     // (b) Custom limit param forwarded to the reader.
     // -------------------------------------------------------------------------
 
-    test(
-      '(b) custom limit param forwarded to reader',
-      () async {
-        int? capturedLimit;
-        recentExceptionsReader = ({int limit = 20}) {
-          capturedLimit = limit;
-          return const [];
-        };
+    test('(b) custom limit param forwarded to reader', () async {
+      int? capturedLimit;
+      recentExceptionsReader = ({int limit = 20}) {
+        capturedLimit = limit;
+        return const [];
+      };
 
-        await aiTestExceptionsHandler(
-          'ext.tapir.exceptions',
-          <String, String>{'limit': '5'},
-        );
+      await aiTestExceptionsHandler('ext.tapir.exceptions', <String, String>{
+        'limit': '5',
+      });
 
-        expect(capturedLimit, equals(5));
-      },
-    );
+      expect(capturedLimit, equals(5));
+    });
 
     // -------------------------------------------------------------------------
     // (c) Missing-crumbs graceful — null reader pointer stays as default.
@@ -87,13 +79,13 @@ void main() {
       '(d) reader returning exceptions: response carries correct shape',
       () async {
         recentExceptionsReader = ({int limit = 20}) => [
-              {
-                'type': 'ArgumentError',
-                'message': 'bad arg',
-                'stackHead': 'at foo()\nat bar()\nat baz()',
-                'time': '2024-01-01T00:00:00.000Z',
-              },
-            ];
+          {
+            'type': 'ArgumentError',
+            'message': 'bad arg',
+            'stackHead': 'at foo()\nat bar()\nat baz()',
+            'time': '2024-01-01T00:00:00.000Z',
+          },
+        ];
 
         final response = await aiTestExceptionsHandler(
           'ext.tapir.exceptions',
@@ -170,145 +162,135 @@ void main() {
     // (f) Both sources populated — merged set is returned, largest count wins.
     // -------------------------------------------------------------------------
 
-    test(
-      '(f) both sources populated: merged union is returned',
-      () async {
-        // Crumbs reader returns one entry.
-        recentExceptionsReader = ({int limit = 20}) => [
-              {
-                'type': 'ArgumentError',
-                'message': 'crumbs error',
-                'stackHead': 'at x()',
-                'library': null,
-                'fatal': false,
-                'time': '2024-01-01T00:00:00.000Z',
-              },
-            ];
+    test('(f) both sources populated: merged union is returned', () async {
+      // Crumbs reader returns one entry.
+      recentExceptionsReader = ({int limit = 20}) => [
+        {
+          'type': 'ArgumentError',
+          'message': 'crumbs error',
+          'stackHead': 'at x()',
+          'library': null,
+          'fatal': false,
+          'time': '2024-01-01T00:00:00.000Z',
+        },
+      ];
 
-        // In-package buffer has a different entry.
-        installErrorCapture();
-        FlutterError.reportError(
-          FlutterErrorDetails(
-            exception: StateError('captured error'),
-            stack: StackTrace.fromString('at a()\nat b()\nat c()'),
-            library: 'test library',
-          ),
-        );
+      // In-package buffer has a different entry.
+      installErrorCapture();
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: StateError('captured error'),
+          stack: StackTrace.fromString('at a()\nat b()\nat c()'),
+          library: 'test library',
+        ),
+      );
 
-        final response = await aiTestExceptionsHandler(
-          'ext.tapir.exceptions',
-          <String, String>{},
-        );
+      final response = await aiTestExceptionsHandler(
+        'ext.tapir.exceptions',
+        <String, String>{},
+      );
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        final List<dynamic> exceptions = decoded['exceptions'] as List<dynamic>;
-        expect(decoded['count'], equals(2));
-        final List<String> messages = exceptions
-            .map(
-                (dynamic e) => (e as Map<String, dynamic>)['message'] as String)
-            .toList();
-        expect(messages, contains('crumbs error'));
-        expect(
-            messages.any((String m) => m.contains('captured error')), isTrue);
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      final List<dynamic> exceptions = decoded['exceptions'] as List<dynamic>;
+      expect(decoded['count'], equals(2));
+      final List<String> messages = exceptions
+          .map((dynamic e) => (e as Map<String, dynamic>)['message'] as String)
+          .toList();
+      expect(messages, contains('crumbs error'));
+      expect(messages.any((String m) => m.contains('captured error')), isTrue);
+    });
 
     // -------------------------------------------------------------------------
     // (g) Duplicate entry (same type, message, stackHead) deduped to one.
     // -------------------------------------------------------------------------
 
-    test(
-      '(g) duplicate entry in both sources is deduped to one',
-      () async {
-        // 1. Populate the in-package buffer with a known error.
-        installErrorCapture();
-        FlutterError.reportError(
-          FlutterErrorDetails(
-            exception: ArgumentError('duplicate msg'),
-            stack: StackTrace.fromString('at foo()'),
-            library: 'test library',
-          ),
-        );
+    test('(g) duplicate entry in both sources is deduped to one', () async {
+      // 1. Populate the in-package buffer with a known error.
+      installErrorCapture();
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: ArgumentError('duplicate msg'),
+          stack: StackTrace.fromString('at foo()'),
+          library: 'test library',
+        ),
+      );
 
-        // 2. Read back exactly what the buffer captured so the crumbs entry
-        //    can be constructed with identical (type, message, stackHead).
-        final List<Map<String, dynamic>> buffered =
-            recentCapturedExceptions(limit: 1);
-        expect(buffered, hasLength(1));
-        final Map<String, dynamic> captured = buffered.first;
+      // 2. Read back exactly what the buffer captured so the crumbs entry
+      //    can be constructed with identical (type, message, stackHead).
+      final List<Map<String, dynamic>> buffered = recentCapturedExceptions(
+        limit: 1,
+      );
+      expect(buffered, hasLength(1));
+      final Map<String, dynamic> captured = buffered.first;
 
-        // 3. Wire the crumbs reader to return the same entry shape.
-        recentExceptionsReader = ({int limit = 20}) => [
-              {
-                'type': captured['type'],
-                'message': captured['message'],
-                'stackHead': captured['stackHead'],
-                'library': captured['library'],
-                'fatal': captured['fatal'],
-                'time': '2024-01-01T00:00:00.000Z',
-              },
-            ];
+      // 3. Wire the crumbs reader to return the same entry shape.
+      recentExceptionsReader = ({int limit = 20}) => [
+        {
+          'type': captured['type'],
+          'message': captured['message'],
+          'stackHead': captured['stackHead'],
+          'library': captured['library'],
+          'fatal': captured['fatal'],
+          'time': '2024-01-01T00:00:00.000Z',
+        },
+      ];
 
-        final response = await aiTestExceptionsHandler(
-          'ext.tapir.exceptions',
-          <String, String>{},
-        );
+      final response = await aiTestExceptionsHandler(
+        'ext.tapir.exceptions',
+        <String, String>{},
+      );
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['count'], equals(1));
-      },
-    );
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['count'], equals(1));
+    });
 
     // -------------------------------------------------------------------------
     // (h) Limit applied to the merged set, not per-source.
     // -------------------------------------------------------------------------
 
-    test(
-      '(h) limit applied to merged union, not per-source',
-      () async {
-        // Crumbs reader returns 3 entries.
-        recentExceptionsReader =
-            ({int limit = 20}) => List<Map<String, dynamic>>.generate(
-                  3,
-                  (int i) => <String, dynamic>{
-                    'type': 'Error',
-                    'message': 'crumbs-$i',
-                    'stackHead': 'at t$i()',
-                    'library': null,
-                    'fatal': false,
-                    'time': '2024-01-01T00:00:0$i.000Z',
-                  },
-                );
-
-        // In-package buffer has 3 additional distinct entries.
-        installErrorCapture();
-        for (int i = 0; i < 3; i++) {
-          FlutterError.reportError(
-            FlutterErrorDetails(
-              exception: StateError('captured-$i'),
-              stack: StackTrace.fromString('at c$i()'),
-              library: 'test library',
-            ),
+    test('(h) limit applied to merged union, not per-source', () async {
+      // Crumbs reader returns 3 entries.
+      recentExceptionsReader = ({int limit = 20}) =>
+          List<Map<String, dynamic>>.generate(
+            3,
+            (int i) => <String, dynamic>{
+              'type': 'Error',
+              'message': 'crumbs-$i',
+              'stackHead': 'at t$i()',
+              'library': null,
+              'fatal': false,
+              'time': '2024-01-01T00:00:0$i.000Z',
+            },
           );
-        }
 
-        // Request only 4 from the merged set of 6.
-        final response = await aiTestExceptionsHandler(
-          'ext.tapir.exceptions',
-          <String, String>{'limit': '4'},
+      // In-package buffer has 3 additional distinct entries.
+      installErrorCapture();
+      for (int i = 0; i < 3; i++) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: StateError('captured-$i'),
+            stack: StackTrace.fromString('at c$i()'),
+            library: 'test library',
+          ),
         );
+      }
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
-        expect(decoded['count'], equals(4));
-        expect((decoded['exceptions'] as List).length, equals(4));
-      },
-    );
+      // Request only 4 from the merged set of 6.
+      final response = await aiTestExceptionsHandler(
+        'ext.tapir.exceptions',
+        <String, String>{'limit': '4'},
+      );
+
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(decoded['count'], equals(4));
+      expect((decoded['exceptions'] as List).length, equals(4));
+    });
   });
 
   group('ext_exceptions — MCP descriptor presence', () {
@@ -319,10 +301,7 @@ void main() {
     test(
       'tapir_exceptions MCP descriptor extensionMethod is ext.tapir.exceptions',
       () {
-        expect(
-          kTapirExceptionsMcpExtension,
-          equals('ext.tapir.exceptions'),
-        );
+        expect(kTapirExceptionsMcpExtension, equals('ext.tapir.exceptions'));
       },
     );
   });
@@ -347,23 +326,23 @@ void main() {
       () async {
         // Seed two entries with distinct timestamps via the crumbs reader.
         recentExceptionsReader = ({int limit = 20}) => [
-              {
-                'type': 'StateError',
-                'message': 'early error',
-                'stackHead': 'at early()',
-                'library': 'test',
-                'fatal': false,
-                'time': '2024-01-01T10:00:00.000Z',
-              },
-              {
-                'type': 'StateError',
-                'message': 'late error',
-                'stackHead': 'at late()',
-                'library': 'test',
-                'fatal': false,
-                'time': '2024-01-01T12:00:00.000Z',
-              },
-            ];
+          {
+            'type': 'StateError',
+            'message': 'early error',
+            'stackHead': 'at early()',
+            'library': 'test',
+            'fatal': false,
+            'time': '2024-01-01T10:00:00.000Z',
+          },
+          {
+            'type': 'StateError',
+            'message': 'late error',
+            'stackHead': 'at late()',
+            'library': 'test',
+            'fatal': false,
+            'time': '2024-01-01T12:00:00.000Z',
+          },
+        ];
 
         // since = 11:00 — only 'late error' (12:00) is strictly after.
         final response = await aiTestExceptionsHandler(
@@ -388,52 +367,49 @@ void main() {
     // (j) No since param returns the full cumulative list (backward compatible).
     // -------------------------------------------------------------------------
 
-    test(
-      '(j) no since param: cumulative list returned with identical payload keys',
-      () async {
-        recentExceptionsReader = ({int limit = 20}) => [
-              {
-                'type': 'ArgumentError',
-                'message': 'first error',
-                'stackHead': 'at a()',
-                'library': 'lib',
-                'fatal': false,
-                'time': '2024-06-01T09:00:00.000Z',
-              },
-              {
-                'type': 'StateError',
-                'message': 'second error',
-                'stackHead': 'at b()',
-                'library': 'lib',
-                'fatal': false,
-                'time': '2024-06-01T10:00:00.000Z',
-              },
-            ];
+    test('(j) no since param: cumulative list returned with identical payload keys', () async {
+      recentExceptionsReader = ({int limit = 20}) => [
+        {
+          'type': 'ArgumentError',
+          'message': 'first error',
+          'stackHead': 'at a()',
+          'library': 'lib',
+          'fatal': false,
+          'time': '2024-06-01T09:00:00.000Z',
+        },
+        {
+          'type': 'StateError',
+          'message': 'second error',
+          'stackHead': 'at b()',
+          'library': 'lib',
+          'fatal': false,
+          'time': '2024-06-01T10:00:00.000Z',
+        },
+      ];
 
-        final response = await aiTestExceptionsHandler(
-          'ext.tapir.exceptions',
-          <String, String>{},
-        );
+      final response = await aiTestExceptionsHandler(
+        'ext.tapir.exceptions',
+        <String, String>{},
+      );
 
-        expect(response.result, isNotNull);
-        final Map<String, dynamic> decoded =
-            jsonDecode(response.result!) as Map<String, dynamic>;
+      expect(response.result, isNotNull);
+      final Map<String, dynamic> decoded =
+          jsonDecode(response.result!) as Map<String, dynamic>;
 
-        // Both entries present.
-        expect(decoded['count'], equals(2));
-        expect((decoded['exceptions'] as List).length, equals(2));
+      // Both entries present.
+      expect(decoded['count'], equals(2));
+      expect((decoded['exceptions'] as List).length, equals(2));
 
-        // Payload keys/shape: type, message, stackHead, library, fatal, time.
-        final Map<String, dynamic> first =
-            (decoded['exceptions'] as List)[0] as Map<String, dynamic>;
-        expect(first.containsKey('type'), isTrue);
-        expect(first.containsKey('message'), isTrue);
-        expect(first.containsKey('stackHead'), isTrue);
-        expect(first.containsKey('library'), isTrue);
-        expect(first.containsKey('fatal'), isTrue);
-        expect(first.containsKey('time'), isTrue);
-      },
-    );
+      // Payload keys/shape: type, message, stackHead, library, fatal, time.
+      final Map<String, dynamic> first =
+          (decoded['exceptions'] as List)[0] as Map<String, dynamic>;
+      expect(first.containsKey('type'), isTrue);
+      expect(first.containsKey('message'), isTrue);
+      expect(first.containsKey('stackHead'), isTrue);
+      expect(first.containsKey('library'), isTrue);
+      expect(first.containsKey('fatal'), isTrue);
+      expect(first.containsKey('time'), isTrue);
+    });
 
     // -------------------------------------------------------------------------
     // (k) since exactly equal to entry time excludes that entry (strictly after).
@@ -444,15 +420,15 @@ void main() {
       () async {
         const String ts = '2024-01-01T10:00:00.000Z';
         recentExceptionsReader = ({int limit = 20}) => [
-              {
-                'type': 'StateError',
-                'message': 'exact time error',
-                'stackHead': 'at exact()',
-                'library': 'test',
-                'fatal': false,
-                'time': ts,
-              },
-            ];
+          {
+            'type': 'StateError',
+            'message': 'exact time error',
+            'stackHead': 'at exact()',
+            'library': 'test',
+            'fatal': false,
+            'time': ts,
+          },
+        ];
 
         final response = await aiTestExceptionsHandler(
           'ext.tapir.exceptions',
@@ -476,15 +452,15 @@ void main() {
       '(l) unparseable since: treated as no filter, returns full list',
       () async {
         recentExceptionsReader = ({int limit = 20}) => [
-              {
-                'type': 'StateError',
-                'message': 'any error',
-                'stackHead': 'at any()',
-                'library': 'test',
-                'fatal': false,
-                'time': '2024-01-01T10:00:00.000Z',
-              },
-            ];
+          {
+            'type': 'StateError',
+            'message': 'any error',
+            'stackHead': 'at any()',
+            'library': 'test',
+            'fatal': false,
+            'time': '2024-01-01T10:00:00.000Z',
+          },
+        ];
 
         final response = await aiTestExceptionsHandler(
           'ext.tapir.exceptions',
@@ -542,7 +518,9 @@ void main() {
       seed('boot-time noise');
 
       expect(
-          await callHandler(<String, String>{'clear': 'true'}), hasLength(1));
+        await callHandler(<String, String>{'clear': 'true'}),
+        hasLength(1),
+      );
       expect(await callHandler(<String, String>{}), isEmpty);
     });
 

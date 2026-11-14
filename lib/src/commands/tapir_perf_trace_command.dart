@@ -27,12 +27,14 @@ class TapirPerfTraceCommand extends DowelCommand {
     parser
       ..addOption(
         'out',
-        help: 'File to write, e.g. build/perf/trace.json. Parent directories '
+        help:
+            'File to write, e.g. build/perf/trace.json. Parent directories '
             'are created.',
       )
       ..addOption(
         'token',
-        help: 'sessionToken of the session to export. Optional: only the '
+        help:
+            'sessionToken of the session to export. Optional: only the '
             'most recent closed session is kept, and a stale token is '
             'refused.',
       );
@@ -52,13 +54,13 @@ class TapirPerfTraceCommand extends DowelCommand {
 
     // 2. Export. A refusal from the extension (no closed session, a stale
     //    token, a session still open) surfaces as the extension's error.
-    final Map<String, dynamic> response =
-        await ctx.callExtension<Map<String, dynamic>>(
-      'ext.tapir.perf_trace',
-      <String, dynamic>{
-        if (token != null && token.isNotEmpty) 'token': token,
-      },
-    );
+    final Map<String, dynamic> response = await ctx
+        .callExtension<Map<String, dynamic>>(
+          'ext.tapir.perf_trace',
+          <String, dynamic>{
+            if (token != null && token.isNotEmpty) 'token': token,
+          },
+        );
 
     // 3. Keep the Trace Event object format only: the envelope's
     //    sessionToken already sits in otherData.

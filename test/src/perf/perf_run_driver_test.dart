@@ -13,8 +13,7 @@ void main() {
   group('awaitTapirBoot()', () {
     const Duration tick = Duration(milliseconds: 1);
 
-    test(
-        'returns once the boot id changes, though the isolate id stays "1" '
+    test('returns once the boot id changes, though the isolate id stays "1" '
         'as it does under DWDS', () async {
       final _FakeVmClient vm = _FakeVmClient(<Object>[
         'boot-a',
@@ -34,26 +33,28 @@ void main() {
       expect(vm.answered, 4);
     });
 
-    test('times out with the restart message while the boot id never changes',
-        () async {
-      final _FakeVmClient vm = _FakeVmClient(<Object>['boot-a']);
+    test(
+      'times out with the restart message while the boot id never changes',
+      () async {
+        final _FakeVmClient vm = _FakeVmClient(<Object>['boot-a']);
 
-      await expectLater(
-        awaitTapirBoot(
-          vm,
-          replacing: 'boot-a',
-          timeout: const Duration(milliseconds: 50),
-          pollInterval: tick,
-        ),
-        throwsA(
-          isA<PerfRunException>().having(
-            (PerfRunException e) => e.message,
-            'message',
-            contains('the app did not come back within 0 s of the restart'),
+        await expectLater(
+          awaitTapirBoot(
+            vm,
+            replacing: 'boot-a',
+            timeout: const Duration(milliseconds: 50),
+            pollInterval: tick,
           ),
-        ),
-      );
-    });
+          throwsA(
+            isA<PerfRunException>().having(
+              (PerfRunException e) => e.message,
+              'message',
+              contains('the app did not come back within 0 s of the restart'),
+            ),
+          ),
+        );
+      },
+    );
 
     test('names the last error when the app never answers', () async {
       final _FakeVmClient vm = _FakeVmClient(<Object>[
@@ -104,8 +105,7 @@ void main() {
   });
 
   group('pollTapirBoot()', () {
-    test(
-        'never reads once the budget is spent, so the last answer is the '
+    test('never reads once the budget is spent, so the last answer is the '
         'app\'s, not a zero timeout', () async {
       int reads = 0;
 
@@ -137,8 +137,7 @@ void main() {
       expect(reads, 1);
     });
 
-    test(
-        'stops at its poll cap on a pause that returns at once, naming the '
+    test('stops at its poll cap on a pause that returns at once, naming the '
         'failure and the last answer', () async {
       int reads = 0;
       int pauses = 0;
@@ -153,7 +152,8 @@ void main() {
           timeout: const Duration(seconds: 2),
           pollInterval: const Duration(milliseconds: 500),
           pause: (Duration _) async => pauses++,
-          failure: 'the app did not answer ext.tapir.boot_id within 2 s of '
+          failure:
+              'the app did not answer ext.tapir.boot_id within 2 s of '
               'the start',
         ),
         throwsA(

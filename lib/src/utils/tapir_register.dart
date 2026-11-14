@@ -6,8 +6,11 @@ import 'package:dowel/dowel.dart';
 import 'frame_sync.dart';
 
 /// The shape every `ext.tapir.*` handler has.
-typedef TapirExtensionHandler = Future<developer.ServiceExtensionResponse>
-    Function(String method, Map<String, String> params);
+typedef TapirExtensionHandler =
+    Future<developer.ServiceExtensionResponse> Function(
+      String method,
+      Map<String, String> params,
+    );
 
 /// Zone key under which [wrapTapirHandler] records that it forced frames.
 ///
@@ -39,12 +42,14 @@ TapirExtensionHandler wrapTapirHandler(
   return (String method, Map<String, String> params) async {
     final bool forced = await ensureFramesProduced();
 
-    return Zone.current.fork(
-      zoneValues: <Object, Object>{
-        _framesForcedKey: forced,
-        _reresolvedKey: <String>[],
-      },
-    ).run(() => handler(method, params));
+    return Zone.current
+        .fork(
+          zoneValues: <Object, Object>{
+            _framesForcedKey: forced,
+            _reresolvedKey: <String>[],
+          },
+        )
+        .run(() => handler(method, params));
   };
 }
 

@@ -42,7 +42,8 @@ class TapirFillCommand extends DowelCommand {
     parser.addOption(
       'snapshot',
       allowed: <String>['full', 'diff', 'none'],
-      help: 'Print the post-fill snapshot after the summary: the whole tree, '
+      help:
+          'Print the post-fill snapshot after the summary: the whole tree, '
           'only the lines changed since the last snapshot, or nothing. '
           'Overrides --includeSnapshot.',
     );
@@ -73,7 +74,8 @@ class TapirFillCommand extends DowelCommand {
       return 1;
     }
     final snapshotMode = ctx.input.option('snapshot') as String?;
-    final includeSnapshot = snapshotMode == null &&
+    final includeSnapshot =
+        snapshotMode == null &&
         ((ctx.input.option('includeSnapshot') as bool?) ?? false);
     final checkStable = (ctx.input.option('checkStable') as bool?) ?? true;
     final checkReceivesEvents =
@@ -108,9 +110,9 @@ class TapirFillCommand extends DowelCommand {
       ctx.output.error(
         actual == null
             ? 'Fill not verified: $ref does not hold the text that was typed '
-                '("$text")'
+                  '("$text")'
             : 'Fill not verified: $ref holds "$actual", not the text that was '
-                'typed ("$text")',
+                  'typed ("$text")',
       );
     }
     final snapshot = response['snapshot'] as String?;

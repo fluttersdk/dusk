@@ -24,39 +24,59 @@ class TapirDragCommand extends DowelCommand {
     // --ref convention; "from"/"to" reads cleaner than "start"/"end" for a
     // drag). Legacy --startRef / --endRef stay supported as aliases for
     // backwards compat with anyone who scripted against the original shape.
-    parser.addOption('fromRef',
-        help: 'Ref token of the drag source widget (e.g. e1).');
-    parser.addOption('toRef',
-        help: 'Ref token of the drag target widget (e.g. e2).');
-    parser.addOption('startRef',
-        help: 'Alias for --fromRef (legacy; retained for back-compat).');
-    parser.addOption('endRef',
-        help: 'Alias for --toRef (legacy; retained for back-compat).');
-    parser.addFlag('includeSnapshot',
-        help: 'Embed the post-drag snapshot in the response.',
-        defaultsTo: false);
-    parser.addFlag('checkStable',
-        help: 'Run the Stable actionability gate.', defaultsTo: true);
-    parser.addFlag('checkReceivesEvents',
-        help: 'Run the Receives-Events actionability gate.', defaultsTo: true);
+    parser.addOption(
+      'fromRef',
+      help: 'Ref token of the drag source widget (e.g. e1).',
+    );
+    parser.addOption(
+      'toRef',
+      help: 'Ref token of the drag target widget (e.g. e2).',
+    );
+    parser.addOption(
+      'startRef',
+      help: 'Alias for --fromRef (legacy; retained for back-compat).',
+    );
+    parser.addOption(
+      'endRef',
+      help: 'Alias for --toRef (legacy; retained for back-compat).',
+    );
+    parser.addFlag(
+      'includeSnapshot',
+      help: 'Embed the post-drag snapshot in the response.',
+      defaultsTo: false,
+    );
+    parser.addFlag(
+      'checkStable',
+      help: 'Run the Stable actionability gate.',
+      defaultsTo: true,
+    );
+    parser.addFlag(
+      'checkReceivesEvents',
+      help: 'Run the Receives-Events actionability gate.',
+      defaultsTo: true,
+    );
   }
 
   @override
   Future<int> handle(DowelContext ctx) async {
     // Accept --fromRef OR --startRef (and same for --toRef / --endRef);
     // prefer the new --fromRef/--toRef when both are supplied.
-    final startRef = (ctx.input.option('fromRef') as String?) ??
+    final startRef =
+        (ctx.input.option('fromRef') as String?) ??
         (ctx.input.option('startRef') as String?);
     if (startRef == null || startRef.isEmpty) {
       ctx.output.error(
-          'Missing --fromRef=<eN> (alias --startRef). Run tapir:snap first to obtain refs.');
+        'Missing --fromRef=<eN> (alias --startRef). Run tapir:snap first to obtain refs.',
+      );
       return 1;
     }
-    final endRef = (ctx.input.option('toRef') as String?) ??
+    final endRef =
+        (ctx.input.option('toRef') as String?) ??
         (ctx.input.option('endRef') as String?);
     if (endRef == null || endRef.isEmpty) {
       ctx.output.error(
-          'Missing --toRef=<eN> (alias --endRef). Run tapir:snap first to obtain refs.');
+        'Missing --toRef=<eN> (alias --endRef). Run tapir:snap first to obtain refs.',
+      );
       return 1;
     }
     final includeSnapshot =
@@ -79,8 +99,11 @@ class TapirDragCommand extends DowelCommand {
     if (includeSnapshot) {
       ctx.output.writeln(jsonEncode(response));
     } else {
-      emitEnvelope(ctx, response,
-          () => ctx.output.success('Dragged $startRef to $endRef'));
+      emitEnvelope(
+        ctx,
+        response,
+        () => ctx.output.success('Dragged $startRef to $endRef'),
+      );
     }
     return 0;
   }

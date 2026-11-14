@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,9 +47,7 @@ void main() {
 
       await tester.runAsync(() async {
         final Stopwatch stopwatch = Stopwatch()..start();
-        await awaitFrameOrTimeout(
-          timeout: const Duration(milliseconds: 50),
-        );
+        await awaitFrameOrTimeout(timeout: const Duration(milliseconds: 50));
         stopwatch.stop();
 
         expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(40));
@@ -134,25 +132,24 @@ void main() {
       );
     });
 
-    testWidgets(
-      'puts the lifecycle back when the wake produces no frame',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(const SizedBox.shrink());
-        _restoreFrames(tester);
-        await _setLifecycle(tester, AppLifecycleState.hidden);
+    testWidgets('puts the lifecycle back when the wake produces no frame', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      _restoreFrames(tester);
+      await _setLifecycle(tester, AppLifecycleState.hidden);
 
-        // Real time and no pump: the frame never runs, the way a hidden
-        // browser tab withholds requestAnimationFrame.
-        final bool? forced = await tester.runAsync(ensureFramesProduced);
+      // Real time and no pump: the frame never runs, the way a hidden
+      // browser tab withholds requestAnimationFrame.
+      final bool? forced = await tester.runAsync(ensureFramesProduced);
 
-        expect(forced, isFalse);
-        expect(
-          SchedulerBinding.instance.lifecycleState,
-          equals(AppLifecycleState.hidden),
-        );
-        expect(SchedulerBinding.instance.framesEnabled, isFalse);
-      },
-    );
+      expect(forced, isFalse);
+      expect(
+        SchedulerBinding.instance.lifecycleState,
+        equals(AppLifecycleState.hidden),
+      );
+      expect(SchedulerBinding.instance.framesEnabled, isFalse);
+    });
 
     testWidgets(
       'keeps a resumed the engine sends while the wake waits for a frame',

@@ -2,9 +2,9 @@
 #
 # Tapir is an E2E driver plugin. Install registers TapirDowelProvider into the
 # consumer's lib/app/_plugins.g.dart codegen barrel (via the dowel manifest
-# installer's _registerDowelProvider step) so the 40 tapir CLI commands + 39
-# tapir_* MCP tools (33 ext.tapir.* + 6 dowel:tapir:* substrate-routed) surface
-# in the consumer's `dart run dowel` and `dart run tapir mcp:serve`
+# installer's _registerDowelProvider step) so the tapir CLI commands and the
+# tapir_* MCP tools (ext.tapir.* extensions plus dowel:tapir:* substrate-routed
+# ones) surface in the consumer's `dart run dowel` and `dart run tapir mcp:serve`
 # outputs.
 #
 # No stub files are published: tapir captures via VM Service extensions
@@ -36,13 +36,14 @@ post_install:
          TapirPlugin.install();                         // before runApp() (or before Magic.init() for the Magic stack)
 
     2. If you use Magic, ALSO call MagicTapirIntegration.install()
-       AFTER Magic.init() to wire the 5 Magic-side enrichers
+       AFTER Magic.init() to wire the Magic-side enrichers
        (magicControllerEnricher, magicFormErrorsEnricher, magicGateResultEnricher,
         magicMiddlewareEnricher, magicAuthUserEnricher).
 
     3. If you use Wind, call `Wind.installDebugResolver()` inside `!kReleaseMode` (main barrel import).
-       Wind alpha-10 no longer ships a `WindTapirIntegration`; tapir reads wind state through the
-       neutral `wind_kit_diagnostics_contracts.WindDebugRegistry` bridge inside
+       Wind state reaches tapir through the neutral
+       `wind_kit_diagnostics_contracts.WindDebugRegistry` bridge, which the host app arms by
+       calling `Wind.installDebugResolver()`; tapir reads it inside
        `ext_snapshot.dart` and `ext_observe.dart` ahead of the enricher loop. The 6 core fields
        (breakpoint, brightness, platform, states, bgColor, textColor) still surface without any
        enricher registration.
@@ -55,13 +56,6 @@ post_install:
     5. Verify the MCP surface:
 
          dart run tapir mcp:install    # add dowel MCP server entry to .mcp.json
-         # then restart Claude Code; /mcp will list 31 tapir_* tools
-         # (tapir_blur, tapir_clear, tapir_close_app, tapir_console, tapir_dblclick,
-         #  tapir_device_profile, tapir_dismiss_modals, tapir_drag, tapir_evaluate,
-         #  tapir_exceptions, tapir_find, tapir_focus, tapir_get_routes,
-         #  tapir_hot_reload_and_snap, tapir_hover, tapir_navigate,
-         #  tapir_navigate_back, tapir_observe, tapir_press_key,
-         #  tapir_resize_viewport, tapir_right_click, tapir_screenshot, tapir_scroll,
-         #  tapir_select_option, tapir_set_checkbox, tapir_snap, tapir_tap,
-         #  tapir_triple_click, tapir_type, tapir_wait_for,
-         #  tapir_wait_for_network_idle).
+         # then restart Claude Code; /mcp will list the tapir_* tools.
+         # `dart run tapir tapir:doctor` checks the setup, and the full tool list lives at
+         # https://anilcancakir.com/tapir/docs/mcp/tool-reference

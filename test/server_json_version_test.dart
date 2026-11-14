@@ -21,13 +21,16 @@ void main() {
     late Map<String, dynamic> manifest;
 
     setUp(() {
-      manifest = jsonDecode(File('server.json').readAsStringSync())
-          as Map<String, dynamic>;
+      manifest = jsonDecode(
+        File('server.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
     });
 
     test('version matches the version declared in pubspec.yaml', () {
-      final Match? declared = RegExp(r'^version:\s*(\S+)', multiLine: true)
-          .firstMatch(File('pubspec.yaml').readAsStringSync());
+      final Match? declared = RegExp(
+        r'^version:\s*(\S+)',
+        multiLine: true,
+      ).firstMatch(File('pubspec.yaml').readAsStringSync());
       expect(declared, isNotNull, reason: 'pubspec.yaml has no version: line');
 
       expect(
@@ -39,7 +42,9 @@ void main() {
 
     test('description fits the registry limit of 100 characters', () {
       expect(
-          (manifest['description'] as String).length, lessThanOrEqualTo(100));
+        (manifest['description'] as String).length,
+        lessThanOrEqualTo(100),
+      );
     });
 
     test('name is the registry namespace for this package', () {
