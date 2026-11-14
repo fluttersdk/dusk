@@ -37,9 +37,10 @@ Exit `0` is success and `1` is failure, including the verdicts a summary would h
 | Command | Exits 1 when |
 |---|---|
 | `tapir:wait`, `tapir:wait_for_network_idle` | The condition never resolved |
-| `tapir:fill`, `tapir:type` | `effect.verified` is false (the summary names what the field holds) |
+| `tapir:fill`, `tapir:type` | `effect.verified` is false (the summary names what the field holds); `--json` and `--includeSnapshot` print the response and exit 0 |
 | `tapir:set_checkbox` | `effect.verified` is false (the summary names the value read back); `--json` and `--includeSnapshot` print the response and exit 0 |
 | `tapir:hot_reload_and_snap` | `reloaded` is false (the JSON is still printed) |
+| `tapir:perf_end` | The report is `refused` (the engine drew nothing; no metrics) |
 | `tapir:perf_compare` | An error-level regression |
 | `tapir:perf_campaign` | Any scenario failed |
 | `tapir:doctor` | The semantics check failed (the other checks only warn) |
