@@ -1061,7 +1061,7 @@ class TapirDowelProvider extends DowelServiceProvider {
           '- Returns `{ref: "q<N>", matched: true}` on first match, '
           'or `{ref: null, matched: false}` when no node matches.\n'
           '- When a follow-up action call finds zero live matches, '
-          'the handler returns a "stale handle" error — agent must '
+          'the handler returns a "stale handle" error; the agent must '
           're-find or re-snap, NOT retry.\n'
           '\n'
           'Example: `{ "text": "Submit" }` or `{ "key": "monitor-row-7" }`',
@@ -1182,19 +1182,19 @@ class TapirDowelProvider extends DowelServiceProvider {
       extensionMethod: 'ext.tapir.wait_for_network_idle',
     ),
     // ---------------------------------------------------------------------
-    // 19. Console: reads recent log entries from the crumbs store.
+    // 19. Console: reads tapir's debugPrint capture, plus crumbs when wired.
     // ---------------------------------------------------------------------
     McpToolDescriptor(
       name: 'tapir_console',
       description:
-          'Read recent log entries from the running app\'s '
-          'crumbs store.\n'
+          'Read recent log entries from the running app.\n'
           '\n'
-          'Reads structured log entries recorded by the crumbs HTTP '
-          'adapter and log watcher when `crumbs` is '
-          'installed and wired. When crumbs is absent the call '
-          'returns an empty list immediately (missing-crumbs graceful '
-          'path), so callers do not need to branch on install state.\n'
+          'Returns the app\'s own `debugPrint` output from the buffer '
+          '`TapirPlugin.install()` fills, newest first, followed by the '
+          'log entries of `crumbs` when that separate package is wired. '
+          'Without crumbs the call still returns the `debugPrint` '
+          'entries, so callers do not need to branch on install state. '
+          'A direct `developer.log` call is not captured.\n'
           '\n'
           'Usage:\n'
           '- No required params; defaults to the 50 most recent entries '
@@ -1399,7 +1399,7 @@ class TapirDowelProvider extends DowelServiceProvider {
           '\n'
           'Walks the live Semantics + Element tree once, finds every '
           'interactive node (buttons, text fields, links, checkboxes, '
-          'dropdowns — same role detection as tapir_find; a control merged '
+          'dropdowns, with the same role detection as tapir_find; a control merged '
           'into a MergeSemantics boundary is listed once), and mints a '
           're-resolvable `q<N>` ref for each candidate via the '
           'Playwright-Locator pattern. NO server-side LLM is invoked: '

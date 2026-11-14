@@ -1,4 +1,4 @@
-/// tapir — E2E driver for Flutter apps (LLM agent + integration test surfaces).
+/// tapir: E2E driver for Flutter apps (LLM agent + integration test surfaces).
 ///
 /// Public API:
 /// - [TapirPlugin]: host-side install entry. Idempotent.

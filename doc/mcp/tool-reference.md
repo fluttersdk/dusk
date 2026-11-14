@@ -1377,13 +1377,24 @@ Error: no selectable widget found (a `not found` error with candidate refs).
 Dispatch: `ext.tapir.set_checkbox`
 
 Read the checked or toggled state of a checkbox, switch or radio by ref and tap it only
-when it differs from `value`. The state comes from the Semantics node of the ref (its own
-node, else the nearest ancestor node, else the first descendant node that carries one), so
+when it differs from `value`. The state comes from the Semantics node the ref was minted
+from; a ref without one (a `find_by_text` entry) takes the nearest node at or above its
+render object. When that node is the ref's own and carries no flag, the one descendant node
+that does is read; an ancestor's subtree is never searched. So
 a control from any library works: Flutter material, `material_ui`, `wind_kit` or a
 hand-built `Semantics(checked: ...)`. A ref with no checked or toggled state is refused
 with an error and never assumed unchecked. A mixed checkbox is always tapped once and
 reports `previousValue: null`. When the state already equals `value` the call does not tap
 and returns `toggled: false`.
+
+The tap goes to the control whose state was read: a state read off a descendant is tapped
+at that descendant's centre, and a ref that holds more than one checkbox, switch or radio
+is refused, so pass the ref of one of them. `set_checkbox` does not pass the actionability
+gate, so it does not scroll the control into view: a control marked `[offscreen]` or
+covered is missed and reported as `effect.verified: false`. Bring it on screen first
+(`tapir_scroll` with the list's ref, or a `tapir_tap` on it, which auto-scrolls), then
+call it. The `tapir:set_checkbox` CLI exits 1 on `verified: false` (with `--json` it prints
+the envelope and exits 0).
 
 ### Input schema
 

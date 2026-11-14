@@ -1,25 +1,26 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dowel/dowel.dart';
 
-/// `dowel tapir:install` — one-line bootstrap for the tapir plugin.
+/// `dowel tapir:install`: one-line bootstrap for the tapir plugin.
 ///
-/// Single responsibility: inject the runtime wiring into the consumer's
-/// `lib/main.dart` so the E2E driver is live whenever the app boots in
-/// debug mode. The consumer continues to invoke tapir commands directly
-/// via `dart run tapir <cmd>` (the package ships its own
-/// Flutter-free CLI wrapper at `bin/tapir.dart`); no
-/// consumer-side `bin/dowel.dart` dispatcher or `_plugins.g.dart`
-/// codegen barrel is scaffolded. A vanilla Flutter app's only delta after
-/// `tapir:install` is the three injected lines in `lib/main.dart`.
+/// Injects the runtime wiring into the consumer's `lib/main.dart` so the E2E
+/// driver is live whenever the app boots outside release mode, then chains
+/// `dowel install` (which scaffolds `bin/dowel` and `bin/dispatcher.dart`)
+/// and `plugin:install tapir`, best-effort. The consumer can always invoke
+/// tapir commands directly via `dart run tapir <cmd>` (the package ships its
+/// own Flutter-free CLI wrapper at `bin/tapir.dart`).
 ///
 /// Two anchor modes:
 ///   - Magic-stack apps (`lib/main.dart` contains `await Magic.init(`):
 ///     wire `TapirPlugin.install()` BEFORE `Magic.init` so the driver is
 ///     live during Magic boot. When `magic_devtools:` is also a pubspec
-///     dependency or dev_dependency, ALSO inject `MagicTapirIntegration.install()`
+///     dependency or dev_dependency AND the resolved release ships
+///     `lib/tapir.dart`, ALSO inject `MagicTapirIntegration.install()`
 ///     AFTER `Magic.init` (the integration queries `Magic.find<X>()` for the
 ///     form / nav enrichers, which only resolves once the container is ready).
+///     A release without `lib/tapir.dart` gets a warning instead.
 ///   - Vanilla apps: wire `TapirPlugin.install()` before `runApp(`.
 ///
 /// Idempotent across re-runs: each `addImport` / `injectBeforeAnchor` /
@@ -31,8 +32,9 @@ class TapirInstallCommand extends DowelCommand {
 
   @override
   String get description =>
-      'Wire TapirPlugin.install() into the consumer\'s lib/main.dart '
-      '(idempotent; minimal — no bin/dowel.dart scaffold).';
+      'Wire TapirPlugin.install() into the consumer\'s lib/main.dart, then '
+      'scaffold bin/dowel and bin/dispatcher.dart and register tapir as a '
+      'dowel plugin (idempotent).';
 
   @override
   CommandBoot get boot => CommandBoot.none;
@@ -181,7 +183,8 @@ class TapirInstallCommand extends DowelCommand {
   ///      the canonical install anchor: `await Magic.init(` on
   ///      Magic-stack apps (so tapir is wired before Magic boot side
   ///      effects), otherwise `runApp(` for vanilla Flutter apps.
-  ///   3. When pubspec has `magic_devtools:` AND main.dart has `await Magic.init(`,
+  ///   3. When pubspec has `magic_devtools:`, its resolved release ships
+  ///      `lib/tapir.dart` AND main.dart has `await Magic.init(`,
   ///      inject `MagicTapirIntegration.install()` AFTER that call (the
   ///      integration queries `Magic.find<X>()` for the form / nav
   ///      enrichers, so it must run after the container is ready).
@@ -198,10 +201,16 @@ class TapirInstallCommand extends DowelCommand {
     // uses.
     final String original = FileHelper.readFile(mainDartPath);
     final bool wiresTapir = !original.contains('TapirPlugin.install()');
-    final bool wiresMagic =
+    final bool wantsMagic =
         original.contains('await Magic.init(') &&
         _hasMagicDevtoolsDep() &&
         !original.contains('MagicTapirIntegration.install()');
+    // A magic_devtools release that predates tapir has no `tapir.dart`; its
+    // import would leave a lib/main.dart that does not compile.
+    final MagicDevtoolsTapirSupport magicSupport = wantsMagic
+        ? magicDevtoolsTapirSupport(File(pubspecPathResolver()).parent.path)
+        : MagicDevtoolsTapirSupport.unresolved;
+    final bool wiresMagic = magicSupport == MagicDevtoolsTapirSupport.available;
 
     // 1. Imports first. ConfigEditor.addImportToFile (delegated by
     //    MainDartEditor.addImport) is idempotent on duplicates.
@@ -258,7 +267,20 @@ class TapirInstallCommand extends DowelCommand {
 
     // 3. Magic-side coordinated wiring when the consumer pulls in magic_devtools.
     //    Detect via pubspec.yaml; skip silently when magic_devtools is not a dep
-    //    or when main.dart has no Magic.init() anchor (vanilla app).
+    //    or when main.dart has no Magic.init() anchor (vanilla app), and with
+    //    a warning when the resolved release has no tapir integration.
+    if (wantsMagic && !wiresMagic) {
+      final String why = magicSupport == MagicDevtoolsTapirSupport.unresolved
+          ? 'no lib/tapir.dart resolved; run `flutter pub get` if it has not '
+                'run'
+          : 'no lib/tapir.dart';
+      ctx.output.warning(
+        'Skipped MagicTapirIntegration: the installed magic_devtools has no '
+        'tapir integration yet ($why). Upgrade magic_devtools to a release '
+        'built on tapir, then rerun `dart run tapir tapir:install` (it is '
+        'idempotent).',
+      );
+    }
     if (wiresMagic) {
       MainDartEditor.addImport(
         mainDartPath,
@@ -278,6 +300,49 @@ class TapirInstallCommand extends DowelCommand {
     }
   }
 
+  /// Whether the `magic_devtools` that [projectRoot] resolves ships
+  /// `lib/tapir.dart`, the library `MagicTapirIntegration` lives in.
+  ///
+  /// The pubspec only says the package is wanted; a release that predates
+  /// tapir ships `lib/dusk.dart` instead, and wiring its integration leaves a
+  /// `lib/main.dart` that does not compile. So the answer comes from the
+  /// package pub actually resolved, through `.dart_tool/package_config.json`.
+  static MagicDevtoolsTapirSupport magicDevtoolsTapirSupport(
+    String projectRoot,
+  ) {
+    // 1. No package config means `pub get` has not run: nothing is resolved.
+    final config = File('$projectRoot/.dart_tool/package_config.json');
+    if (!config.existsSync()) return MagicDevtoolsTapirSupport.unresolved;
+
+    // 2. Find the entry pub wrote for magic_devtools.
+    final Object? decoded = jsonDecode(config.readAsStringSync());
+    final List<Object?> packages = switch (decoded) {
+      {'packages': final List<Object?> list} => list,
+      _ => const <Object?>[],
+    };
+    for (final Object? package in packages) {
+      if (package is! Map<String, Object?> ||
+          package['name'] != 'magic_devtools') {
+        continue;
+      }
+
+      // 3. `rootUri` is relative to the `.dart_tool` directory (or an
+      //    absolute file URI for a pub-cache package); `packageUri`, `lib/`
+      //    as pub writes it, is relative to the root and defaults to it.
+      final Uri root = config.absolute.parent.uri.resolve(
+        package['rootUri'] as String,
+      );
+      final Uri rootDir = root.path.endsWith('/')
+          ? root
+          : root.replace(path: '${root.path}/');
+      final Uri lib = rootDir.resolve(package['packageUri'] as String? ?? '');
+      return File.fromUri(lib.resolve('tapir.dart')).existsSync()
+          ? MagicDevtoolsTapirSupport.available
+          : MagicDevtoolsTapirSupport.missing;
+    }
+    return MagicDevtoolsTapirSupport.unresolved;
+  }
+
   /// Returns true when the consumer's pubspec.yaml lists `magic_devtools:`
   /// (the package that ships MagicTapirIntegration) under `dependencies:` or
   /// `dev_dependencies:` (2-space indent).
@@ -286,4 +351,18 @@ class TapirInstallCommand extends DowelCommand {
     if (!pubspec.existsSync()) return false;
     return RegExp(r'\n  magic_devtools:').hasMatch(pubspec.readAsStringSync());
   }
+}
+
+/// What the consumer's resolved `magic_devtools` offers tapir, read by
+/// [TapirInstallCommand.magicDevtoolsTapirSupport].
+enum MagicDevtoolsTapirSupport {
+  /// No `magic_devtools` in `.dart_tool/package_config.json`, or no package
+  /// config at all because `pub get` has not run.
+  unresolved,
+
+  /// Resolved, but a release that predates tapir: it has no `lib/tapir.dart`.
+  missing,
+
+  /// Resolved and ships `lib/tapir.dart`, so `MagicTapirIntegration` imports.
+  available,
 }

@@ -140,7 +140,7 @@ All run the actionability gate and accept `snapshot`, `includeSnapshot` (default
 
 ### tapir_set_checkbox
 
-`ref`, `value` (`"true"` or `"false"`), both required. Not gated. Reads the checked or toggled flag of the ref's Semantics node (its own node, else the nearest ancestor node, else the first descendant node that has one), so a checkbox, switch or radio from any library works: Flutter material, `material_ui`, `wind_kit` or a hand-built `Semantics(checked: ...)`. It taps only when the state differs and reads it back. Returns `{ ref, previousValue, value, toggled, effect: {kind: "checked", verified, before, after} }`. A ref with no checked or toggled state is refused with an error, never assumed unchecked. A mixed checkbox is always tapped once and reports `previousValue: null`. When the state already equals `value` it does not tap and returns `toggled: false`.
+`ref`, `value` (`"true"` or `"false"`), both required. Not gated. Reads the checked or toggled flag of the node the ref was minted from (a ref without one takes the nearest node at or above its render object); when that node is the ref's own and has no flag, the one descendant node that has one is read, and an ancestor's subtree is never searched. So a checkbox, switch or radio from any library works: Flutter material, `material_ui`, `wind_kit` or a hand-built `Semantics(checked: ...)`. It taps only when the state differs and reads it back. Returns `{ ref, previousValue, value, toggled, effect: {kind: "checked", verified, before, after} }`. A ref with no checked or toggled state is refused with an error, never assumed unchecked. A mixed checkbox is always tapped once and reports `previousValue: null`. When the state already equals `value` it does not tap and returns `toggled: false`. The tap goes to the control whose state was read, and a ref holding more than one checkbox, switch or radio is refused. Being ungated, it does not scroll: an `[offscreen]` or covered control is missed and reads `verified: false`, so bring it on screen first (`tapir_scroll` with the list's ref, or a `tapir_tap` on it, which auto-scrolls). The `tapir:set_checkbox` CLI exits 1 on `verified: false`.
 
 ### tapir_select_option
 
@@ -169,7 +169,7 @@ Not gated; a delta is a `jumpTo` clamped to the extents. Returns `{ scrolled, fi
 
 ### tapir_wait_for_network_idle
 
-`timeoutMs` (5000), `idleMs` (500, the contiguous zero window), `pollIntervalMs` (200, minimum 100). Returns `{ matched: true, idleAchievedMs }`; a timeout is an error of type `timeout` whose message names `maxPending`. The in-flight count comes from crumbs: without that wiring it is always 0 and the call returns `matched: true` at once.
+`timeoutMs` (5000), `idleMs` (500, the contiguous zero window), `pollIntervalMs` (200, minimum 100). Returns `{ matched: true, idleAchievedMs }`; a timeout is an error of type `timeout` whose message names `maxPending`. The in-flight count comes from crumbs, a separate package that is not published yet: without it the count is always 0 and the call returns `matched: true` at once, so assume it always reports idle.
 
 ## Navigation and overlays
 

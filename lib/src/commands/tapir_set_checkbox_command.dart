@@ -5,7 +5,7 @@ import 'package:dowel/dowel.dart';
 import 'frame_warning_output.dart';
 import 'json_output.dart';
 
-/// `dowel tapir:set_checkbox --ref=<ref> --value=<true|false>` — set the
+/// `dowel tapir:set_checkbox --ref=<ref> --value=<true|false>`: set the
 /// checked state of a Checkbox or Switch widget identified by a snapshot ref.
 ///
 /// Wraps the `ext.tapir.set_checkbox` VM Service extension which reads the
@@ -33,7 +33,9 @@ class TapirSetCheckboxCommand extends DowelCommand {
     parser.addOption('value', help: 'Target checked state: "true" or "false".');
     parser.addFlag(
       'includeSnapshot',
-      help: 'Embed the post-toggle snapshot in the response.',
+      help:
+          'Accepted for symmetry with the other verbs; the response never '
+          'embeds a snapshot (run tapir:snap to see the result).',
       defaultsTo: false,
     );
   }
@@ -65,15 +67,28 @@ class TapirSetCheckboxCommand extends DowelCommand {
       params,
     );
     reportFrameWarning(ctx, response);
-    if (includeSnapshot) {
+    if (includeSnapshot || wantsJson(ctx)) {
       ctx.output.writeln(jsonEncode(response));
-    } else {
-      emitEnvelope(
-        ctx,
-        response,
-        () => ctx.output.success('Checkbox $ref set to $value'),
-      );
+      return 0;
     }
+
+    // `effect.after` is read back off the control after the tap, so a tap
+    // that landed on nothing, or a parent that rejected the change, shows up
+    // here and a bare `✓ Checkbox e5 set to true` would hide it.
+    final effect = response['effect'] as Map<String, dynamic>?;
+    final verified = effect?['verified'] != false;
+    if (!verified) {
+      ctx.output.error(
+        'Set checkbox not verified: $ref reads ${effect?['after']} after the '
+        'tap, not $value',
+      );
+      return 1;
+    }
+    ctx.output.success(
+      response['toggled'] == true && response['previousValue'] == null
+          ? 'Checkbox $ref set to $value (it was mixed)'
+          : 'Checkbox $ref set to $value',
+    );
     return 0;
   }
 }

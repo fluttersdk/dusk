@@ -77,7 +77,7 @@ The recommended path is the CLI installer. From your project root, run:
 dart run tapir tapir:install
 ```
 
-This patches your `lib/main.dart` automatically: it adds the `kReleaseMode` import, wraps `TapirPlugin.install()` in a `!kReleaseMode` guard, injects `WidgetsFlutterBinding.ensureInitialized()` when missing, and detects Magic-stack apps so `MagicTapirIntegration.install()` lands AFTER `Magic.init(...)`. The command is idempotent; re-running it is safe. See [`tapir:install`](../commands/tapir-install.md) for the full sub-step list and the anchor strings the injector searches for.
+This patches your `lib/main.dart` automatically: it adds the `kReleaseMode` import, wraps `TapirPlugin.install()` in a `!kReleaseMode` guard, injects `WidgetsFlutterBinding.ensureInitialized()` when missing, and detects Magic-stack apps so `MagicTapirIntegration.install()` lands AFTER `Magic.init(...)` when the resolved `magic_devtools` ships `tapir.dart` (an older `magic_devtools` gets a warning and no Magic lines instead). The command is idempotent; re-running it is safe. See [`tapir:install`](../commands/tapir-install.md) for the full sub-step list and the anchor strings the injector searches for.
 
 ### Manual wiring (when you'd rather edit `main.dart` yourself)
 
@@ -110,7 +110,7 @@ either, both, or neither depending on your stack.
 
 | Integration | Package | Enrichment |
 |:------------|:--------|:-----------|
-| `MagicTapirIntegration.install()` | `magic_devtools` | MagicForm field values, validation state, named route per node. |
+| `MagicTapirIntegration.install()` | `magic_devtools` (a release built on tapir) | MagicForm field values, validation state, named route per node. |
 | `Wind.installDebugResolver()` (in `package:wind_kit/wind_kit.dart`) | `wind_kit` (any release that ships `Wind.installDebugResolver()`) | Wind state surfaces through the neutral `WindDebugRegistry` bridge; tapir emits the six core fields (breakpoint, brightness, platform, states, bgColor, textColor) automatically without enricher registration. |
 
 ```dart
@@ -123,6 +123,11 @@ if (!kReleaseMode) {
   Wind.installDebugResolver();    // wind UI only (from wind_kit)
 }
 ```
+
+`package:magic_devtools/tapir.dart` exists only in a `magic_devtools` release built on
+tapir; an older release has no tapir integration yet, so upgrade `magic_devtools` first.
+`tapir:install` writes the Magic lines only when the resolved package ships `tapir.dart`
+and otherwise warns.
 
 See [Magic integration](../plugins/magic-integration.md) and
 [Wind integration](../plugins/wind-integration.md) for the full enricher field reference.

@@ -24,7 +24,7 @@ post_install:
   message: |
     tapir plugin:installed. Bootstrap workflow:
 
-    0. Recommended path — `dart run tapir tapir:install` handles every
+    0. Recommended path: `dart run tapir tapir:install` handles every
        step below automatically (Phase 1 patches lib/main.dart, Phase 2 chains
        dowel install + plugin:install when needed). If you arrived here by
        running `plugin:install` directly, skip ahead to step 1 and patch
@@ -35,10 +35,12 @@ post_install:
 
          TapirPlugin.install();                         // before runApp() (or before Magic.init() for the Magic stack)
 
-    2. If you use Magic, ALSO call MagicTapirIntegration.install()
+    2. If you use Magic and your magic_devtools ships `package:magic_devtools/tapir.dart`
+       (a release built on tapir), ALSO call MagicTapirIntegration.install()
        AFTER Magic.init() to wire the Magic-side enrichers
        (magicControllerEnricher, magicFormErrorsEnricher, magicGateResultEnricher,
-        magicMiddlewareEnricher, magicAuthUserEnricher).
+        magicMiddlewareEnricher, magicAuthUserEnricher). An older magic_devtools has no
+       tapir integration yet: upgrade it first; tapir:install skips this line until then.
 
     3. If you use Wind, call `Wind.installDebugResolver()` inside `!kReleaseMode` (main barrel import).
        Wind state reaches tapir through the neutral

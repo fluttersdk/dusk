@@ -54,7 +54,7 @@ Reads the session's `state.json`, locates the live Chrome PID via `captureChrome
 
 ### 2. TAPIR_DISABLE env-var
 
-Reads the compile-time `--dart-define=TAPIR_DISABLE=<value>` constant of the doctor process itself, not of the running app: the doctor is a separate Dart process, so a define passed to `flutter run` or `dart run tapir start` is invisible to it. The check therefore confirms the define only when it was also passed to the doctor (`dart run --define=TAPIR_DISABLE=<value> tapir doctor`). Non-empty values WARN with the actual value echoed back. Empty value passes with a `✓` row, which says nothing about how the app was built.
+Reads the compile-time `--dart-define=TAPIR_DISABLE=<value>` constant of the doctor process itself, not of the running app: the doctor is a separate Dart process, so a define passed to `flutter run` or `dart run tapir start` is invisible to it. The check therefore confirms the define only when it was also passed to the doctor (`dart run --define=TAPIR_DISABLE=<value> tapir tapir:doctor`). Non-empty values WARN with the actual value echoed back. Empty value passes with a `✓` row, which says nothing about how the app was built.
 
 ### 3. Enricher list non-empty
 
@@ -66,11 +66,15 @@ Reports whether `RendererBinding.instance.semanticsEnabled` is true. The only ch
 
 ### 5. Magic-init detection (INFO-only)
 
-Reads `lib/main.dart` and reports one of three states:
+Reads `lib/main.dart` and reports one of these states:
 
 - `Magic-stack detected, integration wired`: both `Magic.init(` and `MagicTapirIntegration.install` are present.
-- `Magic detected but MagicTapirIntegration missing`: `Magic.init(` is present but the integration is not. Suggests re-running `tapir:install`.
+- `Magic detected but MagicTapirIntegration missing; wire it with tapir:install`: `Magic.init(` is present, the integration is not, and the resolved `magic_devtools` ships `lib/tapir.dart`.
+- `Magic detected, but the installed magic_devtools has no tapir integration yet; upgrade it to a release built on tapir, then rerun tapir:install`: the resolved `magic_devtools` has no `lib/tapir.dart`, so there is no class to wire yet.
+- `Magic detected, but no magic_devtools resolved; add a release built on tapir to dev_dependencies, run flutter pub get, then rerun tapir:install`: `.dart_tool/package_config.json` names no `magic_devtools`.
 - `vanilla Flutter detected`: no `Magic.init(` anchor.
+
+The `magic_devtools` check reads `.dart_tool/package_config.json` in the working directory, the same check `tapir:install` makes before it writes the Magic lines.
 
 INFO only; never fails the doctor regardless of the consumer stack.
 
@@ -143,7 +147,7 @@ Exit code: `0`. Only the Semantics tree check can fail the doctor; WARN and INFO
 
 ### 3. Consumer forgot to run `tapir:install`
 
-The doctor cannot directly detect missing `TapirPlugin.install()` from CLI context, but check 5 will report `Magic detected but MagicTapirIntegration missing` when the magic-stack glue is absent. Re-run `tapir:install` to fix.
+The doctor cannot directly detect missing `TapirPlugin.install()` from CLI context, but on a Magic app check 5 reports `Magic detected but MagicTapirIntegration missing; wire it with tapir:install` when the magic-stack glue is absent and the resolved `magic_devtools` ships `lib/tapir.dart`. Re-run `tapir:install` to fix. With an older `magic_devtools`, check 5 says to upgrade it first instead.
 
 ---
 

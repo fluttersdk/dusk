@@ -725,5 +725,166 @@ void main() {
         expect(effect['verified'], isFalse);
       },
     );
+
+    // -------------------------------------------------------------------------
+    // (q) A labelled container holding several controls names none of them:
+    //     tapping its centre would toggle whichever control sits there, not
+    //     the one whose state was read.
+    // -------------------------------------------------------------------------
+
+    _testWithSemantics(
+      '(q) a ref on a container holding three switches is refused and no '
+      'switch changes',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final List<bool> values = <bool>[false, false, false];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) => Scaffold(
+                body: Semantics(
+                  container: true,
+                  label: 'Notifications',
+                  child: Column(
+                    children: <Widget>[
+                      for (int i = 0; i < values.length; i++)
+                        SwitchListTile(
+                          title: Text('Channel $i'),
+                          value: values[i],
+                          onChanged: (v) => setState(() => values[i] = v),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Finder wrapper = find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Semantics && widget.properties.label == 'Notifications',
+        );
+        final Element element = tester.element(wrapper);
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = RefRegistry.registerForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+          node: tester.getSemantics(wrapper),
+        );
+
+        final future = aiTestSetCheckboxHandler(
+          'ext.tapir.set_checkbox',
+          <String, String>{'ref': ref, 'value': 'true'},
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(response.result, isNull);
+        final Map<String, dynamic> detail =
+            jsonDecode(response.errorDetail!) as Map<String, dynamic>;
+        expect(
+          detail['message'],
+          contains('holds more than one checkbox, switch or radio'),
+        );
+        expect(values, equals(<bool>[false, false, false]));
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // (r) A labelled container holding exactly one control: the tap goes to
+    //     that control's own rect, not to the container's centre.
+    // -------------------------------------------------------------------------
+
+    _testWithSemantics(
+      '(r) a ref on a container holding one switch toggles that switch even '
+      'when the container centre is elsewhere',
+      (WidgetTester tester) async {
+        // A device pixel ratio of 2: the semantics root transform carries it,
+        // and a tap target left in physical pixels lands off the switch.
+        tester.view.physicalSize = const Size(1600, 1200);
+        tester.view.devicePixelRatio = 2.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        bool wifi = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) => Scaffold(
+                body: Semantics(
+                  container: true,
+                  label: 'Wi-Fi',
+                  child: Row(
+                    children: <Widget>[
+                      const Text('Wi-Fi'),
+                      const SizedBox(width: 500, height: 48),
+                      // A list tile merges its switch into a node of its
+                      // own, so the container keeps no toggled flag.
+                      SizedBox(
+                        width: 200,
+                        child: SwitchListTile(
+                          title: const Text('On'),
+                          value: wifi,
+                          onChanged: (v) => setState(() => wifi = v),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final Finder wrapper = find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Semantics && widget.properties.label == 'Wi-Fi',
+        );
+        final Element element = tester.element(wrapper);
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final Rect rect = box.localToGlobal(Offset.zero) & box.size;
+        final Rect switchRect = tester.getRect(find.byType(SwitchListTile));
+        expect(
+          switchRect.contains(rect.center),
+          isFalse,
+          reason: 'the container centre must miss the switch',
+        );
+        final String ref = RefRegistry.registerForTesting(
+          rect: rect,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+          node: tester.getSemantics(wrapper),
+        );
+
+        final future = aiTestSetCheckboxHandler(
+          'ext.tapir.set_checkbox',
+          <String, String>{'ref': ref, 'value': 'true'},
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump();
+        final response = await future;
+
+        expect(wifi, isTrue);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['previousValue'], isFalse);
+        expect(decoded['toggled'], isTrue);
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['after'], isTrue);
+        expect(effect['verified'], isTrue);
+      },
+    );
   });
 }

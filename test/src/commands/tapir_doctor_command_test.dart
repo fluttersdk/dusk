@@ -5,6 +5,7 @@ import 'package:dowel/dowel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tapir/src/commands/tapir_doctor_command.dart';
+import 'package:tapir/src/commands/tapir_install_command.dart';
 import 'package:tapir/src/tapir_plugin.dart';
 
 import '../cdp/fake_cdp_server.dart';
@@ -29,6 +30,8 @@ void _resetDoctorHooks() {
   TapirDoctorCommand.currentDirectoryProbe =
       TapirDoctorCommand.defaultCurrentDirectory;
   TapirDoctorCommand.cdpSessionProbe = (int port, int? webPort) async => null;
+  TapirDoctorCommand.magicDevtoolsTapirProbe =
+      TapirDoctorCommand.defaultMagicDevtoolsTapirProbe;
 }
 
 void main() {
@@ -381,11 +384,7 @@ void main() {
       },
     );
 
-    test(
-      'INFO "Magic detected but MagicTapirIntegration missing" when main.dart '
-      'has Magic.init( but not the integration install call',
-      () async {
-        TapirDoctorCommand.mainDartReader = (String path) => '''
+    const String magicMain = '''
 import 'package:magic/magic.dart';
 
 Future<void> main() async {
@@ -394,6 +393,15 @@ Future<void> main() async {
   runApp(const MagicApplication());
 }
 ''';
+
+    test(
+      'INFO "Magic detected but MagicTapirIntegration missing" when main.dart '
+      'has Magic.init( but not the integration install call, and the '
+      'resolved magic_devtools ships tapir.dart',
+      () async {
+        TapirDoctorCommand.mainDartReader = (String path) => magicMain;
+        TapirDoctorCommand.magicDevtoolsTapirProbe = () =>
+            MagicDevtoolsTapirSupport.available;
 
         final output = BufferedOutput();
         final exit = await TapirDoctorCommand().handle(
@@ -404,12 +412,48 @@ Future<void> main() async {
         expect(
           output.content,
           contains(
-            'Magic detected but MagicTapirIntegration missing — install via '
+            'Magic detected but MagicTapirIntegration missing; wire it with '
             'tapir:install',
           ),
         );
       },
     );
+
+    test('a magic_devtools without tapir.dart gets upgrade advice, not '
+        'advice to wire a class it does not ship', () async {
+      TapirDoctorCommand.mainDartReader = (String path) => magicMain;
+      TapirDoctorCommand.magicDevtoolsTapirProbe = () =>
+          MagicDevtoolsTapirSupport.missing;
+
+      final output = BufferedOutput();
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, equals(0));
+      expect(output.content, contains('has no tapir integration yet'));
+      expect(
+        output.content,
+        contains('upgrade it to a release built on tapir'),
+      );
+      expect(output.content, isNot(contains('MagicTapirIntegration missing')));
+    });
+
+    test('an unresolved magic_devtools gets advice to add one built on '
+        'tapir', () async {
+      TapirDoctorCommand.mainDartReader = (String path) => magicMain;
+      TapirDoctorCommand.magicDevtoolsTapirProbe = () =>
+          MagicDevtoolsTapirSupport.unresolved;
+
+      final output = BufferedOutput();
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, equals(0));
+      expect(output.content, contains('no magic_devtools resolved'));
+      expect(output.content, isNot(contains('MagicTapirIntegration missing')));
+    });
 
     test(
       'INFO "Skipped (lib/main.dart unreadable)" when main.dart is absent',
