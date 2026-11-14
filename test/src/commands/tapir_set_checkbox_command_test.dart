@@ -94,5 +94,117 @@ void main() {
 
       expect(await TapirSetCheckboxCommand().handle(ctx), equals(0));
     });
+
+    test('a verified toggle exits 0 and prints the success line', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e5', 'value': 'true'}),
+        output: output,
+        response: const {
+          'ref': 'e5',
+          'previousValue': false,
+          'value': true,
+          'toggled': true,
+          'effect': {
+            'kind': 'checked',
+            'verified': true,
+            'before': false,
+            'after': true,
+          },
+        },
+      );
+
+      expect(await TapirSetCheckboxCommand().handle(ctx), equals(0));
+      expect(output.content, contains('Checkbox e5 set to true'));
+    });
+
+    test(
+      'an unverified toggle exits 1 and names the value read back',
+      () async {
+        final output = BufferedOutput();
+        final ctx = _StubContext(
+          input: MapInput(const {'ref': 'e5', 'value': 'true'}),
+          output: output,
+          response: const {
+            'ref': 'e5',
+            'previousValue': false,
+            'value': true,
+            'toggled': true,
+            'effect': {
+              'kind': 'checked',
+              'verified': false,
+              'before': false,
+              'after': false,
+            },
+          },
+        );
+
+        expect(await TapirSetCheckboxCommand().handle(ctx), equals(1));
+        expect(
+          output.content,
+          contains(
+            'Set checkbox not verified: e5 reads false after the tap, not true',
+          ),
+        );
+        expect(output.content, isNot(contains('Checkbox e5 set to true')));
+      },
+    );
+
+    test('a mixed checkbox that was set says it started mixed', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e5', 'value': 'true'}),
+        output: output,
+        response: const {
+          'ref': 'e5',
+          'previousValue': null,
+          'value': true,
+          'toggled': true,
+          'effect': {
+            'kind': 'checked',
+            'verified': true,
+            'before': null,
+            'after': true,
+          },
+        },
+      );
+
+      expect(await TapirSetCheckboxCommand().handle(ctx), equals(0));
+      expect(output.content, contains('Checkbox e5 set to true'));
+      expect(output.content, contains('was mixed'));
+    });
+
+    test('--json prints the whole envelope', () async {
+      final output = BufferedOutput();
+      final ctx = _StubContext(
+        input: MapInput(const {'ref': 'e5', 'value': 'true', 'json': true}),
+        output: output,
+        response: const {
+          'ref': 'e5',
+          'previousValue': false,
+          'value': true,
+          'toggled': true,
+          'effect': {
+            'kind': 'checked',
+            'verified': false,
+            'before': false,
+            'after': false,
+          },
+        },
+      );
+
+      await TapirSetCheckboxCommand().handle(ctx);
+
+      expect(output.content, contains('"previousValue":false'));
+      expect(output.content, contains('"verified":false'));
+      expect(output.content, isNot(contains('not verified')));
+    });
+
+    test('--includeSnapshot help says no snapshot is embedded', () {
+      final parser = ArgParser();
+      TapirSetCheckboxCommand().configure(parser);
+      final help = parser.options['includeSnapshot']!.help!;
+      expect(help, contains('never embeds a snapshot'));
+    });
   });
 }

@@ -6,6 +6,7 @@ import 'package:meta/meta.dart';
 
 import '../cdp/cdp_client.dart';
 import '../utils/chrome_reaper.dart';
+import 'tapir_install_command.dart';
 
 /// What a single probe of the recorded CDP port found.
 ///
@@ -71,7 +72,9 @@ final class TapirCdpSessionReport {
 ///   5. **Magic-init detection** ; reads `lib/main.dart` and reports whether
 ///      the consumer wired `Magic.init(` alongside `MagicTapirIntegration.
 ///      install()`. INFO only ; never fails the doctor regardless of the
-///      consumer stack.
+///      consumer stack. Advice to wire the integration is given only when
+///      the resolved `magic_devtools` ships `lib/tapir.dart`; otherwise the
+///      row says what to upgrade or add.
 ///   6. **Session ownership** ; compares `state.json`'s `projectRoot` against
 ///      the working directory. `~/.dowel/state.json` is one global slot, so
 ///      a sibling project's `dowel start` silently takes it and every
@@ -149,6 +152,12 @@ class TapirDoctorCommand extends DowelCommand {
   /// absent or unreadable so the check downgrades to an INFO "Skipped" row.
   static String? Function(String path) mainDartReader = _defaultMainDartReader;
 
+  /// Reports whether the consumer's resolved `magic_devtools` ships the
+  /// tapir integration, so the Magic advice never names a class the
+  /// consumer cannot import.
+  static MagicDevtoolsTapirSupport Function() magicDevtoolsTapirProbe =
+      defaultMagicDevtoolsTapirProbe;
+
   /// Resolves the directory the command is running from, compared against
   /// `state.json`'s `projectRoot` to catch a session that belongs to a
   /// sibling project.
@@ -167,6 +176,12 @@ class TapirDoctorCommand extends DowelCommand {
   /// to. A reset that rebuilds the same closure by hand leaves the real one
   /// unexercised, which is how a seam drifts from its default unnoticed.
   static String defaultCurrentDirectory() => Directory.current.path;
+
+  /// Production probe, and the value tests restore
+  /// [magicDevtoolsTapirProbe] to: the installer's own check, run against
+  /// the working directory, so the advice and the install never disagree.
+  static MagicDevtoolsTapirSupport defaultMagicDevtoolsTapirProbe() =>
+      TapirInstallCommand.magicDevtoolsTapirSupport(Directory.current.path);
 
   /// Production probe, and the value tests restore [cdpSessionProbe] to.
   /// Public for the same reason [CdpClient.defaultHttpGet] is: a seam a test
@@ -438,10 +453,21 @@ class TapirDoctorCommand extends DowelCommand {
       return;
     }
     if (hasMagicInit) {
-      ctx.output.info(
-        '$label: Magic detected but MagicTapirIntegration missing — install '
-        'via tapir:install',
-      );
+      // Only a magic_devtools that ships `lib/tapir.dart` has the class to
+      // wire; for any other, the advice is what to upgrade.
+      ctx.output.info(switch (magicDevtoolsTapirProbe()) {
+        MagicDevtoolsTapirSupport.available =>
+          '$label: Magic detected but MagicTapirIntegration missing; wire it '
+              'with tapir:install',
+        MagicDevtoolsTapirSupport.missing =>
+          '$label: Magic detected, but the installed magic_devtools has no '
+              'tapir integration yet; upgrade it to a release built on tapir, '
+              'then rerun tapir:install',
+        MagicDevtoolsTapirSupport.unresolved =>
+          '$label: Magic detected, but no magic_devtools resolved; add a '
+              'release built on tapir to dev_dependencies, run flutter pub '
+              'get, then rerun tapir:install',
+      });
       return;
     }
     ctx.output.info('$label: vanilla Flutter detected');

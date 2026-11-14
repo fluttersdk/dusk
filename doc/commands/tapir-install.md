@@ -4,7 +4,7 @@ One-shot bootstrap that patches a Flutter app's `lib/main.dart` for `tapir` and 
 
 It runs in two phases, both idempotent:
 
-1. **Patch `lib/main.dart`**: inject the imports (including `import 'package:magic_devtools/tapir.dart';` when applicable), `WidgetsFlutterBinding.ensureInitialized()`, and a `!kReleaseMode`-gated `TapirPlugin.install()` block before `runApp(` (debug and profile builds carry tapir, so `tapir:perf_run` can measure a profile build; release tree-shakes it). Magic-stack apps additionally wire `MagicTapirIntegration.install()` after `Magic.init(` when `magic_devtools:` is present in `pubspec.yaml`.
+1. **Patch `lib/main.dart`**: inject the imports (including `import 'package:magic_devtools/tapir.dart';` when applicable), `WidgetsFlutterBinding.ensureInitialized()`, and a `!kReleaseMode`-gated `TapirPlugin.install()` block before `runApp(` (debug and profile builds carry tapir, so `tapir:perf_run` can measure a profile build; release tree-shakes it). Magic-stack apps additionally wire `MagicTapirIntegration.install()` after `Magic.init(` when `magic_devtools:` is present in `pubspec.yaml` and the resolved `magic_devtools` ships `lib/tapir.dart`.
 2. **Chain fastcli setup**: best-effort `dart run tapir install` (scaffolds `bin/dispatcher.dart` + `./bin/dowel` AOT wrapper) + `dart run tapir plugin:install tapir` (registers `TapirDowelProvider`). Both sub-process calls are skipped when their idempotency markers already exist (`bin/dispatcher.dart` for the scaffold, `.dowel/installed/tapir.json` for the plugin record). Failures are swallowed with a warning; the Phase 1 patch always succeeds on its own, so the consumer can still drive tapir via `dart run tapir <cmd>` even when the chain skipped.
 
 Together, the two phases mean a fresh consumer needs only:
@@ -48,6 +48,7 @@ dart run tapir tapir:install
 |-------|---------|
 | `lib/main.dart` | Target file for snippet injection. |
 | `pubspec.yaml` | Inspected for a `magic_devtools:` dependency entry. Drives the conditional Magic wiring described under [Anchor modes](#anchor-modes). |
+| `.dart_tool/package_config.json` | Read only when the Magic wiring applies, to find the resolved `magic_devtools` and check that it ships `lib/tapir.dart`. The nearest one at or above the project is used, so a pub workspace member reads the workspace root's; an unreadable or invalid one counts as unresolved and gets the warning. |
 
 ---
 
@@ -70,7 +71,7 @@ No structured payload is emitted. Status flows through `DowelOutput.info` / `suc
 
 The injector picks one of two anchor strings depending on what `lib/main.dart` already contains:
 
-- **Magic-stack apps** (`lib/main.dart` contains `await Magic.init(`): `TapirPlugin.install()` is wired BEFORE `Magic.init(` so the driver is live during Magic boot. When `magic_devtools:` is also a pubspec dependency or dev_dependency, `import 'package:magic_devtools/tapir.dart';` is added and `MagicTapirIntegration.install()` is injected AFTER `Magic.init()` (the integration queries `Magic.find<X>()` for the form and nav enrichers, which only resolves once the container is ready).
+- **Magic-stack apps** (`lib/main.dart` contains `await Magic.init(`): `TapirPlugin.install()` is wired BEFORE `Magic.init(` so the driver is live during Magic boot. When `magic_devtools:` is also a pubspec dependency or dev_dependency, `import 'package:magic_devtools/tapir.dart';` is added and `MagicTapirIntegration.install()` is injected AFTER `Magic.init()` (the integration queries `Magic.find<X>()` for the form and nav enrichers, which only resolves once the container is ready). Both lines are written only when the resolved `magic_devtools` (from `.dart_tool/package_config.json`) ships `lib/tapir.dart`. A `magic_devtools` release that predates tapir does not, and importing it would leave a `lib/main.dart` that does not compile, so the installer skips the Magic lines and warns: upgrade `magic_devtools` to a release built on tapir first, then rerun `dart run tapir tapir:install`.
 - **Vanilla apps** (no `Magic.init` anchor): `TapirPlugin.install()` is wired immediately before `runApp(`.
 
 The installer does not wire Wind. When the consumer uses `wind_kit`, add `Wind.installDebugResolver()` by hand inside the same `!kReleaseMode` block as `TapirPlugin.install()`. `wind_kit` ships no tapir-specific integration class; tapir reads wind state through the neutral `WindDebugRegistry` bridge at snap time, independent of the Magic detection, so a magic-free app with that call still gets the wind metadata block.
@@ -81,7 +82,7 @@ The full sub-step list (from the source docblock):
 
 1. Add the two required imports (`kReleaseMode` from `package:flutter/foundation.dart`, only when a block is about to be injected; the `package:tapir/tapir.dart` barrel).
 2. Inject `WidgetsFlutterBinding.ensureInitialized()` (skip when already present) plus the `!kReleaseMode`-gated tapir block before the canonical install anchor, unless `TapirPlugin.install()` is already called.
-3. When pubspec has `magic_devtools:` (dependency or dev_dependency) AND main.dart has `await Magic.init(`, inject `import 'package:magic_devtools/tapir.dart';` and `MagicTapirIntegration.install()` AFTER that call, unless it is already called.
+3. When pubspec has `magic_devtools:` (dependency or dev_dependency), the resolved `magic_devtools` ships `lib/tapir.dart`, AND main.dart has `await Magic.init(`, inject `import 'package:magic_devtools/tapir.dart';` and `MagicTapirIntegration.install()` AFTER that call, unless it is already called.
 
 ---
 
@@ -131,7 +132,7 @@ The injector early-returns on every duplicate snippet. The output still prints `
 
 ### 3. Magic-stack app with the wind resolver
 
-When pubspec lists `magic_devtools:`, the post-install `lib/main.dart` looks like this, with the `Wind.installDebugResolver()` line and its import added by hand:
+When pubspec lists `magic_devtools:` and the resolved release ships `lib/tapir.dart`, the post-install `lib/main.dart` looks like this, with the `Wind.installDebugResolver()` line and its import added by hand:
 
 ```dart
 import 'package:flutter/foundation.dart' show kReleaseMode;

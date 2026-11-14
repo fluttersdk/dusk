@@ -1377,13 +1377,35 @@ Error: no selectable widget found (a `not found` error with candidate refs).
 Dispatch: `ext.tapir.set_checkbox`
 
 Read the checked or toggled state of a checkbox, switch or radio by ref and tap it only
-when it differs from `value`. The state comes from the Semantics node of the ref (its own
-node, else the nearest ancestor node, else the first descendant node that carries one), so
-a control from any library works: Flutter material, `material_ui`, `wind_kit` or a
-hand-built `Semantics(checked: ...)`. A ref with no checked or toggled state is refused
-with an error and never assumed unchecked. A mixed checkbox is always tapped once and
-reports `previousValue: null`. When the state already equals `value` the call does not tap
-and returns `toggled: false`.
+when it differs from `value`. The state is read from the first of these that applies, so
+a control from any library works (Flutter material, `material_ui`, `wind_kit` or a
+hand-built `Semantics(checked: ...)`):
+
+1. The ref's own node carries a checked or toggled flag: that flag is the state. A merging
+   tile folds the flags of the controls inside it into its own node, and they cannot be told
+   apart, so such a ref is read as one control and is never refused as ambiguous.
+2. The ref's own node carries no flag and exactly one descendant node does: that descendant.
+3. The ref was minted without a node (a `find_by_text` entry) and its render object owns
+   none: the nearest node above it, from that node's own flag only; an ancestor's subtree
+   holds siblings and is never searched. (A render object that owns a node makes it the
+   ref's own node, read as in cases 1 and 2.)
+
+It is refused when no state is found in any of these places, and when the ref's own node
+carries no flag and several descendant nodes do (pass the ref of one of them). A missing
+state is never assumed unchecked. A mixed checkbox is always tapped once and reports
+`previousValue: null`. When the state already equals `value` the call does not tap and
+returns `toggled: false`.
+
+The tap goes to the control whose state was read: a state read off a descendant (case 2) is
+tapped at that descendant's centre, and in the other cases at the ref's own centre.
+`set_checkbox` does not pass the actionability
+gate, so it does not scroll the control into view: a control marked `[offscreen]` or
+covered is missed and reported as `effect.verified: false`. Bring it on screen first
+with `tapir_scroll` on the containing list (its ref or the ref of a visible row), then
+call it. Do not `tapir_tap` the control to reveal it: the tap activates the control, so its
+value can change before `set_checkbox` reads it, and a value that already matched is
+toggled twice. The `tapir:set_checkbox` CLI exits 1 on `verified: false`, except with
+`--json` or `--includeSnapshot`, which print the response and exit 0.
 
 ### Input schema
 

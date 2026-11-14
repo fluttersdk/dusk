@@ -48,13 +48,13 @@ alphabetically; each link jumps to the per-tool entry in [tool-reference.md](too
 | [`tapir_blur`](tool-reference.md#tapir_blur) | Clear keyboard focus from whatever currently holds it. |
 | [`tapir_clear`](tool-reference.md#tapir_clear) | Empty the `TextEditingController` of a resolved text field. |
 | [`tapir_close_app`](tool-reference.md#tapir_close_app) | Request a graceful shutdown via `SystemNavigator.pop()`. |
-| [`tapir_console`](tool-reference.md#tapir_console) | Read recent log entries from the crumbs store. |
+| [`tapir_console`](tool-reference.md#tapir_console) | Read recent log entries: tapir's `debugPrint` capture, plus crumbs when it is wired. |
 | [`tapir_dblclick`](tool-reference.md#tapir_dblclick) | Double-click a widget by ref. |
 | [`tapir_device_profile`](tool-reference.md#tapir_device_profile) | Emulate a named device profile via CDP. |
 | [`tapir_dismiss_modals`](tool-reference.md#tapir_dismiss_modals) | Pop every modal route above the first persistent route. |
 | [`tapir_drag`](tool-reference.md#tapir_drag) | Drag from one widget to another by ref. |
 | [`tapir_evaluate`](tool-reference.md#tapir_evaluate) | Evaluate a Dart expression in the running isolate. |
-| [`tapir_exceptions`](tool-reference.md#tapir_exceptions) | Read recent exceptions from the crumbs store. |
+| [`tapir_exceptions`](tool-reference.md#tapir_exceptions) | Read recent exceptions: tapir's `FlutterError` capture, plus crumbs when it is wired. |
 | [`tapir_fill`](tool-reference.md#tapir_fill) | Focus + clear + type + settle a text field in one call (stale-retry). |
 | [`tapir_find`](tool-reference.md#tapir_find) | Mint a re-resolvable `q<N>` handle by text / label / key. |
 | [`tapir_focus`](tool-reference.md#tapir_focus) | Request keyboard focus on a widget by ref. |

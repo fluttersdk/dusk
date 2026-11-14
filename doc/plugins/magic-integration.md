@@ -63,6 +63,12 @@ void main() async {
 }
 ```
 
+`package:magic_devtools/tapir.dart` exists only in a `magic_devtools` release built on
+tapir; an older release has no tapir integration yet, and the import above does not
+compile against it. Upgrade `magic_devtools` first. `dart run tapir tapir:install` writes
+these lines only when the resolved `magic_devtools` ships `tapir.dart`; otherwise it skips
+them and warns, and `tapir:doctor` says what to upgrade.
+
 `install()` is idempotent; calling it twice in the same isolate is a no-op
 after the first call, matching `TapirPlugin.install()` semantics. Release
 builds tree-shake both `!kReleaseMode` branches. Installing tapir before `Magic.init()` keeps

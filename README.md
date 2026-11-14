@@ -31,7 +31,7 @@
 | Install | `dart pub add tapir`, then `dart run tapir tapir:install` |
 | Import | `package:tapir/tapir.dart` (`TapirPlugin.install()`, behind `if (!kReleaseMode)`) |
 | Entry points | `dart run tapir <command>`, `./bin/dowel <command>`, `TapirPlugin.install()`, `TapirPlugin.enrichers`, `TapirDowelProvider` (`package:tapir/cli.dart`), `dart run tapir mcp:serve` |
-| Platforms | Any Flutter target that exposes a VM Service in a debug or profile build: Android, iOS, web, macOS, Windows, Linux; viewport and device emulation need Chrome with a CDP port |
+| Platforms | Any Flutter target that exposes a VM Service in a debug or profile build: Android, iOS, web, macOS, Windows, Linux; viewport and device emulation need Chrome with a CDP port; `tapir_hot_reload_and_snap` writes to the `flutter run` stdin FIFO, so it needs a POSIX host; on a Windows host `mcp:install` writes a `dart run` entry, never `./bin/dowel` |
 | Requires | Dart 3.13, Flutter 3.47; a plugin of [`dowel`](https://pub.dev/packages/dowel) (`^0.0.21`) |
 | Dependencies | `dowel`, `image`, `meta`, `wind_kit_diagnostics_contracts`, `yaml`, the Flutter SDK |
 | License | MIT |
@@ -75,9 +75,9 @@ dart run tapir tapir:snap --interactiveOnly
 | Token | Minted by | Lifetime |
 |---|---|---|
 | `e<N>` | `tapir:snap` | The same Semantics node keeps its token across snapshots, and a token outlives its widget. A ref whose element left the tree is relocated by label (`reresolved` on the response) only when the snapshot recorded a binding for it, the live tree has the same number of nodes with that label and the match sits on the route the ref was minted on; otherwise it fails as `defunct` and you re-snap |
-| `q<N>` | `tapir:find`, `tapir:observe` | Re-resolved against the live tree on every action, like a Playwright Locator; survives rebuilds |
+| `q<N>` | `tapir:find`, `tapir:observe` | Re-resolved against the live tree on every action; survives rebuilds |
 
-Narrow a read with `--within=<eN>`, `--interactiveOnly` and `--grep=<regex>`; they compose. `--includeEnrichers` adds Wind state (the host calls `Wind.installDebugResolver()` from `wind_kit`, read through `wind_kit_diagnostics_contracts`) and Magic state (`MagicTapirIntegration.install()` from `magic_devtools`, after `Magic.init()`; see [Magic integration](https://anilcancakir.com/tapir/docs/plugins/magic-integration)). A ref line ending in `[offscreen]` or `[occluded]` names why an action would fail before you try it.
+Narrow a read with `--within=<eN>`, `--interactiveOnly` and `--grep=<regex>`; they compose. `--includeEnrichers` adds Wind state (the host calls `Wind.installDebugResolver()` from `wind_kit`, read through `wind_kit_diagnostics_contracts`) and Magic state (`MagicTapirIntegration.install()` from `package:magic_devtools/tapir.dart`, after `Magic.init()`; it exists only in a `magic_devtools` release built on tapir, and `tapir:install` warns and skips it otherwise; see [Magic integration](https://anilcancakir.com/tapir/docs/plugins/magic-integration)). A ref line ending in `[offscreen]` or `[occluded]` names why an action would fail before you try it.
 
 ## Actions and the actionability gate
 
@@ -86,7 +86,7 @@ dart run tapir tapir:tap --ref=e2 --snapshot=diff
 dart run tapir tapir:fill --ref=e1 --text="ada@example.com" --json
 ```
 
-Gestures (`tap`, `hover`, `drag`, `scroll`, `dblclick`, `right_click`, `triple_click`) and text verbs (`type`, `clear`, `fill`, `press_key`) dispatch real pointer and key events into the widget tree. `tap`, `hover`, `drag`, the click variants, `type`, `clear` and `fill` first pass the gate, in a fixed order, and a refusal names the reason an agent can branch on:
+Gestures (`tap`, `hover`, `drag`, `scroll`, `dblclick`, `right_click`, `triple_click`) and text verbs (`type`, `clear`, `fill`, `press_key`) dispatch real pointer and key events into the widget tree. `tap`, `hover`, `drag`, the click variants, `type` and `fill` first pass the gate (`clear`, `scroll`, `press_key`, `select_option` and `set_checkbox` skip it), in a fixed order, and a refusal names the reason an agent can branch on:
 
 | Check | Refusal substring | Recovery |
 |---|---|---|
@@ -110,7 +110,7 @@ dart run tapir tapir:wait --text="Welcome back" --timeoutMs=5000
 |---|---|
 | `tapir:wait` | Waits for `--text`, `--textGone` or `--expression` |
 | `tapir:wait_for_network_idle` | Waits until in-flight HTTP requests stay at zero for `--idleMs` |
-| `tapir:observe` | A flat candidate list of interactive widgets with `q<N>` handles: observe once, act many times (Stagehand's pattern, no model call inside tapir) |
+| `tapir:observe` | A flat candidate list of interactive widgets with `q<N>` handles: observe once, act many times (no model call inside tapir) |
 | `tapir:console`, `tapir:exceptions` | In-app `debugPrint` output and `FlutterError`s, overflow included; `--since=<iso8601>` scopes errors to one action |
 | `tapir:get_routes` | The router's location and the top page (`tapir:navigate` and `tapir:navigate_back` change it) |
 
@@ -148,7 +148,7 @@ dart run tapir tapir:perf_end
 
 ## MCP server and clients
 
-The `tapir_*` tools ride on the `dowel` MCP server, so the client config key is `dowel`. `dart run tapir mcp:install` writes the entry into `.mcp.json`: `./bin/dowel mcp:serve` when the fast wrapper exists and `dart run tapir mcp:serve` otherwise. Standard config for any client that reads `.mcp.json`:
+The `tapir_*` tools ride on the `dowel` MCP server, so the client config key is `dowel`. `dart run tapir mcp:install` writes the entry into `.mcp.json`: `./bin/dowel mcp:serve` when the fast wrapper exists on a POSIX host, and `dart run tapir mcp:serve` otherwise (always on Windows, where `./bin/dowel` is not used). Standard config for any client that reads `.mcp.json`:
 
 ```json
 { "mcpServers": { "dowel": { "command": "./bin/dowel", "args": ["mcp:serve"], "cwd": "." } } }

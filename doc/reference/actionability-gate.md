@@ -22,8 +22,8 @@ Widget ref=e5 is not actionable: not enabled
 ```
 
 The pointer verbs (`tap`, `hover`, `drag`, `dblclick`, `right_click`, `triple_click`) and the
-text verbs (`type`, `clear`, `fill`) run the gate BEFORE synthesising the pointer or key
-event. It lives in `lib/src/utils/actionability_gate.dart` and is invoked
+text verbs (`type`, `fill`) run the gate BEFORE synthesising the pointer or key
+event. `clear`, `focus`, `scroll`, `press_key`, `select_option` and `set_checkbox` skip it. It lives in `lib/src/utils/actionability_gate.dart` and is invoked
 through `ensureActionable(entry, ref: ...)`. The gate guards an agent against
 firing a gesture against a widget that cannot accept it: disabled, collapsed,
 off-screen, animating, or covered by another widget.
@@ -133,9 +133,10 @@ indistinguishable from a confirmed one: that is how a fill printed a green
 tick four times onto a row covered by a pinned footer, with nothing in any
 response to say the check had not run.
 
-The response carries a `checks` block whenever step 5 did not confirm. Every
-verb that runs the gate emits it, `tap`, `hover`, `drag`, `dblclick`,
-`right_click`, `triple_click` and the text verbs (`type` / `clear` / `fill`):
+The response carries a `checks` block whenever step 5 did not confirm. The
+gated verbs that emit it are `tap`, `hover`, `drag`, `dblclick`,
+`right_click`, `triple_click` and `type`; `fill` runs the gate through its
+type step but copies only `effect` into its own response:
 
 ```json
 {

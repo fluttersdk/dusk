@@ -4,8 +4,8 @@ import 'package:dowel/dowel.dart';
 
 import 'frame_warning_output.dart';
 
-/// `dowel tapir:console [--limit=<n>] [--minLevel=<level>]` — read recent
-/// log entries from the running app's crumbs store.
+/// `dowel tapir:console [--limit=<n>] [--minLevel=<level>]`: read recent
+/// log entries from tapir's `debugPrint` capture, plus crumbs when it is wired.
 ///
 /// Wraps the `ext.tapir.console` VM Service extension. The Dart-side reader
 /// reads through `CrumbsStore.recentLogs(...)` when
@@ -17,7 +17,8 @@ class TapirConsoleCommand extends DowelCommand {
 
   @override
   String get description =>
-      'Read recent log entries from the running app\'s crumbs store.';
+      'Read recent log entries from tapir\'s log capture of debugPrint '
+      'output, plus crumbs when it is wired.';
 
   @override
   CommandBoot get boot => CommandBoot.connected;

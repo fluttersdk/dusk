@@ -34,4 +34,4 @@ Each entry of `mcpTools()` is a const `McpToolDescriptor`: an imperative opening
 
 1. The command file, a handler under `lib/src/extensions/` unless it routes through the substrate, and its test under `test/src/commands/`.
 2. Append it to `commands()` and, unless CLI-only, a descriptor to `mcpTools()`; update the count and descriptor assertions in `test/tapir_dowel_provider_mcp_tools_test.dart`.
-3. Update the docs, every place that holds the counts, and the CHANGELOG.
+3. Update the docs and the CHANGELOG.

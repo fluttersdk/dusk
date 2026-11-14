@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dowel/dowel.dart';
@@ -9,10 +10,18 @@ import 'package:tapir/src/commands/tapir_install_command.dart';
 /// a `pubspec.yaml` that lists [pubspecDeps] entries under
 /// `dependencies:`. Returns the absolute path to the seeded main.dart so
 /// callers can inject it via [TapirInstallCommand.mainDartPathResolver].
+///
+/// [magicDevtoolsLibrary] names the one library the resolved `magic_devtools`
+/// ships (`tapir.dart` for a release built on tapir, `dusk.dart` for one that
+/// predates it); when set, a `.dart_tool/package_config.json` resolving the
+/// package is written too. [absoluteRootUri] writes its `rootUri` the way a
+/// pub-cache package carries it, rather than relative to `.dart_tool`.
 String _seedProject(
   Directory tempDir, {
   required String mainDartContents,
   Map<String, String> pubspecDeps = const {},
+  String? magicDevtoolsLibrary,
+  bool absoluteRootUri = false,
 }) {
   final mainDartPath = '${tempDir.path}/lib/main.dart';
   Directory('${tempDir.path}/lib').createSync(recursive: true);
@@ -31,6 +40,29 @@ String _seedProject(
     '',
   ].join('\n');
   File('${tempDir.path}/pubspec.yaml').writeAsStringSync(pubspec);
+  if (magicDevtoolsLibrary != null) {
+    final packageRoot = Directory('${tempDir.path}/packages/magic_devtools');
+    Directory('${packageRoot.path}/lib').createSync(recursive: true);
+    File('${packageRoot.path}/lib/$magicDevtoolsLibrary')
+        .writeAsStringSync('// stub\n');
+    Directory('${tempDir.path}/.dart_tool').createSync();
+    final rootUri = absoluteRootUri
+        ? packageRoot.uri.toString()
+        : '../packages/magic_devtools';
+    File('${tempDir.path}/.dart_tool/package_config.json').writeAsStringSync(
+      jsonEncode(<String, Object>{
+        'configVersion': 2,
+        'packages': <Map<String, String>>[
+          <String, String>{
+            'name': 'magic_devtools',
+            'rootUri': rootUri,
+            'packageUri': 'lib/',
+            'languageVersion': '3.4',
+          },
+        ],
+      }),
+    );
+  }
   return mainDartPath;
 }
 
@@ -86,6 +118,10 @@ void main() {
         isNot(contains('consumer:scaffold')),
         reason: 'minimal install must not advertise consumer:scaffold',
       );
+      // The chained `dowel install` does scaffold bin/dowel and
+      // bin/dispatcher.dart, so the description must not deny it.
+      expect(desc, isNot(contains('no bin/dowel.dart scaffold')));
+      expect(desc, contains('bin/dowel'));
     });
 
     // ------------------------------------------------------------------
@@ -156,6 +192,8 @@ class MyApp extends StatelessWidget {
       final mainDartPath = _seedProject(
         tempDir,
         pubspecDeps: const {'magic': 'any', 'magic_devtools': 'any'},
+        magicDevtoolsLibrary: 'tapir.dart',
+        absoluteRootUri: true,
         mainDartContents: '''
 import 'package:material_ui/material_ui.dart';
 import 'package:magic/magic.dart';
@@ -201,6 +239,247 @@ Future<void> main() async {
             'must reference the magic_devtools tapir barrel, not the '
             'removed package:magic sub-barrel',
       );
+    });
+
+    // ------------------------------------------------------------------
+    // A magic_devtools release that predates tapir: no Magic wiring
+    // ------------------------------------------------------------------
+
+    const magicMain = '''
+import 'package:material_ui/material_ui.dart';
+import 'package:magic/magic.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Magic.init(configFactories: [() => {}]);
+  runApp(const MagicApplication());
+}
+''';
+
+    test('magic-stack app whose resolved magic_devtools has no tapir.dart: '
+        'no Magic lines, one upgrade warning, exit 0', () async {
+      final mainDartPath = _seedProject(
+        tempDir,
+        pubspecDeps: const {'magic': 'any', 'magic_devtools': 'any'},
+        magicDevtoolsLibrary: 'dusk.dart',
+        mainDartContents: magicMain,
+      );
+      TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+      TapirInstallCommand.pubspecPathResolver = () =>
+          '${tempDir.path}/pubspec.yaml';
+      final output = BufferedOutput();
+
+      final exit = await TapirInstallCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, equals(0));
+      final result = File(mainDartPath).readAsStringSync();
+      expect(result.contains('TapirPlugin.install();'), isTrue);
+      expect(result.contains('magic_devtools'), isFalse);
+      expect(result.contains('MagicTapirIntegration'), isFalse);
+      expect(
+        'has no tapir integration yet'.allMatches(output.content).length,
+        equals(1),
+      );
+      expect(output.content, contains('dart run tapir tapir:install'));
+    });
+
+    test('magic-stack app with magic_devtools in pubspec but no '
+        'package_config.json: no Magic lines, the same warning', () async {
+      final mainDartPath = _seedProject(
+        tempDir,
+        pubspecDeps: const {'magic': 'any', 'magic_devtools': 'any'},
+        mainDartContents: magicMain,
+      );
+      TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+      TapirInstallCommand.pubspecPathResolver = () =>
+          '${tempDir.path}/pubspec.yaml';
+      final output = BufferedOutput();
+
+      final exit = await TapirInstallCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, equals(0));
+      final result = File(mainDartPath).readAsStringSync();
+      expect(result.contains('MagicTapirIntegration'), isFalse);
+      expect(output.content, contains('has no tapir integration yet'));
+    });
+
+    test('magicDevtoolsTapirSupport reads the package root from '
+        'package_config.json', () {
+      expect(
+        TapirInstallCommand.magicDevtoolsTapirSupport(tempDir.path),
+        equals(MagicDevtoolsTapirSupport.unresolved),
+      );
+
+      _seedProject(
+        tempDir,
+        mainDartContents: '',
+        magicDevtoolsLibrary: 'dusk.dart',
+      );
+      expect(
+        TapirInstallCommand.magicDevtoolsTapirSupport(tempDir.path),
+        equals(MagicDevtoolsTapirSupport.missing),
+      );
+
+      File('${tempDir.path}/packages/magic_devtools/lib/tapir.dart')
+          .writeAsStringSync('// stub\n');
+      expect(
+        TapirInstallCommand.magicDevtoolsTapirSupport(tempDir.path),
+        equals(MagicDevtoolsTapirSupport.available),
+      );
+    });
+
+    test('an invalid package_config.json reads as unresolved, and the '
+        'installer still exits 0 with the warning', () async {
+      final mainDartPath = _seedProject(
+        tempDir,
+        pubspecDeps: const {'magic': 'any', 'magic_devtools': 'any'},
+        mainDartContents: magicMain,
+      );
+      Directory('${tempDir.path}/.dart_tool').createSync();
+      File('${tempDir.path}/.dart_tool/package_config.json')
+          .writeAsStringSync('{ not json');
+      TapirInstallCommand.mainDartPathResolver = () => mainDartPath;
+      TapirInstallCommand.pubspecPathResolver = () =>
+          '${tempDir.path}/pubspec.yaml';
+      final output = BufferedOutput();
+
+      expect(
+        TapirInstallCommand.magicDevtoolsTapirSupport(tempDir.path),
+        equals(MagicDevtoolsTapirSupport.unresolved),
+      );
+      final exit = await TapirInstallCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(exit, equals(0));
+      expect(
+        File(mainDartPath).readAsStringSync(),
+        isNot(contains('MagicTapirIntegration')),
+      );
+      expect(output.content, contains('has no tapir integration yet'));
+    });
+
+    for (final MapEntry<String, Map<String, Object>> malformed
+        in <String, Map<String, Object>>{
+          'no rootUri': <String, Object>{
+            'name': 'magic_devtools',
+            'packageUri': 'lib/',
+          },
+          'a numeric rootUri': <String, Object>{
+            'name': 'magic_devtools',
+            'rootUri': 42,
+            'packageUri': 'lib/',
+          },
+          'a numeric packageUri': <String, Object>{
+            'name': 'magic_devtools',
+            'rootUri': '../packages/magic_devtools',
+            'packageUri': 7,
+          },
+          'a rootUri that does not parse': <String, Object>{
+            'name': 'magic_devtools',
+            'rootUri': 'file://[bad',
+            'packageUri': 'lib/',
+          },
+        }.entries) {
+      test('a magic_devtools entry with ${malformed.key} reads as '
+          'unresolved', () {
+        File('${tempDir.path}/pubspec.yaml')
+            .writeAsStringSync('name: stub_app\n');
+        Directory('${tempDir.path}/.dart_tool').createSync();
+        File('${tempDir.path}/.dart_tool/package_config.json')
+            .writeAsStringSync(
+              jsonEncode(<String, Object>{
+                'configVersion': 2,
+                'packages': <Map<String, Object>>[malformed.value],
+              }),
+            );
+
+        expect(
+          TapirInstallCommand.magicDevtoolsTapirSupport(tempDir.path),
+          equals(MagicDevtoolsTapirSupport.unresolved),
+        );
+      });
+    }
+
+    group('in a pub workspace', () {
+      // The workspace lives under the system temp directory, outside this
+      // repository, so the upward walk can only find the configs written
+      // here: a member with no config of its own and no workspace config
+      // above it reads as unresolved.
+      late Directory member;
+
+      setUp(() {
+        File('${tempDir.path}/pubspec.yaml').writeAsStringSync(
+          'name: workspace_root\n'
+          'environment:\n'
+          '  sdk: ^3.6.0\n'
+          'workspace:\n'
+          '  - packages/app\n',
+        );
+        member = Directory('${tempDir.path}/packages/app')
+          ..createSync(recursive: true);
+        File('${member.path}/pubspec.yaml').writeAsStringSync(
+          'name: app\n'
+          'environment:\n'
+          '  sdk: ^3.6.0\n'
+          'resolution: workspace\n',
+        );
+      });
+
+      test('a member without its own package config walks up to the '
+          'workspace root config', () {
+        expect(
+          TapirInstallCommand.magicDevtoolsTapirSupport(member.path),
+          equals(MagicDevtoolsTapirSupport.unresolved),
+        );
+
+        _seedProject(
+          tempDir,
+          mainDartContents: '',
+          magicDevtoolsLibrary: 'tapir.dart',
+        );
+        // _seedProject rewrote the root pubspec; the walk only reads
+        // `.dart_tool/package_config.json`, so that does not matter here.
+        expect(
+          TapirInstallCommand.magicDevtoolsTapirSupport(member.path),
+          equals(MagicDevtoolsTapirSupport.available),
+        );
+      });
+
+      test('a member-local package config takes precedence over the '
+          'workspace root config', () {
+        _seedProject(
+          tempDir,
+          mainDartContents: '',
+          magicDevtoolsLibrary: 'tapir.dart',
+        );
+        final Directory oldRelease = Directory(
+          '${member.path}/old/magic_devtools/lib',
+        )..createSync(recursive: true);
+        File('${oldRelease.path}/dusk.dart').writeAsStringSync('// stub\n');
+        Directory('${member.path}/.dart_tool').createSync();
+        File('${member.path}/.dart_tool/package_config.json').writeAsStringSync(
+          jsonEncode(<String, Object>{
+            'configVersion': 2,
+            'packages': <Map<String, String>>[
+              <String, String>{
+                'name': 'magic_devtools',
+                'rootUri': '../old/magic_devtools',
+                'packageUri': 'lib/',
+              },
+            ],
+          }),
+        );
+
+        expect(
+          TapirInstallCommand.magicDevtoolsTapirSupport(member.path),
+          equals(MagicDevtoolsTapirSupport.missing),
+        );
+      });
     });
 
     // ------------------------------------------------------------------
@@ -321,6 +600,7 @@ void main() {
       final mainDartPath = _seedProject(
         tempDir,
         pubspecDeps: const {'magic': 'any', 'magic_devtools': 'any'},
+        magicDevtoolsLibrary: 'tapir.dart',
         mainDartContents: '''
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:material_ui/material_ui.dart';

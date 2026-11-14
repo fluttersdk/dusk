@@ -38,6 +38,7 @@ Exit `0` is success and `1` is failure, including the verdicts a summary would h
 |---|---|
 | `tapir:wait`, `tapir:wait_for_network_idle` | The condition never resolved |
 | `tapir:fill`, `tapir:type` | `effect.verified` is false (the summary names what the field holds) |
+| `tapir:set_checkbox` | `effect.verified` is false (the summary names the value read back); `--json` and `--includeSnapshot` print the response and exit 0 |
 | `tapir:hot_reload_and_snap` | `reloaded` is false (the JSON is still printed) |
 | `tapir:perf_compare` | An error-level regression |
 | `tapir:perf_campaign` | Any scenario failed |
@@ -128,7 +129,7 @@ Flag names match the MCP parameter names (`--timeoutMs`, not `--timeout`), excep
 ./bin/dowel tapir:wait_for_network_idle --idleMs=800 --timeoutMs=8000 --pollIntervalMs=200
 ```
 
-`wait_for_network_idle` needs crumbs wired in the app; without it the count is always 0 and it succeeds at once.
+`wait_for_network_idle` reads the in-flight count from crumbs, a separate package that is not published yet; without it the count is always 0 and it succeeds at once, so assume it always reports idle.
 
 ### Navigation and overlays
 

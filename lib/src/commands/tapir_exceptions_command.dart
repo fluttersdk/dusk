@@ -5,12 +5,12 @@ import 'package:dowel/dowel.dart';
 import 'frame_warning_output.dart';
 
 /// `dowel tapir:exceptions [--limit=<n>] [--since=<iso8601>]` -- read recent
-/// exception entries from the running app's crumbs store.
+/// exception entries from the running app.
 ///
-/// Wraps the `ext.tapir.exceptions` VM Service extension. The Dart-side reader
-/// reads through `CrumbsStore.recentExceptions(...)` when
-/// `crumbs` is wired (host sets `recentExceptionsReader`);
-/// otherwise an empty list is returned (missing-crumbs graceful path).
+/// Wraps the `ext.tapir.exceptions` VM Service extension, which reads tapir's
+/// own buffer of non-fatal `FlutterError`s (filled by `TapirPlugin.install()`)
+/// and merges `CrumbsStore.recentExceptions(...)` when `crumbs` is wired
+/// (host sets `recentExceptionsReader`).
 ///
 /// When `--since` is provided, only exceptions whose `time` is strictly after
 /// the given ISO8601 timestamp are returned. This allows agents to compute
@@ -21,7 +21,8 @@ class TapirExceptionsCommand extends DowelCommand {
 
   @override
   String get description =>
-      'Read recent exception entries from the running app\'s crumbs store.';
+      'Read recent exception entries from tapir\'s FlutterError capture, '
+      'plus crumbs when it is wired.';
 
   @override
   CommandBoot get boot => CommandBoot.connected;
