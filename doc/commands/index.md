@@ -71,7 +71,7 @@ Keyboard-shaped actions. `tapir:type` emits a character sequence; `tapir:press_k
 | `tapir:press_key` | Synthesise a hardware-key event on the currently focused widget. | connected | ext.tapir.press_key |
 | `tapir:clear` | Empty the text content of the focused widget by ref. | connected | ext.tapir.clear |
 | `tapir:select_option` | Select an option in a DropdownButton by ref token (calls its `onChanged`). | connected | ext.tapir.select_option |
-| `tapir:set_checkbox` | Set the checked state of a checkbox, switch or radio by ref, from any library. The control is scrolled into view and gated like a tap; `--value` takes `true`, `false`, `1` or `0`. | connected | ext.tapir.set_checkbox |
+| `tapir:set_checkbox` | Set the checked state of a checkbox, switch or radio by ref, from any library. The control is scrolled into view and gated like a tap, with the same `--[no-]checkStable` and `--[no-]checkReceivesEvents` flags; `--value` takes `true`, `false`, `1` or `0`. | connected | ext.tapir.set_checkbox |
 | `tapir:wait_for` | Wait for a text, text-gone, or expression condition in the running app. | connected | ext.tapir.wait_for |
 | `tapir:wait_for_network_idle` | Wait until the running app reports zero in-flight HTTP requests for a contiguous idleMs window. | connected | ext.tapir.wait_for_network_idle |
 

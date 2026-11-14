@@ -1445,11 +1445,16 @@ confirm the control receives the event, the response also carries the `checks` b
 [Actionability gate](../reference/actionability-gate.md#what-the-gate-could-not-prove)); it
 is absent on a confirmed pass and on a call that tapped nothing.
 
+A control the tap removes or rebuilds (an "I agree" box that hides itself once ticked) leaves
+nothing to read back, so the call answers `toggled: true` with `effect.verified: false` although
+the toggle worked. That is expected; run `tapir_snap` again to confirm the screen moved on.
+
 Errors: a ref with no checked or toggled state, and a ref holding several controls, are
 `refused` (code `-32001`); a `value` that is not a boolean is `invalid_param` (`-32602`); a
 gate failure carries the gate's reason and type. The `tapir:set_checkbox` CLI exits 1 on
 `verified: false`, except with `--json` or `--includeSnapshot`, which print the response and
-exit 0. The command has no gate flags.
+exit 0. The command takes the two gate inputs as `--[no-]checkStable` and
+`--[no-]checkReceivesEvents`.
 
 ### Example call
 

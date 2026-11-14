@@ -164,10 +164,7 @@ The `tapir_*` tools ride on the `dowel` MCP server, so the client config key is 
 | Claude Desktop | `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`, Windows: `%APPDATA%\Claude\`) |
 | Codex | `codex mcp add dowel ./bin/dowel mcp:serve` |
 
-| Without tapir | With tapir |
-|---|---|
-| You hot reload, screenshot, drag the PNG into the chat, paste widget source and ask why the button does nothing. | The agent calls `tapir_snap`, then `tapir_tap` on `e7`; the gate checks the button, the tap lands, a fresh snap confirms it. |
-| You add `Future.delayed` and re-run to tell a timing issue from a bug. | The gate refuses with a reason (`not stable`, `obscured by`, `off-viewport`) that names the cause. |
+Without tapir you hot reload, take a screenshot, drag the PNG into the chat, paste the widget source and ask why the button does nothing. With it the agent calls `tapir_snap`, then `tapir_tap` on `e7`: the gate checks the button, the tap lands and a fresh snap confirms it. A timing issue no longer needs a `Future.delayed` and a re-run to tell it from a bug, because the gate refuses with a reason that names the cause (`not stable`, `obscured by`, `off-viewport`).
 
 ## For AI coding agents
 

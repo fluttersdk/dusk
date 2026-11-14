@@ -3,7 +3,7 @@
 # INSTEAD of .gitignore (not in addition), so this file repeats every
 # exclusion .gitignore enforces plus the publish-specific extras.
 #
-# Goal: keep the published archive lean (target < 500 KB compressed).
+# Goal: keep the published archive lean.
 
 # ---------------------------------------------------------------------------
 # example/: keep lib/ + pubspec.yaml + README.md so pub.dev's Example

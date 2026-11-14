@@ -2,7 +2,7 @@
 
 Verify the `tapir` runtime and the consumer-side wiring health in a single pass.
 
-`tapir:doctor` reads the consumer's filesystem and the dowel session state file, and, when a session is recorded, asks the running app once over the VM Service (`ext.tapir.boot_id`) for what only the app can report: whether tapir registered, whether the Semantics tree is on and how many snapshot enrichers it holds. It runs the checks below in order, each emitting one row via the `DowelOutput` facade (a coloured `✓` / `⚠` / `✗` / `ℹ` symbol in TTY mode, plain text under buffered or null output).
+`tapir:doctor` reads the consumer's filesystem and the dowel session state file, and, when a session is recorded, asks the running app over the VM Service (`ext.tapir.boot_id`) for what only the app can report: whether tapir registered, whether the Semantics tree is on and how many snapshot enrichers it holds. It runs the checks below in order, each emitting one row via the `DowelOutput` facade (a coloured `✓` / `⚠` / `✗` / `ℹ` symbol in TTY mode, plain text under buffered or null output).
 
 - [Synopsis](#synopsis)
 - [Arguments](#arguments)
@@ -54,7 +54,7 @@ Reads the session's `state.json`, locates the live Chrome PID via `captureChrome
 
 ### 2. TAPIR_DISABLE
 
-Asks the running app, not the doctor process: a define passed to `flutter run` or `dart run tapir start` is invisible to the CLI, so the row reads the answer of `ext.tapir.boot_id`. When the app answers, the row says `not set in the running app (ext.tapir.* live)`. When the app runs but registers no `ext.tapir.*` extension, the row WARNs: `the running app registers no ext.tapir.* extension; it was built with --dart-define=TAPIR_DISABLE=1, or it never calls TapirPlugin.install()`. With no session, or an app that did not answer, the row is an INFO skip.
+Asks the running app, not the doctor process: a define passed to `flutter run` or `dart run tapir start` is invisible to the CLI, so the row reads the answer of `ext.tapir.boot_id`. When the app answers, the row says `not set in the running app (ext.tapir.* live)`. When the app runs but registers no `ext.tapir.*` extension, the row WARNs: `the running app registers no ext.tapir.* extension; it was built with --dart-define=TAPIR_DISABLE=1, or it never calls TapirPlugin.install()`. That answer is asked again once, after a second, because a hot restart drops every extension until tapir registers them again; only the second one counts. With no session, or an app that did not answer, the row is an INFO skip.
 
 ### 3. Snapshot enrichers
 

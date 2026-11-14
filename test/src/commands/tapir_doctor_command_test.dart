@@ -84,6 +84,7 @@ void _resetDoctorHooks() {
   TapirDoctorCommand.cdpSessionProbe = (int port, int? webPort) async => null;
   TapirDoctorCommand.magicDevtoolsTapirProbe =
       TapirDoctorCommand.defaultMagicDevtoolsTapirProbe;
+  TapirDoctorCommand.registrationRetryWait = (Duration _) async {};
 }
 
 void main() {
@@ -244,6 +245,77 @@ void main() {
         contains('TAPIR_DISABLE: Skipped (no running app'),
       );
     });
+
+    test('a not-registered answer right after a hot restart is asked again '
+        'once, after a second, and the second answer counts', () async {
+      final List<TapirAppReport> answers = <TapirAppReport>[
+        const TapirAppReport.notRegistered(),
+        const TapirAppReport.answered(semanticsEnabled: true, enrichers: 0),
+      ];
+      int probes = 0;
+      TapirDoctorCommand.appProbe = (Map<String, dynamic>? state) async =>
+          answers[probes++];
+      final List<Duration> waits = <Duration>[];
+      TapirDoctorCommand.registrationRetryWait = (Duration wait) async {
+        waits.add(wait);
+      };
+      final output = BufferedOutput();
+
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(probes, equals(2));
+      expect(waits, equals(<Duration>[const Duration(seconds: 1)]));
+      expect(exit, equals(0));
+      expect(output.content, contains('TAPIR_DISABLE: not set'));
+      expect(output.content, isNot(contains('TapirPlugin.install has not')));
+    });
+
+    test('a second not-registered answer is the error', () async {
+      int probes = 0;
+      TapirDoctorCommand.appProbe = (Map<String, dynamic>? state) async {
+        probes++;
+        return const TapirAppReport.notRegistered();
+      };
+      final output = BufferedOutput();
+
+      final exit = await TapirDoctorCommand().handle(
+        DowelContext.bare(MapInput(const {}), output),
+      );
+
+      expect(probes, equals(2));
+      expect(exit, equals(1));
+      expect(
+        output.content,
+        contains('TAPIR_DISABLE: the running app registers no ext.tapir.*'),
+      );
+    });
+
+    test(
+      'an app that answers first time is asked once, without a wait',
+      () async {
+        int probes = 0;
+        TapirDoctorCommand.appProbe = (Map<String, dynamic>? state) async {
+          probes++;
+          return const TapirAppReport.answered(
+            semanticsEnabled: true,
+            enrichers: 0,
+          );
+        };
+        final List<Duration> waits = <Duration>[];
+        TapirDoctorCommand.registrationRetryWait = (Duration wait) async {
+          waits.add(wait);
+        };
+
+        await TapirDoctorCommand().handle(
+          DowelContext.bare(MapInput(const {}), BufferedOutput()),
+        );
+
+        expect(probes, equals(1));
+        expect(waits, isEmpty);
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------

@@ -38,6 +38,16 @@ class TapirSetCheckboxCommand extends DowelCommand {
           'embeds a snapshot (run tapir:snap to see the result).',
       defaultsTo: false,
     );
+    parser.addFlag(
+      'checkStable',
+      help: 'Run the Stable (2-frame rect-unchanged) actionability gate.',
+      defaultsTo: true,
+    );
+    parser.addFlag(
+      'checkReceivesEvents',
+      help: 'Run the Receives-Events (front-most hit-test) actionability gate.',
+      defaultsTo: true,
+    );
   }
 
   @override
@@ -56,10 +66,15 @@ class TapirSetCheckboxCommand extends DowelCommand {
 
     final includeSnapshot =
         (ctx.input.option('includeSnapshot') as bool?) ?? false;
+    final checkStable = (ctx.input.option('checkStable') as bool?) ?? true;
+    final checkReceivesEvents =
+        (ctx.input.option('checkReceivesEvents') as bool?) ?? true;
     final params = <String, dynamic>{
       'ref': ref,
       'value': value,
       'includeSnapshot': includeSnapshot.toString(),
+      'checkStable': checkStable.toString(),
+      'checkReceivesEvents': checkReceivesEvents.toString(),
     };
 
     final response = await ctx.callExtension<Map<String, dynamic>>(

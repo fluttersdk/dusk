@@ -164,6 +164,7 @@ class TapirQuery {
 /// page's only "Email" once navigation swapped one for the other.
 @immutable
 final class RefBinding {
+  /// Binds [query] to the [matchCount] namesakes seen at mint, on [route].
   const RefBinding({required this.query, required this.matchCount, this.route});
 
   /// The label predicate plus index that re-finds the node.

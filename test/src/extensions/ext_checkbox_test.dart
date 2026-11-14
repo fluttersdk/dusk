@@ -1183,6 +1183,54 @@ void main() {
         expect(effect['verified'], isFalse);
       },
     );
+
+    _testWithSemantics(
+      'a checkbox that removes itself when ticked toggles but reads '
+      'verified: false, since nothing is left to read back',
+      (WidgetTester tester) async {
+        bool agreed = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) => Scaffold(
+                body: agreed
+                    ? const Text('Agreed')
+                    : Checkbox(
+                        value: false,
+                        onChanged: (v) => setState(() => agreed = v ?? false),
+                      ),
+              ),
+            ),
+          ),
+        );
+
+        final Element element = tester.element(find.byType(Checkbox));
+        final RenderBox box = element.findRenderObject()! as RenderBox;
+        final String ref = registerRefForTesting(
+          rect: box.localToGlobal(Offset.zero) & box.size,
+          element: element,
+          groupId: 'g',
+          isTextField: false,
+        );
+
+        final response = await _drive(
+          tester,
+          tapirSetCheckboxHandler('ext.tapir.set_checkbox', <String, String>{
+            'ref': ref,
+            'value': 'true',
+          }),
+        );
+
+        expect(agreed, isTrue, reason: 'the tap reached the checkbox');
+        expect(find.text('Agreed'), findsOneWidget);
+        final Map<String, dynamic> decoded =
+            jsonDecode(response.result!) as Map<String, dynamic>;
+        expect(decoded['toggled'], isTrue);
+        final Map<String, dynamic> effect =
+            decoded['effect'] as Map<String, dynamic>;
+        expect(effect['verified'], isFalse);
+      },
+    );
   });
 }
 

@@ -43,7 +43,7 @@ The gate evaluates its preconditions in a fixed order (a defunct preflight, then
 FROZEN**: agents branch on the failure-reason
 substring, so adding, removing, or reordering checks is a breaking change.
 
-0. **Defunct (preflight)**; the entry's `Element` may have been deactivated by parent
+0. **Defunct (preflight)**: the entry's `Element` may have been deactivated by parent
    rebuild, route pop, or list-item recycle since the snapshot minted the ref.
    `findRenderObject()` returns null, or the framework throws on the inactive element.
    This guard runs before the five ordered checks below. Failure reasons:
@@ -51,17 +51,17 @@ substring, so adding, removing, or reordering checks is a breaking change.
    `defunct (element no longer mounted)`. Both texts are FROZEN, word for
    word, and so is the leading `defunct`: an agent may branch on either the
    prefix or the whole reason. The agent's recovery is to re-snap.
-1. **Enabled**; the entry's `SemanticsNode` is non-null AND its
+1. **Enabled**: the entry's `SemanticsNode` is non-null AND its
    `flagsCollection.isEnabled` is `Tristate.isFalse`. `Tristate.none` (no
    enabled flag set, e.g. plain `Text`) and `Tristate.isTrue` both pass. The
    gate only fails when the framework has explicitly marked the widget
    disabled. Synthetic entries without a captured `SemanticsNode` (for example,
    `find_by_text` results) pass through this check untouched.
-2. **Zero-area rect**; the entry's `rect.width == 0 || rect.height == 0`. A
+2. **Zero-area rect**: the entry's `rect.width == 0 || rect.height == 0`. A
    zero-area rect cannot receive a pointer event at `rect.center` and almost
    always indicates the widget has been collapsed or detached between snapshot
    and action.
-3. **Off-viewport**; the entry's rect does not intersect the active
+3. **Off-viewport**: the entry's rect does not intersect the active
    `FlutterView`'s visible logical viewport (recomputed every call from
    `WidgetsBinding.instance.platformDispatcher.views.firstOrNull` so window
    resizes between actions are honoured). Visible means the view minus its
@@ -72,7 +72,7 @@ substring, so adding, removing, or reordering checks is a breaking change.
    scroll-into-view cannot place the target inside the viewport. Skipped
    gracefully when no `FlutterView` is attached (headless test harnesses,
    multi-view race).
-4. **Stable**; the entry's bounding box, sampled from the
+4. **Stable**: the entry's bounding box, sampled from the
    live `RenderBox` before and after one frame, has not drifted by more than
    0.5 logical pixels on any side. Animated widgets (sliding sheets,
    expanding tiles, page transitions) fail this gate so the agent waits for
@@ -80,7 +80,7 @@ substring, so adding, removing, or reordering checks is a breaking change.
    layout change that finished before the gate ran (the soft keyboard
    opening, the step 3 auto-scroll) does not trip this check. Opt out via
    `checkStable: false`.
-5. **Receives events**; a hit-test at the centre of the part of the rect that
+5. **Receives events**: a hit-test at the centre of the part of the rect that
    lies inside the visible viewport (the plain `rect.center` when the whole
    rect is on screen, which is where the pointer will land) on the
    active view confirms the entry's render object (or a descendant) appears
@@ -222,7 +222,7 @@ Future<ActionabilityReport> ensureActionable(
 
 The pointer verbs, `type`, `fill` and `set_checkbox` expose the same two flags as `checkStable` and
 `checkReceivesEvents` inputs (see [tool-reference.md](../mcp/tool-reference.md)); both default to `true`.
-The `tapir:set_checkbox` command has no flag for them; the `tapir_set_checkbox` tool and the extension take them.
+The matching CLI commands take them as `--no-checkStable` and `--no-checkReceivesEvents`, `tapir:set_checkbox` included.
 
 <a name="intentional-gate-skips"></a>
 ## Intentional gate skips
@@ -230,13 +230,13 @@ The `tapir:set_checkbox` command has no flag for them; the `tapir_set_checkbox` 
 Some action handlers do NOT route through the actionability gate. These skips
 are deliberate and listed here so contributors do not add the gate "for symmetry":
 
-- **`scroll`**; operates on the parent `Scrollable` rather than the ref
+- **`scroll`**: operates on the parent `Scrollable` rather than the ref
   target. Gating the ref would refuse scrolls against widgets that are
   off-viewport, which is exactly the scenario `tapir_scroll` is meant to fix.
-- **`select_option`**; calls the dropdown's `onChanged` callback directly
+- **`select_option`**: calls the dropdown's `onChanged` callback directly
   instead of tapping, so no pointer event leaves the VM and there is nothing
   for the gate to check.
-- **`press_key`**; targets the currently focused widget, not a ref. The gate
+- **`press_key`**: targets the currently focused widget, not a ref. The gate
   contract requires a `RefEntry`; the focused widget may not have a token.
 
 <a name="cross-package-implications"></a>

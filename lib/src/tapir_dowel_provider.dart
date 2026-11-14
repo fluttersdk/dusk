@@ -1366,6 +1366,10 @@ class TapirDowelProvider extends DowelServiceProvider {
           '`toggled` says whether a tap was issued, `previousValue` is null '
           'for a mixed control, and `value`, `effect.after` and '
           '`effect.verified` report the state read back after the tap.\n'
+          '- A control the tap removes or rebuilds (an "I agree" box that '
+          'hides once ticked) has nothing left to read back, so it answers '
+          '`verified: false` although the toggle worked; snap again to '
+          'confirm.\n'
           '\n'
           'Example: `{ "ref": "e4", "value": "true" }`',
       inputSchema: <String, dynamic>{

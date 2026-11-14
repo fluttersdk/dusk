@@ -60,8 +60,10 @@ final class PerfInteraction {
   int? get closedAtUs => _closedAtUs;
   int? _closedAtUs;
 
+  /// Whether the interaction has not settled yet; a closed one is absent.
   bool get isOpen => _closedAtUs == null;
 
+  /// The handle as JSON, with `closedAtUs` null while it is still open.
   Map<String, Object?> toJson() => <String, Object?>{
     'id': id,
     'verb': verb,

@@ -102,9 +102,10 @@ final class TapirAppReport {
 ///      check downgrades to an INFO "Skipped" row when no state.json exists,
 ///      no Chrome can be found, or the lstart probe fails (POSIX-only;
 ///      Windows skips through the chrome_reaper's session-scoped warning).
-///   2 to 4 ask the running app, once, over the session's VM Service
-///      ([appProbe], an `ext.tapir.boot_id` call); with no session, or an
-///      app that does not answer, each prints a skipped row.
+///   2 to 4 ask the running app over the session's VM Service ([appProbe],
+///      an `ext.tapir.boot_id` call), once more after
+///      [registrationRetryDelay] when it registers no `ext.tapir.*`; with no
+///      session, or an app that does not answer, each prints a skipped row.
 ///   2. **TAPIR_DISABLE** ; WARN when the app registers no `ext.tapir.*`
 ///      (built with `TAPIR_DISABLE`, or no `TapirPlugin.install()` call).
 ///   3. **Snapshot enrichers** ; the count the app registered. Zero means
@@ -181,6 +182,16 @@ class TapirDoctorCommand extends DowelCommand {
   /// app's build.
   static Future<TapirAppReport?> Function(Map<String, dynamic>? state)
   appProbe = defaultAppProbe;
+
+  /// Waits [registrationRetryDelay] before [appProbe] is asked again; tests
+  /// substitute a wait that returns at once.
+  static Future<void> Function(Duration wait) registrationRetryWait =
+      Future<void>.delayed;
+
+  /// How long the doctor waits before asking an app that registered no
+  /// `ext.tapir.*` a second time. `ext.tapir.boot_id` registers last, so a
+  /// run right after a hot restart can land before tapir has registered.
+  static const Duration registrationRetryDelay = Duration(seconds: 1);
 
   /// Builds the VM Service client [defaultAppProbe] connects with; tests
   /// substitute a fake.
@@ -387,8 +398,15 @@ class TapirDoctorCommand extends DowelCommand {
     // 1. Hot-restart staleness probe.
     await _renderStaleness(ctx);
 
-    // 2 to 4 read the running app, asked once.
-    final TapirAppReport? app = await appProbe(await stateFileReader());
+    // 2 to 4 read the running app. A not-registered answer is asked once
+    // more, since a hot restart drops every extension until tapir registers
+    // them again; only the second one is the app's state.
+    final Map<String, dynamic>? state = await stateFileReader();
+    TapirAppReport? app = await appProbe(state);
+    if (app?.status == TapirAppStatus.notRegistered) {
+      await registrationRetryWait(registrationRetryDelay);
+      app = await appProbe(state);
+    }
 
     // 2. Is tapir registered in the app, or did its build disable it?
     _renderTapirDisable(ctx, app);

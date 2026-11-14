@@ -54,7 +54,7 @@ On web with a `cdpPort` in the session, `snap`, `observe`, `tap`, `fill`, `type`
 | Flag | Default | On |
 |---|---|---|
 | `--ref=<eN or qN>` | required | The ref-taking verbs |
-| `--[no-]checkStable`, `--[no-]checkReceivesEvents` | on | `tap`, `double_click`, `right_click`, `triple_click`, `hover`, `drag`, `type`, `fill` (`set_checkbox` is gated too, but only the MCP tool takes these two) |
+| `--[no-]checkStable`, `--[no-]checkReceivesEvents` | on | `tap`, `double_click`, `right_click`, `triple_click`, `hover`, `drag`, `type`, `fill`, `set_checkbox` |
 | `--includeSnapshot` | off (the MCP tools default it on) | The action verbs; prints the envelope with the post-action snapshot |
 | `--snapshot=full\|diff\|none` | none | `tap`, `fill`, `type`, `navigate`, `scroll`; prints the snapshot after the summary and overrides `--includeSnapshot` |
 
