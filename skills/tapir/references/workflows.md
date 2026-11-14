@@ -23,7 +23,7 @@ Playbooks for the longer loops an agent runs through tapir. Each assumes the app
 2. tapir_fill { ref: "q1", text: "user@example.com" }     effect.verified must be true
 3. tapir_fill { ref: "q2", text: "secret" }
 4. tapir_tap { ref: "q3" }                                a disabled button fails "not enabled"
-5. tapir_wait_for_network_idle { idleMs: 800, timeoutMs: 8000 }   only with crumbs (not published yet)
+5. tapir_wait_for_network_idle { idleMs: 800, timeoutMs: 8000 }   only with the count wired to crumbs
 6. tapir_snap { interactiveOnly: true }                   an error label, a banner, or the next screen
 ```
 

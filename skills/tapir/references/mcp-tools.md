@@ -169,7 +169,7 @@ Not gated; a delta is a `jumpTo` clamped to the extents. Returns `{ scrolled, fi
 
 ### tapir_wait_for_network_idle
 
-`timeoutMs` (5000), `idleMs` (500, the contiguous zero window), `pollIntervalMs` (200, minimum 100). Returns `{ matched: true, idleAchievedMs }`; a timeout is an error of type `timeout` whose message names `maxPending`. The in-flight count comes from crumbs, a separate package that is not published yet: without it the count is always 0 and the call returns `matched: true` at once, so assume it always reports idle.
+`timeoutMs` (5000), `idleMs` (500, the contiguous zero window), `pollIntervalMs` (200, minimum 100). Returns `{ matched: true, idleAchievedMs }`; a timeout is an error of type `timeout` whose message names `maxPending`. The in-flight count comes from `pendingHttpCountReader`, which an app wires to the separate `crumbs` package (`() => CrumbsStore.pendingHttpCount`): until it is wired the count is always 0 and the call returns `matched: true` at once, so assume it always reports idle.
 
 ## Navigation and overlays
 
